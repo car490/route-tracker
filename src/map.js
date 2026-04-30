@@ -3,7 +3,6 @@ let _posMarker = null;
 let _routeLine = null;
 let _depotStartLine = null;
 let _depotEndLine = null;
-let _routeBounds = null;
 const _stopMarkers = [];
 
 function stopStyle(state) {
@@ -36,7 +35,8 @@ async function fetchRoadGeometry(stops) {
   return null;
 }
 
-export async function initMap(stops) {
+// Called once the map tab is visible so fitBounds has a real container size
+export function initMap(stops) {
   if (_map) { _map.remove(); _map = null; }
   _stopMarkers.length = 0;
 
@@ -52,13 +52,11 @@ export async function initMap(stops) {
   const mainStops  = stops.slice(1, stops.length - 1);
   const depotEnd   = [stops[stops.length - 2], stops[stops.length - 1]];
 
-  const depotLineOpts = { color: '#000000', weight: 3, opacity: 0.75, dashArray: '6 4' };
+  const depotLineOpts = { color: '#000000', weight: 3, opacity: 0.8, dashArray: '6 4' };
 
   _depotStartLine = L.polyline(depotStart.map(s => [s.lat, s.lon]), depotLineOpts).addTo(_map);
   _depotEndLine   = L.polyline(depotEnd.map(s => [s.lat, s.lon]),   depotLineOpts).addTo(_map);
-
-  // Main route: straight-line shown immediately, upgraded to road geometry once fetched
-  _routeLine = L.polyline(mainStops.map(s => [s.lat, s.lon]), {
+  _routeLine      = L.polyline(mainStops.map(s => [s.lat, s.lon]), {
     color: '#1e3d72', weight: 4, opacity: 0.9,
   }).addTo(_map);
 
@@ -74,12 +72,18 @@ export async function initMap(stops) {
     radius: 9, color: '#ffffff', fillColor: '#4db848', fillOpacity: 1, weight: 3,
   }).addTo(_map);
 
-  _routeBounds = L.featureGroup(_stopMarkers).getBounds();
-  // fitBounds deferred to first invalidateSize call since map is hidden at init
+  // Container is visible — fitBounds works correctly here
+  _map.fitBounds(L.featureGroup(_stopMarkers).getBounds(), { padding: [30, 30] });
 
-  // Upgrade main route to road-snapped geometry in the background
+  // Upgrade all three segments to road-snapped geometry in background
   fetchRoadGeometry(mainStops).then(coords => {
     if (coords && _map) _routeLine.setLatLngs(coords);
+  });
+  fetchRoadGeometry(depotStart).then(coords => {
+    if (coords && _map) _depotStartLine.setLatLngs(coords);
+  });
+  fetchRoadGeometry(depotEnd).then(coords => {
+    if (coords && _map) _depotEndLine.setLatLngs(coords);
   });
 }
 
@@ -92,15 +96,10 @@ export function updateMapPosition(lat, lon, nextStopIndex, arrivals) {
     else if (i === nextStopIndex)         m.setStyle(stopStyle('current'));
     else                                  m.setStyle(stopStyle('future'));
   });
-  // No auto-pan — driver can pan freely; marker stays visible on route
 }
 
 export function centreOnPosition(lat, lon) {
   if (_map) _map.setView([lat, lon], Math.max(_map.getZoom(), 15), { animate: true });
-}
-
-export function fitRoute() {
-  if (_map && _routeBounds) _map.fitBounds(_routeBounds, { padding: [30, 30] });
 }
 
 export function invalidateSize() {

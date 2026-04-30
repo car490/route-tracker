@@ -1,6 +1,6 @@
 import { startGpsTracking } from './gps.js';
 import { updateUi, renderLog, setOnStopJump } from './ui.js';
-import { initMap, updateMapPosition, centreOnPosition, invalidateSize, fitRoute } from './map.js';
+import { initMap, updateMapPosition, centreOnPosition, invalidateSize } from './map.js';
 import { log, getEntries } from './logger.js';
 
 let wakeLock = null;
@@ -98,12 +98,11 @@ async function init() {
     log('info', `Started: ${service} ${runSelect.value.toUpperCase()} from "${allStops[initialStopIndex].name}"`);
 
     await acquireWakeLock();
-    initMap(allStops);
 
     let lastLat = null;
     let lastLon = null;
     let activeTab = 'list';
-    let mapEverShown = false;
+    let mapReady = false;
 
     function showTab(tab) {
       activeTab = tab;
@@ -114,8 +113,12 @@ async function init() {
       document.getElementById('btn-map').classList.toggle('toggle-active', tab === 'map');
       document.getElementById('btn-log').classList.toggle('toggle-active', tab === 'log');
       if (tab === 'map') {
-        invalidateSize();
-        if (!mapEverShown) { fitRoute(); mapEverShown = true; }
+        if (!mapReady) {
+          mapReady = true;
+          initMap(allStops);  // container is visible now — fitBounds works correctly
+        } else {
+          invalidateSize();
+        }
       }
       if (tab === 'log') renderLog(getEntries());
     }
