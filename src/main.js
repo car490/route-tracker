@@ -47,7 +47,7 @@ function withDepotStops(stops) {
 }
 
 async function init() {
-  const response = await fetch('/src/schedule.json');
+  const response = await fetch('./src/schedule.json');
   const schedule = await response.json();
 
   const serviceSelect = document.getElementById('service-select');

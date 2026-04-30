@@ -1,19 +1,19 @@
-const CACHE_NAME = 'route-tracker-v2';
+const CACHE_NAME = 'route-tracker-v3';
 
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/style.css',
-  '/manifest.json',
-  '/lib/leaflet.min.js',
-  '/lib/leaflet.min.css',
-  '/src/main.js',
-  '/src/engine.js',
-  '/src/geo.js',
-  '/src/gps.js',
-  '/src/map.js',
-  '/src/ui.js',
-  '/src/schedule.json',
+  './',
+  './index.html',
+  './style.css',
+  './manifest.json',
+  './lib/leaflet.min.js',
+  './lib/leaflet.min.css',
+  './src/main.js',
+  './src/engine.js',
+  './src/geo.js',
+  './src/gps.js',
+  './src/map.js',
+  './src/ui.js',
+  './src/schedule.json',
 ];
 
 const TILE_CACHE = [
