@@ -114,7 +114,6 @@ async function init() {
       document.getElementById('btn-log').classList.toggle('toggle-active', tab === 'log');
       if (tab === 'map') {
         invalidateSize();
-        if (lastLat !== null) centreOnPosition(lastLat, lastLon);
       }
       if (tab === 'log') renderLog(getEntries());
     }
