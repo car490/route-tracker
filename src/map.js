@@ -1,6 +1,8 @@
 let _map = null;
 let _posMarker = null;
 let _routeLine = null;
+let _depotStartLine = null;
+let _depotEndLine = null;
 const _stopMarkers = [];
 
 function stopStyle(state) {
@@ -44,9 +46,19 @@ export async function initMap(stops) {
     maxZoom: 18,
   }).addTo(_map);
 
-  // Straight-line route shown immediately; upgraded to road geometry once fetched
-  _routeLine = L.polyline(stops.map(s => [s.lat, s.lon]), {
-    color: '#4db848', weight: 3, opacity: 0.85,
+  // stops[0] and stops[last] are depot; main route is stops[1..last-1]
+  const depotStart = [stops[0], stops[1]];
+  const mainStops  = stops.slice(1, stops.length - 1);
+  const depotEnd   = [stops[stops.length - 2], stops[stops.length - 1]];
+
+  const depotLineOpts = { color: '#000000', weight: 3, opacity: 0.75, dashArray: '6 4' };
+
+  _depotStartLine = L.polyline(depotStart.map(s => [s.lat, s.lon]), depotLineOpts).addTo(_map);
+  _depotEndLine   = L.polyline(depotEnd.map(s => [s.lat, s.lon]),   depotLineOpts).addTo(_map);
+
+  // Main route: straight-line shown immediately, upgraded to road geometry once fetched
+  _routeLine = L.polyline(mainStops.map(s => [s.lat, s.lon]), {
+    color: '#1e3d72', weight: 4, opacity: 0.9,
   }).addTo(_map);
 
   stops.forEach(stop => {
@@ -64,8 +76,8 @@ export async function initMap(stops) {
   // Default view: full route
   _map.fitBounds(L.featureGroup(_stopMarkers).getBounds(), { padding: [30, 30] });
 
-  // Upgrade to road-snapped geometry in the background
-  fetchRoadGeometry(stops).then(coords => {
+  // Upgrade main route to road-snapped geometry in the background
+  fetchRoadGeometry(mainStops).then(coords => {
     if (coords && _map) _routeLine.setLatLngs(coords);
   });
 }
