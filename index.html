@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="theme-color" content="#1e3d72" />
+    <title>Route Timing Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="stylesheet" href="/lib/leaflet.min.css" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+
+    <div id="picker">
+      <div class="picker-title">
+        <div class="picker-brand">Phil Haines Coaches</div>
+        <div class="picker-subtitle">Route Timing Tracker</div>
+      </div>
+      <div class="picker-field">
+        <label for="service-select">Service</label>
+        <div class="select-wrap">
+          <select id="service-select"></select>
+        </div>
+      </div>
+      <div class="picker-field">
+        <label for="run-select">Run</label>
+        <div class="select-wrap">
+          <select id="run-select">
+            <option value="am">AM</option>
+            <option value="pm">PM</option>
+          </select>
+        </div>
+      </div>
+      <button id="start-btn">Start</button>
+    </div>
+
+    <div id="wakelock-warning" hidden>
+      Screen lock active — keep screen on manually or tracking will stop
+    </div>
+
+    <div id="tracker" hidden>
+    <div id="route-header">
+      <span id="header-service"></span>
+      <div id="route-lines">
+        <span id="header-line1"></span>
+        <span id="header-line2"></span>
+      </div>
+    </div>
+    <div id="status-card">
+      <div id="status-label">INITIALISING</div>
+      <div id="next-stop">—</div>
+
+      <div class="time-row">
+        <div class="time-group">
+          <span class="time-label">Scheduled</span>
+          <span class="time-value" id="sched-time">--:--</span>
+        </div>
+        <div class="time-group">
+          <span class="time-label">ETA</span>
+          <span class="time-value" id="eta-time">--:--</span>
+        </div>
+        <span id="delta">—</span>
+      </div>
+
+      <div class="metrics-row">
+        <div class="metric">
+          <span class="metric-label">Distance</span>
+          <span class="metric-value" id="distance">—</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Speed</span>
+          <span class="metric-value" id="speed">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="progress-section">
+      <div class="stop-labels">
+        <span id="current-stop">—</span>
+        <span id="next-stop-label">—</span>
+      </div>
+      <div class="progress-track">
+        <div id="progress-fill"></div>
+      </div>
+    </div>
+
+    <div class="view-toggle">
+      <button id="btn-list" class="toggle-btn toggle-active">List</button>
+      <button id="btn-map"  class="toggle-btn">Map</button>
+    </div>
+    <div id="stop-list"></div>
+    <div id="map-view" hidden></div>
+    </div>
+
+    <script src="/lib/leaflet.min.js"></script>
+    <script type="module" src="/src/main.js"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/service-worker.js').catch(console.error);
+        });
+      }
+    </script>
+  </body>
+</html>
