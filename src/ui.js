@@ -16,6 +16,9 @@ const fmtDistance = (m) =>
 
 const fmtSpeed = (mps) => `${(mps * 3.6).toFixed(1)} km/h`;
 
+let _onStopJump = null;
+export function setOnStopJump(fn) { _onStopJump = fn; }
+
 function updateStopList({ schedule, arrivals, nextStopIndex }) {
   const container = el('stop-list');
   container.innerHTML = '';
@@ -26,12 +29,39 @@ function updateStopList({ schedule, arrivals, nextStopIndex }) {
     row.className = `stop-row stop-${state}`;
     const missed = arrivals[i] === 'missed';
     const actualText = arrivals[i] instanceof Date ? fmtTime(arrivals[i]) : missed ? '--:--' : '—';
+
     row.innerHTML =
       `<span class="sl-name">${stop.name}</span>` +
       `<span class="sl-sched">${stop.time}</span>` +
-      `<span class="sl-actual${missed ? ' sl-missed' : ''}">${actualText}</span>`;
-    container.appendChild(row);
+      `<span class="sl-actual${missed ? ' sl-missed' : ''}">${actualText}</span>` +
+      (state === 'future' ? `<button class="sl-jump" data-idx="${i}" title="Start from here">⏭</button>` : '<span></span>');
+
     if (state === 'current') row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    container.appendChild(row);
+  });
+
+  if (_onStopJump) {
+    container.querySelectorAll('.sl-jump').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        _onStopJump(parseInt(btn.dataset.idx, 10));
+      });
+    });
+  }
+}
+
+export function renderLog(entries) {
+  const container = el('log-view');
+  container.innerHTML = '';
+  if (entries.length === 0) {
+    container.innerHTML = '<div class="log-empty">No events yet</div>';
+    return;
+  }
+  entries.forEach(({ t, category, message }) => {
+    const row = document.createElement('div');
+    row.className = `log-row log-${category}`;
+    row.innerHTML = `<span class="log-time">${t}</span><span class="log-msg">${message}</span>`;
+    container.appendChild(row);
   });
 }
 
@@ -51,8 +81,7 @@ export function updateUi({ timing, nextStopIndex, schedule, speedMps, distanceTo
   el('next-stop-label').textContent = next ? next.name : 'End of route';
   el('current-stop').textContent = current ? current.name : '—';
 
-  const progress =
-    schedule.length > 1 ? nextStopIndex / (schedule.length - 1) : 0;
+  const progress = schedule.length > 1 ? nextStopIndex / (schedule.length - 1) : 0;
   el('progress-fill').style.width = `${Math.min(progress * 100, 100)}%`;
 
   updateStopList({ schedule, arrivals, nextStopIndex });

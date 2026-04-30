@@ -406,7 +406,7 @@ body {
 
 .stop-row {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto auto auto;
   gap: 0.75rem;
   align-items: center;
   padding: 0.6rem 1rem;
@@ -455,3 +455,58 @@ body {
 .stop-current .sl-actual {
   color: var(--text-muted);
 }
+
+.sl-jump {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  padding: 0.15rem 0.35rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.sl-jump:active {
+  color: var(--brand-green);
+  border-color: var(--brand-green);
+}
+
+/* ── Log view ─────────────────────────────────── */
+
+#log-view {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow-y: auto;
+  max-height: 40vh;
+  font-family: monospace;
+  font-size: 0.75rem;
+}
+
+.log-empty {
+  padding: 1rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.log-row {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.35rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.log-row:last-child { border-bottom: none; }
+
+.log-time {
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.log-gps    .log-msg { color: var(--text-muted); }
+.log-arrive .log-msg { color: var(--on-time); }
+.log-miss   .log-msg { color: var(--early); }
+.log-error  .log-msg { color: var(--late); }
+.log-info   .log-msg { color: var(--text); }

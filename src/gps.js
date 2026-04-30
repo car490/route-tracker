@@ -1,42 +1,43 @@
 import { haversine } from './geo.js';
 import { computeTiming } from './engine.js';
+import { log } from './logger.js';
 
-/**
- * Starts GPS tracking and calls onUpdate on each position fix.
- *
- * @param {Object} params
- * @param {Array}  params.schedule        - ordered array of stop objects
- * @param {number} [params.lateAllowanceMin=2]
- * @param {Function} params.onUpdate      - called with timing data on each fix
- * @returns {{ stop: Function }}
- */
-export function startGpsTracking({ schedule, lateAllowanceMin = 2, onUpdate }) {
+export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIndex = 0, onUpdate }) {
   if (!navigator.geolocation) {
-    console.error('Geolocation API not available');
-    return { stop: () => {} };
+    log('error', 'Geolocation API not available');
+    return { stop: () => {}, jumpToStop: () => {} };
   }
 
-  let nextStopIndex = 0;
+  let nextStopIndex = initialStopIndex;
   const arrivals = new Array(schedule.length).fill(null);
   let gpsLostAt = null;
+  let fixCount = 0;
 
-  // When GPS is restored after a meaningful outage, advance past any stops
-  // whose scheduled time is more than 5 minutes in the past, marking them missed.
+  for (let i = 0; i < initialStopIndex; i++) {
+    arrivals[i] = 'missed';
+  }
+
+  if (initialStopIndex > 0) {
+    log('info', `Starting from stop ${initialStopIndex}: ${schedule[initialStopIndex].name}`);
+  }
+
   function recoverFromGpsLoss(now) {
+    const lostForSec = Math.round((now - gpsLostAt) / 1000);
     let resumeIdx = nextStopIndex;
     for (let i = nextStopIndex; i < schedule.length; i++) {
       const [h, m] = schedule[i].time.split(':').map(Number);
       const scheduled = new Date(now);
       scheduled.setHours(h, m, 0, 0);
-      if ((now - scheduled) / 60000 < 5) {
-        resumeIdx = i;
-        break;
-      }
+      if ((now - scheduled) / 60000 < 5) { resumeIdx = i; break; }
       resumeIdx = i + 1;
     }
     resumeIdx = Math.min(resumeIdx, schedule.length - 1);
-    for (let i = nextStopIndex; i < resumeIdx; i++) {
-      arrivals[i] = 'missed';
+    const missedCount = resumeIdx - nextStopIndex;
+    for (let i = nextStopIndex; i < resumeIdx; i++) arrivals[i] = 'missed';
+    if (missedCount > 0) {
+      log('miss', `GPS back after ${lostForSec}s — ${missedCount} stop(s) missed`);
+    } else {
+      log('gps', `GPS recovered after ${lostForSec}s`);
     }
     nextStopIndex = resumeIdx;
   }
@@ -50,31 +51,29 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, onUpdate }) {
       if (nextStopIndex >= schedule.length) return;
 
       const now = new Date();
+      fixCount++;
 
       if (gpsLostAt !== null) {
         const lostForMs = now.getTime() - gpsLostAt;
         if (lostForMs > 30000) {
           recoverFromGpsLoss(now);
+        } else {
+          log('gps', `GPS glitch cleared (${Math.round(lostForMs / 1000)}s)`);
         }
         gpsLostAt = null;
       }
 
-      let distanceToNextM = haversine(
-        latitude,
-        longitude,
-        schedule[nextStopIndex].lat,
-        schedule[nextStopIndex].lon
-      );
+      if (fixCount % 5 === 1) {
+        log('gps', `Fix #${fixCount} — ${latitude.toFixed(5)}, ${longitude.toFixed(5)} — ${(speedMps * 3.6).toFixed(1)} km/h`);
+      }
 
-      if (distanceToNextM < 30 && nextStopIndex < schedule.length - 1) {
+      let distanceToNextM = haversine(latitude, longitude, schedule[nextStopIndex].lat, schedule[nextStopIndex].lon);
+
+      if (distanceToNextM < 50 && nextStopIndex < schedule.length - 1) {
         arrivals[nextStopIndex] = new Date();
+        log('arrive', `Arrived: ${schedule[nextStopIndex].name} (${distanceToNextM.toFixed(0)} m)`);
         nextStopIndex++;
-        distanceToNextM = haversine(
-          latitude,
-          longitude,
-          schedule[nextStopIndex].lat,
-          schedule[nextStopIndex].lon
-        );
+        distanceToNextM = haversine(latitude, longitude, schedule[nextStopIndex].lat, schedule[nextStopIndex].lon);
       }
 
       const timing = computeTiming({
@@ -88,11 +87,21 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, onUpdate }) {
       onUpdate({ timing, nextStopIndex, speedMps, distanceToNextM, arrivals, lat: latitude, lon: longitude });
     },
     (err) => {
-      if (gpsLostAt === null) gpsLostAt = Date.now();
+      if (gpsLostAt === null) {
+        gpsLostAt = Date.now();
+        log('error', `GPS lost: ${err.message}`);
+      }
       console.error('GPS error:', err.message);
     },
     { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
   );
 
-  return { stop: () => navigator.geolocation.clearWatch(watchId) };
+  return {
+    stop: () => navigator.geolocation.clearWatch(watchId),
+    jumpToStop: (idx) => {
+      if (idx < 0 || idx >= schedule.length) return;
+      log('info', `Jumped to: ${schedule[idx].name}`);
+      nextStopIndex = idx;
+    },
+  };
 }

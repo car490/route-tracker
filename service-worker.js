@@ -1,4 +1,4 @@
-const CACHE_NAME = 'route-tracker-v3';
+const CACHE_NAME = 'route-tracker-v4';
 
 const STATIC_ASSETS = [
   './',
@@ -13,6 +13,7 @@ const STATIC_ASSETS = [
   './src/gps.js',
   './src/map.js',
   './src/ui.js',
+  './src/logger.js',
   './src/schedule.json',
 ];
 

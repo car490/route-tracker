@@ -36,6 +36,12 @@
           </select>
         </div>
       </div>
+      <div class="picker-field">
+        <label for="stop-select">Starting stop</label>
+        <div class="select-wrap">
+          <select id="stop-select"></select>
+        </div>
+      </div>
       <button id="start-btn">Start</button>
     </div>
 
@@ -92,9 +98,11 @@
     <div class="view-toggle">
       <button id="btn-list" class="toggle-btn toggle-active">List</button>
       <button id="btn-map"  class="toggle-btn">Map</button>
+      <button id="btn-log"  class="toggle-btn">Log</button>
     </div>
     <div id="stop-list"></div>
     <div id="map-view" hidden></div>
+    <div id="log-view" hidden></div>
     </div>
 
     <script src="lib/leaflet.min.js"></script>
