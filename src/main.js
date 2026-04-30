@@ -1,6 +1,6 @@
 import { startGpsTracking } from './gps.js';
 import { updateUi, renderLog, setOnStopJump } from './ui.js';
-import { initMap, updateMapPosition, centreOnPosition, invalidateSize } from './map.js';
+import { initMap, updateMapPosition, centreOnPosition, invalidateSize, fitRoute } from './map.js';
 import { log, getEntries } from './logger.js';
 
 let wakeLock = null;
@@ -103,6 +103,7 @@ async function init() {
     let lastLat = null;
     let lastLon = null;
     let activeTab = 'list';
+    let mapEverShown = false;
 
     function showTab(tab) {
       activeTab = tab;
@@ -114,6 +115,7 @@ async function init() {
       document.getElementById('btn-log').classList.toggle('toggle-active', tab === 'log');
       if (tab === 'map') {
         invalidateSize();
+        if (!mapEverShown) { fitRoute(); mapEverShown = true; }
       }
       if (tab === 'log') renderLog(getEntries());
     }

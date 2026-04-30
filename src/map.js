@@ -3,6 +3,7 @@ let _posMarker = null;
 let _routeLine = null;
 let _depotStartLine = null;
 let _depotEndLine = null;
+let _routeBounds = null;
 const _stopMarkers = [];
 
 function stopStyle(state) {
@@ -73,8 +74,8 @@ export async function initMap(stops) {
     radius: 9, color: '#ffffff', fillColor: '#4db848', fillOpacity: 1, weight: 3,
   }).addTo(_map);
 
-  // Default view: full route
-  _map.fitBounds(L.featureGroup(_stopMarkers).getBounds(), { padding: [30, 30] });
+  _routeBounds = L.featureGroup(_stopMarkers).getBounds();
+  // fitBounds deferred to first invalidateSize call since map is hidden at init
 
   // Upgrade main route to road-snapped geometry in the background
   fetchRoadGeometry(mainStops).then(coords => {
@@ -96,6 +97,10 @@ export function updateMapPosition(lat, lon, nextStopIndex, arrivals) {
 
 export function centreOnPosition(lat, lon) {
   if (_map) _map.setView([lat, lon], Math.max(_map.getZoom(), 15), { animate: true });
+}
+
+export function fitRoute() {
+  if (_map && _routeBounds) _map.fitBounds(_routeBounds, { padding: [30, 30] });
 }
 
 export function invalidateSize() {
