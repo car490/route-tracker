@@ -52,13 +52,15 @@ export function initMap(stops) {
   const mainStops  = stops.slice(1, stops.length - 1);
   const depotEnd   = [stops[stops.length - 2], stops[stops.length - 1]];
 
-  const depotLineOpts = { color: '#000000', weight: 3, opacity: 0.8, dashArray: '6 4' };
+  // Main route drawn first (underneath), depot legs drawn on top so dashes
+  // reveal the orange beneath wherever the roads overlap
+  _routeLine = L.polyline(mainStops.map(s => [s.lat, s.lon]), {
+    color: '#ff7700', weight: 5, opacity: 0.9,
+  }).addTo(_map);
 
+  const depotLineOpts = { color: '#000000', weight: 4, opacity: 0.9, dashArray: '10 7' };
   _depotStartLine = L.polyline(depotStart.map(s => [s.lat, s.lon]), depotLineOpts).addTo(_map);
   _depotEndLine   = L.polyline(depotEnd.map(s => [s.lat, s.lon]),   depotLineOpts).addTo(_map);
-  _routeLine      = L.polyline(mainStops.map(s => [s.lat, s.lon]), {
-    color: '#1e3d72', weight: 4, opacity: 0.9,
-  }).addTo(_map);
 
   stops.forEach(stop => {
     const m = L.circleMarker([stop.lat, stop.lon], stopStyle('future'))
