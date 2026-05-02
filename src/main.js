@@ -44,6 +44,8 @@ function withDepotStops(stops) {
   ];
 }
 
+const DEBUG = new URLSearchParams(window.location.search).has('debug');
+
 async function init() {
   const response = await fetch('./src/schedule.json');
   const schedule = await response.json();
@@ -125,7 +127,11 @@ async function init() {
 
     document.getElementById('btn-list').addEventListener('click', () => showTab('list'));
     document.getElementById('btn-map').addEventListener('click',  () => showTab('map'));
-    document.getElementById('btn-log').addEventListener('click',  () => showTab('log'));
+    if (DEBUG) {
+      document.getElementById('btn-log').addEventListener('click', () => showTab('log'));
+    } else {
+      document.getElementById('btn-log').hidden = true;
+    }
 
     const tracker = startGpsTracking({
       schedule: allStops,
