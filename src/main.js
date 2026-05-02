@@ -2,7 +2,7 @@ import { startGpsTracking } from './gps.js';
 import { updateUi, renderLog, setOnStopJump } from './ui.js';
 import { initMap, updateMapPosition, centreOnPosition, invalidateSize } from './map.js';
 import { log, getEntries } from './logger.js';
-import { updateDirections } from './directions.js';
+import { initDirections, syncCurrentStop, updateDirections } from './directions.js';
 
 let wakeLock = null;
 
@@ -104,7 +104,6 @@ async function init() {
 
     let lastLat = null;
     let lastLon = null;
-    let lastNextStopIndex = initialStopIndex;
     let activeTab = 'list';
     let mapReady = false;
 
@@ -127,7 +126,7 @@ async function init() {
         }
       }
       if (tab === 'log') renderLog(getEntries());
-      if (tab === 'dir') updateDirections(lastNextStopIndex, allStops);
+      if (tab === 'dir') updateDirections();
     }
 
     document.getElementById('btn-list').addEventListener('click', () => showTab('list'));
@@ -143,6 +142,8 @@ async function init() {
       document.getElementById('btn-log').hidden = true;
     }
 
+    initDirections(allStops, initialStopIndex);
+
     const tracker = startGpsTracking({
       schedule: allStops,
       lateAllowanceMin: 2,
@@ -153,8 +154,8 @@ async function init() {
           lastLat = lat; lastLon = lon;
           updateMapPosition(lat, lon, nextStopIndex, arrivals);
         }
-        lastNextStopIndex = nextStopIndex;
-        if (activeTab === 'dir') updateDirections(nextStopIndex, allStops);
+        syncCurrentStop(nextStopIndex);
+        if (activeTab === 'dir') updateDirections();
         if (activeTab === 'log') renderLog(getEntries());
       },
     });

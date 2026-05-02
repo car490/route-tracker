@@ -525,6 +525,44 @@ body {
   max-height: 40vh;
 }
 
+.dir-select-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+}
+
+.dir-select-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.dir-from-select {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.8rem;
+  flex: 1;
+  min-width: 0;
+  appearance: none;
+}
+
+.dir-from-select:focus {
+  outline: none;
+  border-color: var(--brand-green);
+}
+
 .dir-destination {
   padding: 0.75rem 1rem;
   font-family: 'Oswald', sans-serif;
