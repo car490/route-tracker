@@ -355,14 +355,18 @@ body {
 
 .stop-labels {
   display: flex;
-  justify-content: space-between;
+  gap: 0.4rem;
   font-size: 0.75rem;
-  color: var(--text-muted);
+  color: var(--text);
+  align-items: baseline;
 }
 
-#current-stop,
+.stop-label-prefix {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 #next-stop-label {
-  max-width: 45%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
