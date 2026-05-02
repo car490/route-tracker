@@ -2,6 +2,7 @@ import { startGpsTracking } from './gps.js';
 import { updateUi, renderLog, setOnStopJump } from './ui.js';
 import { initMap, updateMapPosition, centreOnPosition, invalidateSize } from './map.js';
 import { log, getEntries } from './logger.js';
+import { updateDirections } from './directions.js';
 
 let wakeLock = null;
 
@@ -103,16 +104,19 @@ async function init() {
 
     let lastLat = null;
     let lastLon = null;
+    let lastNextStopIndex = initialStopIndex;
     let activeTab = 'list';
     let mapReady = false;
 
     function showTab(tab) {
       activeTab = tab;
-      document.getElementById('stop-list').hidden = tab !== 'list';
-      document.getElementById('map-view').hidden  = tab !== 'map';
-      document.getElementById('log-view').hidden  = tab !== 'log';
+      document.getElementById('stop-list').hidden       = tab !== 'list';
+      document.getElementById('map-view').hidden        = tab !== 'map';
+      document.getElementById('directions-view').hidden = tab !== 'dir';
+      document.getElementById('log-view').hidden        = tab !== 'log';
       document.getElementById('btn-list').classList.toggle('toggle-active', tab === 'list');
       document.getElementById('btn-map').classList.toggle('toggle-active', tab === 'map');
+      document.getElementById('btn-dir').classList.toggle('toggle-active', tab === 'dir');
       document.getElementById('btn-log').classList.toggle('toggle-active', tab === 'log');
       if (tab === 'map') {
         if (!mapReady) {
@@ -123,10 +127,16 @@ async function init() {
         }
       }
       if (tab === 'log') renderLog(getEntries());
+      if (tab === 'dir') updateDirections(lastLat, lastLon, lastNextStopIndex, allStops);
     }
 
     document.getElementById('btn-list').addEventListener('click', () => showTab('list'));
     document.getElementById('btn-map').addEventListener('click',  () => showTab('map'));
+    if (!DEBUG) {
+      document.getElementById('btn-dir').addEventListener('click', () => showTab('dir'));
+    } else {
+      document.getElementById('btn-dir').hidden = true;
+    }
     if (DEBUG) {
       document.getElementById('btn-log').addEventListener('click', () => showTab('log'));
     } else {
@@ -143,6 +153,8 @@ async function init() {
           lastLat = lat; lastLon = lon;
           updateMapPosition(lat, lon, nextStopIndex, arrivals);
         }
+        lastNextStopIndex = nextStopIndex;
+        if (activeTab === 'dir') updateDirections(lastLat, lastLon, nextStopIndex, allStops);
         if (activeTab === 'log') renderLog(getEntries());
       },
     });

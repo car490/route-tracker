@@ -1,4 +1,4 @@
-const CACHE_NAME = 'route-tracker-v4';
+const CACHE_NAME = 'route-tracker-v5';
 
 const STATIC_ASSETS = [
   './',
@@ -8,6 +8,7 @@ const STATIC_ASSETS = [
   './lib/leaflet.min.js',
   './lib/leaflet.min.css',
   './src/main.js',
+  './src/directions.js',
   './src/engine.js',
   './src/geo.js',
   './src/gps.js',

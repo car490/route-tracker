@@ -515,6 +515,81 @@ body {
   border-color: var(--brand-green);
 }
 
+/* ── Directions view ──────────────────────────── */
+
+#directions-view {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow-y: auto;
+  max-height: 40vh;
+}
+
+.dir-destination {
+  padding: 0.75rem 1rem;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+}
+
+.dir-destination strong {
+  color: var(--text);
+}
+
+.dir-steps {
+  display: flex;
+  flex-direction: column;
+}
+
+.dir-step {
+  display: grid;
+  grid-template-columns: 2rem 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.dir-step:last-child {
+  border-bottom: none;
+}
+
+.dir-icon {
+  font-size: 1.15rem;
+  text-align: center;
+  color: var(--brand-green);
+}
+
+.dir-road {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dir-dist {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.dir-empty,
+.dir-loading {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
 /* ── Log view ─────────────────────────────────── */
 
 #log-view {
