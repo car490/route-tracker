@@ -87,9 +87,9 @@ async function init() {
     const { service } = schedule[serviceSelect.value][runSelect.value];
 
     document.getElementById('header-service').textContent = service;
-    document.getElementById('header-line1').textContent =
-      `${allStops[1].name} — ${allStops[allStops.length - 2].name}`;
-    document.getElementById('header-line2').textContent = `To & From ${DEPOT.name}`;
+    document.getElementById('header-line1').textContent = `${allStops[1].name} and`;
+    document.getElementById('header-line2').textContent = allStops[allStops.length - 2].name;
+    document.getElementById('header-line3').textContent = `To & From ${DEPOT.name}`;
 
     document.getElementById('picker').hidden  = true;
     document.getElementById('tracker').hidden = false;
