@@ -95,9 +95,10 @@ export function updateUi({ timing, nextStopIndex, schedule, speedMps, distanceTo
   el('speed').textContent = fmtSpeed(speedMps);
 
   const next = schedule[nextStopIndex] ?? null;
+  const nextAfter = schedule[nextStopIndex + 1] ?? null;
 
   el('next-stop').textContent = next ? next.name : 'End of route';
-  el('next-stop-label').textContent = next ? next.name : 'End of route';
+  el('next-stop-label').textContent = nextAfter ? nextAfter.name : 'End of route';
 
   const progress = schedule.length > 1 ? nextStopIndex / (schedule.length - 1) : 0;
   el('progress-fill').style.width = `${Math.min(progress * 100, 100)}%`;
