@@ -127,7 +127,7 @@ async function init() {
         }
       }
       if (tab === 'log') renderLog(getEntries());
-      if (tab === 'dir') updateDirections(lastLat, lastLon, lastNextStopIndex, allStops);
+      if (tab === 'dir') updateDirections(lastNextStopIndex, allStops);
     }
 
     document.getElementById('btn-list').addEventListener('click', () => showTab('list'));
@@ -154,7 +154,7 @@ async function init() {
           updateMapPosition(lat, lon, nextStopIndex, arrivals);
         }
         lastNextStopIndex = nextStopIndex;
-        if (activeTab === 'dir') updateDirections(lastLat, lastLon, nextStopIndex, allStops);
+        if (activeTab === 'dir') updateDirections(nextStopIndex, allStops);
         if (activeTab === 'log') renderLog(getEntries());
       },
     });

@@ -45,15 +45,12 @@ function setHtml(html) {
   if (el) el.innerHTML = html;
 }
 
-export async function updateDirections(lat, lon, nextStopIndex, schedule) {
-  if (lat == null) {
-    setHtml('<div class="dir-empty">Waiting for GPS signal…</div>');
-    return;
-  }
-
+export async function updateDirections(nextStopIndex, schedule) {
+  const fromStop = schedule[nextStopIndex - 1];
   const nextStop = schedule[nextStopIndex];
-  if (!nextStop) {
-    setHtml('<div class="dir-empty">No next stop</div>');
+
+  if (!fromStop || !nextStop) {
+    setHtml('<div class="dir-empty">No route segment available</div>');
     return;
   }
 
@@ -66,7 +63,7 @@ export async function updateDirections(lat, lon, nextStopIndex, schedule) {
 
   setHtml('<div class="dir-loading">Fetching directions…</div>');
 
-  const steps = await fetchSteps(lat, lon, nextStop.lat, nextStop.lon);
+  const steps = await fetchSteps(fromStop.lat, fromStop.lon, nextStop.lat, nextStop.lon);
   if (!steps) {
     setHtml(
       `<div class="dir-empty">Directions unavailable<br>Head to <strong>${nextStop.name}</strong></div>`
