@@ -19,6 +19,16 @@ const fmtSpeed = (mps) => `${(mps * 3.6).toFixed(1)} km/h`;
 let _onStopJump = null;
 export function setOnStopJump(fn) { _onStopJump = fn; }
 
+function arrivalStatusClass(stop, actualDate) {
+  const [h, m] = stop.time.split(':').map(Number);
+  const scheduled = new Date(actualDate);
+  scheduled.setHours(h, m, 0, 0);
+  const diffMin = (actualDate - scheduled) / 60000;
+  if (diffMin > 2) return 'sl-late';
+  if (diffMin < -2) return 'sl-early';
+  return 'sl-ontime';
+}
+
 function updateStopList({ schedule, arrivals, nextStopIndex }) {
   const container = el('stop-list');
   container.innerHTML = '';
@@ -27,13 +37,15 @@ function updateStopList({ schedule, arrivals, nextStopIndex }) {
     const row = document.createElement('div');
     const state = i < nextStopIndex ? 'past' : i === nextStopIndex ? 'current' : 'future';
     row.className = `stop-row stop-${state}`;
+    const arrived = arrivals[i] instanceof Date;
     const missed = arrivals[i] === 'missed';
-    const actualText = arrivals[i] instanceof Date ? fmtTime(arrivals[i]) : missed ? '--:--' : '—';
+    const actualText = arrived ? fmtTime(arrivals[i]) : missed ? '--:--' : '—';
+    const actualClass = arrived ? arrivalStatusClass(stop, arrivals[i]) : missed ? 'sl-missed' : '';
 
     row.innerHTML =
       `<span class="sl-name">${stop.name}</span>` +
       `<span class="sl-sched">${stop.time}</span>` +
-      `<span class="sl-actual${missed ? ' sl-missed' : ''}">${actualText}</span>` +
+      `<span class="sl-actual${actualClass ? ' ' + actualClass : ''}">${actualText}</span>` +
       (state === 'future' ? `<button class="sl-jump" data-idx="${i}" title="Start from here">⏭</button>` : '<span></span>');
 
     if (state === 'current') row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -65,7 +77,15 @@ export function renderLog(entries) {
   });
 }
 
-export function updateUi({ timing, nextStopIndex, schedule, speedMps, distanceToNextM, arrivals }) {
+export function updateUi({ timing, nextStopIndex, schedule, speedMps, distanceToNextM, arrivals, earlyWait }) {
+  const banner = el('early-wait-banner');
+  if (earlyWait) {
+    el('ewb-time').textContent = fmtTime(earlyWait.scheduledTime);
+    banner.hidden = false;
+  } else {
+    banner.hidden = true;
+  }
+
   el('status-card').className = `status-${timing.status}`;
   el('status-label').textContent = timing.status.replace('-', ' ').toUpperCase();
   el('sched-time').textContent = fmtTime(timing.scheduledTime);

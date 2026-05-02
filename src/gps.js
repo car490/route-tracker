@@ -12,6 +12,7 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
   const arrivals = new Array(schedule.length).fill(null);
   let gpsLostAt = null;
   let fixCount = 0;
+  let earlyWait = null; // { stopIndex, scheduledTime, stopName }
 
   for (let i = 0; i < initialStopIndex; i++) {
     arrivals[i] = 'missed';
@@ -63,6 +64,12 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
         gpsLostAt = null;
       }
 
+      if (earlyWait !== null && now >= earlyWait.scheduledTime) {
+        arrivals[earlyWait.stopIndex] = earlyWait.scheduledTime;
+        log('info', `Departed on time: ${earlyWait.stopName}`);
+        earlyWait = null;
+      }
+
       if (fixCount % 5 === 1) {
         log('gps', `Fix #${fixCount} — ${latitude.toFixed(5)}, ${longitude.toFixed(5)} — ${(speedMps * 3.6).toFixed(1)} km/h`);
       }
@@ -70,8 +77,20 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
       let distanceToNextM = haversine(latitude, longitude, schedule[nextStopIndex].lat, schedule[nextStopIndex].lon);
 
       if (distanceToNextM < 50 && nextStopIndex < schedule.length - 1) {
-        arrivals[nextStopIndex] = new Date();
+        const arrivalTime = new Date();
+        earlyWait = null;
+
+        const [h, m] = schedule[nextStopIndex].time.split(':').map(Number);
+        const scheduledTime = new Date(arrivalTime);
+        scheduledTime.setHours(h, m, 0, 0);
+
+        arrivals[nextStopIndex] = arrivalTime;
         log('arrive', `Arrived: ${schedule[nextStopIndex].name} (${distanceToNextM.toFixed(0)} m)`);
+
+        if ((arrivalTime - scheduledTime) / 60000 < -lateAllowanceMin) {
+          earlyWait = { stopIndex: nextStopIndex, scheduledTime, stopName: schedule[nextStopIndex].name };
+        }
+
         nextStopIndex++;
         distanceToNextM = haversine(latitude, longitude, schedule[nextStopIndex].lat, schedule[nextStopIndex].lon);
       }
@@ -84,7 +103,7 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
         lateAllowanceMin,
       });
 
-      onUpdate({ timing, nextStopIndex, speedMps, distanceToNextM, arrivals, lat: latitude, lon: longitude });
+      onUpdate({ timing, nextStopIndex, speedMps, distanceToNextM, arrivals, earlyWait, lat: latitude, lon: longitude });
     },
     (err) => {
       if (gpsLostAt === null) {
@@ -100,6 +119,7 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
     stop: () => navigator.geolocation.clearWatch(watchId),
     jumpToStop: (idx) => {
       if (idx < 0 || idx >= schedule.length) return;
+      earlyWait = null;
       log('info', `Jumped to: ${schedule[idx].name}`);
       nextStopIndex = idx;
     },

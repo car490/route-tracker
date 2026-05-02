@@ -56,6 +56,36 @@ body {
   border-radius: 6px;
 }
 
+/* ── Early wait banner ───────────────────────── */
+
+#early-wait-banner {
+  background: var(--early);
+  color: #000;
+  text-align: center;
+  padding: 0.9rem 1rem;
+  border-radius: 8px;
+  animation: ewb-flash 1s ease-in-out infinite;
+}
+
+.ewb-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.ewb-msg {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1rem;
+  font-weight: 400;
+  margin-top: 0.2rem;
+}
+
+@keyframes ewb-flash {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+
 /* ── Route header ────────────────────────────── */
 
 #route-header {
@@ -437,9 +467,12 @@ body {
 }
 
 .stop-past .sl-actual {
-  color: var(--on-time);
   opacity: 1;
 }
+
+.sl-ontime { color: var(--on-time); }
+.sl-early  { color: var(--early); }
+.sl-late   { color: var(--late); }
 
 .stop-past .sl-missed {
   color: var(--early);
