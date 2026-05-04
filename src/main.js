@@ -4,6 +4,39 @@ import { initMap, updateMapPosition, centreOnPosition, invalidateSize } from './
 import { log, getEntries } from './logger.js';
 import { initDirections, syncCurrentStop, updateDirections } from './directions.js';
 
+const SUPABASE_URL = 'https://nwhayupsvcelyiwltdqo.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_gij_rPjr2EJrcv0W9sU-Ow_C3nNqGcn';
+
+async function fetchSchedule() {
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/schedule_view` +
+      `?select=service_code,period,name,lat,lon,scheduled_time,sequence` +
+      `&order=service_code,period,sequence`;
+    const res = await fetch(url, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+      },
+    });
+    if (!res.ok) throw new Error(`Supabase ${res.status}`);
+    const rows = await res.json();
+    const schedule = {};
+    for (const { service_code, period, name, lat, lon, scheduled_time } of rows) {
+      if (!schedule[service_code]) schedule[service_code] = {};
+      if (!schedule[service_code][period])
+        schedule[service_code][period] = { service: service_code, stops: [] };
+      schedule[service_code][period].stops.push({
+        name, lat, lon, time: scheduled_time.slice(0, 5),
+      });
+    }
+    return schedule;
+  } catch (err) {
+    console.warn('Supabase unavailable, using schedule.json fallback', err);
+    const res = await fetch('./src/schedule.json');
+    return res.json();
+  }
+}
+
 let wakeLock = null;
 
 async function acquireWakeLock() {
@@ -48,8 +81,7 @@ function withDepotStops(stops) {
 const DEBUG = new URLSearchParams(window.location.search).has('debug');
 
 async function init() {
-  const response = await fetch('./src/schedule.json');
-  const schedule = await response.json();
+  const schedule = await fetchSchedule();
 
   const serviceSelect = document.getElementById('service-select');
   const runSelect     = document.getElementById('run-select');
