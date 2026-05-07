@@ -4,7 +4,9 @@ import { getCompanyId } from '../lib/company'
 import Modal from '../components/Modal'
 
 const ROUTE_EMPTY = { service_code: '', name: '' }
-const TT_EMPTY = { period: 'am', valid_from: '', valid_to: '' }
+const PERIODS    = ['Early Morning', 'Morning', 'Midday', 'Afternoon', 'Evening', 'Night', 'All Day']
+const DIRECTIONS = ['Outbound', 'Inbound', 'Circular']
+const TT_EMPTY = { period: 'Morning', direction: 'Outbound', valid_from: '', valid_to: '' }
 
 function TimetableStopCount({ timetableId }) {
   const [count, setCount] = useState('…')
@@ -82,12 +84,18 @@ export default function RoutesPage() {
     const payload = {
       route_id:   selected,
       period:     ttForm.period,
+      direction:  ttForm.direction,
       valid_from: ttForm.valid_from || null,
       valid_to:   ttForm.valid_to   || null,
     }
     const { error: err } = ttModal === 'add'
       ? await supabase.from('timetables').insert(payload)
-      : await supabase.from('timetables').update({ period: ttForm.period, valid_from: ttForm.valid_from || null, valid_to: ttForm.valid_to || null }).eq('id', ttModal.id)
+      : await supabase.from('timetables').update({
+          period:     ttForm.period,
+          direction:  ttForm.direction,
+          valid_from: ttForm.valid_from || null,
+          valid_to:   ttForm.valid_to   || null,
+        }).eq('id', ttModal.id)
     setSaving(false)
     if (err) { setError(err.message); return }
     setTtModal(null); load()
@@ -198,8 +206,8 @@ export default function RoutesPage() {
                   {(timetables[selected] ?? []).map(t => (
                     <tr key={t.id}>
                       <td>
-                        <span className={`badge ${t.period === 'am' ? 'badge-amber' : 'badge-blue'}`}>
-                          {t.period.toUpperCase()}
+                        <span className={`badge ${t.period === 'Morning' || t.period === 'Early Morning' ? 'badge-amber' : 'badge-blue'}`}>
+                          {t.period} {t.direction}
                         </span>
                       </td>
                       <td style={{ color: 'var(--text-muted)' }}>{t.valid_from ?? '—'}</td>
@@ -210,7 +218,7 @@ export default function RoutesPage() {
                           <button
                             className="btn btn-ghost btn-sm"
                             onClick={() => {
-                              setTtForm({ period: t.period, valid_from: t.valid_from ?? '', valid_to: t.valid_to ?? '' })
+                              setTtForm({ period: t.period, direction: t.direction ?? 'Outbound', valid_from: t.valid_from ?? '', valid_to: t.valid_to ?? '' })
                               setError(''); setTtModal(t)
                             }}
                           >
@@ -292,8 +300,17 @@ export default function RoutesPage() {
                 value={ttForm.period}
                 onChange={e => setTtForm(f => ({ ...f, period: e.target.value }))}
               >
-                <option value="am">AM</option>
-                <option value="pm">PM</option>
+                {PERIODS.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Direction</label>
+              <select
+                className="form-select"
+                value={ttForm.direction}
+                onChange={e => setTtForm(f => ({ ...f, direction: e.target.value }))}
+              >
+                {DIRECTIONS.map(d => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
             <div className="form-group">

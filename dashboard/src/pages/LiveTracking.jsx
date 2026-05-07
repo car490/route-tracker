@@ -14,7 +14,7 @@ export default function LiveTracking() {
         .select(`
           *,
           timetable:timetables(period, route:routes(service_code)),
-          driver:drivers(name),
+          driver:staff(name),
           vehicle:vehicles(registration)
         `)
         .eq('journey_date', today)

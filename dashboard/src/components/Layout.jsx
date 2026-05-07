@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 const NAV = [
   { to: '/',         label: 'Overview',             end: true },
   { to: '/routes',   label: 'Routes & Timetables' },
-  { to: '/drivers',  label: 'Drivers' },
+  { to: '/drivers',  label: 'Staff' },
   { to: '/vehicles', label: 'Vehicles' },
   { to: '/journeys', label: 'Daily Journeys' },
   { to: '/live',     label: 'Live Tracking' },

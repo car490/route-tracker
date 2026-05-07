@@ -31,8 +31,8 @@ export default function JourneysPage() {
       .from('journeys')
       .select(`
         *,
-        timetable:timetables(period, route:routes(service_code)),
-        driver:drivers(name),
+        timetable:timetables(period, direction, route:routes(service_code)),
+        driver:staff(name),
         vehicle:vehicles(registration)
       `)
       .eq('journey_date', date)
@@ -43,8 +43,8 @@ export default function JourneysPage() {
 
   async function loadDeps() {
     const [t, d, v] = await Promise.all([
-      supabase.from('timetables').select('id, period, route:routes(service_code)').order('period'),
-      supabase.from('drivers').select('id, name').order('name'),
+      supabase.from('timetables').select('id, period, direction, route:routes(service_code)').order('period'),
+      supabase.from('staff').select('id, name').order('name'),
       supabase.from('vehicles').select('id, registration').order('registration'),
     ])
     setTimetables(t.data ?? [])
@@ -149,8 +149,8 @@ export default function JourneysPage() {
                     </td>
                     <td>
                       {j.timetable?.period
-                        ? <span className={`badge ${j.timetable.period === 'am' ? 'badge-amber' : 'badge-blue'}`}>
-                            {j.timetable.period.toUpperCase()}
+                        ? <span className={`badge ${j.timetable.period === 'Morning' || j.timetable.period === 'Early Morning' ? 'badge-amber' : 'badge-blue'}`}>
+                            {j.timetable.period} {j.timetable.direction}
                           </span>
                         : '—'}
                     </td>
@@ -220,7 +220,7 @@ export default function JourneysPage() {
                 <option value="">— Select —</option>
                 {timetables.map(t => (
                   <option key={t.id} value={t.id}>
-                    {t.route?.service_code} {t.period.toUpperCase()}
+                    {t.route?.service_code} {t.period} {t.direction}
                   </option>
                 ))}
               </select>

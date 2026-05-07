@@ -2,19 +2,19 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 export default function Overview() {
-  const [stats, setStats] = useState({ routes: '—', drivers: '—', vehicles: '—', journeys: '—' })
+  const [stats, setStats] = useState({ routes: '—', staff: '—', vehicles: '—', journeys: '—' })
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10)
     Promise.all([
       supabase.from('routes').select('id', { count: 'exact', head: true }),
-      supabase.from('drivers').select('id', { count: 'exact', head: true }),
+      supabase.from('staff').select('id', { count: 'exact', head: true }),
       supabase.from('vehicles').select('id', { count: 'exact', head: true }),
       supabase.from('journeys').select('id', { count: 'exact', head: true }).eq('journey_date', today),
     ]).then(([r, d, v, j]) => {
       setStats({
         routes:   r.count ?? 0,
-        drivers:  d.count ?? 0,
+        staff:    d.count ?? 0,
         vehicles: v.count ?? 0,
         journeys: j.count ?? 0,
       })
@@ -37,8 +37,8 @@ export default function Overview() {
           <div className="stat-label">Routes</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value">{stats.drivers}</div>
-          <div className="stat-label">Drivers</div>
+          <div className="stat-value">{stats.staff}</div>
+          <div className="stat-label">Staff</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">{stats.vehicles}</div>

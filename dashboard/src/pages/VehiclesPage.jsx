@@ -3,7 +3,9 @@ import { supabase } from '../lib/supabase'
 import { getCompanyId } from '../lib/company'
 import Modal from '../components/Modal'
 
-const EMPTY = { registration: '', fleet_number: '' }
+const VEHICLE_TYPES = ['Minibus', 'Midi Coach', 'Full Size Coach', 'Single Decker Bus', 'Double Decker']
+const FUEL_TYPES    = ['Diesel', 'Petrol', 'Electric', 'Hybrid', 'Hydrogen']
+const EMPTY = { registration: '', fleet_number: '', vehicle_type: 'Minibus', fuel_type: 'Diesel' }
 
 export default function VehiclesPage() {
   const [vehicles, setVehicles] = useState([])
@@ -24,7 +26,12 @@ export default function VehiclesPage() {
 
   function openAdd() { setForm(EMPTY); setError(''); setModal('add') }
   function openEdit(v) {
-    setForm({ registration: v.registration, fleet_number: v.fleet_number ?? '' })
+    setForm({
+      registration: v.registration,
+      fleet_number: v.fleet_number ?? '',
+      vehicle_type: v.vehicle_type,
+      fuel_type:    v.fuel_type,
+    })
     setError('')
     setModal(v)
   }
@@ -36,11 +43,18 @@ export default function VehiclesPage() {
     const payload = {
       registration: form.registration,
       fleet_number: form.fleet_number || null,
+      vehicle_type: form.vehicle_type,
+      fuel_type:    form.fuel_type,
       company_id,
     }
     const { error: err } = modal === 'add'
       ? await supabase.from('vehicles').insert(payload)
-      : await supabase.from('vehicles').update({ registration: form.registration, fleet_number: form.fleet_number || null }).eq('id', modal.id)
+      : await supabase.from('vehicles').update({
+          registration: form.registration,
+          fleet_number: form.fleet_number || null,
+          vehicle_type: form.vehicle_type,
+          fuel_type:    form.fuel_type,
+        }).eq('id', modal.id)
     setSaving(false)
     if (err) { setError(err.message); return }
     setModal(null); load()
@@ -71,6 +85,8 @@ export default function VehiclesPage() {
                 <tr>
                   <th>Registration</th>
                   <th>Fleet No.</th>
+                  <th>Type</th>
+                  <th>Fuel</th>
                   <th>Added</th>
                   <th></th>
                 </tr>
@@ -82,6 +98,8 @@ export default function VehiclesPage() {
                       {v.registration}
                     </td>
                     <td style={{ color: 'var(--text-muted)' }}>{v.fleet_number ?? '—'}</td>
+                    <td>{v.vehicle_type}</td>
+                    <td style={{ color: 'var(--text-muted)' }}>{v.fuel_type}</td>
                     <td style={{ color: 'var(--text-muted)' }}>
                       {new Date(v.created_at).toLocaleDateString('en-GB')}
                     </td>
@@ -136,6 +154,26 @@ export default function VehiclesPage() {
                 onChange={e => setForm(f => ({ ...f, fleet_number: e.target.value }))}
                 placeholder="e.g. 42"
               />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Vehicle Type</label>
+              <select
+                className="form-select"
+                value={form.vehicle_type}
+                onChange={e => setForm(f => ({ ...f, vehicle_type: e.target.value }))}
+              >
+                {VEHICLE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Fuel Type</label>
+              <select
+                className="form-select"
+                value={form.fuel_type}
+                onChange={e => setForm(f => ({ ...f, fuel_type: e.target.value }))}
+              >
+                {FUEL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
             </div>
           </form>
         </Modal>

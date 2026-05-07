@@ -1,3 +1,6 @@
+-- DEPRECATED: RLS is now fully incorporated into schema.sql (v2).
+-- This file is retained for reference only and should NOT be run against the v2 schema.
+
 -- Phase 2: RLS policies for authenticated ops dashboard users
 -- Run once in the Supabase SQL editor (after schema.sql)
 
