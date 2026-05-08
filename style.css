@@ -258,6 +258,7 @@ body {
 .status-on-time { border-color: var(--on-time); }
 .status-late    { border-color: var(--late); }
 .status-early   { border-color: var(--early); }
+.status-at-stop { border-color: var(--brand-navy); }
 
 #status-label {
   font-family: 'Oswald', sans-serif;
@@ -271,6 +272,7 @@ body {
 .status-on-time #status-label { color: var(--on-time); }
 .status-late    #status-label { color: var(--late); }
 .status-early   #status-label { color: var(--early); }
+.status-at-stop #status-label { color: var(--brand-navy); }
 
 #next-stop {
   font-size: 1.5rem;
@@ -320,6 +322,7 @@ body {
 .status-on-time #delta { color: var(--on-time); }
 .status-late    #delta { color: var(--late); }
 .status-early   #delta { color: var(--early); }
+.status-at-stop #delta { color: var(--brand-navy); }
 
 /* ── Metrics row ──────────────────────────────── */
 

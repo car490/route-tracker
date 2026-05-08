@@ -225,9 +225,9 @@ async function init() {
       schedule: allStops,
       lateAllowanceMin: 2,
       initialStopIndex,
-      onUpdate: ({ timing, nextStopIndex, speedMps, distanceToNextM, arrivals, earlyWait, lat, lon }) => {
+      onUpdate: ({ timing, nextStopIndex, speedMps, distanceToNextM, arrivals, earlyWait, atStop, lat, lon }) => {
         arrivalsRef = arrivals;
-        updateUi({ timing, nextStopIndex, schedule: allStops, speedMps, distanceToNextM, arrivals, earlyWait });
+        updateUi({ timing, nextStopIndex, schedule: allStops, speedMps, distanceToNextM, arrivals, earlyWait, atStop });
         if (lat !== undefined) {
           lastLat = lat; lastLon = lon;
           updateMapPosition(lat, lon, nextStopIndex, arrivals);

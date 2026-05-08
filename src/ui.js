@@ -77,7 +77,7 @@ export function renderLog(entries) {
   });
 }
 
-export function updateUi({ timing, nextStopIndex, schedule, speedMps, distanceToNextM, arrivals, earlyWait }) {
+export function updateUi({ timing, nextStopIndex, schedule, speedMps, distanceToNextM, arrivals, earlyWait, atStop }) {
   const banner = el('early-wait-banner');
   if (earlyWait) {
     el('ewb-time').textContent = fmtTime(earlyWait.scheduledTime);
@@ -86,8 +86,13 @@ export function updateUi({ timing, nextStopIndex, schedule, speedMps, distanceTo
     banner.hidden = true;
   }
 
-  el('status-card').className = `status-${timing.status}`;
-  el('status-label').textContent = timing.status.replace('-', ' ').toUpperCase();
+  if (atStop) {
+    el('status-card').className = 'status-at-stop';
+    el('status-label').textContent = 'AT STOP';
+  } else {
+    el('status-card').className = `status-${timing.status}`;
+    el('status-label').textContent = timing.status.replace('-', ' ').toUpperCase();
+  }
   el('sched-time').textContent = fmtTime(timing.scheduledTime);
   el('eta-time').textContent = fmtTime(timing.eta);
   el('delta').textContent = fmtDelta(timing.minutesDifference);
