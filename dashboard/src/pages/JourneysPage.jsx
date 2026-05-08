@@ -24,6 +24,7 @@ export default function JourneysPage() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [copiedId, setCopiedId] = useState(null)
 
   async function loadJourneys(date) {
     setLoading(true)
@@ -88,6 +89,12 @@ export default function JourneysPage() {
                 : {}
     await supabase.from('journeys').update({ status, ...extra }).eq('id', id)
     loadJourneys(dateFilter)
+  }
+
+  function copyDriverLink(id) {
+    navigator.clipboard.writeText(`https://car490.github.io/route-tracker/?journey=${id}`)
+    setCopiedId(id)
+    setTimeout(() => setCopiedId(null), 2000)
   }
 
   function openAdd() {
@@ -164,6 +171,13 @@ export default function JourneysPage() {
                     <td>
                       <div className="td-actions">
                         <button className="btn btn-ghost btn-sm" onClick={() => openEdit(j)}>Edit</button>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => copyDriverLink(j.id)}
+                          title="Copy driver link"
+                        >
+                          {copiedId === j.id ? 'Copied!' : 'Copy Link'}
+                        </button>
                         {j.status === 'scheduled' && (
                           <button className="btn btn-success btn-sm" onClick={() => updateStatus(j.id, 'in_progress')}>
                             Start

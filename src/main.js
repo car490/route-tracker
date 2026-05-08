@@ -244,13 +244,17 @@ async function init() {
       if (!confirm('End trip and upload stop times?')) return;
       tracker.stop();
       if (!journeyId) {
-        log('warn', 'No journey ID in URL — add ?journey=<uuid> to upload stop times');
+        log('warn', 'No journey ID in URL — stop times not saved');
+        alert('Trip ended.\n\nNo journey ID was set — stop times were not saved.\nAsk ops to share the driver link for this journey.');
         return;
       }
       const result = await uploadStopTimes(journeyId, arrivalsRef, allStops);
-      log('info', result.ok
-        ? `Uploaded ${result.count} stop time(s)`
-        : `Upload failed (HTTP ${result.status})`);
+      if (result.ok) {
+        log('info', `Uploaded ${result.count} stop time(s)`);
+      } else {
+        log('warn', `Upload failed (HTTP ${result.status})`);
+        alert(`Trip ended but stop times could not be saved (error ${result.status}).\nPlease contact ops.`);
+      }
     });
   });
 }
