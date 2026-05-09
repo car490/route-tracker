@@ -12,11 +12,13 @@ export default function Overview() {
       supabase.from('vehicles').select('id', { count: 'exact', head: true }),
       supabase.from('journeys').select('id', { count: 'exact', head: true }).eq('journey_date', today),
     ]).then(([r, d, v, j]) => {
+      const errs = [r, d, v, j].map(x => x.error?.message).filter(Boolean)
+      if (errs.length) console.error('Supabase errors:', errs)
       setStats({
-        routes:   r.count ?? 0,
-        staff:    d.count ?? 0,
-        vehicles: v.count ?? 0,
-        journeys: j.count ?? 0,
+        routes:   r.error ? r.error.message : (r.count ?? 0),
+        staff:    d.error ? d.error.message : (d.count ?? 0),
+        vehicles: v.error ? v.error.message : (v.count ?? 0),
+        journeys: j.error ? j.error.message : (j.count ?? 0),
       })
     })
   }, [])
