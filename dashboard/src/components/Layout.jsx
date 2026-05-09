@@ -35,6 +35,7 @@ export default function Layout({ session }) {
           <button className="btn-signout" onClick={() => supabase.auth.signOut()}>
             Sign out
           </button>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', opacity: 0.5, marginTop: 8 }}>v2.0 · build 12</div>
         </div>
       </nav>
       <main className="main">
