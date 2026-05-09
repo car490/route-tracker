@@ -12,8 +12,7 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
   const arrivals = new Array(schedule.length).fill(null);
   let gpsLostAt = null;
   let fixCount = 0;
-  let earlyWait = null; // { stopIndex, scheduledTime, stopName }
-  let atStop = null;    // { stopIndex } while vehicle is within the stop geo-fence
+  let atStop = null; // { stopIndex } while vehicle is within the stop geo-fence
 
   for (let i = 0; i < initialStopIndex; i++) {
     arrivals[i] = 'missed';
@@ -44,6 +43,19 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
     nextStopIndex = resumeIdx;
   }
 
+  // Derive earlyWait from atStop state on every fix.
+  // Shows the banner whenever the vehicle is dwelling at a stop before its scheduled time.
+  function computeEarlyWait(now) {
+    if (atStop === null) return null;
+    const stop = schedule[atStop.stopIndex];
+    if (!stop) return null;
+    const [h, m] = stop.time.split(':').map(Number);
+    const scheduledDepart = new Date(now);
+    scheduledDepart.setHours(h, m, 0, 0);
+    if (now >= scheduledDepart) return null;
+    return { stopIndex: atStop.stopIndex, scheduledTime: scheduledDepart, stopName: stop.name };
+  }
+
   const watchId = navigator.geolocation.watchPosition(
     (position) => {
       const { latitude, longitude } = position.coords;
@@ -65,12 +77,6 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
         gpsLostAt = null;
       }
 
-      if (earlyWait !== null && now >= earlyWait.scheduledTime) {
-        arrivals[earlyWait.stopIndex] = earlyWait.scheduledTime;
-        log('info', `Departed on time: ${earlyWait.stopName}`);
-        earlyWait = null;
-      }
-
       if (fixCount % 5 === 1) {
         log('gps', `Fix #${fixCount} — ${latitude.toFixed(5)}, ${longitude.toFixed(5)} — ${(speedMps * 3.6).toFixed(1)} km/h`);
       }
@@ -88,21 +94,21 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
       } else if (distanceToNextM < 50 && nextStopIndex < schedule.length - 1) {
         // Entering geo-fence — record arrival, enter dwell mode
         const arrivalTime = new Date();
-        earlyWait = null;
-
-        const [h, m] = schedule[nextStopIndex].time.split(':').map(Number);
-        const scheduledTime = new Date(arrivalTime);
-        scheduledTime.setHours(h, m, 0, 0);
-
         arrivals[nextStopIndex] = arrivalTime;
         log('arrive', `Arrived: ${schedule[nextStopIndex].name} (${distanceToNextM.toFixed(0)} m)`);
-
-        if ((arrivalTime - scheduledTime) / 60000 < -lateAllowanceMin) {
-          earlyWait = { stopIndex: nextStopIndex, scheduledTime, stopName: schedule[nextStopIndex].name };
-        }
-
         atStop = { stopIndex: nextStopIndex };
+
+        // Log early arrival once on entry
+        const [h, m] = schedule[nextStopIndex].time.split(':').map(Number);
+        const scheduledDepart = new Date(arrivalTime);
+        scheduledDepart.setHours(h, m, 0, 0);
+        if (arrivalTime < scheduledDepart) {
+          const minEarly = Math.round((scheduledDepart - arrivalTime) / 60000);
+          log('info', `Running ${minEarly} min early — wait until ${scheduledDepart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+        }
       }
+
+      const earlyWait = computeEarlyWait(now);
 
       const timing = computeTiming({
         now,
@@ -128,7 +134,6 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
     stop: () => navigator.geolocation.clearWatch(watchId),
     jumpToStop: (idx) => {
       if (idx < 0 || idx >= schedule.length) return;
-      earlyWait = null;
       atStop = null;
       log('info', `Jumped to: ${schedule[idx].name}`);
       nextStopIndex = idx;
