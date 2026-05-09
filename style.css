@@ -669,3 +669,153 @@ body {
 .log-miss   .log-msg { color: var(--early); }
 .log-error  .log-msg { color: var(--late); }
 .log-info   .log-msg { color: var(--text); }
+
+/* ── Duty card ────────────────────────────────── */
+
+#duty-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 100vh;
+  padding: 2rem 0;
+}
+
+.dc-header {
+  text-align: center;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid var(--brand-green);
+}
+
+.dc-greeting {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.1rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+}
+
+#dc-driver-name {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.dc-date {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.3rem;
+}
+
+#dc-routes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.dc-route-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dc-route-in_progress {
+  border-color: var(--brand-green);
+}
+
+.dc-route-completed {
+  opacity: 0.55;
+}
+
+.dc-route-top {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.dc-service-badge {
+  background: var(--brand-navy);
+  color: #fff;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.dc-route-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.dc-route-stops {
+  font-size: 0.85rem;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dc-route-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.dc-action-btn {
+  background: var(--brand-green);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.7rem 1rem;
+  font-family: 'Oswald', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+.dc-action-btn:active { background: #3da038; }
+
+.dc-resume-btn { background: var(--brand-navy); }
+.dc-resume-btn:active { background: #162d55; }
+
+.dc-done-badge {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--brand-green);
+  text-align: center;
+  padding: 0.4rem;
+}
+
+/* Back button shown in picker when launched from duty card */
+#picker-back-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+#picker-back-btn:active {
+  color: var(--text);
+  border-color: var(--text);
+}

@@ -16,18 +16,33 @@
   </head>
   <body>
 
-    <div id="picker">
+    <!-- Duty card screen (shown when ?duties= param present) -->
+    <div id="duty-card" hidden>
+      <div class="dc-header">
+        <div class="picker-brand">Phil Haines Coaches</div>
+        <div class="dc-greeting">
+          <span id="dc-greeting-prefix">Good morning,</span>
+          <span id="dc-driver-name"></span>
+        </div>
+        <div id="dc-date" class="dc-date"></div>
+      </div>
+      <div id="dc-routes"></div>
+    </div>
+
+    <!-- Picker screen -->
+    <div id="picker" hidden>
       <div class="picker-title">
         <div class="picker-brand">Phil Haines Coaches</div>
         <div class="picker-subtitle">Route Timing Tracker</div>
       </div>
-      <div class="picker-field">
+      <button id="picker-back-btn" hidden>&#8592; Back to Duty Card</button>
+      <div class="picker-field" id="picker-service-field">
         <label for="service-select">Service</label>
         <div class="select-wrap">
           <select id="service-select"></select>
         </div>
       </div>
-      <div class="picker-field">
+      <div class="picker-field" id="picker-run-field">
         <label for="run-select">Run</label>
         <div class="select-wrap">
           <select id="run-select"></select>
@@ -110,7 +125,7 @@
     <button id="btn-complete" style="width:100%;margin-top:12px;padding:14px;background:#c0392b;color:#fff;font-family:Oswald,sans-serif;font-size:1rem;font-weight:600;letter-spacing:0.05em;border:none;border-radius:6px;cursor:pointer;">Complete Trip</button>
     </div>
 
-    <p style="text-align:center;font-size:0.7rem;color:var(--text-muted);opacity:0.6;padding:16px 0 8px;margin:0;">v2.0 · build 9</p>
+    <p style="text-align:center;font-size:0.7rem;color:var(--text-muted);opacity:0.6;padding:16px 0 8px;margin:0;">v2.0 · build 10</p>
 
     <script src="lib/leaflet.min.js"></script>
     <script type="module" src="src/main.js"></script>
