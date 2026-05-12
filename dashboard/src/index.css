@@ -333,6 +333,9 @@ tr:hover td { background: #f7f9fc; }
   border-radius: var(--radius);
   width: 100%;
   max-width: 440px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
   box-shadow: var(--shadow-lg);
   overflow: hidden;
 }
@@ -344,9 +347,10 @@ tr:hover td { background: #f7f9fc; }
   font-weight: 500;
   color: var(--navy-mid);
   border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
-.modal-body { padding: 20px; }
+.modal-body { padding: 20px; overflow-y: auto; }
 
 .modal-footer {
   padding: 12px 20px;
@@ -355,6 +359,7 @@ tr:hover td { background: #f7f9fc; }
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 /* ── Badge ─────────────────────────────────────────────────── */
