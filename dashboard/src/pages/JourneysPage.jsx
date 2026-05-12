@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { getCompanyId } from '../lib/company'
 import Modal from '../components/Modal'
 
 const STATUS_BADGE = {
@@ -63,11 +64,13 @@ export default function JourneysPage() {
   async function handleSave(e) {
     e.preventDefault()
     setSaving(true); setError('')
+    const company_id = await getCompanyId()
     const payload = {
       timetable_id: form.timetable_id || null,
       driver_id:    form.driver_id    || null,
       vehicle_id:   form.vehicle_id   || null,
       journey_date: form.journey_date,
+      company_id,
     }
     const { error: err } = modal === 'add'
       ? await supabase.from('journeys').insert(payload)
@@ -92,7 +95,7 @@ export default function JourneysPage() {
   }
 
   function copyDriverLink(id) {
-    navigator.clipboard.writeText(`https://car490.github.io/route-tracker/?journey=${id}`)
+    navigator.clipboard.writeText(`https://car490.github.io/route-tracker/?duties=${id}`)
     setCopiedId(id)
     setTimeout(() => setCopiedId(null), 2000)
   }

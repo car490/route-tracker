@@ -2,7 +2,7 @@ import { haversine } from './geo.js';
 import { computeTiming } from './engine.js';
 import { log } from './logger.js';
 
-export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIndex = 0, onUpdate }) {
+export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIndex = 0, onUpdate, onGpsFix }) {
   if (!navigator.geolocation) {
     log('error', 'Geolocation API not available');
     return { stop: () => {}, jumpToStop: () => {} };
@@ -13,6 +13,7 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
   let gpsLostAt = null;
   let fixCount = 0;
   let atStop = null; // { stopIndex } while vehicle is within the stop geo-fence
+  let lastGpsUploadMs = 0; // throttle GPS fix uploads to every 30 s
 
   for (let i = 0; i < initialStopIndex; i++) {
     arrivals[i] = 'missed';
@@ -106,6 +107,19 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
           const minEarly = Math.round((scheduledDepart - arrivalTime) / 60000);
           log('info', `Running ${minEarly} min early — wait until ${scheduledDepart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
         }
+      }
+
+      // Throttled GPS fix upload — fire-and-forget every 30 s
+      const nowMs = now.getTime();
+      if (onGpsFix && nowMs - lastGpsUploadMs >= 30000) {
+        lastGpsUploadMs = nowMs;
+        onGpsFix({
+          lat: latitude,
+          lon: longitude,
+          speed: speedMps,
+          accuracy: position.coords.accuracy ?? null,
+          ts: now.toISOString(),
+        });
       }
 
       const earlyWait = computeEarlyWait(now);

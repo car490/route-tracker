@@ -207,6 +207,22 @@ function runTracker({ allStops, journeyId, initialStopIndex, serviceLabel, onCom
     schedule: allStops,
     lateAllowanceMin: 2,
     initialStopIndex,
+    onGpsFix: journeyId
+      ? ({ lat, lon, speed, accuracy, ts }) => {
+          sbFetch('/rest/v1/journey_events', {
+            method: 'POST',
+            headers: { 'Prefer': 'return=minimal' },
+            body: JSON.stringify({
+              journey_id:  journeyId,
+              event_type:  'gps_fix',
+              lat,
+              lon,
+              occurred_at: ts,
+              metadata:    { speed_mps: speed, accuracy },
+            }),
+          }).catch(() => {}); // fire-and-forget; GPS loop must not block
+        }
+      : null,
     onUpdate: ({ timing, nextStopIndex, speedMps, distanceToNextM, arrivals, earlyWait, atStop, lat, lon }) => {
       arrivalsRef = arrivals;
       updateUi({ timing, nextStopIndex, schedule: allStops, speedMps, distanceToNextM, arrivals, earlyWait, atStop });

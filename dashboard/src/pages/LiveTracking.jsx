@@ -1,10 +1,34 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+
+// Lincolnshire centre — covers both S125S and S116S routes
+const MAP_CENTRE = [52.97, -0.02]
+const MAP_ZOOM   = 11
+
+function makeBusIcon(label) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="background:#4db848;color:#07111f;font-family:Oswald,sans-serif;font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.5);white-space:nowrap">${label}</div>`,
+    iconAnchor: [0, 0],
+  })
+}
 
 export default function LiveTracking() {
   const [journeys, setJourneys] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading,  setLoading]  = useState(true)
+  const [mapReady, setMapReady] = useState(false)
 
+  const mapDivRef   = useRef(null)  // DOM node for Leaflet
+  const mapRef      = useRef(null)  // L.Map instance
+  const markersRef  = useRef({})    // journey_id → L.Marker
+  const journeysRef = useRef([])    // stable ref to latest journeys for Realtime callback
+
+  // Keep journeysRef in sync so the Realtime callback always has the latest labels
+  useEffect(() => { journeysRef.current = journeys }, [journeys])
+
+  // Load in-progress journeys + Realtime refresh on any journeys change
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10)
 
@@ -25,17 +49,85 @@ export default function LiveTracking() {
 
     load()
 
-    const channel = supabase
+    const ch = supabase
       .channel('live-journeys')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'journeys' }, () => load())
+      .subscribe()
+
+    return () => supabase.removeChannel(ch)
+  }, [])
+
+  // Initialise Leaflet map once after mount
+  useEffect(() => {
+    if (!mapDivRef.current || mapRef.current) return
+
+    const map = L.map(mapDivRef.current).setView(MAP_CENTRE, MAP_ZOOM)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 18,
+    }).addTo(map)
+    mapRef.current = map
+    setMapReady(true)
+
+    return () => {
+      map.remove()
+      mapRef.current = null
+      setMapReady(false)
+    }
+  }, [])
+
+  // Subscribe to GPS fixes via Realtime — only once map is ready
+  useEffect(() => {
+    if (!mapReady) return
+
+    const ch = supabase
+      .channel('gps-fixes')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'journeys' },
-        () => load()
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'journey_events',
+          filter: 'event_type=eq.gps_fix',
+        },
+        ({ new: row }) => {
+          const { journey_id, lat, lon } = row
+          const map = mapRef.current
+          if (!map || lat == null || lon == null) return
+
+          const existing = markersRef.current[journey_id]
+          if (existing) {
+            existing.setLatLng([lat, lon])
+          } else {
+            const j = journeysRef.current.find(x => x.id === journey_id)
+            const label = j
+              ? `${j.timetable?.route?.service_code ?? '?'} · ${j.driver?.name ?? '?'}`
+              : journey_id.slice(0, 8)
+            const marker = L.marker([lat, lon], { icon: makeBusIcon(label) }).addTo(map)
+            marker.bindPopup(
+              j
+                ? `<b>${j.timetable?.route?.service_code}</b><br>${j.driver?.name ?? 'Unknown driver'}<br>${j.vehicle?.registration ?? ''}`
+                : journey_id
+            )
+            markersRef.current[journey_id] = marker
+          }
+        }
       )
       .subscribe()
 
-    return () => supabase.removeChannel(channel)
-  }, [])
+    return () => supabase.removeChannel(ch)
+  }, [mapReady])
+
+  // Remove markers for journeys that are no longer in_progress
+  useEffect(() => {
+    const activeIds = new Set(journeys.map(j => j.id))
+    for (const [id, marker] of Object.entries(markersRef.current)) {
+      if (!activeIds.has(id)) {
+        marker.remove()
+        delete markersRef.current[id]
+      }
+    }
+  }, [journeys])
 
   return (
     <>
@@ -72,8 +164,8 @@ export default function LiveTracking() {
                     </td>
                     <td>
                       {j.timetable?.period
-                        ? <span className={`badge ${j.timetable.period === 'am' ? 'badge-amber' : 'badge-blue'}`}>
-                            {j.timetable.period.toUpperCase()}
+                        ? <span className={`badge ${j.timetable.period === 'Morning' || j.timetable.period === 'Early Morning' ? 'badge-amber' : 'badge-blue'}`}>
+                            {j.timetable.period}
                           </span>
                         : '—'}
                     </td>
@@ -92,15 +184,8 @@ export default function LiveTracking() {
         </div>
       </div>
 
-      <div className="card" style={{ padding: 32, textAlign: 'center' }}>
-        <div style={{ fontSize: 40, marginBottom: 12 }}>📍</div>
-        <div style={{ fontFamily: 'Oswald', fontSize: 17, color: 'var(--navy-mid)', marginBottom: 8 }}>
-          GPS map view — coming next
-        </div>
-        <div style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 380, margin: '0 auto' }}>
-          Once the driver PWA writes GPS fixes to Supabase journey_events, live positions
-          will appear here on a Leaflet map, updating in real time.
-        </div>
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div ref={mapDivRef} style={{ height: 480, width: '100%' }} />
       </div>
     </>
   )

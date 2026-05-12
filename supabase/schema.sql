@@ -235,15 +235,18 @@ create table journey_waypoints (
 
 
 -- ── Journey events ────────────────────────────────────────────────────────────
--- Incidents only. Stop timing data lives in journey_stop_times.
+-- event_type values:
+--   'incident'  — driver-reported incident; ops review required.
+--   'gps_fix'   — periodic GPS position from the driver PWA (every ~30 s while in_progress).
+--                 lat/lon/occurred_at/metadata used; timetable_stop_id and journey_waypoint_id are null.
 -- Journey start/end is captured in journeys.started_at / completed_at.
--- timetable_stop_id / journey_waypoint_id: optional location context for the incident.
+-- timetable_stop_id / journey_waypoint_id: optional location context for incidents.
 
 create table journey_events (
   id                    uuid        primary key default gen_random_uuid(),
   journey_id            uuid        not null references journeys(id) on delete cascade,
   event_type            text        not null
-                          check (event_type in ('incident')),
+                          check (event_type in ('incident', 'gps_fix')),
   timetable_stop_id     uuid        references timetable_stops(id),
   journey_waypoint_id   uuid        references journey_waypoints(id),
   lat                   float8,
@@ -559,6 +562,14 @@ create policy "company_all" on journey_events
     journey_id in (select id from journeys where company_id = current_company_id())
   );
 
+-- Anon drivers may insert GPS fixes for in-progress journeys (driver PWA has no auth session)
+create policy "anon_gps_fix" on journey_events
+  for insert to anon
+  with check (
+    event_type = 'gps_fix'
+    and is_journey_in_progress(journey_id)
+  );
+
 -- Journey stop times: scoped via journey → company
 -- Drivers insert (batch upload at trip end); ops can update review fields.
 create policy "company_all" on journey_stop_times
@@ -584,6 +595,11 @@ create policy "super_user_update" on stops
 
 
 -- ── Grants ────────────────────────────────────────────────────────────────────
+
+grant usage on schema public to anon, authenticated;
+grant select on all tables in schema public to anon;
+grant all on all tables in schema public to authenticated;
+grant all on all sequences in schema public to authenticated;
 
 grant select on schedule_view to anon;
 grant select on schedule_view to authenticated;
