@@ -12,8 +12,8 @@
   --text-muted:  #6b7a99;
   --danger:      #e53e3e;
   --danger-dark: #c53030;
-  --shadow:      0 1px 4px rgba(0, 0, 0, 0.08);
-  --shadow-lg:   0 4px 24px rgba(0, 0, 0, 0.18);
+  --shadow:      0 1px 3px rgba(0, 0, 0, 0.10);
+  --shadow-lg:   0 4px 16px rgba(0, 0, 0, 0.14);
   --radius:      8px;
   --sidebar-w:   240px;
 }
@@ -32,6 +32,9 @@ body {
   color: var(--text);
   background: var(--bg);
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 a { color: inherit; text-decoration: none; }
