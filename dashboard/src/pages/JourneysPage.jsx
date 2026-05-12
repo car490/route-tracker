@@ -26,6 +26,9 @@ export default function JourneysPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [copiedId, setCopiedId] = useState(null)
+  const [detailJourney, setDetailJourney] = useState(null)
+  const [detailStops, setDetailStops] = useState([])
+  const [detailLoading, setDetailLoading] = useState(false)
 
   async function loadJourneys(date) {
     setLoading(true)
@@ -61,6 +64,21 @@ export default function JourneysPage() {
     loadJourneys(e.target.value)
   }
 
+  async function openDetail(j) {
+    setDetailJourney(j)
+    setDetailStops([])
+    setDetailLoading(true)
+    if (j.timetable_id) {
+      const { data } = await supabase
+        .from('timetable_stops')
+        .select('sequence, scheduled_time, stop_type, stop:stops(name)')
+        .eq('timetable_id', j.timetable_id)
+        .order('sequence')
+      setDetailStops(data ?? [])
+    }
+    setDetailLoading(false)
+  }
+
   async function handleSave(e) {
     e.preventDefault()
     setSaving(true); setError('')
@@ -87,9 +105,7 @@ export default function JourneysPage() {
   }
 
   async function updateStatus(id, status) {
-    const extra = status === 'in_progress' ? { started_at: new Date().toISOString() }
-                : status === 'completed'   ? { completed_at: new Date().toISOString() }
-                : {}
+    const extra = status === 'completed' ? { completed_at: new Date().toISOString() } : {}
     await supabase.from('journeys').update({ status, ...extra }).eq('id', id)
     loadJourneys(dateFilter)
   }
@@ -173,6 +189,7 @@ export default function JourneysPage() {
                     <td>{STATUS_BADGE[j.status]}</td>
                     <td>
                       <div className="td-actions">
+                        <button className="btn btn-ghost btn-sm" onClick={() => openDetail(j)}>View</button>
                         <button className="btn btn-ghost btn-sm" onClick={() => openEdit(j)}>Edit</button>
                         <button
                           className="btn btn-ghost btn-sm"
@@ -181,11 +198,6 @@ export default function JourneysPage() {
                         >
                           {copiedId === j.id ? 'Copied!' : 'Copy Link'}
                         </button>
-                        {j.status === 'scheduled' && (
-                          <button className="btn btn-success btn-sm" onClick={() => updateStatus(j.id, 'in_progress')}>
-                            Start
-                          </button>
-                        )}
                         {j.status === 'in_progress' && (
                           <button className="btn btn-primary btn-sm" onClick={() => updateStatus(j.id, 'completed')}>
                             Complete
@@ -202,6 +214,64 @@ export default function JourneysPage() {
         </div>
       </div>
 
+      {/* Journey detail modal */}
+      {detailJourney && (
+        <Modal
+          title={`${detailJourney.timetable?.route?.service_code ?? 'Journey'} — ${detailJourney.timetable?.period ?? ''} ${detailJourney.timetable?.direction ?? ''}`}
+          onClose={() => setDetailJourney(null)}
+          footer={
+            <button className="btn btn-ghost" onClick={() => setDetailJourney(null)}>Close</button>
+          }
+        >
+          <div style={{ marginBottom: 16, display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 14 }}>
+            <div>
+              <span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Driver</span>
+              <strong>{detailJourney.driver?.name ?? 'Unassigned'}</strong>
+            </div>
+            <div>
+              <span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Vehicle</span>
+              <strong style={{ fontFamily: 'monospace' }}>{detailJourney.vehicle?.registration ?? 'Unassigned'}</strong>
+            </div>
+            <div>
+              <span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Date</span>
+              <strong>{new Date(detailJourney.journey_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</strong>
+            </div>
+            <div>
+              <span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Status</span>
+              {STATUS_BADGE[detailJourney.status]}
+            </div>
+          </div>
+
+          {detailLoading ? (
+            <div style={{ color: 'var(--text-muted)', padding: '12px 0' }}>Loading stops…</div>
+          ) : detailStops.length === 0 ? (
+            <div style={{ color: 'var(--text-muted)', padding: '12px 0' }}>No timetable assigned.</div>
+          ) : (
+            <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  <th style={{ textAlign: 'left', padding: '4px 8px', color: 'var(--text-muted)', fontWeight: 500, width: 32 }}>#</th>
+                  <th style={{ textAlign: 'left', padding: '4px 8px', color: 'var(--text-muted)', fontWeight: 500 }}>Stop</th>
+                  <th style={{ textAlign: 'right', padding: '4px 8px', color: 'var(--text-muted)', fontWeight: 500, width: 60 }}>Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detailStops.map(s => (
+                  <tr key={s.sequence} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '5px 8px', color: 'var(--text-muted)', fontSize: 12 }}>{s.sequence}</td>
+                    <td style={{ padding: '5px 8px' }}>{s.stop?.name ?? '—'}</td>
+                    <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, color: 'var(--green)' }}>
+                      {s.scheduled_time}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Modal>
+      )}
+
+      {/* Add / edit modal */}
       {modal !== null && (
         <Modal
           title={modal === 'add' ? 'Add Journey' : 'Edit Journey'}
