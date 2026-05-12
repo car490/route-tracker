@@ -208,6 +208,23 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
   margin-top: 5px;
 }
 
+.stat-card--clickable {
+  cursor: pointer;
+  transition: box-shadow 0.15s, border-top-color 0.15s;
+}
+
+.stat-card--clickable:hover {
+  box-shadow: var(--shadow-lg);
+  border-top-color: var(--navy-mid);
+}
+
+.stat-drill {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 10px;
+  letter-spacing: 0.03em;
+}
+
 /* ── Card ──────────────────────────────────────────────────── */
 .card {
   background: var(--surface);
