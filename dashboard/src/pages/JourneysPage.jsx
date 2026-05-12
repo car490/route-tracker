@@ -260,7 +260,7 @@ export default function JourneysPage() {
                   <tr key={s.sequence} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '5px 8px', color: 'var(--text-muted)', fontSize: 12 }}>{s.sequence}</td>
                     <td style={{ padding: '5px 8px' }}>{s.stop?.name ?? '—'}</td>
-                    <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, color: 'var(--green)' }}>
+                    <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, color: '#a0aec0' }}>
                       {s.scheduled_time}
                     </td>
                   </tr>
