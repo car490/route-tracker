@@ -39,27 +39,50 @@ export default function DutyCardsPage() {
   const [duties, setDuties] = useState([])
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(null)
+  const [error, setError] = useState('')
 
   async function load(d) {
     setLoading(true)
-    const { data } = await supabase
+    setError('')
+
+    const { data, error: qErr } = await supabase
       .from('journeys')
       .select(`
         id, journey_date, status,
         timetable:timetables(period, direction, route:routes(service_code)),
-        driver:staff(id, name, contacts:staff_contacts(*))
+        driver:staff(id, name)
       `)
       .eq('journey_date', d)
       .neq('status', 'cancelled')
       .not('driver_id', 'is', null)
       .order('created_at')
 
+    if (qErr) {
+      setError(qErr.message)
+      setLoading(false)
+      return
+    }
+
+    // Fetch contacts separately — page still works if migration not yet applied
+    const driverIds = [...new Set((data ?? []).map(j => j.driver?.id).filter(Boolean))]
+    const contactsMap = {}
+    if (driverIds.length > 0) {
+      const { data: cData } = await supabase
+        .from('staff_contacts')
+        .select('*')
+        .in('staff_id', driverIds)
+      for (const c of cData ?? []) {
+        if (!contactsMap[c.staff_id]) contactsMap[c.staff_id] = []
+        contactsMap[c.staff_id].push(c)
+      }
+    }
+
     // Group by driver
     const map = {}
     for (const j of data ?? []) {
       if (!j.driver) continue
       const dId = j.driver.id
-      if (!map[dId]) map[dId] = { driver: j.driver, journeys: [] }
+      if (!map[dId]) map[dId] = { driver: { ...j.driver, contacts: contactsMap[dId] ?? [] }, journeys: [] }
       map[dId].journeys.push(j)
     }
     setDuties(
@@ -121,6 +144,8 @@ export default function DutyCardsPage() {
         {fmtLongDate(date)} — duty cards for all assigned drivers.
         Contact details can be added on the <a href="/drivers" style={{ color: 'var(--navy-brand)' }}>Staff page</a>.
       </p>
+
+      {error && <div className="error-msg" style={{ marginBottom: 16 }}>{error}</div>}
 
       {loading ? (
         <div className="empty-state">Loading…</div>

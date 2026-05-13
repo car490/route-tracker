@@ -41,12 +41,12 @@ export default function App() {
           </Protected>
         }
       >
-        <Route index element={<Overview />} />
+        <Route index element={<SchedulePage />} />
+        <Route path="overview" element={<Overview />} />
         <Route path="routes" element={<RoutesPage />} />
         <Route path="drivers" element={<DriversPage />} />
         <Route path="vehicles" element={<VehiclesPage />} />
         <Route path="journeys" element={<JourneysPage />} />
-        <Route path="schedule" element={<SchedulePage />} />
         <Route path="duty-cards" element={<DutyCardsPage />} />
         <Route path="live" element={<LiveTracking />} />
       </Route>
