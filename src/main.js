@@ -167,6 +167,7 @@ function runTracker({ allStops, journeyId, initialStopIndex, serviceLabel, onCom
   log('info', `Started: ${serviceLabel} from "${allStops[initialStopIndex].name}"`);
 
   let activeTab = 'list', mapReady = false, arrivalsRef = [];
+  let lastLat = null, lastLon = null, lastStopIdx = initialStopIndex;
 
   function showTab(tab) {
     activeTab = tab;
@@ -225,6 +226,8 @@ function runTracker({ allStops, journeyId, initialStopIndex, serviceLabel, onCom
       : null,
     onUpdate: ({ timing, nextStopIndex, speedMps, distanceToNextM, arrivals, earlyWait, atStop, lat, lon }) => {
       arrivalsRef = arrivals;
+      lastStopIdx = nextStopIndex;
+      if (lat !== undefined) { lastLat = lat; lastLon = lon; }
       updateUi({ timing, nextStopIndex, schedule: allStops, speedMps, distanceToNextM, arrivals, earlyWait, atStop });
       if (lat !== undefined) updateMapPosition(lat, lon, nextStopIndex, arrivals);
       syncCurrentStop(nextStopIndex);
@@ -235,9 +238,49 @@ function runTracker({ allStops, journeyId, initialStopIndex, serviceLabel, onCom
 
   setOnStopJump(idx => tracker.jumpToStop(idx));
 
+  // ── Incident reporting ────────────────────────────────────────────────────
+  const btnIncident     = document.getElementById('btn-incident');
+  const incidentOverlay = document.getElementById('incident-overlay');
+  btnIncident.hidden = false;
+
+  btnIncident.onclick = () => {
+    document.getElementById('incident-category').value = 'Delay';
+    document.getElementById('incident-desc').value = '';
+    incidentOverlay.hidden = false;
+  };
+
+  document.getElementById('incident-cancel').onclick = () => {
+    incidentOverlay.hidden = true;
+  };
+
+  document.getElementById('incident-submit').onclick = async () => {
+    const category    = document.getElementById('incident-category').value;
+    const description = document.getElementById('incident-desc').value.trim();
+    incidentOverlay.hidden = true;
+
+    if (journeyId) {
+      const nearStop = allStops[lastStopIdx]?.name || '';
+      sbFetch('/rest/v1/journey_events', {
+        method: 'POST',
+        headers: { 'Prefer': 'return=minimal' },
+        body: JSON.stringify({
+          journey_id:  journeyId,
+          event_type:  'incident',
+          lat:         lastLat,
+          lon:         lastLon,
+          occurred_at: new Date().toISOString(),
+          metadata:    { category, description, near_stop: nearStop },
+        }),
+      }).catch(() => {});
+    }
+    log('info', `Incident: ${category}${description ? ' — ' + description : ''}`);
+  };
+
   document.getElementById('btn-complete').onclick = async () => {
     if (!confirm('End trip and upload stop times?')) return;
     tracker.stop();
+    btnIncident.hidden = true;
+    incidentOverlay.hidden = true;
 
     if (journeyId) {
       const [uploadResult] = await Promise.all([

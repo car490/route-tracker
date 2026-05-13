@@ -570,6 +570,14 @@ create policy "anon_gps_fix" on journey_events
     and is_journey_in_progress(journey_id)
   );
 
+-- Anon drivers may insert incident reports for in-progress journeys
+create policy "anon_incident" on journey_events
+  for insert to anon
+  with check (
+    event_type = 'incident'
+    and is_journey_in_progress(journey_id)
+  );
+
 -- Journey stop times: scoped via journey → company
 -- Drivers insert (batch upload at trip end); ops can update review fields.
 create policy "company_all" on journey_stop_times

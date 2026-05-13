@@ -800,6 +800,149 @@ body {
   padding: 0.4rem;
 }
 
+/* ── Incident button ──────────────────────────── */
+
+#btn-incident {
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px;
+  background: transparent;
+  color: var(--early);
+  border: 1.5px solid var(--early);
+  border-radius: 6px;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+#btn-incident:active {
+  background: rgba(251, 140, 0, 0.15);
+}
+
+/* ── Incident overlay ─────────────────────────── */
+
+#incident-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 1rem 1rem;
+}
+
+#incident-modal {
+  background: var(--surface);
+  border: 1px solid var(--early);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+.incident-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--early);
+  padding: 1rem 1.25rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.incident-body {
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.incident-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.incident-optional {
+  font-family: system-ui, sans-serif;
+  font-size: 0.7rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.incident-select,
+.incident-textarea {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.65rem 0.75rem;
+  font-size: 1rem;
+  width: 100%;
+  font-family: system-ui, sans-serif;
+  appearance: none;
+}
+
+.incident-select:focus,
+.incident-textarea:focus {
+  outline: none;
+  border-color: var(--early);
+}
+
+.incident-textarea {
+  resize: none;
+  line-height: 1.4;
+}
+
+.incident-footer {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.incident-btn-cancel,
+.incident-btn-submit {
+  flex: 1;
+  padding: 0.8rem;
+  border-radius: 6px;
+  font-family: 'Oswald', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border: none;
+}
+
+.incident-btn-cancel {
+  background: var(--bg);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.incident-btn-cancel:active {
+  color: var(--text);
+}
+
+.incident-btn-submit {
+  background: var(--early);
+  color: #000;
+}
+
+.incident-btn-submit:active {
+  opacity: 0.85;
+}
+
 /* Back button shown in picker when launched from duty card */
 #picker-back-btn {
   background: none;

@@ -122,10 +122,34 @@
     <div id="map-view" hidden></div>
     <div id="directions-view" hidden></div>
     <div id="log-view" hidden></div>
-    <button id="btn-complete" style="width:100%;margin-top:12px;padding:14px;background:#c0392b;color:#fff;font-family:Oswald,sans-serif;font-size:1rem;font-weight:600;letter-spacing:0.05em;border:none;border-radius:6px;cursor:pointer;">Complete Trip</button>
+    <button id="btn-incident" hidden>&#9888; Report Incident</button>
+    <button id="btn-complete" style="width:100%;margin-top:8px;padding:14px;background:#c0392b;color:#fff;font-family:Oswald,sans-serif;font-size:1rem;font-weight:600;letter-spacing:0.05em;border:none;border-radius:6px;cursor:pointer;">Complete Trip</button>
     </div>
 
-    <p style="text-align:center;font-size:0.7rem;color:var(--text-muted);opacity:0.6;padding:16px 0 8px;margin:0;">v2.0 · build 12</p>
+    <!-- Incident reporting overlay -->
+    <div id="incident-overlay" hidden>
+      <div id="incident-modal">
+        <div class="incident-title">&#9888; Report Incident</div>
+        <div class="incident-body">
+          <label class="incident-label">Category</label>
+          <select id="incident-category" class="incident-select">
+            <option value="Delay">Delay</option>
+            <option value="Breakdown">Breakdown</option>
+            <option value="Road Incident">Road Incident</option>
+            <option value="Passenger Issue">Passenger Issue</option>
+            <option value="Other">Other</option>
+          </select>
+          <label class="incident-label">Description <span class="incident-optional">(optional)</span></label>
+          <textarea id="incident-desc" class="incident-textarea" rows="3" placeholder="Brief description…"></textarea>
+        </div>
+        <div class="incident-footer">
+          <button id="incident-cancel" class="incident-btn-cancel">Cancel</button>
+          <button id="incident-submit" class="incident-btn-submit">Submit Report</button>
+        </div>
+      </div>
+    </div>
+
+    <p style="text-align:center;font-size:0.7rem;color:var(--text-muted);opacity:0.6;padding:16px 0 8px;margin:0;">v2.1 · build 13</p>
 
     <script src="lib/leaflet.min.js"></script>
     <script type="module" src="src/main.js"></script>
