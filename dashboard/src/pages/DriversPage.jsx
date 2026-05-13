@@ -4,7 +4,7 @@ import { getCompanyId } from '../lib/company'
 import Modal from '../components/Modal'
 
 const ROLES = ['driver', 'ops_manager', 'super_user']
-const EMPTY = { name: '', role: 'driver' }
+const EMPTY = { name: '', role: 'driver', email: '', phone: '' }
 
 const roleBadge = r => {
   if (r === 'super_user')  return <span className="badge badge-red">Super User</span>
@@ -30,7 +30,7 @@ export default function DriversPage() {
   useEffect(() => { load() }, [])
 
   function openAdd() { setForm(EMPTY); setError(''); setModal('add') }
-  function openEdit(s) { setForm({ name: s.name, role: s.role }); setError(''); setModal(s) }
+  function openEdit(s) { setForm({ name: s.name, role: s.role, email: s.email ?? '', phone: s.phone ?? '' }); setError(''); setModal(s) }
 
   async function handleSave(e) {
     e.preventDefault()
@@ -39,7 +39,7 @@ export default function DriversPage() {
     const payload = { ...form, company_id }
     const { error: err } = modal === 'add'
       ? await supabase.from('staff').insert(payload)
-      : await supabase.from('staff').update({ name: form.name, role: form.role }).eq('id', modal.id)
+      : await supabase.from('staff').update({ name: form.name, role: form.role, email: form.email || null, phone: form.phone || null }).eq('id', modal.id)
     setSaving(false)
     if (err) { setError(err.message); return }
     setModal(null); load()
@@ -70,6 +70,8 @@ export default function DriversPage() {
                 <tr>
                   <th>Name</th>
                   <th>Role</th>
+                  <th>Email</th>
+                  <th>Phone</th>
                   <th>Added</th>
                   <th></th>
                 </tr>
@@ -79,6 +81,8 @@ export default function DriversPage() {
                   <tr key={s.id}>
                     <td style={{ fontWeight: 500 }}>{s.name}</td>
                     <td>{roleBadge(s.role)}</td>
+                    <td style={{ color: 'var(--text-muted)' }}>{s.email ?? '—'}</td>
+                    <td style={{ color: 'var(--text-muted)' }}>{s.phone ?? '—'}</td>
                     <td style={{ color: 'var(--text-muted)' }}>
                       {new Date(s.created_at).toLocaleDateString('en-GB')}
                     </td>
@@ -132,6 +136,26 @@ export default function DriversPage() {
                   <option key={r} value={r}>{r.replace('_', ' ')}</option>
                 ))}
               </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Email</label>
+              <input
+                type="email"
+                className="form-input"
+                value={form.email}
+                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                placeholder="driver@example.com"
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Phone <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'none', letterSpacing: 0 }}>(international format, e.g. +447700900123)</span></label>
+              <input
+                type="tel"
+                className="form-input"
+                value={form.phone}
+                onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                placeholder="+447700900123"
+              />
             </div>
           </form>
         </Modal>

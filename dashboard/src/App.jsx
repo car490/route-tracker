@@ -9,6 +9,7 @@ import VehiclesPage from './pages/VehiclesPage'
 import RoutesPage from './pages/RoutesPage'
 import JourneysPage from './pages/JourneysPage'
 import SchedulePage from './pages/SchedulePage'
+import DutyCardsPage from './pages/DutyCardsPage'
 import LiveTracking from './pages/LiveTracking'
 
 function Protected({ session, children }) {
@@ -46,6 +47,7 @@ export default function App() {
         <Route path="vehicles" element={<VehiclesPage />} />
         <Route path="journeys" element={<JourneysPage />} />
         <Route path="schedule" element={<SchedulePage />} />
+        <Route path="duty-cards" element={<DutyCardsPage />} />
         <Route path="live" element={<LiveTracking />} />
       </Route>
     </Routes>

@@ -6,8 +6,9 @@ const NAV = [
   { to: '/routes',   label: 'Routes & Timetables' },
   { to: '/drivers',  label: 'Staff' },
   { to: '/vehicles', label: 'Vehicles' },
-  { to: '/schedule', label: 'Schedule' },
-  { to: '/journeys', label: 'Daily Journeys' },
+  { to: '/schedule',    label: 'Schedule' },
+  { to: '/duty-cards',  label: 'Duty Cards' },
+  { to: '/journeys',    label: 'Daily Journeys' },
   { to: '/live',     label: 'Live Tracking' },
 ]
 
