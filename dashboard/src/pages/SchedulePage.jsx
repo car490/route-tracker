@@ -5,11 +5,9 @@ import Modal from '../components/Modal'
 
 // ── Date helpers ────────────────────────────────────────────────────────────
 
-function getMonday(d) {
-  const day = d.getDay()
-  const diff = day === 0 ? -6 : 1 - day
+function getWeekStart(d) {
   const m = new Date(d)
-  m.setDate(d.getDate() + diff)
+  m.setDate(d.getDate() - d.getDay())   // Sunday (getDay()===0 means no shift)
   m.setHours(0, 0, 0, 0)
   return m
 }
@@ -22,10 +20,10 @@ function todayStr() {
   return dateStr(new Date())
 }
 
-function weekDays(monday) {
-  return Array.from({ length: 5 }, (_, i) => {
-    const d = new Date(monday)
-    d.setDate(monday.getDate() + i)
+function weekDays(sunday) {
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(sunday)
+    d.setDate(sunday.getDate() + i)
     return d
   })
 }
@@ -34,13 +32,13 @@ function fmtDay(d) {
   return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
-function fmtWeek(monday) {
-  const friday = new Date(monday)
-  friday.setDate(monday.getDate() + 4)
-  if (monday.getMonth() === friday.getMonth()) {
-    return `${monday.getDate()}–${friday.getDate()} ${monday.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`
+function fmtWeek(sunday) {
+  const saturday = new Date(sunday)
+  saturday.setDate(sunday.getDate() + 6)
+  if (sunday.getMonth() === saturday.getMonth()) {
+    return `${sunday.getDate()}–${saturday.getDate()} ${sunday.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`
   }
-  return `${monday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${friday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+  return `${sunday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${saturday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
 }
 
 function fmtLongDate(dateString) {
@@ -103,7 +101,7 @@ function cellStyle(color, bg, border) {
 // ── Main component ──────────────────────────────────────────────────────────
 
 export default function SchedulePage() {
-  const [weekStart, setWeekStart] = useState(getMonday(new Date()))
+  const [weekStart, setWeekStart] = useState(getWeekStart(new Date()))
   const [timetables, setTimetables] = useState([])
   const [journeyMap, setJourneyMap] = useState({})
   const [staff, setStaff] = useState([])
@@ -117,10 +115,10 @@ export default function SchedulePage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  async function load(monday) {
+  async function load(sunday) {
     setLoading(true)
-    const friday = new Date(monday)
-    friday.setDate(monday.getDate() + 4)
+    const saturday = new Date(sunday)
+    saturday.setDate(sunday.getDate() + 6)
 
     const [tmRes, jRes, staffRes, vRes] = await Promise.all([
       supabase
@@ -130,8 +128,8 @@ export default function SchedulePage() {
       supabase
         .from('journeys')
         .select('id, journey_date, timetable_id, driver_id, vehicle_id, status, driver:staff(name), vehicle:vehicles(registration)')
-        .gte('journey_date', dateStr(monday))
-        .lte('journey_date', dateStr(friday))
+        .gte('journey_date', dateStr(sunday))
+        .lte('journey_date', dateStr(saturday))
         .neq('status', 'cancelled'),
       supabase.from('staff').select('id, name').order('name'),
       supabase.from('vehicles').select('id, registration').order('registration'),
@@ -298,8 +296,8 @@ export default function SchedulePage() {
         <button className="btn btn-ghost btn-sm" onClick={() => shiftWeek(1)}>Next →</button>
         <button
           className="btn btn-ghost btn-sm"
-          onClick={() => { const m = getMonday(new Date()); setWeekStart(m); load(m) }}
-          style={{ marginLeft: 4 }}
+          onClick={() => { const m = getWeekStart(new Date()); setWeekStart(m); load(m) }}
+            style={{ marginLeft: 4 }}
         >
           This Week
         </button>
