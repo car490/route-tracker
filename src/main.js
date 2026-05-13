@@ -93,13 +93,16 @@ async function uploadStopTimes(jId, arrivals, stops) {
       arrived_at: arrivals[i].toISOString(),
     });
   }
+  log('info', `Upload payload (${rows.length} rows): ${JSON.stringify(rows)}`);
   if (!rows.length) return { ok: true, count: 0 };
   const res = await sbFetch('/rest/v1/journey_stop_times', {
     method: 'POST',
     headers: { 'Prefer': 'return=minimal' },
     body: JSON.stringify(rows),
   });
-  return { ok: res.ok, status: res.status, count: rows.length };
+  const responseBody = res.ok ? '' : await res.text().catch(() => '(could not read response)');
+  if (!res.ok) log('error', `Upload failed HTTP ${res.status}: ${responseBody}`);
+  return { ok: res.ok, status: res.status, count: rows.length, responseBody };
 }
 
 // ── Wake lock ─────────────────────────────────────────────────────────────────
@@ -290,8 +293,12 @@ function runTracker({ allStops, journeyId, initialStopIndex, serviceLabel, onCom
       if (uploadResult.ok) {
         log('info', `Uploaded ${uploadResult.count} stop time(s)`);
       } else {
-        log('warn', `Upload failed (HTTP ${uploadResult.status})`);
-        alert(`Trip ended but stop times could not be saved (error ${uploadResult.status}).\nPlease contact ops.`);
+        alert(
+          `Trip ended but stop times could not be saved.\n\n` +
+          `HTTP status: ${uploadResult.status}\n` +
+          `Server response: ${uploadResult.responseBody || '(empty)'}\n\n` +
+          `Screenshot this message and contact ops.`
+        );
       }
     } else {
       log('warn', 'No journey ID — stop times not saved');
