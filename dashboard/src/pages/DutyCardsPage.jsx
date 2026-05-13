@@ -11,12 +11,9 @@ function fmtLongDate(dateStr) {
   })
 }
 
-// Strip non-digits; if starts with 0, swap for country code 44 (UK fallback)
-function normalisePhone(phone) {
-  if (!phone) return ''
-  const digits = phone.replace(/\D/g, '')
-  if (digits.startsWith('0')) return '44' + digits.slice(1)
-  return digits
+// Strip non-digits from a +44XXXXXXXXXX number for wa.me
+function phoneForWhatsApp(phone) {
+  return phone.replace(/\D/g, '')
 }
 
 function dutyUrl(journeyIds) {
@@ -27,9 +24,19 @@ function dutyMessage(driverName, date, url) {
   return `Hi ${driverName}, your duty card for ${fmtLongDate(date)} is ready:\n${url}`
 }
 
+// From a contacts array, get the best match for a given type.
+// Prefer primary if it matches the type; otherwise return first of that type.
+function getContact(contacts, type) {
+  const primary = contacts.find(c => c.is_primary && c.type === type)
+  if (primary) return primary
+  return contacts.find(c => c.type === type) ?? null
+}
+
+const PERIOD_ORDER = ['Early Morning', 'Morning', 'Midday', 'Afternoon', 'Evening', 'Night', 'All Day']
+
 export default function DutyCardsPage() {
   const [date, setDate] = useState(todayStr())
-  const [duties, setDuties] = useState([])   // [{ driver, journeys[] }]
+  const [duties, setDuties] = useState([])
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(null)
 
@@ -40,7 +47,7 @@ export default function DutyCardsPage() {
       .select(`
         id, journey_date, status,
         timetable:timetables(period, direction, route:routes(service_code)),
-        driver:staff(id, name, email, phone)
+        driver:staff(id, name, contacts:staff_contacts(*))
       `)
       .eq('journey_date', d)
       .neq('status', 'cancelled')
@@ -55,7 +62,9 @@ export default function DutyCardsPage() {
       if (!map[dId]) map[dId] = { driver: j.driver, journeys: [] }
       map[dId].journeys.push(j)
     }
-    setDuties(Object.values(map).sort((a, b) => a.driver.name.localeCompare(b.driver.name)))
+    setDuties(
+      Object.values(map).sort((a, b) => a.driver.name.localeCompare(b.driver.name))
+    )
     setLoading(false)
   }
 
@@ -66,24 +75,32 @@ export default function DutyCardsPage() {
     load(e.target.value)
   }
 
-  function copyLink(driverName, journeyIds) {
-    navigator.clipboard.writeText(dutyUrl(journeyIds))
+  function copyLink(driverName, ids) {
+    navigator.clipboard.writeText(dutyUrl(ids))
     setCopied(driverName)
     setTimeout(() => setCopied(null), 2000)
   }
 
-  function openEmail(driver, journeyIds) {
-    if (!driver.email) { alert(`No email address on file for ${driver.name}.\nAdd one on the Staff page.`); return }
-    const url = dutyUrl(journeyIds)
+  function openEmail(driver, ids) {
+    const contact = getContact(driver.contacts ?? [], 'email')
+    if (!contact) {
+      alert(`No email address on file for ${driver.name}.\nAdd one on the Staff page.`)
+      return
+    }
+    const url = dutyUrl(ids)
     const subject = encodeURIComponent(`Your Duty Card — ${fmtLongDate(date)}`)
     const body = encodeURIComponent(dutyMessage(driver.name, date, url))
-    window.open(`mailto:${driver.email}?subject=${subject}&body=${body}`)
+    window.open(`mailto:${contact.value}?subject=${subject}&body=${body}`)
   }
 
-  function openWhatsApp(driver, journeyIds) {
-    if (!driver.phone) { alert(`No phone number on file for ${driver.name}.\nAdd one on the Staff page.`); return }
-    const phone = normalisePhone(driver.phone)
-    const text = encodeURIComponent(dutyMessage(driver.name, date, dutyUrl(journeyIds)))
+  function openWhatsApp(driver, ids) {
+    const contact = getContact(driver.contacts ?? [], 'phone')
+    if (!contact) {
+      alert(`No phone number on file for ${driver.name}.\nAdd one on the Staff page.`)
+      return
+    }
+    const phone = phoneForWhatsApp(contact.value)
+    const text = encodeURIComponent(dutyMessage(driver.name, date, dutyUrl(ids)))
     window.open(`https://wa.me/${phone}?text=${text}`)
   }
 
@@ -114,24 +131,39 @@ export default function DutyCardsPage() {
           {duties.map(({ driver, journeys }) => {
             const ids = journeys.map(j => j.id)
             const url = dutyUrl(ids)
-            const PERIOD_ORDER = ['Early Morning', 'Morning', 'Midday', 'Afternoon', 'Evening', 'Night', 'All Day']
+            const contacts = driver.contacts ?? []
+            const primaryContact = contacts.find(c => c.is_primary) ?? contacts[0] ?? null
+            const hasEmail = contacts.some(c => c.type === 'email')
+            const hasPhone = contacts.some(c => c.type === 'phone')
+
             const sortedJourneys = [...journeys].sort((a, b) => {
               const sc = (a.timetable?.route?.service_code ?? '').localeCompare(b.timetable?.route?.service_code ?? '')
               if (sc !== 0) return sc
               return PERIOD_ORDER.indexOf(a.timetable?.period) - PERIOD_ORDER.indexOf(b.timetable?.period)
             })
+
             return (
               <div key={driver.id} className="card" style={{ padding: 20 }}>
+
                 {/* Header */}
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
                   <div>
                     <div style={{ fontFamily: 'Oswald, sans-serif', fontSize: 20, fontWeight: 600, color: 'var(--navy-mid)' }}>
                       {driver.name}
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
-                      {driver.email ?? <span style={{ opacity: 0.5 }}>No email</span>}
-                      {driver.phone && <span style={{ marginLeft: 12 }}>{driver.phone}</span>}
-                    </div>
+                    {primaryContact && (
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                        <span className={`badge ${primaryContact.type === 'email' ? 'badge-blue' : 'badge-gray'}`} style={{ fontSize: 10, marginRight: 6 }}>
+                          {primaryContact.type} · primary
+                        </span>
+                        {primaryContact.value}
+                      </div>
+                    )}
+                    {!primaryContact && (
+                      <div style={{ fontSize: 12, color: 'var(--danger)', marginTop: 4, opacity: 0.7 }}>
+                        No contact details on file
+                      </div>
+                    )}
                   </div>
                   <span className="badge badge-gray" style={{ marginTop: 4 }}>
                     {journeys.length} {journeys.length === 1 ? 'run' : 'runs'}
@@ -149,15 +181,15 @@ export default function DutyCardsPage() {
                         {j.timetable?.period} · {j.timetable?.direction}
                       </span>
                       <span style={{ marginLeft: 'auto' }}>
-                        {j.status === 'completed' && <span className="badge badge-green">Completed</span>}
+                        {j.status === 'completed'   && <span className="badge badge-green">Completed</span>}
                         {j.status === 'in_progress' && <span className="badge badge-amber">In Progress</span>}
-                        {j.status === 'scheduled' && <span className="badge badge-gray">Scheduled</span>}
+                        {j.status === 'scheduled'   && <span className="badge badge-gray">Scheduled</span>}
                       </span>
                     </div>
                   ))}
                 </div>
 
-                {/* Duty card link */}
+                {/* Duty card URL */}
                 <div style={{ background: 'var(--bg)', borderRadius: 6, padding: '8px 12px', marginBottom: 14, fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
                   {url}
                 </div>
@@ -171,23 +203,26 @@ export default function DutyCardsPage() {
                   >
                     {copied === driver.name ? '✓ Copied!' : 'Copy Link'}
                   </button>
+
                   <button
                     className="btn btn-ghost btn-sm"
                     onClick={() => openEmail(driver, ids)}
-                    disabled={!driver.email}
-                    title={driver.email ? `Send to ${driver.email}` : 'No email address on file'}
+                    disabled={!hasEmail}
+                    title={hasEmail ? `Send to ${getContact(contacts, 'email')?.value}` : 'No email address on file'}
                   >
                     Send Email
                   </button>
+
                   <button
                     className="btn btn-ghost btn-sm"
                     onClick={() => openWhatsApp(driver, ids)}
-                    disabled={!driver.phone}
-                    title={driver.phone ? `Send to ${driver.phone}` : 'No phone number on file'}
-                    style={driver.phone ? { color: '#25d366', borderColor: '#25d366' } : {}}
+                    disabled={!hasPhone}
+                    title={hasPhone ? `Send to ${getContact(contacts, 'phone')?.value}` : 'No phone number on file'}
+                    style={hasPhone ? { color: '#25d366', borderColor: '#25d366' } : {}}
                   >
                     WhatsApp
                   </button>
+
                   <a
                     href={url}
                     target="_blank"

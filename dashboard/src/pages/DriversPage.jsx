@@ -4,7 +4,20 @@ import { getCompanyId } from '../lib/company'
 import Modal from '../components/Modal'
 
 const ROLES = ['driver', 'ops_manager', 'super_user']
-const EMPTY = { name: '', role: 'driver', email: '', phone: '' }
+const EMPTY_STAFF = { name: '', role: 'driver' }
+const EMPTY_CONTACT_FORM = { type: 'phone', value: '' }
+
+// Accepts: 07700 900123, 07700900123, +447700900123, 01234 567890, etc.
+function validateUkPhone(raw) {
+  const s = raw.replace(/[\s\-().]/g, '')
+  return /^(0[1-9][0-9]{9}|\+44[1-9][0-9]{9})$/.test(s)
+}
+
+// Normalise to +44XXXXXXXXXX
+function normalisePhone(raw) {
+  const s = raw.replace(/[\s\-().]/g, '')
+  return s.startsWith('0') ? '+44' + s.slice(1) : s
+}
 
 const roleBadge = r => {
   if (r === 'super_user')  return <span className="badge badge-red">Super User</span>
@@ -12,37 +25,142 @@ const roleBadge = r => {
   return <span className="badge badge-gray">Driver</span>
 }
 
+function typeBadge(type) {
+  return (
+    <span className={`badge ${type === 'email' ? 'badge-blue' : 'badge-gray'}`} style={{ fontSize: 10, marginRight: 6 }}>
+      {type}
+    </span>
+  )
+}
+
 export default function DriversPage() {
   const [staff, setStaff] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null)   // null | 'add' | staff object
-  const [form, setForm] = useState(EMPTY)
+  const [form, setForm] = useState(EMPTY_STAFF)
+  const [contacts, setContacts] = useState([])
+  const [contactForm, setContactForm] = useState(EMPTY_CONTACT_FORM)
+  const [contactError, setContactError] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   async function load() {
     setLoading(true)
-    const { data } = await supabase.from('staff').select('*').order('name')
+    const { data } = await supabase
+      .from('staff')
+      .select('*, contacts:staff_contacts(*)')
+      .order('name')
     setStaff(data ?? [])
     setLoading(false)
   }
 
   useEffect(() => { load() }, [])
 
-  function openAdd() { setForm(EMPTY); setError(''); setModal('add') }
-  function openEdit(s) { setForm({ name: s.name, role: s.role, email: s.email ?? '', phone: s.phone ?? '' }); setError(''); setModal(s) }
+  function openAdd() {
+    setForm(EMPTY_STAFF)
+    setContacts([])
+    setContactForm(EMPTY_CONTACT_FORM)
+    setContactError('')
+    setError('')
+    setModal('add')
+  }
+
+  function openEdit(s) {
+    setForm({ name: s.name, role: s.role })
+    // Sort: primary first, then by created_at
+    const sorted = [...(s.contacts ?? [])].sort((a, b) => {
+      if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1
+      return new Date(a.created_at) - new Date(b.created_at)
+    })
+    setContacts(sorted)
+    setContactForm(EMPTY_CONTACT_FORM)
+    setContactError('')
+    setError('')
+    setModal(s)
+  }
+
+  // ── Contact management ──────────────────────────────────────────────────
+
+  function addContact() {
+    setContactError('')
+    const val = contactForm.value.trim()
+    if (!val) { setContactError('Enter a value'); return }
+    if (contactForm.type === 'phone') {
+      if (!validateUkPhone(val)) {
+        setContactError('Enter a valid UK number (e.g. 07700 900123 or +447700900123)')
+        return
+      }
+    }
+    const normalised = contactForm.type === 'phone' ? normalisePhone(val) : val.toLowerCase()
+    const isFirst = contacts.length === 0
+    setContacts(c => [...c, { type: contactForm.type, value: normalised, is_primary: isFirst }])
+    setContactForm(f => ({ ...f, value: '' }))
+  }
+
+  function removeContact(idx) {
+    setContacts(c => {
+      const wasPrimary = c[idx].is_primary
+      const next = c.filter((_, i) => i !== idx)
+      if (wasPrimary && next.length > 0) next[0] = { ...next[0], is_primary: true }
+      return next
+    })
+  }
+
+  function setPrimary(idx) {
+    setContacts(c => c.map((ct, i) => ({ ...ct, is_primary: i === idx })))
+  }
+
+  // ── Save ────────────────────────────────────────────────────────────────
 
   async function handleSave(e) {
     e.preventDefault()
-    setSaving(true); setError('')
-    const company_id = await getCompanyId()
-    const payload = { ...form, company_id }
-    const { error: err } = modal === 'add'
-      ? await supabase.from('staff').insert(payload)
-      : await supabase.from('staff').update({ name: form.name, role: form.role, email: form.email || null, phone: form.phone || null }).eq('id', modal.id)
+    setSaving(true)
+    setError('')
+    try {
+      const company_id = await getCompanyId()
+      let staffId
+
+      if (modal === 'add') {
+        const { data, error: err } = await supabase
+          .from('staff')
+          .insert({ name: form.name, role: form.role, company_id })
+          .select('id')
+          .single()
+        if (err) throw err
+        staffId = data.id
+      } else {
+        const { error: err } = await supabase
+          .from('staff')
+          .update({ name: form.name, role: form.role })
+          .eq('id', modal.id)
+        if (err) throw err
+        staffId = modal.id
+        // Replace all contacts (delete then re-insert is simplest and correct)
+        const { error: delErr } = await supabase
+          .from('staff_contacts')
+          .delete()
+          .eq('staff_id', staffId)
+        if (delErr) throw delErr
+      }
+
+      if (contacts.length > 0) {
+        const { error: err } = await supabase
+          .from('staff_contacts')
+          .insert(contacts.map(c => ({
+            staff_id: staffId,
+            type: c.type,
+            value: c.value,
+            is_primary: c.is_primary,
+          })))
+        if (err) throw err
+      }
+
+      setModal(null)
+      load()
+    } catch (e) {
+      setError(e.message)
+    }
     setSaving(false)
-    if (err) { setError(err.message); return }
-    setModal(null); load()
   }
 
   async function handleDelete(id) {
@@ -50,6 +168,13 @@ export default function DriversPage() {
     await supabase.from('staff').delete().eq('id', id)
     load()
   }
+
+  function primaryContact(s) {
+    const list = s.contacts ?? []
+    return list.find(c => c.is_primary) ?? list[0] ?? null
+  }
+
+  // ── Render ──────────────────────────────────────────────────────────────
 
   return (
     <>
@@ -70,30 +195,33 @@ export default function DriversPage() {
                 <tr>
                   <th>Name</th>
                   <th>Role</th>
-                  <th>Email</th>
-                  <th>Phone</th>
+                  <th>Primary Contact</th>
                   <th>Added</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {staff.map(s => (
-                  <tr key={s.id}>
-                    <td style={{ fontWeight: 500 }}>{s.name}</td>
-                    <td>{roleBadge(s.role)}</td>
-                    <td style={{ color: 'var(--text-muted)' }}>{s.email ?? '—'}</td>
-                    <td style={{ color: 'var(--text-muted)' }}>{s.phone ?? '—'}</td>
-                    <td style={{ color: 'var(--text-muted)' }}>
-                      {new Date(s.created_at).toLocaleDateString('en-GB')}
-                    </td>
-                    <td>
-                      <div className="td-actions">
-                        <button className="btn btn-ghost btn-sm" onClick={() => openEdit(s)}>Edit</button>
-                        <button className="btn btn-danger btn-sm" onClick={() => handleDelete(s.id)}>Delete</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {staff.map(s => {
+                  const pc = primaryContact(s)
+                  return (
+                    <tr key={s.id}>
+                      <td style={{ fontWeight: 500 }}>{s.name}</td>
+                      <td>{roleBadge(s.role)}</td>
+                      <td style={{ color: 'var(--text-muted)' }}>
+                        {pc ? <span>{typeBadge(pc.type)}{pc.value}</span> : '—'}
+                      </td>
+                      <td style={{ color: 'var(--text-muted)' }}>
+                        {new Date(s.created_at).toLocaleDateString('en-GB')}
+                      </td>
+                      <td>
+                        <div className="td-actions">
+                          <button className="btn btn-ghost btn-sm" onClick={() => openEdit(s)}>Edit</button>
+                          <button className="btn btn-danger btn-sm" onClick={() => handleDelete(s.id)}>Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           )}
@@ -114,6 +242,7 @@ export default function DriversPage() {
           }
         >
           {error && <div className="error-msg">{error}</div>}
+
           <form onSubmit={handleSave}>
             <div className="form-group">
               <label className="form-label">Name</label>
@@ -137,27 +266,95 @@ export default function DriversPage() {
                 ))}
               </select>
             </div>
-            <div className="form-group">
-              <label className="form-label">Email</label>
-              <input
-                type="email"
-                className="form-input"
-                value={form.email}
-                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                placeholder="driver@example.com"
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Phone <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'none', letterSpacing: 0 }}>(international format, e.g. +447700900123)</span></label>
-              <input
-                type="tel"
-                className="form-input"
-                value={form.phone}
-                onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                placeholder="+447700900123"
-              />
-            </div>
           </form>
+
+          {/* ── Contacts section ── */}
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 4 }}>
+            <div className="form-label" style={{ marginBottom: 10 }}>Contact Methods</div>
+
+            {contacts.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
+                No contacts added yet.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                {contacts.map((c, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '7px 10px',
+                      borderRadius: 6,
+                      background: 'var(--bg)',
+                      border: c.is_primary
+                        ? '1px solid rgba(77,184,72,0.45)'
+                        : '1px solid var(--border)',
+                    }}
+                  >
+                    {typeBadge(c.type)}
+                    <span style={{ flex: 1, fontSize: 13 }}>{c.value}</span>
+                    {c.is_primary
+                      ? <span className="badge badge-green" style={{ fontSize: 10 }}>Primary</span>
+                      : (
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          style={{ fontSize: 11, padding: '2px 8px' }}
+                          onClick={() => setPrimary(i)}
+                        >
+                          Set Primary
+                        </button>
+                      )
+                    }
+                    <button
+                      className="btn btn-danger btn-sm"
+                      style={{ fontSize: 11, padding: '2px 8px' }}
+                      onClick={() => removeContact(i)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add contact inline form */}
+            {contactError && (
+              <div style={{ fontSize: 12, color: 'var(--danger)', marginBottom: 6 }}>{contactError}</div>
+            )}
+            <div style={{ display: 'flex', gap: 6 }}>
+              <select
+                className="form-select"
+                value={contactForm.type}
+                onChange={e => setContactForm({ type: e.target.value, value: '' })}
+                style={{ width: 88, flexShrink: 0 }}
+              >
+                <option value="phone">Phone</option>
+                <option value="email">Email</option>
+              </select>
+              <input
+                className="form-input"
+                value={contactForm.value}
+                onChange={e => setContactForm(f => ({ ...f, value: e.target.value }))}
+                placeholder={contactForm.type === 'phone' ? '07700 900123' : 'driver@example.com'}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addContact() } }}
+              />
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={addContact}
+                style={{ flexShrink: 0, padding: '9px 14px' }}
+              >
+                Add
+              </button>
+            </div>
+            {contactForm.type === 'phone' && (
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5 }}>
+                UK numbers only — mobile or landline (e.g. 07700 900123)
+              </p>
+            )}
+          </div>
         </Modal>
       )}
     </>
