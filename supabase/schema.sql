@@ -47,6 +47,24 @@ create table staff (
 );
 
 
+-- ── Staff contacts ────────────────────────────────────────────────────────────
+-- Multiple contact methods per staff member; exactly one may be primary.
+-- Added via migration_staff_contacts_table.sql — included here for completeness.
+
+create table staff_contacts (
+  id          uuid        primary key default gen_random_uuid(),
+  staff_id    uuid        not null references staff(id) on delete cascade,
+  type        text        not null check (type in ('email', 'phone')),
+  value       text        not null,
+  is_primary  boolean     not null default false,
+  created_at  timestamptz not null default now()
+);
+
+create unique index staff_contacts_one_primary
+  on staff_contacts (staff_id)
+  where is_primary = true;
+
+
 -- ── Vehicles ──────────────────────────────────────────────────────────────────
 -- UK registrations are nationally unique — not scoped to company.
 -- status may only be changed by a super_user (enforced by trigger below).
@@ -398,6 +416,7 @@ create trigger trg_compute_stop_time_variance
 
 -- ── Indexes ───────────────────────────────────────────────────────────────────
 
+create index on staff_contacts    (staff_id);
 create index on staff             (company_id);
 create index on vehicles          (company_id);
 create index on routes            (company_id);
@@ -435,6 +454,81 @@ as $$
   select role from staff where auth_user_id = auth.uid() limit 1
 $$;
 
+-- Used by anon RLS policies on journey_events and journey_stop_times.
+-- security definer so the anon role can read journeys.status without a SELECT grant bypass.
+create or replace function is_journey_in_progress(j_id uuid)
+returns boolean
+language sql stable security definer
+as $$
+  select exists (
+    select 1 from journeys where id = j_id and status = 'in_progress'
+  )
+$$;
+
+grant execute on function is_journey_in_progress(uuid) to anon;
+
+-- Called by the driver PWA (anon) to start a journey.
+create or replace function start_journey(p_journey_id uuid)
+returns boolean
+language plpgsql security definer
+as $$
+begin
+  update journeys set status = 'in_progress', started_at = now()
+  where id = p_journey_id and status = 'scheduled';
+  return found;
+end;
+$$;
+
+grant execute on function start_journey(uuid) to anon;
+
+-- Called by the driver PWA (anon) to complete a journey.
+create or replace function complete_journey(p_journey_id uuid)
+returns boolean
+language plpgsql security definer
+as $$
+begin
+  update journeys set status = 'completed', completed_at = now()
+  where id = p_journey_id and status = 'in_progress';
+  return found;
+end;
+$$;
+
+grant execute on function complete_journey(uuid) to anon;
+
+CREATE OR REPLACE FUNCTION public.get_duty_card(journey_ids uuid[])
+ RETURNS TABLE(journey_id uuid, status text, started_at timestamp with time zone, completed_at timestamp with time zone, driver_name text, vehicle_registration text, service_code text, route_name text, period text, direction text, timetable_id uuid, first_stop_time text, last_stop_name text)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+AS $function$
+  select
+    j.id,
+    j.status,
+    j.started_at,
+    j.completed_at,
+    coalesce(s.name, 'Driver')                               as driver_name,
+    coalesce(v.registration, 'Unknown')                      as vehicle_registration,
+    r.service_code,
+    r.name                                                   as route_name,
+    t.period,
+    t.direction,
+    t.id                                                     as timetable_id,
+    to_char(
+      (select ts2.scheduled_time from timetable_stops ts2
+       where ts2.timetable_id = t.id order by ts2.sequence limit 1),
+      'HH24:MI')                                             as first_stop_time,
+    (select st.name from timetable_stops ts3
+     join stops st on st.id = ts3.stop_id
+     where ts3.timetable_id = t.id order by ts3.sequence desc limit 1) as last_stop_name
+  from journeys j
+  left join staff      s on s.id = j.driver_id
+  left join vehicles   v on v.id = j.vehicle_id
+  left join timetables t on t.id = j.timetable_id
+  left join routes     r on r.id = t.route_id
+  where j.id = any(journey_ids)
+  order by array_position(journey_ids, j.id)
+$function$;
+
+grant execute on function get_duty_card(uuid[]) to anon;
 
 -- ── Views ─────────────────────────────────────────────────────────────────────
 -- Used by the driver PWA to fetch a timetable by service_code + period + direction.
@@ -466,6 +560,7 @@ create or replace view schedule_view as
 
 -- ── Row Level Security ────────────────────────────────────────────────────────
 
+alter table staff_contacts      enable row level security;
 alter table companies           enable row level security;
 alter table staff               enable row level security;
 alter table vehicles            enable row level security;
@@ -602,12 +697,43 @@ create policy "super_user_update" on stops
   using (current_staff_role() = 'super_user');
 
 
+-- Staff contacts: ops users can manage contacts for staff in their own company
+create policy "company_staff_contacts" on staff_contacts
+  for all to authenticated
+  using (
+    exists (
+      select 1 from staff s
+      join staff me on me.company_id = s.company_id
+        and me.auth_user_id = auth.uid()
+      where s.id = staff_contacts.staff_id
+    )
+  )
+  with check (
+    exists (
+      select 1 from staff s
+      join staff me on me.company_id = s.company_id
+        and me.auth_user_id = auth.uid()
+      where s.id = staff_contacts.staff_id
+    )
+  );
+
+
 -- ── Grants ────────────────────────────────────────────────────────────────────
 
 grant usage on schema public to anon, authenticated;
+
+-- Point-in-time grant covering all tables that exist when this schema is applied.
 grant select on all tables in schema public to anon;
 grant all on all tables in schema public to authenticated;
 grant all on all sequences in schema public to authenticated;
+
+-- Default privileges: any table created in a future migration inherits these grants
+-- automatically. Required from 2026-05-30 (new Supabase projects) and
+-- 2026-10-30 (all existing projects) — without this, new tables are invisible to
+-- the Data API (supabase-js, PostgREST, /rest/v1/).
+alter default privileges in schema public grant select on tables to anon;
+alter default privileges in schema public grant all on tables to authenticated;
+alter default privileges in schema public grant all on sequences to authenticated;
 
 grant select on schedule_view to anon;
 grant select on schedule_view to authenticated;

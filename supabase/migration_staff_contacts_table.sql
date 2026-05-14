@@ -44,3 +44,10 @@ create policy "company_staff_contacts" on staff_contacts
       where s.id = staff_contacts.staff_id
     )
   );
+
+-- Explicit grants for Supabase Data API.
+-- Required from 2026-10-30 for existing projects (2026-05-30 for new ones).
+-- Without these, staff_contacts will become invisible to supabase-js / PostgREST
+-- once Supabase removes the auto-grant behaviour.
+grant select on public.staff_contacts to anon;
+grant all on public.staff_contacts to authenticated;
