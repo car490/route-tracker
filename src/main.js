@@ -318,12 +318,12 @@ async function initDutyCard(journeyIds) {
     duties = await rpc('get_duty_card', { journey_ids: journeyIds });
   } catch (err) {
     console.error('Failed to load duty card:', err);
-    initPickerMode();
+    showNoDutyCard();
     return;
   }
 
   if (!duties || duties.length === 0) {
-    initPickerMode();
+    showNoDutyCard();
     return;
   }
 
@@ -532,6 +532,15 @@ async function initPickerMode() {
   };
 }
 
+// ── No duty card screen ───────────────────────────────────────────────────────
+
+function showNoDutyCard() {
+  document.getElementById('no-duty-card').hidden = false;
+  document.getElementById('duty-card').hidden    = true;
+  document.getElementById('picker').hidden       = true;
+  document.getElementById('tracker').hidden      = true;
+}
+
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 async function init() {
@@ -540,7 +549,7 @@ async function init() {
     const journeyIds = dutiesParam.split(',').map(s => s.trim()).filter(Boolean);
     await initDutyCard(journeyIds);
   } else {
-    await initPickerMode();
+    showNoDutyCard();
   }
 }
 
