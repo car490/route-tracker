@@ -32,6 +32,7 @@ function arrivalStatusClass(stop, actualDate) {
 function updateStopList({ schedule, arrivals, nextStopIndex }) {
   const container = el('stop-list');
   container.innerHTML = '';
+  let currentRow = null;
 
   schedule.forEach((stop, i) => {
     const row = document.createElement('div');
@@ -48,9 +49,11 @@ function updateStopList({ schedule, arrivals, nextStopIndex }) {
       `<span class="sl-actual${actualClass ? ' ' + actualClass : ''}">${actualText}</span>` +
       (state === 'future' ? `<button class="sl-jump" data-idx="${i}" title="Start from here">⏭</button>` : '<span></span>');
 
-    if (state === 'current') row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (state === 'current') currentRow = row;
     container.appendChild(row);
   });
+
+  if (currentRow) currentRow.scrollIntoView({ block: 'center', behavior: 'smooth' });
 
   if (_onStopJump) {
     container.querySelectorAll('.sl-jump').forEach(btn => {
@@ -103,7 +106,7 @@ export function updateUi({ timing, nextStopIndex, schedule, speedMps, distanceTo
   const nextAfter = schedule[nextStopIndex + 1] ?? null;
 
   el('next-stop').textContent = next ? next.name : 'End of route';
-  el('next-stop-label').textContent = nextAfter ? nextAfter.name : 'End of route';
+  el('next-stop-label').textContent = nextAfter ? `${nextAfter.name} at ${nextAfter.time}` : 'End of route';
 
   const progress = schedule.length > 1 ? nextStopIndex / (schedule.length - 1) : 0;
   el('progress-fill').style.width = `${Math.min(progress * 100, 100)}%`;
