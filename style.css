@@ -97,17 +97,34 @@ body {
 }
 
 #header-service {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
   background: var(--brand-navy);
+  padding: 0.25rem 0.7rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+#header-service-code {
   color: #ffffff;
   font-family: 'Oswald', sans-serif;
-  font-size: 0.9rem;
+  font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 0.25rem 0.7rem;
-  border-radius: 4px;
   white-space: nowrap;
-  flex-shrink: 0;
+}
+
+#header-service-period {
+  color: rgba(255, 255, 255, 0.75);
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 #route-lines {
@@ -408,15 +425,16 @@ body {
 
 .stop-labels {
   display: flex;
-  gap: 0.4rem;
-  font-size: 0.75rem;
-  color: var(--text);
-  align-items: baseline;
+  flex-direction: column;
+  gap: 0.15rem;
 }
 
 .stop-label-prefix {
-  white-space: nowrap;
-  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-family: 'Oswald', sans-serif;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 #next-stop-label {
@@ -425,6 +443,7 @@ body {
   white-space: nowrap;
   font-size: 1rem;
   font-weight: 600;
+  color: var(--text);
 }
 
 .progress-track {
@@ -484,6 +503,7 @@ body {
 /* ── Stop list ────────────────────────────────── */
 
 #stop-list {
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;

@@ -214,6 +214,7 @@ create table journeys (
                       'completed',
                       'cancelled'
                     )),
+  notes           text,
   started_at      timestamptz,
   completed_at    timestamptz,
   created_at      timestamptz not null default now(),
@@ -225,6 +226,22 @@ create table journeys (
 create unique index journeys_no_double_booking
   on journeys (timetable_id, journey_date)
   where status != 'cancelled' and timetable_id is not null;
+
+
+-- ── Excursion passengers ──────────────────────────────────────────────────────
+-- Optional passenger list for excursion journeys.
+-- journey_id references an Excursion-type journey.
+
+create table excursion_passengers (
+  id          uuid        primary key default gen_random_uuid(),
+  journey_id  uuid        not null references journeys(id) on delete cascade,
+  name        text        not null,
+  phone       text,
+  notes       text,
+  created_at  timestamptz not null default now()
+);
+
+create index idx_excursion_passengers_journey_id on excursion_passengers (journey_id);
 
 
 -- ── Journey waypoints ─────────────────────────────────────────────────────────
@@ -560,6 +577,7 @@ create or replace view schedule_view as
 
 -- ── Row Level Security ────────────────────────────────────────────────────────
 
+alter table excursion_passengers enable row level security;
 alter table staff_contacts      enable row level security;
 alter table companies           enable row level security;
 alter table staff               enable row level security;
@@ -673,6 +691,14 @@ create policy "anon_incident" on journey_events
     and is_journey_in_progress(journey_id)
   );
 
+-- Anon drivers may insert stop times at trip end (batch upload)
+-- Table-level INSERT grant added in migration_anon_stop_times.sql; also set here for fresh resets.
+grant insert on public.journey_stop_times to anon;
+
+create policy "anon_insert" on journey_stop_times
+  for insert to anon
+  with check (is_journey_in_progress(journey_id));
+
 -- Journey stop times: scoped via journey → company
 -- Drivers insert (batch upload at trip end); ops can update review fields.
 create policy "company_all" on journey_stop_times
@@ -695,6 +721,17 @@ create policy "super_user_insert" on stops
 create policy "super_user_update" on stops
   for update to authenticated
   using (current_staff_role() = 'super_user');
+
+
+-- Excursion passengers: scoped via journey → company
+create policy "company_all" on excursion_passengers
+  for all to authenticated
+  using (
+    journey_id in (select id from journeys where company_id = current_company_id())
+  )
+  with check (
+    journey_id in (select id from journeys where company_id = current_company_id())
+  );
 
 
 -- Staff contacts: ops users can manage contacts for staff in their own company
@@ -737,3 +774,7 @@ alter default privileges in schema public grant all on sequences to authenticate
 
 grant select on schedule_view to anon;
 grant select on schedule_view to authenticated;
+
+-- excursion_passengers: anon read-only (no PWA writes needed); authenticated full access
+grant select on public.excursion_passengers to anon;
+grant all    on public.excursion_passengers to authenticated;

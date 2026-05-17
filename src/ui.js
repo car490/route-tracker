@@ -53,7 +53,11 @@ function updateStopList({ schedule, arrivals, nextStopIndex }) {
     container.appendChild(row);
   });
 
-  if (currentRow) currentRow.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  if (currentRow) {
+    container.scrollTop = currentRow.offsetTop
+      - container.clientHeight / 2
+      + currentRow.offsetHeight / 2;
+  }
 
   if (_onStopJump) {
     container.querySelectorAll('.sl-jump').forEach(btn => {

@@ -155,19 +155,20 @@ function greetingPrefix() {
 
 // ── Tracker ───────────────────────────────────────────────────────────────────
 
-function runTracker({ allStops, journeyId, initialStopIndex, serviceLabel, onComplete }) {
+function runTracker({ allStops, journeyId, initialStopIndex, serviceCode, servicePeriod, onComplete }) {
   document.getElementById('picker').hidden  = true;
   document.getElementById('tracker').hidden = false;
   document.getElementById('route-header').scrollIntoView();
 
   const firstStop = allStops[1];
   const lastStop  = allStops[allStops.length - 2];
-  document.getElementById('header-service').textContent = serviceLabel;
-  document.getElementById('header-line1').textContent   = `${firstStop.name} and`;
+  document.getElementById('header-service-code').textContent   = serviceCode;
+  document.getElementById('header-service-period').textContent = servicePeriod ?? '';
+  document.getElementById('header-line1').textContent          = `${firstStop.name} and`;
   document.getElementById('header-line2').textContent   = lastStop.name;
   document.getElementById('header-line3').textContent   = `To & From ${DEPOT.name}`;
 
-  log('info', `Started: ${serviceLabel} from "${allStops[initialStopIndex].name}"`);
+  log('info', `Started: ${serviceCode}${servicePeriod ? ' ' + servicePeriod : ''} from "${allStops[initialStopIndex].name}"`);
 
   let activeTab = 'list', mapReady = false, arrivalsRef = [];
   let lastLat = null, lastLon = null, lastStopIdx = initialStopIndex;
@@ -446,7 +447,8 @@ async function launchDutyRoute(duties, idx, journeyIds) {
       allStops,
       journeyId: journey.journey_id,
       initialStopIndex,
-      serviceLabel: `${journey.service_code} ${journey.period}`,
+      serviceCode: journey.service_code,
+      servicePeriod: journey.period,
       onComplete: () => {
         journey.status = 'completed';
         renderDutyCard(duties, journeyIds);
@@ -516,7 +518,7 @@ async function initPickerMode() {
   document.getElementById('start-btn').onclick = async () => {
     const allStops         = buildAllStops();
     const initialStopIndex = parseInt(stopSelect.value, 10) || 0;
-    const { service }      = schedule[serviceSelect.value][runSelect.value];
+    const { service, period } = schedule[serviceSelect.value][runSelect.value];
 
     await acquireWakeLock();
 
@@ -524,7 +526,8 @@ async function initPickerMode() {
       allStops,
       journeyId: legacyJourneyId,
       initialStopIndex,
-      serviceLabel: service,
+      serviceCode: service,
+      servicePeriod: period,
       onComplete: () => {
         document.getElementById('picker').hidden = false;
       },
