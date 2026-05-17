@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
-import { getCompanyId } from '../lib/company'
-import Modal from '../components/Modal'
+import { supabase } from '../../shared/supabase'
+import { getCompanyId } from '../../shared/company'
+import Modal from '../../shared/components/Modal'
 
 const ROUTE_EMPTY = { service_code: '', name: '' }
 const PERIODS    = ['Early Morning', 'Morning', 'Midday', 'Afternoon', 'Evening', 'Night', 'All Day']
@@ -22,7 +22,7 @@ function TimetableStopCount({ timetableId }) {
 
 export default function RoutesPage() {
   const [routes, setRoutes] = useState([])
-  const [timetables, setTimetables] = useState({})   // routeId -> timetable[]
+  const [timetables, setTimetables] = useState({})
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)
 
@@ -318,24 +318,14 @@ export default function RoutesPage() {
                 Valid From{' '}
                 <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
               </label>
-              <input
-                className="form-input"
-                type="date"
-                value={ttForm.valid_from}
-                onChange={e => setTtForm(f => ({ ...f, valid_from: e.target.value }))}
-              />
+              <input className="form-input" type="date" value={ttForm.valid_from} onChange={e => setTtForm(f => ({ ...f, valid_from: e.target.value }))} />
             </div>
             <div className="form-group">
               <label className="form-label">
                 Valid To{' '}
                 <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
               </label>
-              <input
-                className="form-input"
-                type="date"
-                value={ttForm.valid_to}
-                onChange={e => setTtForm(f => ({ ...f, valid_to: e.target.value }))}
-              />
+              <input className="form-input" type="date" value={ttForm.valid_to} onChange={e => setTtForm(f => ({ ...f, valid_to: e.target.value }))} />
             </div>
           </form>
         </Modal>

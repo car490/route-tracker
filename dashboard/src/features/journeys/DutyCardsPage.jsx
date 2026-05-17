@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase } from '../../shared/supabase'
 
 const PWA_BASE = 'https://car490.github.io/route-tracker'
 
@@ -11,7 +11,6 @@ function fmtLongDate(dateStr) {
   })
 }
 
-// Strip non-digits from a +44XXXXXXXXXX number for wa.me
 function phoneForWhatsApp(phone) {
   return phone.replace(/\D/g, '')
 }
@@ -24,8 +23,6 @@ function dutyMessage(driverName, date, url) {
   return `Hi ${driverName}, your duty card for ${fmtLongDate(date)} is ready:\n${url}`
 }
 
-// From a contacts array, get the best match for a given type.
-// Prefer primary if it matches the type; otherwise return first of that type.
 function getContact(contacts, type) {
   const primary = contacts.find(c => c.is_primary && c.type === type)
   if (primary) return primary
@@ -63,7 +60,6 @@ export default function DutyCardsPage() {
       return
     }
 
-    // Fetch contacts separately — page still works if migration not yet applied
     const driverIds = [...new Set((data ?? []).map(j => j.driver?.id).filter(Boolean))]
     const contactsMap = {}
     if (driverIds.length > 0) {
@@ -77,7 +73,6 @@ export default function DutyCardsPage() {
       }
     }
 
-    // Group by driver
     const map = {}
     for (const j of data ?? []) {
       if (!j.driver) continue
@@ -169,8 +164,6 @@ export default function DutyCardsPage() {
 
             return (
               <div key={driver.id} className="card" style={{ padding: 20 }}>
-
-                {/* Header */}
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
                   <div>
                     <div style={{ fontFamily: 'Oswald, sans-serif', fontSize: 20, fontWeight: 600, color: 'var(--navy-mid)' }}>
@@ -195,7 +188,6 @@ export default function DutyCardsPage() {
                   </span>
                 </div>
 
-                {/* Runs */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
                   {sortedJourneys.map(j => (
                     <div key={j.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', background: 'var(--bg)', borderRadius: 6 }}>
@@ -214,12 +206,10 @@ export default function DutyCardsPage() {
                   ))}
                 </div>
 
-                {/* Duty card URL */}
                 <div style={{ background: 'var(--bg)', borderRadius: 6, padding: '8px 12px', marginBottom: 14, fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
                   {url}
                 </div>
 
-                {/* Actions */}
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button
                     className="btn btn-ghost btn-sm"
@@ -228,7 +218,6 @@ export default function DutyCardsPage() {
                   >
                     {copied === driver.name ? '✓ Copied!' : 'Copy Link'}
                   </button>
-
                   <button
                     className="btn btn-ghost btn-sm"
                     onClick={() => openEmail(driver, ids)}
@@ -237,7 +226,6 @@ export default function DutyCardsPage() {
                   >
                     Send Email
                   </button>
-
                   <button
                     className="btn btn-ghost btn-sm"
                     onClick={() => openWhatsApp(driver, ids)}
@@ -247,7 +235,6 @@ export default function DutyCardsPage() {
                   >
                     WhatsApp
                   </button>
-
                   <a
                     href={url}
                     target="_blank"

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
-import { getCompanyId } from '../lib/company'
-import Modal from '../components/Modal'
+import { supabase } from '../../shared/supabase'
+import { getCompanyId } from '../../shared/company'
+import Modal from '../../shared/components/Modal'
 
 const ROLES = ['driver', 'ops_manager', 'super_user']
 const EMPTY_STAFF = { name: '', role: 'driver' }
@@ -36,7 +36,7 @@ function typeBadge(type) {
 export default function DriversPage() {
   const [staff, setStaff] = useState([])
   const [loading, setLoading] = useState(true)
-  const [modal, setModal] = useState(null)   // null | 'add' | staff object
+  const [modal, setModal] = useState(null)
   const [form, setForm] = useState(EMPTY_STAFF)
   const [contacts, setContacts] = useState([])
   const [contactForm, setContactForm] = useState(EMPTY_CONTACT_FORM)
@@ -67,7 +67,6 @@ export default function DriversPage() {
 
   function openEdit(s) {
     setForm({ name: s.name, role: s.role })
-    // Sort: primary first, then by created_at
     const sorted = [...(s.contacts ?? [])].sort((a, b) => {
       if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1
       return new Date(a.created_at) - new Date(b.created_at)
@@ -78,8 +77,6 @@ export default function DriversPage() {
     setError('')
     setModal(s)
   }
-
-  // ── Contact management ──────────────────────────────────────────────────
 
   function addContact() {
     setContactError('')
@@ -110,8 +107,6 @@ export default function DriversPage() {
     setContacts(c => c.map((ct, i) => ({ ...ct, is_primary: i === idx })))
   }
 
-  // ── Save ────────────────────────────────────────────────────────────────
-
   async function handleSave(e) {
     e.preventDefault()
     setSaving(true)
@@ -135,7 +130,6 @@ export default function DriversPage() {
           .eq('id', modal.id)
         if (err) throw err
         staffId = modal.id
-        // Replace all contacts (delete then re-insert is simplest and correct)
         const { error: delErr } = await supabase
           .from('staff_contacts')
           .delete()
@@ -173,8 +167,6 @@ export default function DriversPage() {
     const list = s.contacts ?? []
     return list.find(c => c.is_primary) ?? list[0] ?? null
   }
-
-  // ── Render ──────────────────────────────────────────────────────────────
 
   return (
     <>
@@ -268,7 +260,6 @@ export default function DriversPage() {
             </div>
           </form>
 
-          {/* ── Contacts section ── */}
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 4 }}>
             <div className="form-label" style={{ marginBottom: 10 }}>Contact Methods</div>
 
@@ -319,7 +310,6 @@ export default function DriversPage() {
               </div>
             )}
 
-            {/* Add contact inline form */}
             {contactError && (
               <div style={{ fontSize: 12, color: 'var(--danger)', marginBottom: 6 }}>{contactError}</div>
             )}

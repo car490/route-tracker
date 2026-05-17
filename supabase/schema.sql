@@ -94,6 +94,9 @@ create table vehicles (
                         'Hydrogen'
                       )),
   seating_capacity  int,
+  height_metres     float8,                                -- overall vehicle height (m) — used by route planner
+  width_metres      float8,                                -- overall vehicle width (m)
+  length_metres     float8,                                -- overall vehicle length (m)
   status            text        not null default 'active'
                       check (status in ('active', 'off_road', 'disposed')),
   created_at        timestamptz not null default now()

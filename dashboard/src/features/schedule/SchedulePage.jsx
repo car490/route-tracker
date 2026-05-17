@@ -1,24 +1,17 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
-import { getCompanyId } from '../lib/company'
-import Modal from '../components/Modal'
-
-// ── Date helpers ────────────────────────────────────────────────────────────
+import { supabase } from '../../shared/supabase'
+import { getCompanyId } from '../../shared/company'
+import Modal from '../../shared/components/Modal'
 
 function getWeekStart(d) {
   const m = new Date(d)
-  m.setDate(d.getDate() - d.getDay())   // Sunday (getDay()===0 means no shift)
+  m.setDate(d.getDate() - d.getDay())
   m.setHours(0, 0, 0, 0)
   return m
 }
 
-function dateStr(d) {
-  return d.toISOString().slice(0, 10)
-}
-
-function todayStr() {
-  return dateStr(new Date())
-}
+function dateStr(d) { return d.toISOString().slice(0, 10) }
+function todayStr() { return dateStr(new Date()) }
 
 function weekDays(sunday) {
   return Array.from({ length: 7 }, (_, i) => {
@@ -47,58 +40,29 @@ function fmtLongDate(dateString) {
   })
 }
 
-// JS getDay() → timetable days_of_week value (Mon=1 … Fri=5, Sat=6, Sun=7)
-function jsDayToDb(jsDay) {
-  return jsDay === 0 ? 7 : jsDay
-}
+function jsDayToDb(jsDay) { return jsDay === 0 ? 7 : jsDay }
 
 const PERIOD_ORDER = ['Early Morning', 'Morning', 'Midday', 'Afternoon', 'Evening', 'Night', 'All Day']
-
 const EMPTY_DUTY = { date: todayStr(), driver_id: '', vehicle_id: '', selectedTimetables: [] }
-
-// ── Cell button ─────────────────────────────────────────────────────────────
 
 function CellBtn({ journey, onClick }) {
   if (!journey) {
-    return (
-      <button onClick={onClick} style={cellStyle('#e53935', 'rgba(229,57,53,0.12)', 'rgba(229,57,53,0.35)')}>
-        Not scheduled
-      </button>
-    )
+    return <button onClick={onClick} style={cellStyle('#e53935', 'rgba(229,57,53,0.12)', 'rgba(229,57,53,0.35)')}>Not scheduled</button>
   }
   if (!journey.driver_id) {
-    return (
-      <button onClick={onClick} style={cellStyle('#a05a10', 'rgba(251,140,0,0.12)', 'rgba(251,140,0,0.35)')}>
-        No driver
-      </button>
-    )
+    return <button onClick={onClick} style={cellStyle('#a05a10', 'rgba(251,140,0,0.12)', 'rgba(251,140,0,0.35)')}>No driver</button>
   }
-  return (
-    <button onClick={onClick} style={cellStyle('#2d7a28', 'rgba(77,184,72,0.12)', 'rgba(77,184,72,0.35)')}>
-      {journey.driver?.name}
-    </button>
-  )
+  return <button onClick={onClick} style={cellStyle('#2d7a28', 'rgba(77,184,72,0.12)', 'rgba(77,184,72,0.35)')}>{journey.driver?.name}</button>
 }
 
 function cellStyle(color, bg, border) {
   return {
-    background: bg,
-    color,
-    border: `1px solid ${border}`,
-    borderRadius: 4,
-    padding: '5px 8px',
-    fontSize: 12,
-    cursor: 'pointer',
-    width: '100%',
-    fontFamily: 'Oswald, sans-serif',
-    letterSpacing: '0.03em',
-    fontWeight: 500,
-    lineHeight: 1.3,
-    textAlign: 'center',
+    background: bg, color, border: `1px solid ${border}`, borderRadius: 4,
+    padding: '5px 8px', fontSize: 12, cursor: 'pointer', width: '100%',
+    fontFamily: 'Oswald, sans-serif', letterSpacing: '0.03em', fontWeight: 500,
+    lineHeight: 1.3, textAlign: 'center',
   }
 }
-
-// ── Main component ──────────────────────────────────────────────────────────
 
 export default function SchedulePage() {
   const [weekStart, setWeekStart] = useState(getWeekStart(new Date()))
@@ -108,9 +72,8 @@ export default function SchedulePage() {
   const [vehicles, setVehicles] = useState([])
   const [loading, setLoading] = useState(true)
 
-  // modal = null | 'new-duty' | 'cell'
   const [modal, setModal] = useState(null)
-  const [cellData, setCellData] = useState(null)   // { timetable, date, journey }
+  const [cellData, setCellData] = useState(null)
   const [dutyForm, setDutyForm] = useState(EMPTY_DUTY)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -155,8 +118,6 @@ export default function SchedulePage() {
     setWeekStart(m)
     load(m)
   }
-
-  // ── New Duty modal ────────────────────────────────────────────────────────
 
   function openNewDuty() {
     setDutyForm(EMPTY_DUTY)
@@ -225,8 +186,6 @@ export default function SchedulePage() {
     setSaving(false)
   }
 
-  // ── Cell assignment modal ─────────────────────────────────────────────────
-
   function openCell(timetable, date, journey) {
     setCellData({ timetable, date, journey })
     setDutyForm({
@@ -270,8 +229,6 @@ export default function SchedulePage() {
     setSaving(false)
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
-
   const days = weekDays(weekStart)
 
   const sortedTimetables = [...timetables].sort((a, b) => {
@@ -287,7 +244,6 @@ export default function SchedulePage() {
         <button className="btn btn-primary" onClick={openNewDuty}>+ Create New Duty</button>
       </div>
 
-      {/* Week navigator */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <button className="btn btn-ghost btn-sm" onClick={() => shiftWeek(-1)}>← Prev</button>
         <span style={{ fontFamily: 'Oswald, sans-serif', fontSize: '1.05rem', color: 'var(--text)', minWidth: 220, textAlign: 'center' }}>
@@ -297,13 +253,12 @@ export default function SchedulePage() {
         <button
           className="btn btn-ghost btn-sm"
           onClick={() => { const m = getWeekStart(new Date()); setWeekStart(m); load(m) }}
-            style={{ marginLeft: 4 }}
+          style={{ marginLeft: 4 }}
         >
           This Week
         </button>
       </div>
 
-      {/* Legend */}
       <div style={{ display: 'flex', gap: 20, marginBottom: 18, fontSize: 12, color: 'var(--text-muted)' }}>
         <span><span style={{ color: '#2d7a28', fontWeight: 700 }}>●</span> Assigned</span>
         <span><span style={{ color: '#a05a10', fontWeight: 700 }}>●</span> No driver</span>
@@ -363,7 +318,6 @@ export default function SchedulePage() {
         </div>
       )}
 
-      {/* ── Cell assignment modal ── */}
       {modal === 'cell' && cellData && (
         <Modal
           title={`Assign — ${cellData.timetable.route?.service_code} ${cellData.timetable.period} ${cellData.timetable.direction}`}
@@ -377,28 +331,18 @@ export default function SchedulePage() {
             </>
           }
         >
-          <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>
-            {fmtLongDate(cellData.date)}
-          </p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>{fmtLongDate(cellData.date)}</p>
           {error && <div className="error-msg">{error}</div>}
           <div className="form-group">
             <label className="form-label">Driver</label>
-            <select
-              className="form-select"
-              value={dutyForm.driver_id}
-              onChange={e => setDutyForm(f => ({ ...f, driver_id: e.target.value }))}
-            >
+            <select className="form-select" value={dutyForm.driver_id} onChange={e => setDutyForm(f => ({ ...f, driver_id: e.target.value }))}>
               <option value="">— Select driver —</option>
               {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
           <div className="form-group">
             <label className="form-label">Vehicle</label>
-            <select
-              className="form-select"
-              value={dutyForm.vehicle_id}
-              onChange={e => setDutyForm(f => ({ ...f, vehicle_id: e.target.value }))}
-            >
+            <select className="form-select" value={dutyForm.vehicle_id} onChange={e => setDutyForm(f => ({ ...f, vehicle_id: e.target.value }))}>
               <option value="">— Select vehicle —</option>
               {vehicles.map(v => <option key={v.id} value={v.id}>{v.registration}</option>)}
             </select>
@@ -406,7 +350,6 @@ export default function SchedulePage() {
         </Modal>
       )}
 
-      {/* ── Create New Duty modal ── */}
       {modal === 'new-duty' && (
         <Modal
           title="Create New Duty"
@@ -432,22 +375,14 @@ export default function SchedulePage() {
           </div>
           <div className="form-group">
             <label className="form-label">Driver</label>
-            <select
-              className="form-select"
-              value={dutyForm.driver_id}
-              onChange={e => setDutyForm(f => ({ ...f, driver_id: e.target.value }))}
-            >
+            <select className="form-select" value={dutyForm.driver_id} onChange={e => setDutyForm(f => ({ ...f, driver_id: e.target.value }))}>
               <option value="">— Select driver —</option>
               {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
           <div className="form-group">
             <label className="form-label">Vehicle</label>
-            <select
-              className="form-select"
-              value={dutyForm.vehicle_id}
-              onChange={e => setDutyForm(f => ({ ...f, vehicle_id: e.target.value }))}
-            >
+            <select className="form-select" value={dutyForm.vehicle_id} onChange={e => setDutyForm(f => ({ ...f, vehicle_id: e.target.value }))}>
               <option value="">— Select vehicle —</option>
               {vehicles.map(v => <option key={v.id} value={v.id}>{v.registration}</option>)}
             </select>
@@ -469,34 +404,19 @@ export default function SchedulePage() {
                   <label
                     key={tm.id}
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      cursor: 'pointer',
-                      padding: '9px 12px',
-                      borderRadius: 6,
+                      display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                      padding: '9px 12px', borderRadius: 6,
                       background: checked ? 'rgba(77,184,72,0.08)' : 'var(--bg)',
                       border: `1px solid ${checked ? 'rgba(77,184,72,0.4)' : 'var(--border)'}`,
                       transition: 'background 0.12s, border-color 0.12s',
                     }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleTimetable(tm.id)}
-                      style={{ flexShrink: 0 }}
-                    />
+                    <input type="checkbox" checked={checked} onChange={() => toggleTimetable(tm.id)} style={{ flexShrink: 0 }} />
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 600, fontSize: 14 }}>
-                        {tm.route?.service_code}
-                      </div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                        {tm.period} · {tm.direction}
-                      </div>
+                      <div style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 600, fontSize: 14 }}>{tm.route?.service_code}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{tm.period} · {tm.direction}</div>
                     </div>
-                    {existing && !existing.driver_id && (
-                      <span className="badge badge-amber">No driver</span>
-                    )}
+                    {existing && !existing.driver_id && <span className="badge badge-amber">No driver</span>}
                   </label>
                 )
               })}

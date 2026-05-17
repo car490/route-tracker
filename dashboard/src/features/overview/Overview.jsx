@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
-import Modal from '../components/Modal'
+import { supabase } from '../../shared/supabase'
+import Modal from '../../shared/components/Modal'
 
 const STATUS_BADGE = {
   scheduled:   <span className="badge badge-gray">Scheduled</span>,

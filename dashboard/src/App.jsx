@@ -1,16 +1,18 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { supabase } from './lib/supabase'
-import Layout from './components/Layout'
-import Login from './pages/Login'
-import Overview from './pages/Overview'
-import DriversPage from './pages/DriversPage'
-import VehiclesPage from './pages/VehiclesPage'
-import RoutesPage from './pages/RoutesPage'
-import JourneysPage from './pages/JourneysPage'
-import SchedulePage from './pages/SchedulePage'
-import DutyCardsPage from './pages/DutyCardsPage'
-import LiveTracking from './pages/LiveTracking'
+import { supabase } from './shared/supabase'
+import Layout from './shared/components/Layout'
+import Login from './features/auth/Login'
+import Overview from './features/overview/Overview'
+import DriversPage from './features/staff/DriversPage'
+import VehiclesPage from './features/vehicles/VehiclesPage'
+import RoutesPage from './features/routes/RoutesPage'
+import JourneysPage from './features/journeys/JourneysPage'
+import SchedulePage from './features/schedule/SchedulePage'
+import DutyCardsPage from './features/journeys/DutyCardsPage'
+import LiveTracking from './features/tracking/LiveTracking'
+import ExcursionsPage from './features/excursions/ExcursionsPage'
+import RoutePlannerPage from './features/route-planner/RoutePlannerPage'
 
 function Protected({ session, children }) {
   if (!session) return <Navigate to="/login" replace />
@@ -48,6 +50,8 @@ export default function App() {
         <Route path="vehicles" element={<VehiclesPage />} />
         <Route path="journeys" element={<JourneysPage />} />
         <Route path="duty-cards" element={<DutyCardsPage />} />
+        <Route path="excursions" element={<ExcursionsPage />} />
+        <Route path="route-planner" element={<RoutePlannerPage />} />
         <Route path="live" element={<LiveTracking />} />
       </Route>
     </Routes>

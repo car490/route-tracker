@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase } from '../../shared/supabase'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -20,15 +20,13 @@ export default function LiveTracking() {
   const [loading,  setLoading]  = useState(true)
   const [mapReady, setMapReady] = useState(false)
 
-  const mapDivRef   = useRef(null)  // DOM node for Leaflet
-  const mapRef      = useRef(null)  // L.Map instance
-  const markersRef  = useRef({})    // journey_id → L.Marker
-  const journeysRef = useRef([])    // stable ref to latest journeys for Realtime callback
+  const mapDivRef   = useRef(null)
+  const mapRef      = useRef(null)
+  const markersRef  = useRef({})
+  const journeysRef = useRef([])
 
-  // Keep journeysRef in sync so the Realtime callback always has the latest labels
   useEffect(() => { journeysRef.current = journeys }, [journeys])
 
-  // Load in-progress journeys + Realtime refresh on any journeys change
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10)
 
@@ -57,7 +55,6 @@ export default function LiveTracking() {
     return () => supabase.removeChannel(ch)
   }, [])
 
-  // Initialise Leaflet map once after mount
   useEffect(() => {
     if (!mapDivRef.current || mapRef.current) return
 
@@ -76,7 +73,6 @@ export default function LiveTracking() {
     }
   }, [])
 
-  // Subscribe to GPS fixes via Realtime — only once map is ready
   useEffect(() => {
     if (!mapReady) return
 
@@ -118,7 +114,6 @@ export default function LiveTracking() {
     return () => supabase.removeChannel(ch)
   }, [mapReady])
 
-  // Remove markers for journeys that are no longer in_progress
   useEffect(() => {
     const activeIds = new Set(journeys.map(j => j.id))
     for (const [id, marker] of Object.entries(markersRef.current)) {

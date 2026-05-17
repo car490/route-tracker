@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
-import { getCompanyId } from '../lib/company'
-import Modal from '../components/Modal'
+import { supabase } from '../../shared/supabase'
+import { getCompanyId } from '../../shared/company'
+import Modal from '../../shared/components/Modal'
 
 const STATUS_BADGE = {
   scheduled:   <span className="badge badge-gray">Scheduled</span>,
@@ -371,34 +371,18 @@ export default function JourneysPage() {
         </div>
       </div>
 
-      {/* Journey detail modal */}
       {detailJourney && (
         <Modal
           title={`${detailJourney.timetable?.route?.service_code ?? 'Journey'} — ${detailJourney.timetable?.period ?? ''} ${detailJourney.timetable?.direction ?? ''}`}
           onClose={() => setDetailJourney(null)}
-          footer={
-            <button className="btn btn-ghost" onClick={() => setDetailJourney(null)}>Close</button>
-          }
+          footer={<button className="btn btn-ghost" onClick={() => setDetailJourney(null)}>Close</button>}
         >
           <div style={{ marginBottom: 16, display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 14 }}>
-            <div>
-              <span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Driver</span>
-              <strong>{detailJourney.driver?.name ?? 'Unassigned'}</strong>
-            </div>
-            <div>
-              <span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Vehicle</span>
-              <strong style={{ fontFamily: 'monospace' }}>{detailJourney.vehicle?.registration ?? 'Unassigned'}</strong>
-            </div>
-            <div>
-              <span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Date</span>
-              <strong>{new Date(detailJourney.journey_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</strong>
-            </div>
-            <div>
-              <span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Status</span>
-              {STATUS_BADGE[detailJourney.status]}
-            </div>
+            <div><span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Driver</span><strong>{detailJourney.driver?.name ?? 'Unassigned'}</strong></div>
+            <div><span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Vehicle</span><strong style={{ fontFamily: 'monospace' }}>{detailJourney.vehicle?.registration ?? 'Unassigned'}</strong></div>
+            <div><span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Date</span><strong>{new Date(detailJourney.journey_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</strong></div>
+            <div><span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Status</span>{STATUS_BADGE[detailJourney.status]}</div>
           </div>
-
           {detailLoading ? (
             <div style={{ color: 'var(--text-muted)', padding: '12px 0' }}>Loading stops…</div>
           ) : detailStops.length === 0 ? (
@@ -417,9 +401,7 @@ export default function JourneysPage() {
                   <tr key={s.sequence} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '5px 8px', color: 'var(--text-muted)', fontSize: 12 }}>{s.sequence}</td>
                     <td style={{ padding: '5px 8px' }}>{s.stop?.name ?? '—'}</td>
-                    <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, color: '#a0aec0' }}>
-                      {s.scheduled_time}
-                    </td>
+                    <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, color: '#a0aec0' }}>{s.scheduled_time}</td>
                   </tr>
                 ))}
               </tbody>
@@ -428,7 +410,6 @@ export default function JourneysPage() {
         </Modal>
       )}
 
-      {/* Journey report modal */}
       {reportJourney && (
         <Modal
           title={`Report — ${reportJourney.timetable?.route?.service_code ?? 'Journey'} ${reportJourney.timetable?.period ?? ''} ${reportJourney.timetable?.direction ?? ''}`}
@@ -437,20 +418,8 @@ export default function JourneysPage() {
             <div style={{ display: 'flex', gap: 8, width: '100%' }}>
               <button className="btn btn-ghost" onClick={() => setReportJourney(null)}>Close</button>
               <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                <button
-                  className="btn btn-ghost"
-                  onClick={() => downloadCsv(reportJourney, reportStops, reportIncidents)}
-                  disabled={reportLoading}
-                >
-                  Export CSV
-                </button>
-                <button
-                  className="btn btn-primary"
-                  onClick={() => printReport(reportJourney, reportStops, reportIncidents)}
-                  disabled={reportLoading}
-                >
-                  Print / PDF
-                </button>
+                <button className="btn btn-ghost" onClick={() => downloadCsv(reportJourney, reportStops, reportIncidents)} disabled={reportLoading}>Export CSV</button>
+                <button className="btn btn-primary" onClick={() => printReport(reportJourney, reportStops, reportIncidents)} disabled={reportLoading}>Print / PDF</button>
               </div>
             </div>
           }
@@ -459,35 +428,14 @@ export default function JourneysPage() {
             <div style={{ color: 'var(--text-muted)', padding: '12px 0' }}>Loading report…</div>
           ) : (
             <>
-              {/* Summary */}
               <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 13, marginBottom: 16 }}>
-                <div>
-                  <span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Driver</span>
-                  <strong>{reportJourney.driver?.name ?? 'Unassigned'}</strong>
-                </div>
-                <div>
-                  <span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Vehicle</span>
-                  <strong style={{ fontFamily: 'monospace' }}>{reportJourney.vehicle?.registration ?? 'Unassigned'}</strong>
-                </div>
-                <div>
-                  <span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Date</span>
-                  <strong>{new Date(reportJourney.journey_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</strong>
-                </div>
-                {reportJourney.started_at && (
-                  <div>
-                    <span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Started</span>
-                    <strong>{new Date(reportJourney.started_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</strong>
-                  </div>
-                )}
-                {reportJourney.completed_at && (
-                  <div>
-                    <span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Completed</span>
-                    <strong>{new Date(reportJourney.completed_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</strong>
-                  </div>
-                )}
+                <div><span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Driver</span><strong>{reportJourney.driver?.name ?? 'Unassigned'}</strong></div>
+                <div><span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Vehicle</span><strong style={{ fontFamily: 'monospace' }}>{reportJourney.vehicle?.registration ?? 'Unassigned'}</strong></div>
+                <div><span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Date</span><strong>{new Date(reportJourney.journey_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</strong></div>
+                {reportJourney.started_at && <div><span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Started</span><strong>{new Date(reportJourney.started_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</strong></div>}
+                {reportJourney.completed_at && <div><span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Completed</span><strong>{new Date(reportJourney.completed_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</strong></div>}
               </div>
 
-              {/* Stop times */}
               <div style={{ marginBottom: 4, fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
                 Stop Times {reportStops.length > 0 ? `(${reportStops.length})` : ''}
               </div>
@@ -507,20 +455,13 @@ export default function JourneysPage() {
                   <tbody>
                     {reportStops.map((s, i) => {
                       const v = s.variance_seconds
-                      const varStr = v == null ? '—'
-                        : v === 0 ? 'On time'
-                        : `${v < 0 ? '-' : '+'}${Math.floor(Math.abs(v) / 60)}m ${Math.abs(v) % 60}s`
-                      const varColour = v == null ? 'var(--text-muted)'
-                        : v < 0 ? 'var(--early)'
-                        : v > 30 ? 'var(--late)'
-                        : 'var(--on-time)'
+                      const varStr = v == null ? '—' : v === 0 ? 'On time' : `${v < 0 ? '-' : '+'}${Math.floor(Math.abs(v) / 60)}m ${Math.abs(v) % 60}s`
+                      const varColour = v == null ? 'var(--text-muted)' : v < 0 ? '#fb8c00' : v > 30 ? '#e53935' : '#4db848'
                       return (
                         <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                           <td style={{ padding: '5px 6px', color: 'var(--text-muted)', fontSize: 11 }}>{s.timetable_stop?.sequence ?? ''}</td>
                           <td style={{ padding: '5px 6px' }}>{s.timetable_stop?.stop?.name ?? '—'}</td>
-                          <td style={{ padding: '5px 6px', textAlign: 'right', fontFamily: 'monospace', color: '#a0aec0' }}>
-                            {s.timetable_stop?.scheduled_time ?? '—'}
-                          </td>
+                          <td style={{ padding: '5px 6px', textAlign: 'right', fontFamily: 'monospace', color: '#a0aec0' }}>{s.timetable_stop?.scheduled_time ?? '—'}</td>
                           <td style={{ padding: '5px 6px', textAlign: 'right', fontFamily: 'monospace' }}>
                             {s.arrived_at ? new Date(s.arrived_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—'}
                           </td>
@@ -532,7 +473,6 @@ export default function JourneysPage() {
                 </table>
               )}
 
-              {/* Incidents */}
               <div style={{ marginBottom: 4, fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
                 Incidents {reportIncidents.length > 0 ? `(${reportIncidents.length})` : '(none)'}
               </div>
@@ -552,9 +492,7 @@ export default function JourneysPage() {
                         <td style={{ padding: '5px 6px', fontFamily: 'monospace', color: '#a0aec0' }}>
                           {new Date(inc.occurred_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                         </td>
-                        <td style={{ padding: '5px 6px' }}>
-                          <span className="badge badge-amber">{inc.metadata?.category ?? '—'}</span>
-                        </td>
+                        <td style={{ padding: '5px 6px' }}><span className="badge badge-amber">{inc.metadata?.category ?? '—'}</span></td>
                         <td style={{ padding: '5px 6px', color: 'var(--text-muted)' }}>{inc.metadata?.description || '—'}</td>
                         <td style={{ padding: '5px 6px', color: 'var(--text-muted)' }}>{inc.metadata?.near_stop || '—'}</td>
                       </tr>
@@ -567,7 +505,6 @@ export default function JourneysPage() {
         </Modal>
       )}
 
-      {/* Add / edit modal */}
       {modal !== null && (
         <Modal
           title={modal === 'add' ? 'Add Journey' : 'Edit Journey'}
@@ -585,53 +522,27 @@ export default function JourneysPage() {
           <form onSubmit={handleSave}>
             <div className="form-group">
               <label className="form-label">Date</label>
-              <input
-                className="form-input"
-                type="date"
-                value={form.journey_date}
-                onChange={e => setForm(f => ({ ...f, journey_date: e.target.value }))}
-                required
-              />
+              <input className="form-input" type="date" value={form.journey_date} onChange={e => setForm(f => ({ ...f, journey_date: e.target.value }))} required />
             </div>
             <div className="form-group">
               <label className="form-label">Timetable</label>
-              <select
-                className="form-select"
-                value={form.timetable_id}
-                onChange={e => setForm(f => ({ ...f, timetable_id: e.target.value }))}
-              >
+              <select className="form-select" value={form.timetable_id} onChange={e => setForm(f => ({ ...f, timetable_id: e.target.value }))}>
                 <option value="">— Select —</option>
                 {timetables.map(t => (
-                  <option key={t.id} value={t.id}>
-                    {t.route?.service_code} {t.period} {t.direction}
-                  </option>
+                  <option key={t.id} value={t.id}>{t.route?.service_code} {t.period} {t.direction}</option>
                 ))}
               </select>
             </div>
             <div className="form-group">
-              <label className="form-label">
-                Driver{' '}
-                <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
-              </label>
-              <select
-                className="form-select"
-                value={form.driver_id}
-                onChange={e => setForm(f => ({ ...f, driver_id: e.target.value }))}
-              >
+              <label className="form-label">Driver <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
+              <select className="form-select" value={form.driver_id} onChange={e => setForm(f => ({ ...f, driver_id: e.target.value }))}>
                 <option value="">— Unassigned —</option>
                 {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </div>
             <div className="form-group">
-              <label className="form-label">
-                Vehicle{' '}
-                <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
-              </label>
-              <select
-                className="form-select"
-                value={form.vehicle_id}
-                onChange={e => setForm(f => ({ ...f, vehicle_id: e.target.value }))}
-              >
+              <label className="form-label">Vehicle <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
+              <select className="form-select" value={form.vehicle_id} onChange={e => setForm(f => ({ ...f, vehicle_id: e.target.value }))}>
                 <option value="">— Unassigned —</option>
                 {vehicles.map(v => <option key={v.id} value={v.id}>{v.registration}</option>)}
               </select>

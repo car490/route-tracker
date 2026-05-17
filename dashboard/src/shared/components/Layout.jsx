@@ -1,15 +1,17 @@
 import { Outlet, NavLink } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { supabase } from '../supabase'
 
 const NAV = [
-  { to: '/',            label: 'Schedule',             end: true },
-  { to: '/duty-cards',  label: 'Duty Cards' },
-  { to: '/journeys',    label: 'Daily Journeys' },
-  { to: '/routes',      label: 'Routes & Timetables' },
-  { to: '/drivers',     label: 'Staff' },
-  { to: '/vehicles',    label: 'Vehicles' },
-  { to: '/overview',    label: 'Overview' },
-  { to: '/live',        label: 'Live Tracking' },
+  { to: '/',               label: 'Schedule',             end: true },
+  { to: '/duty-cards',     label: 'Duty Cards' },
+  { to: '/journeys',       label: 'Daily Journeys' },
+  { to: '/excursions',     label: 'Excursions' },
+  { to: '/routes',         label: 'Routes & Timetables' },
+  { to: '/route-planner',  label: 'Route Planner' },
+  { to: '/drivers',        label: 'Staff' },
+  { to: '/vehicles',       label: 'Vehicles' },
+  { to: '/overview',       label: 'Overview' },
+  { to: '/live',           label: 'Live Tracking' },
 ]
 
 export default function Layout({ session }) {
