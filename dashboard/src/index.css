@@ -360,6 +360,10 @@ tr:hover td { background: #f7f9fc; }
   overflow: hidden;
 }
 
+.modal-card--wide {
+  max-width: 720px;
+}
+
 .modal-header {
   padding: 18px 20px 16px;
   font-family: 'Oswald', sans-serif;
