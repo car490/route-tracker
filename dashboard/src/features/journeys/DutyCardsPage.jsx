@@ -99,18 +99,16 @@ export default function DutyCardsPage() {
     await Promise.all(
       duties.map(async ({ driver, journeys }) => {
         try {
-          const { data, error: fnErr } = await supabase.functions.invoke('generate-duty-token', {
-            body: {
-              journey_ids: journeys.map(j => j.id),
-              driver_name: driver.name,
-              driver_id:   driver.id,
-            },
+          const { data, error: fnErr } = await supabase.rpc('generate_duty_token', {
+            p_journey_ids: journeys.map(j => j.id),
+            p_driver_name: driver.name,
+            p_driver_id:   driver.id,
           })
           if (fnErr) {
             console.error(`Token signing failed for ${driver.name}:`, fnErr)
             errors[driver.id] = fnErr.message ?? 'Signing failed'
-          } else if (data?.token) {
-            results[driver.id] = data.token
+          } else if (data) {
+            results[driver.id] = data
           } else {
             errors[driver.id] = 'No token returned'
           }
