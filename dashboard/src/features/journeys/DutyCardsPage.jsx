@@ -43,6 +43,7 @@ export default function DutyCardsPage() {
   const [copied, setCopied] = useState(null)
   const [error, setError] = useState('')
   const [tokens, setTokens] = useState({})
+  const [tokenErrors, setTokenErrors] = useState({})
 
   async function load(d) {
     setLoading(true)
@@ -94,23 +95,38 @@ export default function DutyCardsPage() {
 
   async function generateTokens(duties) {
     const results = {}
+    const errors  = {}
     await Promise.all(
       duties.map(async ({ driver, journeys }) => {
         try {
-          const { data } = await supabase.functions.invoke('generate-duty-token', {
+          const { data, error: fnErr } = await supabase.functions.invoke('generate-duty-token', {
             body: {
               journey_ids: journeys.map(j => j.id),
               driver_name: driver.name,
               driver_id:   driver.id,
             },
           })
-          if (data?.token) results[driver.id] = data.token
-        } catch (_) {
-          // token generation failed — URL falls back to base (anon key)
+          if (fnErr) {
+            console.error(`Token signing failed for ${driver.name}:`, fnErr)
+            errors[driver.id] = fnErr.message ?? 'Signing failed'
+          } else if (data?.token) {
+            results[driver.id] = data.token
+          } else {
+            errors[driver.id] = 'No token returned'
+          }
+        } catch (err) {
+          console.error(`Token signing error for ${driver.name}:`, err)
+          errors[driver.id] = err.message ?? 'Signing failed'
         }
       })
     )
-    setTokens(results)
+    setTokens(prev => ({ ...prev, ...results }))
+    setTokenErrors(prev => ({ ...prev, ...errors }))
+  }
+
+  async function retryToken(driver, journeys) {
+    setTokenErrors(prev => { const n = { ...prev }; delete n[driver.id]; return n })
+    await generateTokens([{ driver, journeys }])
   }
 
   useEffect(() => { load(date) }, [])
@@ -176,10 +192,11 @@ export default function DutyCardsPage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {duties.map(({ driver, journeys }) => {
-            const ids      = journeys.map(j => j.id)
-            const url      = dutyUrl(ids, tokens[driver.id])
+            const ids        = journeys.map(j => j.id)
+            const url        = dutyUrl(ids, tokens[driver.id])
             const tokenReady = !!tokens[driver.id]
-            const contacts = driver.contacts ?? []
+            const tokenError = tokenErrors[driver.id]
+            const contacts   = driver.contacts ?? []
             const primaryContact = contacts.find(c => c.is_primary) ?? contacts[0] ?? null
             const hasEmail = contacts.some(c => c.type === 'email')
             const hasPhone = contacts.some(c => c.type === 'phone')
@@ -237,8 +254,12 @@ export default function DutyCardsPage() {
                 <div style={{ background: 'var(--bg)', borderRadius: 6, padding: '8px 12px', marginBottom: 14, fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
                   {dutyBaseUrl(ids)}
                   {tokenReady
-                    ? <span style={{ marginLeft: 6, color: 'var(--success, #4db848)', fontFamily: 'sans-serif', fontSize: 11 }}>✓ signed</span>
-                    : <span style={{ marginLeft: 6, color: 'var(--text-muted)', fontFamily: 'sans-serif', fontSize: 11 }}>signing…</span>
+                    ? <span style={{ marginLeft: 6, color: '#4db848', fontFamily: 'sans-serif', fontSize: 11 }}>✓ signed</span>
+                    : tokenError
+                      ? <span style={{ marginLeft: 6, color: '#e53935', fontFamily: 'sans-serif', fontSize: 11 }}>
+                          ✗ signing failed — {tokenError}
+                        </span>
+                      : <span style={{ marginLeft: 6, color: 'var(--text-muted)', fontFamily: 'sans-serif', fontSize: 11 }}>signing…</span>
                   }
                 </div>
 
@@ -246,11 +267,19 @@ export default function DutyCardsPage() {
                   <button
                     className="btn btn-ghost btn-sm"
                     onClick={() => copyLink(driver, ids)}
-                    disabled={!tokenReady}
                     style={{ minWidth: 110 }}
                   >
                     {copied === driver.name ? '✓ Copied!' : 'Copy Link'}
                   </button>
+                  {tokenError && (
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => retryToken(driver, journeys)}
+                      style={{ color: '#e53935', borderColor: '#e53935' }}
+                    >
+                      Retry Signing
+                    </button>
+                  )}
                   <button
                     className="btn btn-ghost btn-sm"
                     onClick={() => openEmail(driver, ids)}
