@@ -287,10 +287,8 @@ function runTracker({ allStops, journeyId, initialStopIndex, serviceCode, servic
     incidentOverlay.hidden = true;
 
     if (journeyId) {
-      const [uploadResult] = await Promise.all([
-        uploadStopTimes(journeyId, arrivalsRef, allStops),
-        rpc('complete_journey', { p_journey_id: journeyId }).catch(() => {}),
-      ]);
+      const uploadResult = await uploadStopTimes(journeyId, arrivalsRef, allStops);
+      await rpc('complete_journey', { p_journey_id: journeyId }).catch(() => {});
       if (uploadResult.ok) {
         log('info', `Uploaded ${uploadResult.count} stop time(s)`);
       } else {

@@ -694,6 +694,11 @@ create policy "anon_incident" on journey_events
     and is_journey_in_progress(journey_id)
   );
 
+-- Anon drivers may insert GPS fixes and incidents for in-progress journeys.
+-- INSERT grant is required in addition to the RLS policies below; without it Postgres
+-- rejects the write before evaluating RLS at all.
+grant insert on public.journey_events to anon;
+
 -- Anon drivers may insert stop times at trip end (batch upload)
 -- Table-level INSERT grant added in migration_anon_stop_times.sql; also set here for fresh resets.
 grant insert on public.journey_stop_times to anon;
