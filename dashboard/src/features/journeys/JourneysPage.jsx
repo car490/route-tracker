@@ -252,6 +252,31 @@ export default function JourneysPage() {
     setModal(null); loadJourneys(dateFilter)
   }
 
+  async function resetJourney(j) {
+    const label = j.timetable?.route?.service_code
+      ? `${j.timetable.route.service_code} ${j.timetable.period ?? ''} ${j.timetable.direction ?? ''}`.trim()
+      : 'this journey'
+    if (!confirm(
+      `Reset "${label}" to Scheduled?\n\n` +
+      `This will permanently delete:\n• All stop times\n• GPS track\n• Incident log\n\nThis cannot be undone.`
+    )) return
+
+    const [evRes, stRes] = await Promise.all([
+      supabase.from('journey_events').delete().eq('journey_id', j.id),
+      supabase.from('journey_stop_times').delete().eq('journey_id', j.id),
+    ])
+    if (evRes.error || stRes.error) {
+      alert('Failed to clear journey data: ' + (evRes.error?.message ?? stRes.error?.message))
+      return
+    }
+    const { error: err } = await supabase
+      .from('journeys')
+      .update({ status: 'scheduled', started_at: null, completed_at: null })
+      .eq('id', j.id)
+    if (err) { alert('Failed to reset journey: ' + err.message); return }
+    loadJourneys(dateFilter)
+  }
+
   async function handleDelete(id) {
     if (!confirm('Delete this journey?')) return
     await supabase.from('journeys').delete().eq('id', id)
@@ -348,6 +373,9 @@ export default function JourneysPage() {
                           <button className="btn btn-ghost btn-sm" onClick={() => openReport(j)}>Report</button>
                         )}
                         <button className="btn btn-ghost btn-sm" onClick={() => openEdit(j)}>Edit</button>
+                        {(j.status === 'in_progress' || j.status === 'completed') && (
+                          <button className="btn btn-ghost btn-sm" onClick={() => resetJourney(j)}>Reset</button>
+                        )}
                         <button
                           className="btn btn-ghost btn-sm"
                           onClick={() => copyDriverLink(j.id)}
