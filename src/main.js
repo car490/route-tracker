@@ -336,6 +336,8 @@ async function initDutyCard(journeyIds) {
     }
   }
 
+  duties.sort((a, b) => (a.first_stop_time || '').localeCompare(b.first_stop_time || ''));
+
   renderDutyCard(duties, journeyIds);
 }
 
