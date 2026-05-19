@@ -487,6 +487,21 @@ $$;
 
 grant execute on function is_journey_in_progress(uuid) to anon;
 
+-- Returns true when the current JWT either carries no journey_ids claim (legacy anon key)
+-- or when j_id appears in the claim. Scopes driver tokens to their own journeys only.
+create or replace function is_jwt_journey_allowed(j_id uuid)
+returns boolean
+language sql stable security definer
+as $$
+  select
+    auth.jwt()->>'journey_ids' is null
+    or j_id = any(
+      array(select jsonb_array_elements_text(auth.jwt()->'journey_ids'))::uuid[]
+    )
+$$;
+
+grant execute on function is_jwt_journey_allowed(uuid) to anon;
+
 -- Called by the driver PWA (anon) to start a journey.
 create or replace function start_journey(p_journey_id uuid)
 returns boolean
@@ -684,6 +699,7 @@ create policy "anon_gps_fix" on journey_events
   with check (
     event_type = 'gps_fix'
     and is_journey_in_progress(journey_id)
+    and is_jwt_journey_allowed(journey_id)
   );
 
 -- Anon drivers may insert incident reports for in-progress journeys
@@ -692,6 +708,7 @@ create policy "anon_incident" on journey_events
   with check (
     event_type = 'incident'
     and is_journey_in_progress(journey_id)
+    and is_jwt_journey_allowed(journey_id)
   );
 
 -- Anon drivers may insert GPS fixes and incidents for in-progress journeys.
@@ -705,7 +722,10 @@ grant insert on public.journey_stop_times to anon;
 
 create policy "anon_insert" on journey_stop_times
   for insert to anon
-  with check (is_journey_in_progress(journey_id));
+  with check (
+    is_journey_in_progress(journey_id)
+    and is_jwt_journey_allowed(journey_id)
+  );
 
 -- Journey stop times: scoped via journey → company
 -- Drivers insert (batch upload at trip end); ops can update review fields.

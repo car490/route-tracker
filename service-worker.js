@@ -1,4 +1,4 @@
-const CACHE_NAME = 'route-tracker-v19';
+const CACHE_NAME = 'route-tracker-v20';
 
 const STATIC_ASSETS = [
   './',

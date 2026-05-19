@@ -15,8 +15,13 @@ function phoneForWhatsApp(phone) {
   return phone.replace(/\D/g, '')
 }
 
-function dutyUrl(journeyIds) {
+function dutyBaseUrl(journeyIds) {
   return `${PWA_BASE}/?duties=${journeyIds.join(',')}`
+}
+
+function dutyUrl(journeyIds, token) {
+  const base = dutyBaseUrl(journeyIds)
+  return token ? `${base}&token=${token}` : base
 }
 
 function dutyMessage(driverName, date, url) {
@@ -37,6 +42,7 @@ export default function DutyCardsPage() {
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(null)
   const [error, setError] = useState('')
+  const [tokens, setTokens] = useState({})
 
   async function load(d) {
     setLoading(true)
@@ -80,10 +86,31 @@ export default function DutyCardsPage() {
       if (!map[dId]) map[dId] = { driver: { ...j.driver, contacts: contactsMap[dId] ?? [] }, journeys: [] }
       map[dId].journeys.push(j)
     }
-    setDuties(
-      Object.values(map).sort((a, b) => a.driver.name.localeCompare(b.driver.name))
-    )
+    const sorted = Object.values(map).sort((a, b) => a.driver.name.localeCompare(b.driver.name))
+    setDuties(sorted)
     setLoading(false)
+    generateTokens(sorted)
+  }
+
+  async function generateTokens(duties) {
+    const results = {}
+    await Promise.all(
+      duties.map(async ({ driver, journeys }) => {
+        try {
+          const { data } = await supabase.functions.invoke('generate-duty-token', {
+            body: {
+              journey_ids: journeys.map(j => j.id),
+              driver_name: driver.name,
+              driver_id:   driver.id,
+            },
+          })
+          if (data?.token) results[driver.id] = data.token
+        } catch (_) {
+          // token generation failed — URL falls back to base (anon key)
+        }
+      })
+    )
+    setTokens(results)
   }
 
   useEffect(() => { load(date) }, [])
@@ -93,9 +120,9 @@ export default function DutyCardsPage() {
     load(e.target.value)
   }
 
-  function copyLink(driverName, ids) {
-    navigator.clipboard.writeText(dutyUrl(ids))
-    setCopied(driverName)
+  function copyLink(driver, ids) {
+    navigator.clipboard.writeText(dutyUrl(ids, tokens[driver.id]))
+    setCopied(driver.name)
     setTimeout(() => setCopied(null), 2000)
   }
 
@@ -105,7 +132,7 @@ export default function DutyCardsPage() {
       alert(`No email address on file for ${driver.name}.\nAdd one on the Staff page.`)
       return
     }
-    const url = dutyUrl(ids)
+    const url = dutyUrl(ids, tokens[driver.id])
     const subject = encodeURIComponent(`Your Duty Card — ${fmtLongDate(date)}`)
     const body = encodeURIComponent(dutyMessage(driver.name, date, url))
     window.open(`mailto:${contact.value}?subject=${subject}&body=${body}`)
@@ -118,7 +145,7 @@ export default function DutyCardsPage() {
       return
     }
     const phone = phoneForWhatsApp(contact.value)
-    const text = encodeURIComponent(dutyMessage(driver.name, date, dutyUrl(ids)))
+    const text = encodeURIComponent(dutyMessage(driver.name, date, dutyUrl(ids, tokens[driver.id])))
     window.open(`https://wa.me/${phone}?text=${text}`)
   }
 
@@ -149,8 +176,9 @@ export default function DutyCardsPage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {duties.map(({ driver, journeys }) => {
-            const ids = journeys.map(j => j.id)
-            const url = dutyUrl(ids)
+            const ids      = journeys.map(j => j.id)
+            const url      = dutyUrl(ids, tokens[driver.id])
+            const tokenReady = !!tokens[driver.id]
             const contacts = driver.contacts ?? []
             const primaryContact = contacts.find(c => c.is_primary) ?? contacts[0] ?? null
             const hasEmail = contacts.some(c => c.type === 'email')
@@ -207,13 +235,18 @@ export default function DutyCardsPage() {
                 </div>
 
                 <div style={{ background: 'var(--bg)', borderRadius: 6, padding: '8px 12px', marginBottom: 14, fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                  {url}
+                  {dutyBaseUrl(ids)}
+                  {tokenReady
+                    ? <span style={{ marginLeft: 6, color: 'var(--success, #4db848)', fontFamily: 'sans-serif', fontSize: 11 }}>✓ signed</span>
+                    : <span style={{ marginLeft: 6, color: 'var(--text-muted)', fontFamily: 'sans-serif', fontSize: 11 }}>signing…</span>
+                  }
                 </div>
 
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button
                     className="btn btn-ghost btn-sm"
-                    onClick={() => copyLink(driver.name, ids)}
+                    onClick={() => copyLink(driver, ids)}
+                    disabled={!tokenReady}
                     style={{ minWidth: 110 }}
                   >
                     {copied === driver.name ? '✓ Copied!' : 'Copy Link'}
@@ -221,7 +254,7 @@ export default function DutyCardsPage() {
                   <button
                     className="btn btn-ghost btn-sm"
                     onClick={() => openEmail(driver, ids)}
-                    disabled={!hasEmail}
+                    disabled={!hasEmail || !tokenReady}
                     title={hasEmail ? `Send to ${getContact(contacts, 'email')?.value}` : 'No email address on file'}
                   >
                     Send Email
@@ -229,9 +262,9 @@ export default function DutyCardsPage() {
                   <button
                     className="btn btn-ghost btn-sm"
                     onClick={() => openWhatsApp(driver, ids)}
-                    disabled={!hasPhone}
+                    disabled={!hasPhone || !tokenReady}
                     title={hasPhone ? `Send to ${getContact(contacts, 'phone')?.value}` : 'No phone number on file'}
-                    style={hasPhone ? { color: '#25d366', borderColor: '#25d366' } : {}}
+                    style={hasPhone && tokenReady ? { color: '#25d366', borderColor: '#25d366' } : {}}
                   >
                     WhatsApp
                   </button>
@@ -240,7 +273,7 @@ export default function DutyCardsPage() {
                     target="_blank"
                     rel="noreferrer"
                     className="btn btn-ghost btn-sm"
-                    style={{ textDecoration: 'none' }}
+                    style={{ textDecoration: 'none', pointerEvents: tokenReady ? 'auto' : 'none', opacity: tokenReady ? 1 : 0.4 }}
                   >
                     Preview ↗
                   </a>
