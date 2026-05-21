@@ -3,7 +3,16 @@ import { supabase } from '../../shared/supabase'
 import { getCompanyId } from '../../shared/company'
 import Modal from '../../shared/components/Modal'
 
-const ROUTE_EMPTY = { service_code: '', name: '' }
+const ROUTE_EMPTY = { service_code: '', name: '', journey_type: 'Local Bus' }
+const JOURNEY_TYPES = [
+  'Local Bus',
+  'Open Door Schools',
+  'Contract Schools',
+  'Private Hire',
+  'Excursion',
+  'Tour',
+  'Other Contract',
+]
 const PERIODS    = ['Early Morning', 'Morning', 'Midday', 'Afternoon', 'Evening', 'Night', 'All Day']
 const DIRECTIONS = ['Outbound', 'Inbound', 'Circular']
 const TT_EMPTY = { period: 'Morning', direction: 'Outbound', valid_from: '', valid_to: '' }
@@ -65,7 +74,7 @@ export default function RoutesPage() {
     const payload = { ...routeForm, company_id }
     const { error: err } = routeModal === 'add'
       ? await supabase.from('routes').insert(payload)
-      : await supabase.from('routes').update({ service_code: routeForm.service_code, name: routeForm.name || null }).eq('id', routeModal.id)
+      : await supabase.from('routes').update({ service_code: routeForm.service_code, name: routeForm.name || null, journey_type: routeForm.journey_type }).eq('id', routeModal.id)
     setSaving(false)
     if (err) { setError(err.message); return }
     setRouteModal(null); load()
@@ -160,7 +169,7 @@ export default function RoutesPage() {
                         <button
                           className="btn btn-ghost btn-sm"
                           onClick={() => {
-                            setRouteForm({ service_code: r.service_code, name: r.name ?? '' })
+                            setRouteForm({ service_code: r.service_code, name: r.name ?? '', journey_type: r.journey_type ?? 'Local Bus' })
                             setError(''); setRouteModal(r)
                           }}
                         >
@@ -273,6 +282,16 @@ export default function RoutesPage() {
                 onChange={e => setRouteForm(f => ({ ...f, name: e.target.value }))}
                 placeholder="e.g. Sleaford – Cranwell"
               />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Journey Type</label>
+              <select
+                className="form-select"
+                value={routeForm.journey_type}
+                onChange={e => setRouteForm(f => ({ ...f, journey_type: e.target.value }))}
+              >
+                {JOURNEY_TYPES.map(jt => <option key={jt} value={jt}>{jt}</option>)}
+              </select>
             </div>
           </form>
         </Modal>
