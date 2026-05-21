@@ -91,7 +91,7 @@ function PlannerMap({ stops, routeGeometry, pinDropMode, onMapClick }) {
 
       const input = document.createElement('input')
       input.type = 'text'
-      input.placeholder = 'Stop name…'
+      input.placeholder = 'Finding location…'
       input.style.cssText = [
         'width:100%', 'padding:4px 8px', 'font-size:13px',
         'border:1px solid #cbd5e1', 'border-radius:4px',
@@ -121,6 +121,23 @@ function PlannerMap({ stops, routeGeometry, pinDropMode, onMapClick }) {
 
       popup.on('remove', () => { popupOpen = false })
       setTimeout(() => input.focus(), 50)
+
+      // Reverse-geocode the clicked point and pre-fill a suggested stop name
+      fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1`,
+        { headers: { 'Accept-Language': 'en' } },
+      )
+        .then(r => r.json())
+        .then(data => {
+          input.placeholder = 'Stop name…'
+          if (input.value) return // user already typed something
+          const addr = data.address || {}
+          const road  = addr.road || addr.pedestrian || addr.footway || addr.path
+          const place = addr.village || addr.suburb || addr.town || addr.city || addr.hamlet
+          const suggestion = road && place ? `${road}, ${place}` : (road || place || '')
+          if (suggestion) { input.value = suggestion; input.select() }
+        })
+        .catch(() => { input.placeholder = 'Stop name…' })
 
       const confirm = () => {
         const name = input.value.trim()
