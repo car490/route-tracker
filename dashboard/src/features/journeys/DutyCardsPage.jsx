@@ -96,27 +96,39 @@ export default function DutyCardsPage() {
   async function generateTokens(duties) {
     const results = {}
     const errors  = {}
+
+    const { data: { session } } = await supabase.auth.getSession()
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+    const fnUrl   = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-duty-token`
+    const authHeader = session?.access_token ? `Bearer ${session.access_token}` : `Bearer ${anonKey}`
+
     await Promise.all(
       duties.map(async ({ driver, journeys }) => {
         try {
-          const { data, error: fnErr } = await supabase.functions.invoke('generate-duty-token', {
-            body: {
+          const resp = await fetch(fnUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type':  'application/json',
+              'Authorization': authHeader,
+              'apikey':        anonKey,
+            },
+            body: JSON.stringify({
               journey_ids: journeys.map(j => j.id),
               driver_name: driver.name,
               driver_id:   driver.id,
-            },
+            }),
           })
-          if (fnErr) {
-            console.error(`Token signing failed for ${driver.name}:`, fnErr)
-            errors[driver.id] = fnErr.message ?? 'Signing failed'
-          } else if (data?.token) {
-            results[driver.id] = data.token
+          const payload = await resp.json().catch(() => ({}))
+          if (!resp.ok) {
+            errors[driver.id] = payload.error ?? `HTTP ${resp.status}`
+          } else if (payload.token) {
+            results[driver.id] = payload.token
           } else {
-            errors[driver.id] = 'No token returned'
+            errors[driver.id] = 'No token in response'
           }
         } catch (err) {
           console.error(`Token signing error for ${driver.name}:`, err)
-          errors[driver.id] = err.message ?? 'Signing failed'
+          errors[driver.id] = `fetch failed: ${err.message}`
         }
       })
     )
