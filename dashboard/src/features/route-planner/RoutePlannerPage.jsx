@@ -31,6 +31,16 @@ const NEW_ROUTE_EMPTY = {
   valid_to: '',
 }
 
+// Shared style tokens
+const S = {
+  sectionLabel: {
+    fontFamily: 'Oswald', fontWeight: 700, fontSize: 10,
+    textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)',
+  },
+  select: { fontSize: 12 },
+  input:  { fontSize: 12 },
+}
+
 function fmtDist(m) {
   return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`
 }
@@ -130,7 +140,7 @@ function PlannerMap({ stops, routeGeometry, pinDropMode, onMapClick }) {
         .then(r => r.json())
         .then(data => {
           input.placeholder = 'Stop name…'
-          if (input.value) return // user already typed something
+          if (input.value) return
           const addr = data.address || {}
           const road  = addr.road || addr.pedestrian || addr.footway || addr.path
           const place = addr.village || addr.suburb || addr.town || addr.city || addr.hamlet
@@ -361,7 +371,6 @@ export default function RoutePlannerPage() {
     setAddingStop(false)
   }
 
-  // Map pin-drop: stop_id is null until saved — created in stops table on save
   function handleMapPinDrop({ name, lat, lon }) {
     setStops(prev => [...prev, {
       _id:            crypto.randomUUID(),
@@ -457,7 +466,6 @@ export default function RoutePlannerPage() {
       .single()
     if (ttErr) { setSaveError(ttErr.message); setSaving(false); return }
 
-    // Create stops that were placed by pin-drop (no stop_id yet), then build timetable_stops
     const stopRows = []
     for (let i = 0; i < stops.length; i++) {
       const s = stops[i]
@@ -530,21 +538,20 @@ export default function RoutePlannerPage() {
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 112px)', overflow: 'hidden' }}>
 
       {/* Header */}
-      <div className="page-header" style={{ flexShrink: 0, marginBottom: 16 }}>
+      <div className="page-header" style={{ flexShrink: 0, marginBottom: 12 }}>
         <h1 className="page-title">Route Planner</h1>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {saveSuccess && (
-            <span style={{ fontSize: 13, color: 'var(--green)', fontWeight: 500 }}>
-              {mode === 'new' ? 'Route created ✓ — select it via Edit Existing' : 'Saved ✓'}
+            <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 500 }}>
+              {mode === 'new' ? 'Route created ✓ — select via Edit Existing' : 'Saved ✓'}
             </span>
           )}
-          {mode === 'edit' ? (
-            <button className="btn btn-ghost" onClick={enterNewMode}>+ New Route</button>
-          ) : (
-            <button className="btn btn-ghost" onClick={enterEditMode}>Edit Existing</button>
-          )}
+          {mode === 'edit'
+            ? <button className="btn btn-ghost btn-sm" onClick={enterNewMode}>+ New Route</button>
+            : <button className="btn btn-ghost btn-sm" onClick={enterEditMode}>Edit Existing</button>
+          }
           <button
-            className="btn btn-primary"
+            className="btn btn-primary btn-sm"
             onClick={mode === 'edit' ? handleSave : handleSaveNewRoute}
             disabled={!canSave}
           >
@@ -554,21 +561,22 @@ export default function RoutePlannerPage() {
       </div>
 
       {/* Two-panel body */}
-      <div style={{ flex: 1, display: 'flex', gap: 16, overflow: 'hidden', minHeight: 0 }}>
+      <div style={{ flex: 1, display: 'flex', gap: 12, overflow: 'hidden', minHeight: 0 }}>
 
-        {/* ── Left panel ── */}
+        {/* ── Left sidebar (280px) ── */}
         <div style={{
-          width: 400, flexShrink: 0, overflowY: 'auto',
-          display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 8,
+          width: 280, flexShrink: 0,
+          display: 'flex', flexDirection: 'column', gap: 8,
+          overflowY: 'auto', paddingBottom: 8,
         }}>
 
-          {/* Route context card */}
-          {mode === 'edit' ? (
-            <div className="card" style={{ padding: 16 }}>
-              <div className="form-group" style={{ marginBottom: 12 }}>
-                <label className="form-label">Route</label>
+          {/* ── Card 1: Route context ── */}
+          <div className="card" style={{ padding: 10 }}>
+            {mode === 'edit' ? (
+              <>
                 <select
                   className="form-select"
+                  style={{ ...S.select, marginBottom: 6 }}
                   value={routeId}
                   onChange={e => setRouteId(e.target.value)}
                 >
@@ -579,281 +587,251 @@ export default function RoutePlannerPage() {
                     </option>
                   ))}
                 </select>
-              </div>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Timetable</label>
                 <select
                   className="form-select"
+                  style={S.select}
                   value={timetableId}
                   onChange={e => setTimetableId(e.target.value)}
                   disabled={!routeId}
                 >
                   <option value="">— Select timetable —</option>
                   {timetables.map(t => (
-                    <option key={t.id} value={t.id}>{t.period} {t.direction}</option>
+                    <option key={t.id} value={t.id}>{t.period} · {t.direction}</option>
                   ))}
                 </select>
-              </div>
-            </div>
-          ) : (
-            <div className="card" style={{ padding: 16 }}>
-              <div style={{
-                fontFamily: 'Oswald', fontWeight: 600, fontSize: 12,
-                textTransform: 'uppercase', letterSpacing: '0.08em',
-                color: 'var(--text-muted)', marginBottom: 14,
-              }}>
-                New Route
-              </div>
-              <div className="form-group" style={{ marginBottom: 10 }}>
-                <label className="form-label">Service Code</label>
-                <input
-                  className="form-input"
-                  style={{ fontSize: 13 }}
-                  placeholder="e.g. S125S"
-                  value={newRouteForm.service_code}
-                  onChange={e => setNewRouteForm(f => ({ ...f, service_code: e.target.value.toUpperCase() }))}
-                  autoFocus
-                />
-              </div>
-              <div className="form-group" style={{ marginBottom: 10 }}>
-                <label className="form-label">
-                  Name{' '}
-                  <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
-                </label>
-                <input
-                  className="form-input"
-                  style={{ fontSize: 13 }}
-                  placeholder="e.g. Sleaford – Cranwell"
-                  value={newRouteForm.name}
-                  onChange={e => setNewRouteForm(f => ({ ...f, name: e.target.value }))}
-                />
-              </div>
-              <div className="form-group" style={{ marginBottom: 10 }}>
-                <label className="form-label">Journey Type</label>
-                <select
-                  className="form-select"
-                  style={{ fontSize: 13 }}
-                  value={newRouteForm.journey_type}
-                  onChange={e => setNewRouteForm(f => ({ ...f, journey_type: e.target.value }))}
-                >
-                  {JOURNEY_TYPES.map(jt => <option key={jt} value={jt}>{jt}</option>)}
-                </select>
-              </div>
+              </>
+            ) : (
+              <>
+                <div style={{ ...S.sectionLabel, marginBottom: 10 }}>New Route</div>
 
-              <div style={{ borderTop: '1px solid var(--border)', margin: '12px 0' }} />
+                {/* Service code + journey type */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+                  <div style={{ flex: '0 0 90px' }}>
+                    <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Code</div>
+                    <input
+                      className="form-input"
+                      style={{ ...S.input, textTransform: 'uppercase' }}
+                      placeholder="S125S"
+                      value={newRouteForm.service_code}
+                      onChange={e => setNewRouteForm(f => ({ ...f, service_code: e.target.value.toUpperCase() }))}
+                      autoFocus
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Journey Type</div>
+                    <select
+                      className="form-select"
+                      style={S.select}
+                      value={newRouteForm.journey_type}
+                      onChange={e => setNewRouteForm(f => ({ ...f, journey_type: e.target.value }))}
+                    >
+                      {JOURNEY_TYPES.map(jt => <option key={jt} value={jt}>{jt}</option>)}
+                    </select>
+                  </div>
+                </div>
 
-              <div style={{
-                fontFamily: 'Oswald', fontWeight: 600, fontSize: 12,
-                textTransform: 'uppercase', letterSpacing: '0.08em',
-                color: 'var(--text-muted)', marginBottom: 10,
-              }}>
-                Timetable
-              </div>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                  <label className="form-label">Period</label>
-                  <select
-                    className="form-select"
-                    style={{ fontSize: 13 }}
-                    value={newRouteForm.period}
-                    onChange={e => setNewRouteForm(f => ({ ...f, period: e.target.value }))}
-                  >
-                    {PERIODS.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                </div>
-                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                  <label className="form-label">Direction</label>
-                  <select
-                    className="form-select"
-                    style={{ fontSize: 13 }}
-                    value={newRouteForm.direction}
-                    onChange={e => setNewRouteForm(f => ({ ...f, direction: e.target.value }))}
-                  >
-                    {DIRECTIONS.map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                  <label className="form-label">
-                    Valid From{' '}
-                    <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(opt)</span>
-                  </label>
+                {/* Name */}
+                <div style={{ marginBottom: 6 }}>
+                  <div style={{ ...S.sectionLabel, marginBottom: 3 }}>
+                    Name <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
+                  </div>
                   <input
                     className="form-input"
-                    style={{ fontSize: 13 }}
-                    type="date"
-                    value={newRouteForm.valid_from}
-                    onChange={e => setNewRouteForm(f => ({ ...f, valid_from: e.target.value }))}
+                    style={S.input}
+                    placeholder="e.g. Sleaford – Cranwell"
+                    value={newRouteForm.name}
+                    onChange={e => setNewRouteForm(f => ({ ...f, name: e.target.value }))}
                   />
                 </div>
-                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                  <label className="form-label">
-                    Valid To{' '}
-                    <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(opt)</span>
-                  </label>
-                  <input
-                    className="form-input"
-                    style={{ fontSize: 13 }}
-                    type="date"
-                    value={newRouteForm.valid_to}
-                    onChange={e => setNewRouteForm(f => ({ ...f, valid_to: e.target.value }))}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
 
-          {/* Vehicle (both modes) */}
-          <div className="card" style={{ padding: 16 }}>
-            <div className="form-group" style={{ marginBottom: 8 }}>
-              <label className="form-label">Vehicle</label>
+                <div style={{ borderTop: '1px solid var(--border)', margin: '8px 0' }} />
+                <div style={{ ...S.sectionLabel, marginBottom: 8 }}>Timetable</div>
+
+                {/* Period + direction */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Period</div>
+                    <select className="form-select" style={S.select} value={newRouteForm.period}
+                      onChange={e => setNewRouteForm(f => ({ ...f, period: e.target.value }))}>
+                      {PERIODS.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Direction</div>
+                    <select className="form-select" style={S.select} value={newRouteForm.direction}
+                      onChange={e => setNewRouteForm(f => ({ ...f, direction: e.target.value }))}>
+                      {DIRECTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Valid from/to */}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ ...S.sectionLabel, marginBottom: 3 }}>From <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(opt)</span></div>
+                    <input className="form-input" style={S.input} type="date" value={newRouteForm.valid_from}
+                      onChange={e => setNewRouteForm(f => ({ ...f, valid_from: e.target.value }))} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ ...S.sectionLabel, marginBottom: 3 }}>To <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(opt)</span></div>
+                    <input className="form-input" style={S.input} type="date" value={newRouteForm.valid_to}
+                      onChange={e => setNewRouteForm(f => ({ ...f, valid_to: e.target.value }))} />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* ── Card 2: Vehicle (compact single row) ── */}
+          <div className="card" style={{ padding: '7px 10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ ...S.sectionLabel, whiteSpace: 'nowrap' }}>Vehicle</span>
               <select
                 className="form-select"
+                style={{ ...S.select, flex: 1 }}
                 value={vehicleId}
                 onChange={e => setVehicleId(e.target.value)}
               >
-                <option value="">— Route without vehicle dimensions —</option>
+                <option value="">— None —</option>
                 {vehicles.map(v => (
-                  <option key={v.id} value={v.id}>
-                    {v.registration} — {v.vehicle_type}
-                  </option>
+                  <option key={v.id} value={v.id}>{v.registration} · {v.vehicle_type}</option>
                 ))}
               </select>
             </div>
             {vehicle && (
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', gap: 16 }}>
-                <span>H: {vehicle.height_metres}m</span>
-                <span>W: {vehicle.width_metres}m</span>
-                <span>L: {vehicle.length_metres}m</span>
-                {usingDefaults && <span style={{ color: '#d69e2e', marginLeft: 4 }}>type defaults</span>}
-              </div>
-            )}
-            {!vehicleId && (
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                Select a vehicle to apply height, width and length restrictions to routing.
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, paddingLeft: 52 }}>
+                H {vehicle.height_metres}m · W {vehicle.width_metres}m · L {vehicle.length_metres}m
+                {usingDefaults && <span style={{ color: '#d69e2e' }}> · type defaults</span>}
               </div>
             )}
           </div>
 
-          {/* Stops (both modes) */}
-          <div className="card" style={{ padding: 16 }}>
-            <div style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14,
-            }}>
-              <span style={{
-                fontFamily: 'Oswald', fontWeight: 600, fontSize: 12,
-                textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)',
-              }}>
-                Stops
+          {/* ── Card 3: Stops + summary + errors ── */}
+          <div className="card" style={{ padding: 10 }}>
+
+            {/* Stops header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <span style={S.sectionLabel}>
+                Stops{stops.length > 0 ? ` · ${stops.length}` : ''}
               </span>
-              {routing && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Routing…</span>}
+              {routing && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Routing…</span>}
             </div>
 
             {stops.length === 0 && !showSearch && (
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '4px 0 10px' }}>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 10px' }}>
                 {mode === 'new'
-                  ? 'Click the map to place stops, or use search below.'
-                  : 'No stops yet. Add stops below to plan the route.'}
-              </div>
+                  ? 'Click the map to place stops, or search below.'
+                  : 'No stops yet — select a timetable or use search.'}
+              </p>
             )}
 
-            {stops.map((s, i) => (
-              <div
-                key={s._id}
-                style={{ borderLeft: `3px solid ${stopColor(i, stops.length)}`, paddingLeft: 10, marginBottom: 12 }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 5 }}>
-                  <span style={{
-                    fontFamily: 'Oswald', fontWeight: 700, fontSize: 13,
-                    color: stopColor(i, stops.length), minWidth: 20,
-                  }}>
-                    {i + 1}
-                  </span>
-                  <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{s.name}</span>
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    style={{ padding: '2px 5px', minWidth: 0, fontSize: 13 }}
-                    onClick={() => moveStop(i, -1)} disabled={i === 0} title="Move up"
-                  >↑</button>
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    style={{ padding: '2px 5px', minWidth: 0, fontSize: 13 }}
-                    onClick={() => moveStop(i, 1)} disabled={i === stops.length - 1} title="Move down"
-                  >↓</button>
-                  <button
-                    className="btn btn-danger btn-sm"
-                    style={{ padding: '2px 6px', minWidth: 0, fontSize: 13 }}
-                    onClick={() => removeStop(i)} title="Remove"
-                  >×</button>
+            {/* Stop list */}
+            {stops.map((s, i) => {
+              const color = stopColor(i, stops.length)
+              return (
+                <div
+                  key={s._id}
+                  style={{ borderLeft: `3px solid ${color}`, paddingLeft: 8, marginBottom: 8 }}
+                >
+                  {/* Name row */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginBottom: 3 }}>
+                    <span style={{
+                      fontFamily: 'Oswald', fontWeight: 700, fontSize: 10,
+                      color, width: 14, flexShrink: 0, textAlign: 'right',
+                    }}>
+                      {i + 1}
+                    </span>
+                    <span style={{
+                      flex: 1, fontSize: 12, fontWeight: 600, lineHeight: 1.3,
+                      paddingLeft: 5, paddingRight: 2,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }} title={s.name}>
+                      {s.name}
+                    </span>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      style={{ padding: '1px 4px', minWidth: 0, fontSize: 11, lineHeight: 1 }}
+                      onClick={() => moveStop(i, -1)} disabled={i === 0} title="Move up"
+                    >↑</button>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      style={{ padding: '1px 4px', minWidth: 0, fontSize: 11, lineHeight: 1 }}
+                      onClick={() => moveStop(i, 1)} disabled={i === stops.length - 1} title="Move down"
+                    >↓</button>
+                    <button
+                      className="btn btn-danger btn-sm"
+                      style={{ padding: '1px 5px', minWidth: 0, fontSize: 11, lineHeight: 1 }}
+                      onClick={() => removeStop(i)} title="Remove"
+                    >×</button>
+                  </div>
+                  {/* Controls row */}
+                  <div style={{ display: 'flex', gap: 4, paddingLeft: 19 }}>
+                    <select
+                      className="form-select"
+                      style={{ fontSize: 11, height: 24, padding: '2px 6px', flex: 1 }}
+                      value={s.stop_type}
+                      onChange={e => updateStop(i, 'stop_type', e.target.value)}
+                    >
+                      <option value="timing_point">Timing point</option>
+                      <option value="routing_point">Routing point</option>
+                    </select>
+                    {s.stop_type === 'timing_point' && (
+                      <input
+                        type="time"
+                        className="form-input"
+                        style={{ fontSize: 11, height: 24, padding: '2px 4px', width: 78, flexShrink: 0 }}
+                        value={s.scheduled_time}
+                        onChange={e => updateStop(i, 'scheduled_time', e.target.value)}
+                      />
+                    )}
+                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <select
-                    className="form-select"
-                    style={{ fontSize: 12, padding: '3px 8px', height: 28, flex: 1 }}
-                    value={s.stop_type}
-                    onChange={e => updateStop(i, 'stop_type', e.target.value)}
-                  >
-                    <option value="timing_point">Timing point</option>
-                    <option value="routing_point">Routing point</option>
-                  </select>
-                  {s.stop_type === 'timing_point' && (
-                    <input
-                      type="time"
-                      className="form-input"
-                      style={{ fontSize: 12, padding: '3px 8px', height: 28, width: 90 }}
-                      value={s.scheduled_time}
-                      onChange={e => updateStop(i, 'scheduled_time', e.target.value)}
-                    />
-                  )}
-                </div>
-              </div>
-            ))}
+              )
+            })}
 
+            {/* Search UI */}
             {showSearch ? (
-              <div style={{ marginTop: stops.length ? 6 : 0 }}>
+              <div style={{ marginTop: stops.length ? 4 : 0 }}>
                 <input
                   autoFocus
                   className="form-input"
+                  style={{ ...S.input, marginBottom: 5 }}
                   placeholder="Search stops or address…"
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  style={{ marginBottom: 6 }}
                 />
                 {searching && (
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '4px 0' }}>Searching…</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '2px 0 4px' }}>Searching…</div>
                 )}
-                <div>
-                  {searchResults.map((r, idx) => (
-                    <div
-                      key={idx}
-                      onMouseDown={() => handleAddStop(r)}
-                      style={{
-                        padding: '6px 8px', cursor: 'pointer', borderRadius: 4, fontSize: 13,
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        background: 'var(--bg)', marginBottom: 2,
-                      }}
-                    >
-                      <span style={{
-                        fontSize: 10, fontFamily: 'Oswald', fontWeight: 700,
-                        color: r.source === 'stop' ? 'var(--green)' : 'var(--navy-brand)',
-                        textTransform: 'uppercase', minWidth: 32,
-                      }}>
-                        {r.source === 'stop' ? 'Stop' : 'Addr'}
-                      </span>
-                      <span style={{ flex: 1, lineHeight: 1.3 }}>{r.name}</span>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                {searchResults.map((r, idx) => (
+                  <div
+                    key={idx}
+                    onMouseDown={() => handleAddStop(r)}
+                    style={{
+                      padding: '5px 8px', cursor: 'pointer', borderRadius: 4,
+                      fontSize: 12, display: 'flex', alignItems: 'center', gap: 6,
+                      background: 'var(--bg)', marginBottom: 2,
+                    }}
+                  >
+                    <span style={{
+                      fontSize: 9, fontFamily: 'Oswald', fontWeight: 700,
+                      color: r.source === 'stop' ? 'var(--green)' : 'var(--navy-brand)',
+                      textTransform: 'uppercase', minWidth: 28,
+                    }}>
+                      {r.source === 'stop' ? 'Stop' : 'Addr'}
+                    </span>
+                    <span style={{ flex: 1, lineHeight: 1.3 }}>{r.name}</span>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', gap: 6, marginTop: 5 }}>
                   <button className="btn btn-ghost btn-sm" onClick={closeSearch}>Cancel</button>
-                  {addingStop && <span style={{ fontSize: 12, color: 'var(--text-muted)', alignSelf: 'center' }}>Adding…</span>}
+                  {addingStop && <span style={{ fontSize: 11, color: 'var(--text-muted)', alignSelf: 'center' }}>Adding…</span>}
                 </div>
               </div>
             ) : (
               <button
                 className="btn btn-ghost btn-sm"
-                style={{ marginTop: stops.length ? 6 : 0 }}
+                style={{ marginTop: stops.length ? 4 : 0, fontSize: 11 }}
                 onClick={() => setShowSearch(true)}
                 disabled={mode === 'edit' && !timetableId}
                 title={mode === 'edit' && !timetableId ? 'Select a timetable first' : undefined}
@@ -861,55 +839,51 @@ export default function RoutePlannerPage() {
                 + Add from search
               </button>
             )}
-          </div>
 
-          {/* Route summary */}
-          {routeResult && !routeResult.error && (
-            <div className="card" style={{ padding: 16 }}>
-              <div style={{ display: 'flex', gap: 20, alignItems: 'baseline', marginBottom: warnings.length ? 10 : 0 }}>
-                <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 18, color: 'var(--navy-brand)' }}>
+            {/* Route summary — inline below stop list */}
+            {routeResult && !routeResult.error && (
+              <div style={{ borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 10 }}>
+                <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 16, color: 'var(--navy-brand)' }}>
                   {fmtDist(routeResult.distance)}
                 </span>
-                <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 10 }}>
                   {fmtDur(routeResult.duration)}
                 </span>
+                {warnings.map((w, idx) => (
+                  <div key={idx} style={{ fontSize: 11, color: '#d69e2e', display: 'flex', gap: 4, marginTop: 4 }}>
+                    <span>⚠</span><span>{w.message ?? `Routing warning (code ${w.code})`}</span>
+                  </div>
+                ))}
               </div>
-              {warnings.map((w, idx) => (
-                <div key={idx} style={{ fontSize: 12, color: '#d69e2e', display: 'flex', gap: 6, marginTop: 4 }}>
-                  <span>⚠</span>
-                  <span>{w.message ?? `Routing warning (code ${w.code})`}</span>
-                </div>
-              ))}
-            </div>
-          )}
+            )}
 
-          {routeResult?.error && (
-            <div className="card" style={{ padding: 16 }}>
-              <div style={{ fontSize: 12, color: 'var(--danger)' }}>
-                Routing error: {routeResult.error}
+            {routeResult?.error && (
+              <div style={{ borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 10 }}>
+                <div style={{ fontSize: 11, color: 'var(--danger)' }}>Routing error: {routeResult.error}</div>
+                {!import.meta.env.VITE_ORS_API_KEY && (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                    VITE_ORS_API_KEY is not set.
+                  </div>
+                )}
               </div>
-              {!import.meta.env.VITE_ORS_API_KEY && (
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
-                  VITE_ORS_API_KEY is not set. Register at openrouteservice.org for a free key.
-                </div>
-              )}
-            </div>
-          )}
+            )}
 
-          {saveError && <div className="error-msg">{saveError}</div>}
+            {saveError && (
+              <div className="error-msg" style={{ marginTop: 10, fontSize: 12 }}>{saveError}</div>
+            )}
+          </div>
         </div>
 
         {/* ── Map panel ── */}
         <div style={{
-          flex: 1, minWidth: 0,
+          flex: 1, minWidth: 0, position: 'relative',
           borderRadius: 'var(--radius)', overflow: 'hidden',
           border: '1px solid var(--border)', boxShadow: 'var(--shadow)',
-          position: 'relative',
         }}>
           {mode === 'new' && stops.length === 0 && (
             <div style={{
               position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
-              background: 'rgba(30,61,114,0.85)', color: '#fff',
+              background: 'rgba(30,61,114,0.88)', color: '#fff',
               padding: '6px 18px', borderRadius: 20, fontSize: 13, fontWeight: 500,
               pointerEvents: 'none', zIndex: 1000, whiteSpace: 'nowrap',
             }}>
