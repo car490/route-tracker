@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
       iat:         now,
       exp:         now + 86400, // 24 hours
     },
-    Deno.env.get('SUPABASE_JWT_SECRET')!
+    Deno.env.get('JWT_SECRET')!
   )
 
   return new Response(JSON.stringify({ token }), {
