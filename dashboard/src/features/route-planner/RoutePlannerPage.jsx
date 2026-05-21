@@ -26,8 +26,6 @@ const S = {
     fontFamily: 'Oswald', fontWeight: 700, fontSize: 10,
     textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)',
   },
-  select: { fontSize: 12 },
-  input:  { fontSize: 12 },
 }
 
 function fmtDist(m) {
@@ -464,7 +462,7 @@ export default function RoutePlannerPage() {
         <h1 className="page-title">Route Planner</h1>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {saveSuccess && (
-            <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 500 }}>
+            <span style={{ fontSize: 13, color: 'var(--green)', fontWeight: 500 }}>
               {routeId === '__new__' ? 'Route created ✓ — select from list to continue' : 'Saved ✓'}
             </span>
           )}
@@ -492,7 +490,6 @@ export default function RoutePlannerPage() {
               <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Route</div>
               <select
                 className="form-select"
-                style={S.select}
                 value={routeId}
                 onChange={e => {
                   const val = e.target.value
@@ -522,14 +519,14 @@ export default function RoutePlannerPage() {
                   <div style={{ flex: '0 0 84px' }}>
                     <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Code</div>
                     <input
-                      className="form-input" style={{ ...S.input, textTransform: 'uppercase' }}
+                      className="form-input" style={{ textTransform: 'uppercase' }}
                       placeholder="S125S" autoFocus value={newCode}
                       onChange={e => setNewCode(e.target.value.toUpperCase())}
                     />
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Journey Type</div>
-                    <select className="form-select" style={S.select} value={newJourneyType}
+                    <select className="form-select" value={newJourneyType}
                       onChange={e => setNewJourneyType(e.target.value)}>
                       {JOURNEY_TYPES.map(jt => <option key={jt} value={jt}>{jt}</option>)}
                     </select>
@@ -539,7 +536,7 @@ export default function RoutePlannerPage() {
                   <div style={{ ...S.sectionLabel, marginBottom: 3 }}>
                     Name <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
                   </div>
-                  <input className="form-input" style={S.input} placeholder="e.g. Sleaford – Cranwell"
+                  <input className="form-input" placeholder="e.g. Sleaford – Cranwell"
                     value={newName} onChange={e => setNewName(e.target.value)} />
                 </div>
               </div>
@@ -550,7 +547,6 @@ export default function RoutePlannerPage() {
               <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Timetable</div>
               <select
                 className="form-select"
-                style={S.select}
                 value={timetableId}
                 onChange={e => setTimetableId(e.target.value)}
                 disabled={!routeId}
@@ -573,14 +569,14 @@ export default function RoutePlannerPage() {
                 <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Period</div>
-                    <select className="form-select" style={S.select} value={newPeriod}
+                    <select className="form-select" value={newPeriod}
                       onChange={e => setNewPeriod(e.target.value)}>
                       {PERIODS.map(p => <option key={p} value={p}>{p}</option>)}
                     </select>
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Direction</div>
-                    <select className="form-select" style={S.select} value={newDirection}
+                    <select className="form-select" value={newDirection}
                       onChange={e => setNewDirection(e.target.value)}>
                       {DIRECTIONS.map(d => <option key={d} value={d}>{d}</option>)}
                     </select>
@@ -589,12 +585,12 @@ export default function RoutePlannerPage() {
                 <div style={{ display: 'flex', gap: 6 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ ...S.sectionLabel, marginBottom: 3 }}>From <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(opt)</span></div>
-                    <input className="form-input" style={S.input} type="date"
+                    <input className="form-input" type="date"
                       value={newValidFrom} onChange={e => setNewValidFrom(e.target.value)} />
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ ...S.sectionLabel, marginBottom: 3 }}>To <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(opt)</span></div>
-                    <input className="form-input" style={S.input} type="date"
+                    <input className="form-input" type="date"
                       value={newValidTo} onChange={e => setNewValidTo(e.target.value)} />
                   </div>
                 </div>
@@ -606,7 +602,7 @@ export default function RoutePlannerPage() {
           <div className="card" style={{ padding: '7px 10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ ...S.sectionLabel, whiteSpace: 'nowrap' }}>Vehicle</span>
-              <select className="form-select" style={{ ...S.select, flex: 1 }}
+              <select className="form-select" style={{ flex: 1 }}
                 value={vehicleId} onChange={e => setVehicleId(e.target.value)}>
                 <option value="">— None —</option>
                 {vehicles.map(v => (
@@ -615,7 +611,7 @@ export default function RoutePlannerPage() {
               </select>
             </div>
             {vehicle && (
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, paddingLeft: 52 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, paddingLeft: 52 }}>
                 H {vehicle.height_metres}m · W {vehicle.width_metres}m · L {vehicle.length_metres}m
                 {usingDefaults && <span style={{ color: '#d69e2e' }}> · type defaults</span>}
               </div>
@@ -633,7 +629,7 @@ export default function RoutePlannerPage() {
                 {routing && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Routing…</span>}
                 <button
                   className={`btn btn-sm ${pinDropMode ? 'btn-primary' : 'btn-ghost'}`}
-                  style={{ fontSize: 10, padding: '2px 8px' }}
+                  style={{ padding: '2px 8px' }}
                   onClick={() => setPinDropMode(p => !p)}
                   title="Toggle map pin-drop mode"
                 >
@@ -643,7 +639,7 @@ export default function RoutePlannerPage() {
             </div>
 
             {stops.length === 0 && !showSearch && (
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 10px' }}>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 10px' }}>
                 Toggle Drop pins to click the map, or use search below.
               </p>
             )}
@@ -660,32 +656,32 @@ export default function RoutePlannerPage() {
                       {i + 1}
                     </span>
                     <span style={{
-                      flex: 1, fontSize: 12, fontWeight: 600, lineHeight: 1.3,
+                      flex: 1, fontSize: 13, fontWeight: 600, lineHeight: 1.3,
                       paddingLeft: 5, paddingRight: 2,
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }} title={s.name}>
                       {s.name}
                     </span>
                     <button className="btn btn-ghost btn-sm"
-                      style={{ padding: '1px 4px', minWidth: 0, fontSize: 11, lineHeight: 1 }}
+                      style={{ padding: '1px 4px', minWidth: 0, lineHeight: 1 }}
                       onClick={() => moveStop(i, -1)} disabled={i === 0} title="Move up">↑</button>
                     <button className="btn btn-ghost btn-sm"
-                      style={{ padding: '1px 4px', minWidth: 0, fontSize: 11, lineHeight: 1 }}
+                      style={{ padding: '1px 4px', minWidth: 0, lineHeight: 1 }}
                       onClick={() => moveStop(i, 1)} disabled={i === stops.length - 1} title="Move down">↓</button>
                     <button className="btn btn-danger btn-sm"
-                      style={{ padding: '1px 5px', minWidth: 0, fontSize: 11, lineHeight: 1 }}
+                      style={{ padding: '1px 5px', minWidth: 0, lineHeight: 1 }}
                       onClick={() => removeStop(i)} title="Remove">×</button>
                   </div>
                   <div style={{ display: 'flex', gap: 4, paddingLeft: 19 }}>
                     <select className="form-select"
-                      style={{ fontSize: 11, height: 24, padding: '2px 6px', flex: 1 }}
+                      style={{ fontSize: 12, height: 26, padding: '2px 6px', flex: 1 }}
                       value={s.stop_type} onChange={e => updateStop(i, 'stop_type', e.target.value)}>
                       <option value="timing_point">Timing point</option>
                       <option value="routing_point">Routing point</option>
                     </select>
                     {s.stop_type === 'timing_point' && (
                       <input type="time" className="form-input"
-                        style={{ fontSize: 11, height: 24, padding: '2px 4px', width: 78, flexShrink: 0 }}
+                        style={{ fontSize: 12, height: 26, padding: '2px 4px', width: 78, flexShrink: 0 }}
                         value={s.scheduled_time} onChange={e => updateStop(i, 'scheduled_time', e.target.value)} />
                     )}
                   </div>
@@ -695,18 +691,18 @@ export default function RoutePlannerPage() {
 
             {showSearch ? (
               <div style={{ marginTop: stops.length ? 4 : 0 }}>
-                <input autoFocus className="form-input" style={{ ...S.input, marginBottom: 5 }}
+                <input autoFocus className="form-input" style={{ marginBottom: 5 }}
                   placeholder="Search stops or address…" value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)} />
-                {searching && <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '2px 0 4px' }}>Searching…</div>}
+                {searching && <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 0 4px' }}>Searching…</div>}
                 {searchResults.map((r, idx) => (
                   <div key={idx} onMouseDown={() => handleAddStop(r)} style={{
-                    padding: '5px 8px', cursor: 'pointer', borderRadius: 4, fontSize: 12,
+                    padding: '5px 8px', cursor: 'pointer', borderRadius: 4, fontSize: 13,
                     display: 'flex', alignItems: 'center', gap: 6,
                     background: 'var(--bg)', marginBottom: 2,
                   }}>
                     <span style={{
-                      fontSize: 9, fontFamily: 'Oswald', fontWeight: 700,
+                      fontSize: 10, fontFamily: 'Oswald', fontWeight: 700,
                       color: r.source === 'stop' ? 'var(--green)' : 'var(--navy-brand)',
                       textTransform: 'uppercase', minWidth: 28,
                     }}>{r.source === 'stop' ? 'Stop' : 'Addr'}</span>
@@ -715,12 +711,12 @@ export default function RoutePlannerPage() {
                 ))}
                 <div style={{ display: 'flex', gap: 6, marginTop: 5 }}>
                   <button className="btn btn-ghost btn-sm" onClick={closeSearch}>Cancel</button>
-                  {addingStop && <span style={{ fontSize: 11, color: 'var(--text-muted)', alignSelf: 'center' }}>Adding…</span>}
+                  {addingStop && <span style={{ fontSize: 12, color: 'var(--text-muted)', alignSelf: 'center' }}>Adding…</span>}
                 </div>
               </div>
             ) : (
               <button className="btn btn-ghost btn-sm"
-                style={{ marginTop: stops.length ? 4 : 0, fontSize: 11 }}
+                style={{ marginTop: stops.length ? 4 : 0 }}
                 onClick={() => setShowSearch(true)}>
                 + Add from search
               </button>
@@ -731,11 +727,11 @@ export default function RoutePlannerPage() {
                 <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 16, color: 'var(--navy-brand)' }}>
                   {fmtDist(routeResult.distance)}
                 </span>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 10 }}>
+                <span style={{ fontSize: 13, color: 'var(--text-muted)', marginLeft: 10 }}>
                   {fmtDur(routeResult.duration)}
                 </span>
                 {warnings.map((w, idx) => (
-                  <div key={idx} style={{ fontSize: 11, color: '#d69e2e', display: 'flex', gap: 4, marginTop: 4 }}>
+                  <div key={idx} style={{ fontSize: 12, color: '#d69e2e', display: 'flex', gap: 4, marginTop: 4 }}>
                     <span>⚠</span><span>{w.message ?? `Routing warning (code ${w.code})`}</span>
                   </div>
                 ))}
@@ -744,14 +740,14 @@ export default function RoutePlannerPage() {
 
             {routeResult?.error && (
               <div style={{ borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 10 }}>
-                <div style={{ fontSize: 11, color: 'var(--danger)' }}>Routing error: {routeResult.error}</div>
+                <div style={{ fontSize: 12, color: 'var(--danger)' }}>Routing error: {routeResult.error}</div>
                 {!import.meta.env.VITE_ORS_API_KEY && (
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>VITE_ORS_API_KEY is not set.</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>VITE_ORS_API_KEY is not set.</div>
                 )}
               </div>
             )}
 
-            {saveError && <div className="error-msg" style={{ marginTop: 10, fontSize: 12 }}>{saveError}</div>}
+            {saveError && <div className="error-msg" style={{ marginTop: 10 }}>{saveError}</div>}
           </div>
         </div>
 
