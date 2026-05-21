@@ -98,19 +98,18 @@ export default function DutyCardsPage() {
     const errors  = {}
 
     const { data: { session } } = await supabase.auth.getSession()
-    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-    const fnUrl   = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-duty-token`
-    const authHeader = session?.access_token ? `Bearer ${session.access_token}` : `Bearer ${anonKey}`
+    const authHeader = session?.access_token
+      ? `Bearer ${session.access_token}`
+      : `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
 
     await Promise.all(
       duties.map(async ({ driver, journeys }) => {
         try {
-          const resp = await fetch(fnUrl, {
+          const resp = await fetch('/api/sign-token', {
             method: 'POST',
             headers: {
               'Content-Type':  'application/json',
               'Authorization': authHeader,
-              'apikey':        anonKey,
             },
             body: JSON.stringify({
               journey_ids: journeys.map(j => j.id),
