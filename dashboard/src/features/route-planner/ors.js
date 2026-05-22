@@ -1,4 +1,4 @@
-const BASE = 'https://api.openrouteservice.org/v2/directions/driving-hgv'
+const BASE = 'https://api.openrouteservice.org/v2/directions/driving-hgv/geojson'
 
 /**
  * Get a bus/coach-aware route from OpenRouteService.
@@ -16,7 +16,6 @@ export async function getRouteORS(waypoints, vehicle = null) {
 
   const body = {
     coordinates,
-    geometries: 'geojson',
     options: { vehicle_type: 'bus' },
   }
 
@@ -45,14 +44,14 @@ export async function getRouteORS(waypoints, vehicle = null) {
     }
 
     const json = await res.json()
-    if (!json.routes?.length) return null
+    if (!json.features?.length) return null
 
-    const route = json.routes[0]
+    const feature = json.features[0]
     return {
-      geometry: route.geometry,           // GeoJSON LineString
-      distance: route.summary.distance,   // metres
-      duration: route.summary.duration,   // seconds
-      warnings: route.warnings ?? [],
+      geometry: feature.geometry,
+      distance: feature.properties.summary.distance,
+      duration: feature.properties.summary.duration,
+      warnings: feature.properties.warnings ?? [],
     }
   } catch (e) {
     return { error: e.message }
