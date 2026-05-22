@@ -477,7 +477,7 @@ export default function RoutePlannerPage() {
 
         {/* ── Sidebar (280px) ── */}
         <div style={{
-          width: 280, flexShrink: 0,
+          width: 280, minWidth: 280, flexShrink: 0,
           display: 'flex', flexDirection: 'column', gap: 8,
           overflowY: 'auto', paddingBottom: 8,
         }}>
