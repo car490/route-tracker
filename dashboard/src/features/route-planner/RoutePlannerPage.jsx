@@ -233,9 +233,11 @@ export default function RoutePlannerPage() {
   const [routeId,     setRouteId]     = useState('')
   const [timetableId, setTimetableId] = useState('')
   const [vehicleType, setVehicleType] = useState('')
+  const [vehicleId,   setVehicleId]   = useState('')
 
   const [routes,     setRoutes]     = useState([])
   const [timetables, setTimetables] = useState([])
+  const [vehicles,   setVehicles]   = useState([])
 
   // Inline new-route fields (shown when routeId === '__new__')
   const [newCode,         setNewCode]         = useState('')
@@ -273,6 +275,12 @@ export default function RoutePlannerPage() {
   }
 
   useEffect(() => { loadRoutes() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    supabase.from('vehicles')
+      .select('id, registration, vehicle_type, height_metres, width_metres, length_metres')
+      .order('registration')
+      .then(({ data }) => setVehicles(data ?? []))
+  }, [])
 
   useEffect(() => {
     if (!routeId || routeId === '__new__') {
@@ -318,9 +326,19 @@ export default function RoutePlannerPage() {
     })
     return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stops, vehicleType])
+  }, [stops, vehicleType, vehicleId])
 
   function resolvedVehicle() {
+    if (vehicleId) {
+      const v = vehicles.find(v => v.id === vehicleId)
+      if (v) {
+        // Use actual recorded dimensions if any are set, otherwise type default
+        if (v.height_metres || v.width_metres || v.length_metres) {
+          return { height_metres: v.height_metres, width_metres: v.width_metres, length_metres: v.length_metres }
+        }
+        return TYPE_DEFAULTS[v.vehicle_type] ?? null
+      }
+    }
     return vehicleType ? (TYPE_DEFAULTS[vehicleType] ?? null) : null
   }
 
@@ -328,24 +346,29 @@ export default function RoutePlannerPage() {
 
   useEffect(() => {
     if (!searchQuery.trim()) { setSearchResults([]); return }
+    let cancelled = false
     const timer = setTimeout(async () => {
       setSearching(true)
-      const results = []
       const { data: dbStops } = await supabase
         .from('stops').select('id, name, lat, lon').ilike('name', `%${searchQuery}%`).limit(6)
-      for (const s of dbStops ?? []) {
-        results.push({ source: 'stop', stop_id: s.id, name: s.name, lat: s.lat, lon: s.lon })
-      }
+      if (cancelled) return
+      const dbResults = (dbStops ?? []).map(s => ({
+        source: 'stop', stop_id: s.id, name: s.name, lat: s.lat, lon: s.lon,
+      }))
+      setSearchResults(dbResults)
+
       const places = await searchPlaces(searchQuery).catch(() => [])
+      if (cancelled) return
+      const combined = [...dbResults]
       for (const p of places ?? []) {
-        if (!results.find(r => r.name === p.address)) {
-          results.push({ source: 'addr', name: p.address, lat: p.lat, lon: p.lon })
+        if (!combined.find(r => r.name === p.address)) {
+          combined.push({ source: 'addr', name: p.address, lat: p.lat, lon: p.lon })
         }
       }
-      setSearchResults(results)
+      setSearchResults(combined)
       setSearching(false)
     }, 350)
-    return () => clearTimeout(timer)
+    return () => { cancelled = true; clearTimeout(timer) }
   }, [searchQuery])
 
   async function handleAddStop(result) {
@@ -632,23 +655,49 @@ export default function RoutePlannerPage() {
             )}
           </div>
 
-          {/* ── Card 2: Vehicle type (for ORS routing dimensions) ── */}
+          {/* ── Card 2: Vehicle (specific reg → type fallback → no restriction) ── */}
           <div className="card" style={{ padding: '7px 10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ ...S.sectionLabel, whiteSpace: 'nowrap' }}>Vehicle</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+              <span style={{ ...S.sectionLabel, whiteSpace: 'nowrap', minWidth: 34 }}>Reg</span>
               <select className="form-select" style={{ flex: 1 }}
-                value={vehicleType} onChange={e => setVehicleType(e.target.value)}>
+                value={vehicleId}
+                onChange={e => {
+                  const val = e.target.value
+                  setVehicleId(val)
+                  if (val) {
+                    const v = vehicles.find(v => v.id === val)
+                    if (v?.vehicle_type) setVehicleType(v.vehicle_type)
+                  }
+                }}>
+                <option value="">— Any vehicle —</option>
+                {vehicles.map(v => (
+                  <option key={v.id} value={v.id}>{v.registration}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ ...S.sectionLabel, whiteSpace: 'nowrap', minWidth: 34 }}>Type</span>
+              <select className="form-select" style={{ flex: 1 }}
+                value={vehicleType}
+                onChange={e => { setVehicleType(e.target.value); setVehicleId('') }}>
                 <option value="">— Select type —</option>
                 {Object.keys(TYPE_DEFAULTS).map(vt => (
                   <option key={vt} value={vt}>{vt}</option>
                 ))}
               </select>
             </div>
-            {vehicle && (
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, paddingLeft: 52 }}>
-                H {vehicle.height_metres}m · W {vehicle.width_metres}m · L {vehicle.length_metres}m
-              </div>
-            )}
+            {vehicle && (() => {
+              const sel = vehicleId ? vehicles.find(v => v.id === vehicleId) : null
+              const fromActual = sel && (sel.height_metres || sel.width_metres || sel.length_metres)
+              return (
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, paddingLeft: 42 }}>
+                  H {vehicle.height_metres}m · W {vehicle.width_metres}m · L {vehicle.length_metres}m
+                  <span style={{ marginLeft: 6, color: fromActual ? 'var(--green)' : 'var(--text-muted)' }}>
+                    {fromActual ? 'actual' : 'type default'}
+                  </span>
+                </div>
+              )
+            })()}
           </div>
 
           {/* ── Card 3: Stops + summary + errors ── */}
@@ -729,7 +778,7 @@ export default function RoutePlannerPage() {
                   onChange={e => setSearchQuery(e.target.value)} />
                 {searching && <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 0 4px' }}>Searching…</div>}
                 {searchResults.map((r, idx) => (
-                  <div key={idx} onMouseDown={() => handleAddStop(r)} style={{
+                  <div key={idx} onMouseDown={e => { e.preventDefault(); handleAddStop(r) }} style={{
                     padding: '5px 8px', cursor: 'pointer', borderRadius: 4, fontSize: 13,
                     display: 'flex', alignItems: 'center', gap: 6,
                     background: 'var(--bg)', marginBottom: 2,
