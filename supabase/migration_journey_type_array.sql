@@ -3,17 +3,20 @@
 -- so a route can belong to more than one journey type category.
 -- Apply in Supabase SQL Editor.
 
--- 1. Drop the view that depends on journey_type (recreated at end).
+-- 1. Drop the old scalar check constraint FIRST — it must be gone before
+--    the column type changes, otherwise Postgres tries to re-validate
+--    "journey_type IN ('Local Bus', ...)" against a text[] column and
+--    fails with "operator does not exist: text[] = text".
+alter table public.routes
+  drop constraint if exists routes_journey_type_check;
+
+-- 2. Drop the view that also depends on the column (recreated at end).
 drop view if exists schedule_view;
 
--- 2. Widen the column – wrap every existing single value in an array.
+-- 3. Widen the column – wrap every existing scalar value in an array.
 alter table public.routes
   alter column journey_type type text[]
   using array[journey_type];
-
--- 3. Drop the old scalar check constraint.
-alter table public.routes
-  drop constraint if exists routes_journey_type_check;
 
 -- 4. Ensure the array is never empty.
 alter table public.routes
