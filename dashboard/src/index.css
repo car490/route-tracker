@@ -15,7 +15,7 @@
   --shadow:      0 1px 3px rgba(0, 0, 0, 0.10);
   --shadow-lg:   0 4px 16px rgba(0, 0, 0, 0.14);
   --radius:      8px;
-  --sidebar-w:   210px;
+  --sidebar-w:   200px; /* fallback only — sidebar auto-sizes to content */
 }
 
 /* ── Reset ─────────────────────────────────────────────────── */
@@ -62,7 +62,8 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 
 /* ── Sidebar ───────────────────────────────────────────────── */
 .sidebar {
-  width: var(--sidebar-w);
+  width: max-content;
+  min-width: var(--sidebar-w);
   flex-shrink: 0;
   background: var(--navy-mid);
   display: flex;
@@ -82,6 +83,7 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
   color: #fff;
   letter-spacing: 0.04em;
   line-height: 1.25;
+  white-space: nowrap;
 }
 
 .sidebar-brand-sub {
