@@ -3,7 +3,7 @@ import { supabase } from '../../shared/supabase'
 import { getCompanyId } from '../../shared/company'
 import Modal from '../../shared/components/Modal'
 
-const ROUTE_EMPTY = { service_code: '', name: '', journey_type: 'Local Bus' }
+const ROUTE_EMPTY = { service_code: '', name: '', journey_type: [] }
 const JOURNEY_TYPES = [
   'Local Bus',
   'Open Door Schools',
@@ -169,7 +169,7 @@ export default function RoutesPage() {
                         <button
                           className="btn btn-ghost btn-sm"
                           onClick={() => {
-                            setRouteForm({ service_code: r.service_code, name: r.name ?? '', journey_type: r.journey_type ?? 'Local Bus' })
+                            setRouteForm({ service_code: r.service_code, name: r.name ?? '', journey_type: Array.isArray(r.journey_type) ? r.journey_type : [r.journey_type].filter(Boolean) })
                             setError(''); setRouteModal(r)
                           }}
                         >
@@ -284,14 +284,27 @@ export default function RoutesPage() {
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Journey Type</label>
-              <select
-                className="form-select"
-                value={routeForm.journey_type}
-                onChange={e => setRouteForm(f => ({ ...f, journey_type: e.target.value }))}
-              >
-                {JOURNEY_TYPES.map(jt => <option key={jt} value={jt}>{jt}</option>)}
-              </select>
+              <label className="form-label">Journey Types</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                {JOURNEY_TYPES.map(jt => {
+                  const on = routeForm.journey_type.includes(jt)
+                  return (
+                    <button key={jt} type="button"
+                      onClick={() => setRouteForm(f => ({
+                        ...f,
+                        journey_type: on ? f.journey_type.filter(x => x !== jt) : [...f.journey_type, jt],
+                      }))}
+                      style={{
+                        padding: '4px 11px', fontSize: 12, borderRadius: 12, cursor: 'pointer',
+                        fontFamily: 'inherit', lineHeight: 1.5,
+                        border: `1px solid ${on ? 'var(--navy-brand)' : 'var(--border)'}`,
+                        background: on ? 'var(--navy-brand)' : 'transparent',
+                        color: on ? '#fff' : 'var(--text-muted)',
+                      }}
+                    >{jt}</button>
+                  )
+                })}
+              </div>
             </div>
           </form>
         </Modal>

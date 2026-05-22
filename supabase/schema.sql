@@ -126,8 +126,9 @@ create table routes (
   company_id      uuid        not null references companies(id) on delete cascade,
   service_code    text        not null,
   name            text        not null,
-  journey_type    text        not null
-                    check (journey_type in (
+  journey_type    text[]      not null
+                    check (array_length(journey_type, 1) > 0)
+                    check (journey_type <@ array[
                       'Local Bus',
                       'Open Door Schools',
                       'Contract Schools',
@@ -135,7 +136,7 @@ create table routes (
                       'Excursion',
                       'Tour',
                       'Other Contract'
-                    )),
+                    ]::text[]),
   created_at      timestamptz not null default now(),
   unique (company_id, service_code)
 );

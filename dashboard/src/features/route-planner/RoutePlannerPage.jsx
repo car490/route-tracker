@@ -232,16 +232,15 @@ export default function RoutePlannerPage() {
   // Route selection: '' = none, '__new__' = inline new form, uuid = existing
   const [routeId,     setRouteId]     = useState('')
   const [timetableId, setTimetableId] = useState('')
-  const [vehicleId,   setVehicleId]   = useState('')
+  const [vehicleType, setVehicleType] = useState('')
 
   const [routes,     setRoutes]     = useState([])
   const [timetables, setTimetables] = useState([])
-  const [vehicles,   setVehicles]   = useState([])
 
   // Inline new-route fields (shown when routeId === '__new__')
-  const [newCode,        setNewCode]        = useState('')
-  const [newName,        setNewName]        = useState('')
-  const [newJourneyType, setNewJourneyType] = useState('Local Bus')
+  const [newCode,         setNewCode]         = useState('')
+  const [newName,         setNewName]         = useState('')
+  const [newJourneyTypes, setNewJourneyTypes] = useState([])
 
   // Inline new-timetable fields (shown when timetableId === '__new__')
   const [newPeriod,    setNewPeriod]    = useState('Morning')
@@ -273,11 +272,7 @@ export default function RoutePlannerPage() {
     setRoutes(data ?? [])
   }
 
-  useEffect(() => {
-    loadRoutes()
-    supabase.from('vehicles').select('*').order('registration')
-      .then(({ data }) => setVehicles(data ?? []))
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadRoutes() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!routeId || routeId === '__new__') {
@@ -323,15 +318,10 @@ export default function RoutePlannerPage() {
     })
     return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stops, vehicleId])
+  }, [stops, vehicleType])
 
   function resolvedVehicle() {
-    const v = vehicles.find(v => v.id === vehicleId)
-    if (!v) return null
-    if (!v.height_metres && !v.width_metres && !v.length_metres) {
-      return { ...v, ...TYPE_DEFAULTS[v.vehicle_type] }
-    }
-    return v
+    return vehicleType ? (TYPE_DEFAULTS[vehicleType] ?? null) : null
   }
 
   // ── Stop search ──────────────────────────────────────────────────────────────
@@ -425,7 +415,7 @@ export default function RoutePlannerPage() {
     if (routeId === '__new__') {
       const company_id = await getCompanyId()
       const { data, error } = await supabase.from('routes')
-        .insert({ company_id, service_code: newCode.toUpperCase(), name: newName || null, journey_type: newJourneyType })
+        .insert({ company_id, service_code: newCode.toUpperCase(), name: newName || null, journey_type: newJourneyTypes })
         .select('id').single()
       if (error) { setSaveError(error.message); setSaving(false); return }
       resolvedRouteId = data.id
@@ -466,7 +456,7 @@ export default function RoutePlannerPage() {
     const wasNew = routeId === '__new__'
     await loadRoutes()
     if (wasNew) {
-      setNewCode(''); setNewName(''); setNewJourneyType('Local Bus')
+      setNewCode(''); setNewName(''); setNewJourneyTypes([])
       setNewPeriod('Morning'); setNewDirection('Outbound'); setNewValidFrom(''); setNewValidTo('')
       setRouteId(''); setTimetableId(''); setStops([])
     }
@@ -476,12 +466,10 @@ export default function RoutePlannerPage() {
 
   // ── Derived ───────────────────────────────────────────────────────────────────
 
-  const vehicle       = resolvedVehicle()
-  const rawVehicle    = vehicles.find(v => v.id === vehicleId)
-  const usingDefaults = rawVehicle && !rawVehicle.height_metres && !rawVehicle.width_metres && !rawVehicle.length_metres
-  const warnings      = routeResult?.warnings ?? []
+  const vehicle    = resolvedVehicle()
+  const warnings   = routeResult?.warnings ?? []
 
-  const routeReady = routeId === '__new__' ? newCode.trim().length > 0 : !!routeId
+  const routeReady = routeId === '__new__' ? newCode.trim().length > 0 && newJourneyTypes.length > 0 : !!routeId
   const ttReady    = !!timetableId
   const canSave    = routeReady && ttReady && stops.length >= 2 && !saving
 
@@ -548,21 +536,34 @@ export default function RoutePlannerPage() {
                 background: 'var(--bg)', borderRadius: 6, padding: 8, marginBottom: 6,
                 border: '1px solid var(--border)',
               }}>
-                <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-                  <div style={{ flex: '0 0 84px' }}>
-                    <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Code</div>
-                    <input
-                      className="form-input" style={{ textTransform: 'uppercase' }}
-                      placeholder="S125S" autoFocus value={newCode}
-                      onChange={e => setNewCode(e.target.value.toUpperCase())}
-                    />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Journey Type</div>
-                    <select className="form-select" value={newJourneyType}
-                      onChange={e => setNewJourneyType(e.target.value)}>
-                      {JOURNEY_TYPES.map(jt => <option key={jt} value={jt}>{jt}</option>)}
-                    </select>
+                <div style={{ marginBottom: 6 }}>
+                  <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Code</div>
+                  <input
+                    className="form-input" style={{ textTransform: 'uppercase' }}
+                    placeholder="S125S" autoFocus value={newCode}
+                    onChange={e => setNewCode(e.target.value.toUpperCase())}
+                  />
+                </div>
+                <div style={{ marginBottom: 6 }}>
+                  <div style={{ ...S.sectionLabel, marginBottom: 4 }}>Journey Types</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {JOURNEY_TYPES.map(jt => {
+                      const on = newJourneyTypes.includes(jt)
+                      return (
+                        <button key={jt} type="button"
+                          onClick={() => setNewJourneyTypes(prev =>
+                            on ? prev.filter(x => x !== jt) : [...prev, jt]
+                          )}
+                          style={{
+                            padding: '3px 9px', fontSize: 11, borderRadius: 10, cursor: 'pointer',
+                            fontFamily: 'inherit', lineHeight: 1.5,
+                            border: `1px solid ${on ? 'var(--navy-brand)' : 'var(--border)'}`,
+                            background: on ? 'var(--navy-brand)' : 'transparent',
+                            color: on ? '#fff' : 'var(--text-muted)',
+                          }}
+                        >{jt}</button>
+                      )
+                    })}
                   </div>
                 </div>
                 <div>
@@ -631,22 +632,21 @@ export default function RoutePlannerPage() {
             )}
           </div>
 
-          {/* ── Card 2: Vehicle ── */}
+          {/* ── Card 2: Vehicle type (for ORS routing dimensions) ── */}
           <div className="card" style={{ padding: '7px 10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ ...S.sectionLabel, whiteSpace: 'nowrap' }}>Vehicle</span>
               <select className="form-select" style={{ flex: 1 }}
-                value={vehicleId} onChange={e => setVehicleId(e.target.value)}>
-                <option value="">— None —</option>
-                {vehicles.map(v => (
-                  <option key={v.id} value={v.id}>{v.registration} · {v.vehicle_type}</option>
+                value={vehicleType} onChange={e => setVehicleType(e.target.value)}>
+                <option value="">— Select type —</option>
+                {Object.keys(TYPE_DEFAULTS).map(vt => (
+                  <option key={vt} value={vt}>{vt}</option>
                 ))}
               </select>
             </div>
             {vehicle && (
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, paddingLeft: 52 }}>
                 H {vehicle.height_metres}m · W {vehicle.width_metres}m · L {vehicle.length_metres}m
-                {usingDefaults && <span style={{ color: '#d69e2e' }}> · type defaults</span>}
               </div>
             )}
           </div>
