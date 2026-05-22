@@ -44,12 +44,13 @@ function stopColor(i, total) {
 
 // ── Leaflet map ───────────────────────────────────────────────────────────────
 
-function PlannerMap({ stops, routeGeometry, pinDropMode, onMapClick }) {
-  const divRef     = useRef(null)
-  const mapRef     = useRef(null)
-  const markersRef = useRef([])
-  const lineRef    = useRef(null)
-  const clickRef   = useRef(null)
+function PlannerMap({ stops, routeGeometry, pinDropMode, onMapClick, onRemoveStop, fitKey }) {
+  const divRef        = useRef(null)
+  const mapRef        = useRef(null)
+  const markersRef    = useRef([])
+  const lineRef       = useRef(null)
+  const clickRef      = useRef(null)
+  const prevFitKeyRef = useRef(null)
 
   useEffect(() => {
     if (!divRef.current || mapRef.current) return
@@ -184,16 +185,43 @@ function PlannerMap({ stops, routeGeometry, pinDropMode, onMapClick }) {
       })
       const marker = L.marker([s.lat, s.lon], { icon })
       marker.bindTooltip(s.name, { direction: 'right', offset: [14, 0] })
+
+      if (onRemoveStop) {
+        marker.on('click', () => {
+          const wrap = document.createElement('div')
+          wrap.style.cssText = 'padding:8px;text-align:center;min-width:160px'
+
+          const nameEl = document.createElement('div')
+          nameEl.style.cssText = 'font-size:13px;font-weight:600;margin-bottom:8px;color:#1a2535;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'
+          nameEl.textContent = s.name
+
+          const btn = document.createElement('button')
+          btn.textContent = 'Remove stop'
+          btn.style.cssText = 'padding:4px 14px;font-size:12px;background:#e53e3e;color:#fff;border:none;border-radius:4px;cursor:pointer;font-family:inherit'
+          btn.addEventListener('click', () => { onRemoveStop(s._id); map.closePopup() })
+
+          wrap.appendChild(nameEl)
+          wrap.appendChild(btn)
+          L.popup({ closeButton: true, maxWidth: 240 })
+            .setLatLng([s.lat, s.lon]).setContent(wrap).openOn(map)
+        })
+      }
+
       marker.addTo(map)
       markersRef.current.push(marker)
     })
 
-    if (validStops.length >= 2) {
-      map.fitBounds(L.latLngBounds(validStops.map(s => [s.lat, s.lon])), { padding: [32, 32] })
-    } else if (validStops.length === 1) {
-      map.setView([validStops[0].lat, validStops[0].lon], 13)
+    // Only fit/pan when fitKey changes — i.e. when stops are loaded from the DB.
+    // User-initiated adds (pin-drop, search) leave the map view unchanged.
+    if (fitKey !== null && fitKey !== prevFitKeyRef.current) {
+      prevFitKeyRef.current = fitKey
+      if (validStops.length >= 2) {
+        map.fitBounds(L.latLngBounds(validStops.map(s => [s.lat, s.lon])), { padding: [32, 32] })
+      } else if (validStops.length === 1) {
+        map.setView([validStops[0].lat, validStops[0].lon], 13)
+      }
     }
-  }, [stops, routeGeometry])
+  }, [stops, routeGeometry, fitKey, onRemoveStop])
 
   return <div ref={divRef} style={{ width: '100%', height: '100%' }} />
 }
@@ -232,6 +260,8 @@ export default function RoutePlannerPage() {
   const [searching,     setSearching]     = useState(false)
   const [addingStop,    setAddingStop]    = useState(false)
 
+  const [fitKey,      setFitKey]      = useState(null)
+
   const [saving,      setSaving]      = useState(false)
   const [saveError,   setSaveError]   = useState('')
   const [saveSuccess, setSaveSuccess] = useState(false)
@@ -265,7 +295,7 @@ export default function RoutePlannerPage() {
     supabase
       .from('timetable_stops').select('*, stops(*)').eq('timetable_id', timetableId).order('sequence')
       .then(({ data }) => {
-        setStops((data ?? []).map(ts => ({
+        const loaded = (data ?? []).map(ts => ({
           _id:            ts.id,
           stop_id:        ts.stop_id,
           name:           ts.stops.name,
@@ -273,7 +303,9 @@ export default function RoutePlannerPage() {
           lon:            ts.stops.lon,
           stop_type:      ts.stop_type,
           scheduled_time: ts.scheduled_time ?? '',
-        })))
+        }))
+        setStops(loaded)
+        if (loaded.length > 0) setFitKey(k => (k ?? 0) + 1)
       })
   }, [timetableId])
 
@@ -375,6 +407,7 @@ export default function RoutePlannerPage() {
   }
 
   function removeStop(i) { setStops(prev => prev.filter((_, idx) => idx !== i)) }
+  function removeStopById(id) { setStops(prev => prev.filter(s => s._id !== id)) }
 
   function updateStop(i, field, value) {
     setStops(prev => prev.map((s, idx) => idx === i ? { ...s, [field]: value } : s))
@@ -772,6 +805,8 @@ export default function RoutePlannerPage() {
             routeGeometry={routeResult?.geometry ?? null}
             pinDropMode={pinDropMode}
             onMapClick={handleMapPinDrop}
+            onRemoveStop={removeStopById}
+            fitKey={fitKey}
           />
         </div>
       </div>
