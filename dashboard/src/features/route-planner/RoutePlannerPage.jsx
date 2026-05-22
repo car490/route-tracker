@@ -476,7 +476,7 @@ export default function RoutePlannerPage() {
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 112px)', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
       {/* Header */}
       <div className="page-header" style={{ flexShrink: 0, marginBottom: 12 }}>
