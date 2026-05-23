@@ -67,9 +67,6 @@ export default function DutyCardsPage() {
       return
     }
 
-    console.log('[DutyCards] raw query result:', data)
-    console.log('[DutyCards] rows with null driver:', (data ?? []).filter(j => !j.driver).map(j => ({ id: j.id, driver_id_raw: j.driver })))
-
     const driverIds = [...new Set((data ?? []).map(j => j.driver?.id).filter(Boolean))]
     const contactsMap = {}
     if (driverIds.length > 0) {
