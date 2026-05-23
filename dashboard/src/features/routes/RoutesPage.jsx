@@ -263,6 +263,7 @@ export default function RoutesPage() {
             <div className="form-group">
               <label className="form-label">Service Code</label>
               <input
+                name="service_code"
                 className="form-input"
                 value={routeForm.service_code}
                 onChange={e => setRouteForm(f => ({ ...f, service_code: e.target.value.toUpperCase() }))}
@@ -277,6 +278,7 @@ export default function RoutesPage() {
                 <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
               </label>
               <input
+                name="name"
                 className="form-input"
                 value={routeForm.name}
                 onChange={e => setRouteForm(f => ({ ...f, name: e.target.value }))}
@@ -328,6 +330,7 @@ export default function RoutesPage() {
             <div className="form-group">
               <label className="form-label">Period</label>
               <select
+                name="period"
                 className="form-select"
                 value={ttForm.period}
                 onChange={e => setTtForm(f => ({ ...f, period: e.target.value }))}
@@ -338,6 +341,7 @@ export default function RoutesPage() {
             <div className="form-group">
               <label className="form-label">Direction</label>
               <select
+                name="direction"
                 className="form-select"
                 value={ttForm.direction}
                 onChange={e => setTtForm(f => ({ ...f, direction: e.target.value }))}
@@ -350,14 +354,14 @@ export default function RoutesPage() {
                 Valid From{' '}
                 <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
               </label>
-              <input className="form-input" type="date" value={ttForm.valid_from} onChange={e => setTtForm(f => ({ ...f, valid_from: e.target.value }))} />
+              <input name="valid_from" className="form-input" type="date" value={ttForm.valid_from} onChange={e => setTtForm(f => ({ ...f, valid_from: e.target.value }))} />
             </div>
             <div className="form-group">
               <label className="form-label">
                 Valid To{' '}
                 <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
               </label>
-              <input className="form-input" type="date" value={ttForm.valid_to} onChange={e => setTtForm(f => ({ ...f, valid_to: e.target.value }))} />
+              <input name="valid_to" className="form-input" type="date" value={ttForm.valid_to} onChange={e => setTtForm(f => ({ ...f, valid_to: e.target.value }))} />
             </div>
           </form>
         </Modal>

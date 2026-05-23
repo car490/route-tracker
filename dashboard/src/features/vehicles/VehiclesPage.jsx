@@ -163,6 +163,7 @@ export default function VehiclesPage() {
             <div className="form-group">
               <label className="form-label">Registration</label>
               <input
+                name="registration"
                 className="form-input"
                 value={form.registration}
                 onChange={e => setForm(f => ({ ...f, registration: e.target.value.toUpperCase() }))}
@@ -177,6 +178,7 @@ export default function VehiclesPage() {
                 <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
               </label>
               <input
+                name="fleet_number"
                 className="form-input"
                 value={form.fleet_number}
                 onChange={e => setForm(f => ({ ...f, fleet_number: e.target.value }))}
@@ -186,6 +188,7 @@ export default function VehiclesPage() {
             <div className="form-group">
               <label className="form-label">Vehicle Type</label>
               <select
+                name="vehicle_type"
                 className="form-select"
                 value={form.vehicle_type}
                 onChange={e => {
@@ -200,6 +203,7 @@ export default function VehiclesPage() {
             <div className="form-group">
               <label className="form-label">Fuel Type</label>
               <select
+                name="fuel_type"
                 className="form-select"
                 value={form.fuel_type}
                 onChange={e => setForm(f => ({ ...f, fuel_type: e.target.value }))}
@@ -216,6 +220,7 @@ export default function VehiclesPage() {
                 <div>
                   <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Height</label>
                   <input
+                    name="height_metres"
                     className="form-input"
                     type="number" step="0.01" min="1" max="6"
                     value={form.height_metres}
@@ -226,6 +231,7 @@ export default function VehiclesPage() {
                 <div>
                   <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Width</label>
                   <input
+                    name="width_metres"
                     className="form-input"
                     type="number" step="0.01" min="1" max="4"
                     value={form.width_metres}
@@ -236,6 +242,7 @@ export default function VehiclesPage() {
                 <div>
                   <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Length</label>
                   <input
+                    name="length_metres"
                     className="form-input"
                     type="number" step="0.01" min="3" max="25"
                     value={form.length_metres}

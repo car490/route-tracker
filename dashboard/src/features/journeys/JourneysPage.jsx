@@ -316,6 +316,7 @@ export default function JourneysPage() {
         <h1 className="page-title">Daily Journeys</h1>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <input
+            name="date_filter"
             className="form-input"
             type="date"
             value={dateFilter}
@@ -550,11 +551,11 @@ export default function JourneysPage() {
           <form onSubmit={handleSave}>
             <div className="form-group">
               <label className="form-label">Date</label>
-              <input className="form-input" type="date" value={form.journey_date} onChange={e => setForm(f => ({ ...f, journey_date: e.target.value }))} required />
+              <input name="journey_date" className="form-input" type="date" value={form.journey_date} onChange={e => setForm(f => ({ ...f, journey_date: e.target.value }))} required />
             </div>
             <div className="form-group">
               <label className="form-label">Timetable</label>
-              <select className="form-select" value={form.timetable_id} onChange={e => setForm(f => ({ ...f, timetable_id: e.target.value }))}>
+              <select name="timetable_id" className="form-select" value={form.timetable_id} onChange={e => setForm(f => ({ ...f, timetable_id: e.target.value }))}>
                 <option value="">— Select —</option>
                 {timetables.map(t => (
                   <option key={t.id} value={t.id}>{t.route?.service_code} {t.period} {t.direction}</option>
@@ -563,14 +564,14 @@ export default function JourneysPage() {
             </div>
             <div className="form-group">
               <label className="form-label">Driver <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
-              <select className="form-select" value={form.driver_id} onChange={e => setForm(f => ({ ...f, driver_id: e.target.value }))}>
+              <select name="driver_id" className="form-select" value={form.driver_id} onChange={e => setForm(f => ({ ...f, driver_id: e.target.value }))}>
                 <option value="">— Unassigned —</option>
                 {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </div>
             <div className="form-group">
               <label className="form-label">Vehicle <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
-              <select className="form-select" value={form.vehicle_id} onChange={e => setForm(f => ({ ...f, vehicle_id: e.target.value }))}>
+              <select name="vehicle_id" className="form-select" value={form.vehicle_id} onChange={e => setForm(f => ({ ...f, vehicle_id: e.target.value }))}>
                 <option value="">— Unassigned —</option>
                 {vehicles.map(v => <option key={v.id} value={v.id}>{v.registration}</option>)}
               </select>

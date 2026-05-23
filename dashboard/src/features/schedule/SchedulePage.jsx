@@ -335,14 +335,14 @@ export default function SchedulePage() {
           {error && <div className="error-msg">{error}</div>}
           <div className="form-group">
             <label className="form-label">Driver</label>
-            <select className="form-select" value={dutyForm.driver_id} onChange={e => setDutyForm(f => ({ ...f, driver_id: e.target.value }))}>
+            <select name="driver_id" className="form-select" value={dutyForm.driver_id} onChange={e => setDutyForm(f => ({ ...f, driver_id: e.target.value }))}>
               <option value="">— Select driver —</option>
               {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
           <div className="form-group">
             <label className="form-label">Vehicle</label>
-            <select className="form-select" value={dutyForm.vehicle_id} onChange={e => setDutyForm(f => ({ ...f, vehicle_id: e.target.value }))}>
+            <select name="vehicle_id" className="form-select" value={dutyForm.vehicle_id} onChange={e => setDutyForm(f => ({ ...f, vehicle_id: e.target.value }))}>
               <option value="">— Select vehicle —</option>
               {vehicles.map(v => <option key={v.id} value={v.id}>{v.registration}</option>)}
             </select>
@@ -367,6 +367,7 @@ export default function SchedulePage() {
           <div className="form-group">
             <label className="form-label">Date</label>
             <input
+              name="journey_date"
               type="date"
               className="form-input"
               value={dutyForm.date}
@@ -375,14 +376,14 @@ export default function SchedulePage() {
           </div>
           <div className="form-group">
             <label className="form-label">Driver</label>
-            <select className="form-select" value={dutyForm.driver_id} onChange={e => setDutyForm(f => ({ ...f, driver_id: e.target.value }))}>
+            <select name="driver_id" className="form-select" value={dutyForm.driver_id} onChange={e => setDutyForm(f => ({ ...f, driver_id: e.target.value }))}>
               <option value="">— Select driver —</option>
               {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
           <div className="form-group">
             <label className="form-label">Vehicle</label>
-            <select className="form-select" value={dutyForm.vehicle_id} onChange={e => setDutyForm(f => ({ ...f, vehicle_id: e.target.value }))}>
+            <select name="vehicle_id" className="form-select" value={dutyForm.vehicle_id} onChange={e => setDutyForm(f => ({ ...f, vehicle_id: e.target.value }))}>
               <option value="">— Select vehicle —</option>
               {vehicles.map(v => <option key={v.id} value={v.id}>{v.registration}</option>)}
             </select>
@@ -411,7 +412,7 @@ export default function SchedulePage() {
                       transition: 'background 0.12s, border-color 0.12s',
                     }}
                   >
-                    <input type="checkbox" checked={checked} onChange={() => toggleTimetable(tm.id)} style={{ flexShrink: 0 }} />
+                    <input type="checkbox" name="timetable_id" checked={checked} onChange={() => toggleTimetable(tm.id)} style={{ flexShrink: 0 }} />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 600, fontSize: 14 }}>{tm.route?.service_code}</div>
                       <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{tm.period} · {tm.direction}</div>

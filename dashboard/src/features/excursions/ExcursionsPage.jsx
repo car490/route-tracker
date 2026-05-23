@@ -480,6 +480,7 @@ export default function ExcursionsPage() {
             <div className="form-group">
               <label className="form-label">Date</label>
               <input
+                name="journey_date"
                 className="form-input"
                 type="date"
                 value={form.journey_date}
@@ -492,6 +493,7 @@ export default function ExcursionsPage() {
                 <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
               </label>
               <input
+                name="notes"
                 className="form-input"
                 value={form.notes}
                 onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
@@ -503,7 +505,7 @@ export default function ExcursionsPage() {
                 Driver{' '}
                 <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
               </label>
-              <select className="form-select" value={form.driver_id} onChange={e => setForm(f => ({ ...f, driver_id: e.target.value }))}>
+              <select name="driver_id" className="form-select" value={form.driver_id} onChange={e => setForm(f => ({ ...f, driver_id: e.target.value }))}>
                 <option value="">— Unassigned —</option>
                 {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
@@ -513,7 +515,7 @@ export default function ExcursionsPage() {
                 Vehicle{' '}
                 <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
               </label>
-              <select className="form-select" value={form.vehicle_id} onChange={e => setForm(f => ({ ...f, vehicle_id: e.target.value }))}>
+              <select name="vehicle_id" className="form-select" value={form.vehicle_id} onChange={e => setForm(f => ({ ...f, vehicle_id: e.target.value }))}>
                 <option value="">— Unassigned —</option>
                 {vehicles.map(v => <option key={v.id} value={v.id}>{v.registration}</option>)}
               </select>
@@ -527,6 +529,7 @@ export default function ExcursionsPage() {
             {/* Address search */}
             <div style={{ position: 'relative', marginBottom: 12 }}>
               <input
+                name="address_search"
                 className="form-input"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
@@ -605,6 +608,7 @@ export default function ExcursionsPage() {
 
                     {/* Departure time */}
                     <input
+                      name="departure_time"
                       type="time"
                       className="form-input"
                       value={wp.time}
@@ -693,6 +697,7 @@ export default function ExcursionsPage() {
                 {pError && <div className="error-msg" style={{ marginBottom: 10 }}>{pError}</div>}
                 <div className="form-group">
                   <input
+                    name="passenger_name"
                     className="form-input"
                     value={pForm.name}
                     onChange={e => setPForm(f => ({ ...f, name: e.target.value }))}
@@ -702,6 +707,7 @@ export default function ExcursionsPage() {
                 </div>
                 <div className="form-group">
                   <input
+                    name="passenger_phone"
                     className="form-input"
                     value={pForm.phone}
                     onChange={e => setPForm(f => ({ ...f, phone: e.target.value }))}
@@ -710,6 +716,7 @@ export default function ExcursionsPage() {
                 </div>
                 <div className="form-group">
                   <input
+                    name="passenger_notes"
                     className="form-input"
                     value={pForm.notes}
                     onChange={e => setPForm(f => ({ ...f, notes: e.target.value }))}

@@ -26,8 +26,10 @@ export default function Login() {
         {error && <div className="error-msg">{error}</div>}
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label">Email</label>
+            <label className="form-label" htmlFor="email">Email</label>
             <input
+              id="email"
+              name="email"
               className="form-input"
               type="email"
               value={email}
@@ -37,8 +39,10 @@ export default function Login() {
             />
           </div>
           <div className="form-group" style={{ marginBottom: 20 }}>
-            <label className="form-label">Password</label>
+            <label className="form-label" htmlFor="password">Password</label>
             <input
+              id="password"
+              name="password"
               className="form-input"
               type="password"
               value={password}

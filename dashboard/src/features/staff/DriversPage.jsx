@@ -239,6 +239,7 @@ export default function DriversPage() {
             <div className="form-group">
               <label className="form-label">Name</label>
               <input
+                name="name"
                 className="form-input"
                 value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
@@ -249,6 +250,7 @@ export default function DriversPage() {
             <div className="form-group">
               <label className="form-label">Role</label>
               <select
+                name="role"
                 className="form-select"
                 value={form.role}
                 onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
@@ -315,6 +317,7 @@ export default function DriversPage() {
             )}
             <div style={{ display: 'flex', gap: 6 }}>
               <select
+                name="contact_type"
                 className="form-select"
                 value={contactForm.type}
                 onChange={e => setContactForm({ type: e.target.value, value: '' })}
@@ -324,6 +327,7 @@ export default function DriversPage() {
                 <option value="email">Email</option>
               </select>
               <input
+                name="contact_value"
                 className="form-input"
                 value={contactForm.value}
                 onChange={e => setContactForm(f => ({ ...f, value: e.target.value }))}

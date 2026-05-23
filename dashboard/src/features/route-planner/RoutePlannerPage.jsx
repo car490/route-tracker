@@ -533,12 +533,12 @@ export default function RoutePlannerPage() {
             <div style={{ marginBottom: 6 }}>
               <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Route</div>
               <select
+                name="route_id"
                 className="form-select"
                 value={routeId}
                 onChange={e => {
                   const val = e.target.value
                   setRouteId(val)
-                  // Auto-select new timetable when creating a new route
                   if (val === '__new__') setTimetableId('__new__')
                 }}
               >
@@ -562,6 +562,7 @@ export default function RoutePlannerPage() {
                 <div style={{ marginBottom: 6 }}>
                   <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Code</div>
                   <input
+                    name="service_code"
                     className="form-input" style={{ textTransform: 'uppercase' }}
                     placeholder="S125S" autoFocus value={newCode}
                     onChange={e => setNewCode(e.target.value.toUpperCase())}
@@ -593,7 +594,7 @@ export default function RoutePlannerPage() {
                   <div style={{ ...S.sectionLabel, marginBottom: 3 }}>
                     Name <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
                   </div>
-                  <input className="form-input" placeholder="e.g. Sleaford – Cranwell"
+                  <input name="route_name" className="form-input" placeholder="e.g. Sleaford – Cranwell"
                     value={newName} onChange={e => setNewName(e.target.value)} />
                 </div>
               </div>
@@ -603,6 +604,7 @@ export default function RoutePlannerPage() {
             <div>
               <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Timetable</div>
               <select
+                name="timetable_id"
                 className="form-select"
                 value={timetableId}
                 onChange={e => setTimetableId(e.target.value)}
@@ -626,14 +628,14 @@ export default function RoutePlannerPage() {
                 <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Period</div>
-                    <select className="form-select" value={newPeriod}
+                    <select name="period" className="form-select" value={newPeriod}
                       onChange={e => setNewPeriod(e.target.value)}>
                       {PERIODS.map(p => <option key={p} value={p}>{p}</option>)}
                     </select>
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Direction</div>
-                    <select className="form-select" value={newDirection}
+                    <select name="direction" className="form-select" value={newDirection}
                       onChange={e => setNewDirection(e.target.value)}>
                       {DIRECTIONS.map(d => <option key={d} value={d}>{d}</option>)}
                     </select>
@@ -642,12 +644,12 @@ export default function RoutePlannerPage() {
                 <div style={{ display: 'flex', gap: 6 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ ...S.sectionLabel, marginBottom: 3 }}>From <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(opt)</span></div>
-                    <input className="form-input" type="date"
+                    <input name="valid_from" className="form-input" type="date"
                       value={newValidFrom} onChange={e => setNewValidFrom(e.target.value)} />
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ ...S.sectionLabel, marginBottom: 3 }}>To <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(opt)</span></div>
-                    <input className="form-input" type="date"
+                    <input name="valid_to" className="form-input" type="date"
                       value={newValidTo} onChange={e => setNewValidTo(e.target.value)} />
                   </div>
                 </div>
@@ -659,7 +661,7 @@ export default function RoutePlannerPage() {
           <div className="card" style={{ padding: '7px 10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
               <span style={{ ...S.sectionLabel, whiteSpace: 'nowrap', minWidth: 34 }}>Reg</span>
-              <select className="form-select" style={{ flex: 1 }}
+              <select name="vehicle_id" className="form-select" style={{ flex: 1 }}
                 value={vehicleId}
                 onChange={e => {
                   const val = e.target.value
@@ -677,7 +679,7 @@ export default function RoutePlannerPage() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ ...S.sectionLabel, whiteSpace: 'nowrap', minWidth: 34 }}>Type</span>
-              <select className="form-select" style={{ flex: 1 }}
+              <select name="vehicle_type" className="form-select" style={{ flex: 1 }}
                 value={vehicleType}
                 onChange={e => { setVehicleType(e.target.value); setVehicleId('') }}>
                 <option value="">— Select type —</option>
@@ -755,14 +757,14 @@ export default function RoutePlannerPage() {
                       onClick={() => removeStop(i)} title="Remove">×</button>
                   </div>
                   <div style={{ display: 'flex', gap: 4, paddingLeft: 19 }}>
-                    <select className="form-select"
+                    <select name="stop_type" className="form-select"
                       style={{ fontSize: 12, height: 26, padding: '2px 6px', flex: 1 }}
                       value={s.stop_type} onChange={e => updateStop(i, 'stop_type', e.target.value)}>
                       <option value="timing_point">Timing point</option>
                       <option value="routing_point">Routing point</option>
                     </select>
                     {s.stop_type === 'timing_point' && (
-                      <input type="time" className="form-input"
+                      <input name="scheduled_time" type="time" className="form-input"
                         style={{ fontSize: 12, height: 26, padding: '2px 4px', width: 78, flexShrink: 0 }}
                         value={s.scheduled_time} onChange={e => updateStop(i, 'scheduled_time', e.target.value)} />
                     )}
@@ -773,7 +775,7 @@ export default function RoutePlannerPage() {
 
             {showSearch ? (
               <div style={{ marginTop: stops.length ? 4 : 0 }}>
-                <input autoFocus className="form-input" style={{ marginBottom: 5 }}
+                <input name="stop_search" autoFocus className="form-input" style={{ marginBottom: 5 }}
                   placeholder="Search stops or address…" value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)} />
                 {searching && <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 0 4px' }}>Searching…</div>}
