@@ -29,6 +29,6 @@ alter table public.routes drop constraint if exists routes_journey_type_valid;
 -- 4. Drop hardcoded CHECK on journeys.journey_type (auto-named by Postgres)
 alter table public.journeys drop constraint if exists journeys_journey_type_check;
 
--- 5. Add journey_types to staff
-alter table public.staff
+-- 5. Add journey_types to employees (table was renamed from staff by migration_rename_staff_to_employees.sql)
+alter table public.employees
   add column if not exists journey_types text[] not null default '{}';
