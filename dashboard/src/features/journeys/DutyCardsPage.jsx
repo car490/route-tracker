@@ -3,16 +3,31 @@ import { supabase } from '../../shared/supabase'
 
 const PWA_BASE = 'https://car490.github.io/route-tracker'
 
-function todayStr() { return new Date().toISOString().slice(0, 10) }
+function dateStr(d) { return d.toISOString().slice(0, 10) }
+function todayStr() { return dateStr(new Date()) }
 
-function addDays(dateStr, n) {
-  const d = new Date(dateStr + 'T00:00:00')
-  d.setDate(d.getDate() + n)
-  return d.toISOString().slice(0, 10)
+function addDays(d, n) {
+  const r = new Date(d)
+  r.setDate(r.getDate() + n)
+  return r
 }
 
-function fmtColHeader(dateStr) {
-  const d = new Date(dateStr + 'T00:00:00')
+function getWeekStart(d) {
+  const m = new Date(d)
+  m.setDate(d.getDate() - d.getDay())
+  m.setHours(0, 0, 0, 0)
+  return m
+}
+
+function fmtWeek(sunday) {
+  const saturday = addDays(sunday, 6)
+  if (sunday.getMonth() === saturday.getMonth()) {
+    return `${sunday.getDate()}–${saturday.getDate()} ${sunday.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`
+  }
+  return `${sunday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${saturday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+}
+
+function fmtColHeader(d) {
   return {
     day:  d.toLocaleDateString('en-GB', { weekday: 'short' }),
     date: d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
@@ -44,10 +59,8 @@ function getContact(contacts, type) {
 
 const PERIOD_ORDER = ['Early Morning', 'Morning', 'Midday', 'Afternoon', 'Evening', 'Night', 'All Day']
 
-const TODAY  = todayStr()
-const DATES  = Array.from({ length: 14 }, (_, i) => addDays(TODAY, i))
-
 export default function DutyCardsPage() {
+  const [weekStart,    setWeekStart]    = useState(() => getWeekStart(new Date()))
   const [matrix,       setMatrix]       = useState({}) // { driverId: { date: journey[] } }
   const [drivers,      setDrivers]      = useState([])
   const [loading,      setLoading]      = useState(true)
@@ -58,11 +71,26 @@ export default function DutyCardsPage() {
   const [tokenLoading, setTokenLoading] = useState(false)
   const [copied,       setCopied]       = useState(false)
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load(weekStart) }, [])
 
-  async function load() {
+  function shiftWeek(delta) {
+    const m = addDays(weekStart, delta * 7)
+    setWeekStart(m)
+    setSelected(null)
+    load(m)
+  }
+
+  function goToWeek(m) {
+    setWeekStart(m)
+    setSelected(null)
+    load(m)
+  }
+
+  async function load(sunday) {
     setLoading(true)
     setError('')
+    const start = dateStr(sunday)
+    const end   = dateStr(addDays(sunday, 6))
 
     const { data, error: qErr } = await supabase
       .from('journeys')
@@ -71,8 +99,8 @@ export default function DutyCardsPage() {
         timetable:timetables(period, direction, route:routes(service_code)),
         driver:employees(id, name)
       `)
-      .gte('journey_date', DATES[0])
-      .lte('journey_date', DATES[13])
+      .gte('journey_date', start)
+      .lte('journey_date', end)
       .neq('status', 'cancelled')
       .not('driver_id', 'is', null)
       .order('journey_date')
@@ -160,13 +188,37 @@ export default function DutyCardsPage() {
     window.open(`https://wa.me/${phoneForWhatsApp(contact.value)}?text=${encodeURIComponent(dutyMessage(driver.name, date, url))}`)
   }
 
+  const days  = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+  const today = todayStr()
+
   return (
     <div>
       <div className="page-header">
         <h1 className="page-title">Duty Cards</h1>
-        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-          {fmtLongDate(DATES[0])} — {fmtLongDate(DATES[13])}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+        <button className="btn btn-ghost btn-sm" onClick={() => shiftWeek(-1)}>← Prev</button>
+        <span style={{ fontFamily: 'Oswald, sans-serif', fontSize: '1.05rem', color: 'var(--text)', minWidth: 200, textAlign: 'center' }}>
+          {fmtWeek(weekStart)}
         </span>
+        <button className="btn btn-ghost btn-sm" onClick={() => shiftWeek(1)}>Next →</button>
+        <button className="btn btn-ghost btn-sm" onClick={() => goToWeek(getWeekStart(new Date()))}>
+          This Week
+        </button>
+        <button className="btn btn-ghost btn-sm" onClick={() => { const m = getWeekStart(new Date()); m.setDate(m.getDate() + 7); goToWeek(m) }}>
+          Next Week
+        </button>
+        <input
+          type="date"
+          className="form-input"
+          style={{ width: 'auto', fontSize: 12, padding: '5px 10px' }}
+          onChange={e => {
+            if (!e.target.value) return
+            goToWeek(getWeekStart(new Date(e.target.value + 'T00:00:00')))
+            e.target.value = ''
+          }}
+        />
       </div>
 
       {error && <div className="error-msg">{error}</div>}
@@ -174,7 +226,7 @@ export default function DutyCardsPage() {
       {loading ? (
         <div className="empty-state">Loading…</div>
       ) : drivers.length === 0 ? (
-        <div className="empty-state">No assigned journeys in the next 14 days.</div>
+        <div className="empty-state">No assigned journeys this week.</div>
       ) : (
         <>
           <div className="card duty-matrix-wrap">
@@ -182,10 +234,11 @@ export default function DutyCardsPage() {
               <thead>
                 <tr>
                   <th className="dm-name">Driver</th>
-                  {DATES.map(d => {
+                  {days.map(d => {
+                    const ds = dateStr(d)
                     const { day, date } = fmtColHeader(d)
                     return (
-                      <th key={d} className={`dm-date${d === TODAY ? ' dm-today' : ''}`}>
+                      <th key={ds} className={`dm-date${ds === today ? ' dm-today' : ''}`}>
                         <span className="dm-day">{day}</span>
                         <span className="dm-num">{date}</span>
                       </th>
@@ -197,19 +250,20 @@ export default function DutyCardsPage() {
                 {drivers.map(driver => (
                   <tr key={driver.id}>
                     <td className="dm-name">{driver.name}</td>
-                    {DATES.map(d => {
-                      const journeys = matrix[driver.id]?.[d] ?? []
-                      const isSelected = selected?.driver.id === driver.id && selected?.date === d
+                    {days.map(d => {
+                      const ds = dateStr(d)
+                      const journeys = matrix[driver.id]?.[ds] ?? []
+                      const isSelected = selected?.driver.id === driver.id && selected?.date === ds
                       return (
                         <td
-                          key={d}
+                          key={ds}
                           className={[
                             'dm-cell',
-                            d === TODAY        ? 'dm-today'            : '',
-                            journeys.length    ? 'dm-cell--assigned'   : '',
-                            isSelected         ? 'dm-cell--selected'   : '',
+                            ds === today     ? 'dm-today'          : '',
+                            journeys.length  ? 'dm-cell--assigned' : '',
+                            isSelected       ? 'dm-cell--selected' : '',
                           ].filter(Boolean).join(' ')}
-                          onClick={() => selectCell(driver, d)}
+                          onClick={() => selectCell(driver, ds)}
                         >
                           {journeys.map(j => (
                             <span key={j.id} className="dm-pill">

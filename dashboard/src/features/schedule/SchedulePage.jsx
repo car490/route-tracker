@@ -244,19 +244,36 @@ export default function SchedulePage() {
         <button className="btn btn-primary" onClick={openNewDuty}>+ Create New Duty</button>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         <button className="btn btn-ghost btn-sm" onClick={() => shiftWeek(-1)}>← Prev</button>
-        <span style={{ fontFamily: 'Oswald, sans-serif', fontSize: '1.05rem', color: 'var(--text)', minWidth: 220, textAlign: 'center' }}>
+        <span style={{ fontFamily: 'Oswald, sans-serif', fontSize: '1.05rem', color: 'var(--text)', minWidth: 200, textAlign: 'center' }}>
           {fmtWeek(weekStart)}
         </span>
         <button className="btn btn-ghost btn-sm" onClick={() => shiftWeek(1)}>Next →</button>
         <button
           className="btn btn-ghost btn-sm"
           onClick={() => { const m = getWeekStart(new Date()); setWeekStart(m); load(m) }}
-          style={{ marginLeft: 4 }}
         >
           This Week
         </button>
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={() => { const m = getWeekStart(new Date()); m.setDate(m.getDate() + 7); setWeekStart(m); load(m) }}
+        >
+          Next Week
+        </button>
+        <input
+          type="date"
+          className="form-input"
+          style={{ width: 'auto', fontSize: 12, padding: '5px 10px' }}
+          onChange={e => {
+            if (!e.target.value) return
+            const m = getWeekStart(new Date(e.target.value + 'T00:00:00'))
+            setWeekStart(m)
+            load(m)
+            e.target.value = ''
+          }}
+        />
       </div>
 
       <div style={{ display: 'flex', gap: 20, marginBottom: 18, fontSize: 12, color: 'var(--text-muted)' }}>
