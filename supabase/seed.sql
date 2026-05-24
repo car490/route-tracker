@@ -23,9 +23,8 @@ insert into public.journey_types (name, sort_order) values
   ('Open Door Schools',  2),
   ('Contract Schools',   3),
   ('Private Hire',       4),
-  ('Excursion',          5),
-  ('Tour',               6),
-  ('Other Contract',     7);
+  ('Tour',               5),
+  ('Other Contract',     6);
 
 
 -- ── Company ───────────────────────────────────────────────────────────────────
