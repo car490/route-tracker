@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../shared/supabase'
+import { getCompanyId } from '../../shared/company'
+import Modal from '../../shared/components/Modal'
 
 const PWA_BASE = 'https://car490.github.io/route-tracker'
 
@@ -57,21 +59,46 @@ function getContact(contacts, type) {
     ?? null
 }
 
+function jsDayToDb(jsDay) { return jsDay === 0 ? 7 : jsDay }
+
 const PERIOD_ORDER = ['Early Morning', 'Morning', 'Midday', 'Afternoon', 'Evening', 'Night', 'All Day']
+const EMPTY_DUTY = { date: todayStr(), driver_id: '', vehicle_id: '', selectedTimetables: [] }
 
 export default function DutyCardsPage() {
   const [weekStart,    setWeekStart]    = useState(() => getWeekStart(new Date()))
-  const [matrix,       setMatrix]       = useState({}) // { driverId: { date: journey[] } }
+  const [matrix,       setMatrix]       = useState({})
   const [drivers,      setDrivers]      = useState([])
   const [loading,      setLoading]      = useState(true)
   const [error,        setError]        = useState('')
-  const [selected,     setSelected]     = useState(null) // { driver, date, journeys }
+  const [selected,     setSelected]     = useState(null)
   const [token,        setToken]        = useState(null)
   const [tokenError,   setTokenError]   = useState(null)
   const [tokenLoading, setTokenLoading] = useState(false)
   const [copied,       setCopied]       = useState(false)
 
+  const [timetables,   setTimetables]   = useState([])
+  const [journeyMap,   setJourneyMap]   = useState({})
+  const [employees,    setEmployees]    = useState([])
+  const [vehicles,     setVehicles]     = useState([])
+  const [modal,        setModal]        = useState(null)
+  const [dutyForm,     setDutyForm]     = useState(EMPTY_DUTY)
+  const [saving,       setSaving]       = useState(false)
+
   useEffect(() => { load(weekStart) }, [])
+
+  useEffect(() => {
+    async function loadStatic() {
+      const [tmRes, empRes, vRes] = await Promise.all([
+        supabase.from('timetables').select('id, period, direction, days_of_week, route:routes(service_code, name)').order('period'),
+        supabase.from('employees').select('id, name').order('name'),
+        supabase.from('vehicles').select('id, registration').order('registration'),
+      ])
+      setTimetables(tmRes.data ?? [])
+      setEmployees(empRes.data ?? [])
+      setVehicles(vRes.data ?? [])
+    }
+    loadStatic()
+  }, [])
 
   function shiftWeek(delta) {
     const m = addDays(weekStart, delta * 7)
@@ -95,17 +122,22 @@ export default function DutyCardsPage() {
     const { data, error: qErr } = await supabase
       .from('journeys')
       .select(`
-        id, journey_date, status,
+        id, journey_date, timetable_id, driver_id, vehicle_id, status,
         timetable:timetables(period, direction, route:routes(service_code)),
         driver:employees(id, name)
       `)
       .gte('journey_date', start)
       .lte('journey_date', end)
       .neq('status', 'cancelled')
-      .not('driver_id', 'is', null)
       .order('journey_date')
 
     if (qErr) { setError(qErr.message); setLoading(false); return }
+
+    const jMap = {}
+    for (const j of data ?? []) {
+      jMap[`${j.timetable_id}-${j.journey_date}`] = j
+    }
+    setJourneyMap(jMap)
 
     const driverIds = [...new Set((data ?? []).map(j => j.driver?.id).filter(Boolean))]
     const contactsMap = {}
@@ -188,6 +220,73 @@ export default function DutyCardsPage() {
     window.open(`https://wa.me/${phoneForWhatsApp(contact.value)}?text=${encodeURIComponent(dutyMessage(driver.name, date, url))}`)
   }
 
+  function openNewDuty() {
+    setDutyForm(EMPTY_DUTY)
+    setError('')
+    setModal('new-duty')
+  }
+
+  function availableTimetables() {
+    if (!dutyForm.date) return []
+    const d = new Date(dutyForm.date + 'T00:00:00')
+    const dbDay = jsDayToDb(d.getDay())
+    return [...timetables]
+      .filter(t => {
+        if (!t.days_of_week?.includes(dbDay)) return false
+        const j = journeyMap[`${t.id}-${dutyForm.date}`]
+        return !j || !j.driver_id
+      })
+      .sort((a, b) => {
+        const sc = (a.route?.service_code ?? '').localeCompare(b.route?.service_code ?? '')
+        if (sc !== 0) return sc
+        return PERIOD_ORDER.indexOf(a.period) - PERIOD_ORDER.indexOf(b.period)
+      })
+  }
+
+  function toggleTimetable(id) {
+    setDutyForm(f => ({
+      ...f,
+      selectedTimetables: f.selectedTimetables.includes(id)
+        ? f.selectedTimetables.filter(x => x !== id)
+        : [...f.selectedTimetables, id],
+    }))
+  }
+
+  async function saveNewDuty() {
+    if (!dutyForm.driver_id) { setError('Please select a driver'); return }
+    if (!dutyForm.vehicle_id) { setError('Please select a vehicle'); return }
+    if (!dutyForm.selectedTimetables.length) { setError('Select at least one run'); return }
+    setSaving(true)
+    setError('')
+    try {
+      const companyId = await getCompanyId()
+      for (const tmId of dutyForm.selectedTimetables) {
+        const existing = journeyMap[`${tmId}-${dutyForm.date}`]
+        if (existing) {
+          const { error: e } = await supabase
+            .from('journeys')
+            .update({ driver_id: dutyForm.driver_id, vehicle_id: dutyForm.vehicle_id })
+            .eq('id', existing.id)
+          if (e) throw e
+        } else {
+          const { error: e } = await supabase.from('journeys').insert({
+            company_id: companyId,
+            timetable_id: tmId,
+            journey_date: dutyForm.date,
+            driver_id: dutyForm.driver_id,
+            vehicle_id: dutyForm.vehicle_id,
+          })
+          if (e) throw e
+        }
+      }
+      setModal(null)
+      load(weekStart)
+    } catch (e) {
+      setError(e.message)
+    }
+    setSaving(false)
+  }
+
   const days  = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
   const today = todayStr()
 
@@ -195,6 +294,7 @@ export default function DutyCardsPage() {
     <div>
       <div className="page-header">
         <h1 className="page-title">Duty Cards</h1>
+        <button className="btn btn-primary" onClick={openNewDuty}>+ Create New Duty</button>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
@@ -363,6 +463,82 @@ export default function DutyCardsPage() {
             )
           })()}
         </>
+      )}
+
+      {modal === 'new-duty' && (
+        <Modal
+          title="Create New Duty"
+          onClose={() => setModal(null)}
+          footer={
+            <>
+              <button className="btn btn-ghost" onClick={() => setModal(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveNewDuty} disabled={saving}>
+                {saving ? 'Creating…' : 'Create Duty'}
+              </button>
+            </>
+          }
+        >
+          {error && <div className="error-msg">{error}</div>}
+          <div className="form-group">
+            <label className="form-label">Date</label>
+            <input
+              name="journey_date"
+              type="date"
+              className="form-input"
+              value={dutyForm.date}
+              onChange={e => setDutyForm(f => ({ ...f, date: e.target.value, selectedTimetables: [] }))}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Driver</label>
+            <select name="driver_id" className="form-select" value={dutyForm.driver_id} onChange={e => setDutyForm(f => ({ ...f, driver_id: e.target.value }))}>
+              <option value="">— Select driver —</option>
+              {employees.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Vehicle</label>
+            <select name="vehicle_id" className="form-select" value={dutyForm.vehicle_id} onChange={e => setDutyForm(f => ({ ...f, vehicle_id: e.target.value }))}>
+              <option value="">— Select vehicle —</option>
+              {vehicles.map(v => <option key={v.id} value={v.id}>{v.registration}</option>)}
+            </select>
+          </div>
+
+          <label className="form-label" style={{ marginBottom: 8 }}>
+            Unassigned runs for {fmtLongDate(dutyForm.date)}
+          </label>
+          {availableTimetables().length === 0 ? (
+            <div style={{ color: 'var(--text-muted)', fontSize: 13, padding: '10px 0' }}>
+              All runs are already assigned for this date.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {availableTimetables().map(tm => {
+                const checked = dutyForm.selectedTimetables.includes(tm.id)
+                const existing = journeyMap[`${tm.id}-${dutyForm.date}`]
+                return (
+                  <label
+                    key={tm.id}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                      padding: '9px 12px', borderRadius: 6,
+                      background: checked ? 'rgba(77,184,72,0.08)' : 'var(--bg)',
+                      border: `1px solid ${checked ? 'rgba(77,184,72,0.4)' : 'var(--border)'}`,
+                      transition: 'background 0.12s, border-color 0.12s',
+                    }}
+                  >
+                    <input type="checkbox" name="timetable_id" checked={checked} onChange={() => toggleTimetable(tm.id)} style={{ flexShrink: 0 }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 600, fontSize: 14 }}>{tm.route?.service_code}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{tm.period} · {tm.direction}</div>
+                    </div>
+                    {existing && !existing.driver_id && <span className="badge badge-amber">No driver</span>}
+                  </label>
+                )
+              })}
+            </div>
+          )}
+        </Modal>
       )}
     </div>
   )
