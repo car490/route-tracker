@@ -126,6 +126,43 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
   margin-top: 8px;
 }
 
+.sidebar-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 16px 4px;
+  background: none;
+  border: none;
+  font-family: 'Oswald', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.sidebar-section-toggle:hover {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.sidebar-section-toggle--active {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.sidebar-section-chevron {
+  font-size: 14px;
+  line-height: 1;
+  transition: transform 0.2s;
+  transform: rotate(0deg);
+}
+
+.sidebar-section-chevron.open {
+  transform: rotate(90deg);
+}
+
 .sidebar-section-label {
   padding: 10px 16px 4px;
   font-family: 'Oswald', sans-serif;

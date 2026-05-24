@@ -1,4 +1,5 @@
-import { Outlet, NavLink } from 'react-router-dom'
+import { useState } from 'react'
+import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { supabase } from '../supabase'
 
 const NAV = [
@@ -24,7 +25,13 @@ const NAV = [
   },
 ]
 
+const MORE_PATHS = ['/journeys', '/excursions', '/routes', '/overview', '/live']
+
 export default function Layout({ session }) {
+  const location = useLocation()
+  const moreIsActive = MORE_PATHS.some(p => location.pathname.startsWith(p))
+  const [moreOpen, setMoreOpen] = useState(moreIsActive)
+
   return (
     <div className="layout">
       <nav className="sidebar">
@@ -34,7 +41,27 @@ export default function Layout({ session }) {
         </div>
         <div className="sidebar-nav">
           {NAV.map((item) =>
-            item.section ? (
+            item.section === 'More' ? (
+              <div key="More" className="sidebar-section">
+                <button
+                  className={`sidebar-section-toggle${moreIsActive ? ' sidebar-section-toggle--active' : ''}`}
+                  onClick={() => setMoreOpen(o => !o)}
+                >
+                  <span>More</span>
+                  <span className={`sidebar-section-chevron${moreOpen ? ' open' : ''}`}>›</span>
+                </button>
+                {moreOpen && item.items.map(({ to, label, end }) => (
+                  <NavLink
+                    key={to}
+                    to={to}
+                    end={end}
+                    className={({ isActive }) => `sidebar-child${isActive ? ' active' : ''}`}
+                  >
+                    {label}
+                  </NavLink>
+                ))}
+              </div>
+            ) : item.section ? (
               <div key={item.section} className="sidebar-section">
                 <div className="sidebar-section-label">{item.section}</div>
                 {item.items.map(({ to, label, end }) => (
