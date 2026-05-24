@@ -274,7 +274,7 @@ export default function RoutePlannerPage() {
 
   useEffect(() => {
     if (!routeId || routeId === '__new__') {
-      setTimetables([]); setTimetableId(''); setStops([])
+      setTimetables([]); setTimetableId(routeId === '__new__' ? '__new__' : ''); setStops([])
       return
     }
     supabase.from('timetables').select('*').eq('route_id', routeId).order('period')
