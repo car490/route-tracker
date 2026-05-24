@@ -63,13 +63,14 @@ begin
 end;
 $$;
 
--- 8. Drop the old current_staff_role function (now superseded by current_employee_role)
-drop function if exists current_staff_role();
-
--- 9. Recreate stops policies that called current_staff_role()
+-- 8. Drop stops policies that depend on current_staff_role() — must happen before the function drop
 drop policy if exists "super_user_insert" on stops;
 drop policy if exists "super_user_update" on stops;
 
+-- 9. Now safe to drop current_staff_role (no remaining dependents)
+drop function if exists current_staff_role();
+
+-- 10. Recreate stops policies using the new function name
 create policy "super_user_insert" on stops
   for insert to authenticated
   with check (current_employee_role() = 'super_user');
@@ -78,7 +79,7 @@ create policy "super_user_update" on stops
   for update to authenticated
   using (current_employee_role() = 'super_user');
 
--- 10. Recreate employee_contacts policy (old body referenced staff/staff_id)
+-- 11. Recreate employee_contacts policy (old body referenced staff/staff_id)
 drop policy if exists "company_staff_contacts" on employee_contacts;
 
 create policy "company_employee_contacts" on employee_contacts
