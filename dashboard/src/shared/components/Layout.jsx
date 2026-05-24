@@ -17,7 +17,6 @@ const NAV = [
     section: 'More',
     items: [
       { to: '/journeys',   label: 'Daily Journeys' },
-      { to: '/excursions', label: 'Excursions' },
       { to: '/routes',     label: 'Routes & Timetables' },
       { to: '/overview',   label: 'Overview' },
       { to: '/live',       label: 'Live Tracking' },
@@ -25,7 +24,7 @@ const NAV = [
   },
 ]
 
-const MORE_PATHS = ['/journeys', '/excursions', '/routes', '/overview', '/live']
+const MORE_PATHS = ['/journeys', '/routes', '/overview', '/live']
 
 export default function Layout({ session }) {
   const location = useLocation()

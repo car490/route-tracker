@@ -11,7 +11,6 @@ import JourneysPage from './features/journeys/JourneysPage'
 import SchedulePage from './features/schedule/SchedulePage'
 import DutyCardsPage from './features/journeys/DutyCardsPage'
 import LiveTracking from './features/tracking/LiveTracking'
-import ExcursionsPage from './features/excursions/ExcursionsPage'
 import RoutePlannerPage from './features/route-planner/RoutePlannerPage'
 
 function Protected({ session, children }) {
@@ -50,7 +49,6 @@ export default function App() {
         <Route path="vehicles" element={<VehiclesPage />} />
         <Route path="journeys" element={<JourneysPage />} />
         <Route path="duty-cards" element={<DutyCardsPage />} />
-        <Route path="excursions" element={<ExcursionsPage />} />
         <Route path="route-planner" element={<RoutePlannerPage />} />
         <Route path="live" element={<LiveTracking />} />
       </Route>

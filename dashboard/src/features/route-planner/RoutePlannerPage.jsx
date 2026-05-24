@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../shared/supabase'
 import { getCompanyId } from '../../shared/company'
-import { searchPlaces } from '../excursions/osPlaces'
+import { searchPlaces } from '../../shared/api/osPlaces'
 import { getRouteORS } from './ors'
 import { useJourneyTypes } from '../../shared/hooks/useJourneyTypes'
 import L from 'leaflet'
