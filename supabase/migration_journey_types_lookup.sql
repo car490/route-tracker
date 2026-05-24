@@ -13,6 +13,14 @@ create table public.journey_types (
 grant select on public.journey_types to anon;
 grant all    on public.journey_types to authenticated;
 
+alter table public.journey_types enable row level security;
+
+create policy "anon_read" on public.journey_types
+  for select to anon using (true);
+
+create policy "auth_all" on public.journey_types
+  for all to authenticated using (true) with check (true);
+
 -- 2. Seed existing values (preserve display order)
 insert into public.journey_types (name, sort_order) values
   ('Local Bus',          1),

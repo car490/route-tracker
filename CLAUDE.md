@@ -12,12 +12,15 @@ See memory files for full project state, deploy URLs, and phase roadmap.
 
 ## Supabase: table creation rules
 
-**Every `CREATE TABLE` must be immediately followed by explicit GRANT statements.**
+**Every `CREATE TABLE` must be immediately followed by GRANT statements, RLS enable, and RLS policies.**
 
 From 2026-05-30, Supabase no longer auto-grants new tables to the Data API. Any table
 created without a GRANT is invisible to supabase-js, PostgREST, and the driver PWA.
 `ALTER DEFAULT PRIVILEGES` is set on the live DB as a safety net, but explicit GRANTs
 are still required in every migration file for clarity and correctness on fresh resets.
+
+RLS must be enabled on every table — Supabase requires it. Without it, the Supabase
+dashboard flags the table and row-level access cannot be controlled.
 
 ### Standard pattern (authenticated-only table)
 ```sql
@@ -25,6 +28,13 @@ create table public.my_table ( ... );
 
 grant select on public.my_table to anon;
 grant all    on public.my_table to authenticated;
+
+alter table public.my_table enable row level security;
+
+create policy "company_all" on public.my_table
+  for all to authenticated
+  using (company_id = current_company_id())
+  with check (company_id = current_company_id());
 ```
 
 ### When anon also needs INSERT (e.g. PWA writes without a login session)
