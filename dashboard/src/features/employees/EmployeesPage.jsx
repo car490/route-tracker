@@ -44,7 +44,7 @@ export default function EmployeesPage() {
   const [contactError, setContactError] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const { journeyTypes } = useJourneyTypes()
+  const { journeyTypes, loading: jtLoading } = useJourneyTypes()
 
   async function load() {
     setLoading(true)
@@ -120,6 +120,10 @@ export default function EmployeesPage() {
 
   async function handleSave(e) {
     e.preventDefault()
+    if (form.journey_types.length === 0) {
+      setError('Please select at least one journey type.')
+      return
+    }
     setSaving(true)
     setError('')
     try {
@@ -283,24 +287,28 @@ export default function EmployeesPage() {
               </select>
             </div>
             <div className="form-group">
-              <label className="form-label">Journey Types</label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
-                {journeyTypes.map(jt => {
-                  const on = form.journey_types.includes(jt)
-                  return (
-                    <button key={jt} type="button"
-                      onClick={() => toggleJourneyType(jt)}
-                      style={{
-                        padding: '4px 11px', fontSize: 12, borderRadius: 12, cursor: 'pointer',
-                        fontFamily: 'inherit', lineHeight: 1.5,
-                        border: `1px solid ${on ? 'var(--navy-brand)' : 'var(--border)'}`,
-                        background: on ? 'var(--navy-brand)' : 'transparent',
-                        color: on ? '#fff' : 'var(--text-muted)',
-                      }}
-                    >{jt}</button>
-                  )
-                })}
-              </div>
+              <label className="form-label">Journey Types <span style={{ color: 'var(--danger)' }}>*</span></label>
+              {jtLoading ? (
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Loading…</div>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                  {journeyTypes.map(jt => {
+                    const on = form.journey_types.includes(jt)
+                    return (
+                      <button key={jt} type="button"
+                        onClick={() => toggleJourneyType(jt)}
+                        style={{
+                          padding: '4px 11px', fontSize: 12, borderRadius: 12, cursor: 'pointer',
+                          fontFamily: 'inherit', lineHeight: 1.5,
+                          border: `1px solid ${on ? 'var(--navy-brand)' : 'var(--border)'}`,
+                          background: on ? 'var(--navy-brand)' : 'transparent',
+                          color: on ? '#fff' : 'var(--text-muted)',
+                        }}
+                      >{jt}</button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </form>
 
