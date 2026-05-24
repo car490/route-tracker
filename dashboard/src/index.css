@@ -122,6 +122,42 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
   background: rgba(77, 184, 72, 0.1);
 }
 
+.sidebar-section {
+  margin-top: 8px;
+}
+
+.sidebar-section-label {
+  padding: 10px 16px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.sidebar-child {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px 8px 26px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 13px;
+  font-weight: 500;
+  border-left: 3px solid transparent;
+  white-space: nowrap;
+  transition: color 0.15s, background 0.15s;
+}
+
+.sidebar-child:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sidebar-child.active {
+  color: #fff;
+  border-left-color: var(--green);
+  background: rgba(77, 184, 72, 0.1);
+}
+
 .sidebar-footer {
   padding: 16px 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
