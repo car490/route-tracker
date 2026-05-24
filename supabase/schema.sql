@@ -235,22 +235,6 @@ create unique index journeys_no_double_booking
   where status != 'cancelled' and timetable_id is not null;
 
 
--- ── Excursion passengers ──────────────────────────────────────────────────────
--- Optional passenger list for excursion journeys.
--- journey_id references an Excursion-type journey.
-
-create table excursion_passengers (
-  id          uuid        primary key default gen_random_uuid(),
-  journey_id  uuid        not null references journeys(id) on delete cascade,
-  name        text        not null,
-  phone       text,
-  notes       text,
-  created_at  timestamptz not null default now()
-);
-
-create index idx_excursion_passengers_journey_id on excursion_passengers (journey_id);
-
-
 -- ── Journey waypoints ─────────────────────────────────────────────────────────
 -- Itinerary for ad-hoc journeys (Private Hire, Excursion, Tour, Other Contract).
 -- Each waypoint is either a timing_point (scheduled datetime, may be a known stop
@@ -659,7 +643,6 @@ create or replace view schedule_view as
 
 -- ── Row Level Security ────────────────────────────────────────────────────────
 
-alter table excursion_passengers enable row level security;
 alter table employee_contacts   enable row level security;
 alter table companies           enable row level security;
 alter table employees           enable row level security;
@@ -815,17 +798,6 @@ create policy "super_user_update" on stops
   using (current_employee_role() = 'super_user');
 
 
--- Excursion passengers: scoped via journey → company
-create policy "company_all" on excursion_passengers
-  for all to authenticated
-  using (
-    journey_id in (select id from journeys where company_id = current_company_id())
-  )
-  with check (
-    journey_id in (select id from journeys where company_id = current_company_id())
-  );
-
-
 -- Employee contacts: ops users can manage contacts for employees in their own company
 create policy "company_employee_contacts" on employee_contacts
   for all to authenticated
@@ -867,6 +839,3 @@ alter default privileges in schema public grant all on sequences to authenticate
 grant select on schedule_view to anon;
 grant select on schedule_view to authenticated;
 
--- excursion_passengers: anon read-only (no PWA writes needed); authenticated full access
-grant select on public.excursion_passengers to anon;
-grant all    on public.excursion_passengers to authenticated;
