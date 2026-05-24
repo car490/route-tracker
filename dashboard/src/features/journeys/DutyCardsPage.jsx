@@ -156,7 +156,7 @@ export default function DutyCardsPage() {
   function openEmail(driver, ids) {
     const contact = getContact(driver.contacts ?? [], 'email')
     if (!contact) {
-      alert(`No email address on file for ${driver.name}.\nAdd one on the Staff page.`)
+      alert(`No email address on file for ${driver.name}.\nAdd one on the Employees page.`)
       return
     }
     const url = dutyUrl(ids, tokens[driver.id])
@@ -168,7 +168,7 @@ export default function DutyCardsPage() {
   function openWhatsApp(driver, ids) {
     const contact = getContact(driver.contacts ?? [], 'phone')
     if (!contact) {
-      alert(`No phone number on file for ${driver.name}.\nAdd one on the Staff page.`)
+      alert(`No phone number on file for ${driver.name}.\nAdd one on the Employees page.`)
       return
     }
     const phone = phoneForWhatsApp(contact.value)
@@ -192,7 +192,7 @@ export default function DutyCardsPage() {
 
       <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 24 }}>
         {fmtLongDate(date)} — duty cards for all assigned drivers.
-        Contact details can be added on the <a href="/drivers" style={{ color: 'var(--navy-brand)' }}>Staff page</a>.
+        Contact details can be added on the <a href="/employees" style={{ color: 'var(--navy-brand)' }}>Employees page</a>.
       </p>
 
       {error && <div className="error-msg" style={{ marginBottom: 16 }}>{error}</div>}

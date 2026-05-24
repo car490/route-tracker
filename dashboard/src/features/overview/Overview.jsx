@@ -117,7 +117,7 @@ const tdStyle = { padding: '6px 8px' }
 
 const TITLES = {
   routes:   'Routes',
-  staff:    'Staff',
+  staff:    'Employees',
   vehicles: 'Vehicles',
   journeys: "Today's Journeys",
 }
@@ -160,7 +160,7 @@ export default function Overview() {
       <div className="stat-grid">
         {[
           { type: 'routes',   label: 'Routes' },
-          { type: 'staff',    label: 'Staff' },
+          { type: 'staff',    label: 'Employees' },
           { type: 'vehicles', label: 'Vehicles' },
           { type: 'journeys', label: "Today's Journeys" },
         ].map(({ type, label }) => (

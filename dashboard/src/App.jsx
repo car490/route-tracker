@@ -4,7 +4,7 @@ import { supabase } from './shared/supabase'
 import Layout from './shared/components/Layout'
 import Login from './features/auth/Login'
 import Overview from './features/overview/Overview'
-import DriversPage from './features/staff/DriversPage'
+import EmployeesPage from './features/employees/EmployeesPage'
 import VehiclesPage from './features/vehicles/VehiclesPage'
 import RoutesPage from './features/routes/RoutesPage'
 import JourneysPage from './features/journeys/JourneysPage'
@@ -46,7 +46,7 @@ export default function App() {
         <Route index element={<SchedulePage />} />
         <Route path="overview" element={<Overview />} />
         <Route path="routes" element={<RoutesPage />} />
-        <Route path="drivers" element={<DriversPage />} />
+        <Route path="employees" element={<EmployeesPage />} />
         <Route path="vehicles" element={<VehiclesPage />} />
         <Route path="journeys" element={<JourneysPage />} />
         <Route path="duty-cards" element={<DutyCardsPage />} />

@@ -43,6 +43,7 @@ create table staff (
   name            text        not null,
   role            text        not null
                     check (role in ('super_user', 'ops_manager', 'driver')),
+  journey_types   text[]      not null default '{}',
   created_at      timestamptz not null default now()
 );
 
@@ -119,6 +120,18 @@ create table stops (
 );
 
 
+-- ── Journey types lookup ──────────────────────────────────────────────────────
+-- Source of truth for valid journey type values. Replaces hardcoded CHECK constraints.
+
+create table journey_types (
+  name       text    primary key,
+  sort_order integer not null default 0
+);
+
+grant select on public.journey_types to anon;
+grant all    on public.journey_types to authenticated;
+
+
 -- ── Routes ────────────────────────────────────────────────────────────────────
 
 create table routes (
@@ -127,16 +140,7 @@ create table routes (
   service_code    text        not null,
   name            text        not null,
   journey_type    text[]      not null
-                    check (array_length(journey_type, 1) > 0)
-                    check (journey_type <@ array[
-                      'Local Bus',
-                      'Open Door Schools',
-                      'Contract Schools',
-                      'Private Hire',
-                      'Excursion',
-                      'Tour',
-                      'Other Contract'
-                    ]::text[]),
+                    check (array_length(journey_type, 1) > 0),
   created_at      timestamptz not null default now(),
   unique (company_id, service_code)
 );
@@ -199,16 +203,7 @@ create table journeys (
   company_id      uuid        not null references companies(id) on delete cascade,
   timetable_id    uuid        references timetables(id),
   journey_date    date        not null,
-  journey_type    text
-                    check (journey_type in (
-                      'Local Bus',
-                      'Open Door Schools',
-                      'Contract Schools',
-                      'Private Hire',
-                      'Excursion',
-                      'Tour',
-                      'Other Contract'
-                    )),
+  journey_type    text,
   driver_id       uuid        references staff(id) on delete set null,
   vehicle_id      uuid        references vehicles(id) on delete set null,
   status          text        not null default 'scheduled'

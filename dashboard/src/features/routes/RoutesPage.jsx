@@ -2,17 +2,9 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../shared/supabase'
 import { getCompanyId } from '../../shared/company'
 import Modal from '../../shared/components/Modal'
+import { useJourneyTypes } from '../../shared/hooks/useJourneyTypes'
 
 const ROUTE_EMPTY = { service_code: '', name: '', journey_type: [] }
-const JOURNEY_TYPES = [
-  'Local Bus',
-  'Open Door Schools',
-  'Contract Schools',
-  'Private Hire',
-  'Excursion',
-  'Tour',
-  'Other Contract',
-]
 const PERIODS    = ['Early Morning', 'Morning', 'Midday', 'Afternoon', 'Evening', 'Night', 'All Day']
 const DIRECTIONS = ['Outbound', 'Inbound', 'Circular']
 const TT_EMPTY = { period: 'Morning', direction: 'Outbound', valid_from: '', valid_to: '' }
@@ -30,6 +22,7 @@ function TimetableStopCount({ timetableId }) {
 }
 
 export default function RoutesPage() {
+  const { journeyTypes } = useJourneyTypes()
   const [routes, setRoutes] = useState([])
   const [timetables, setTimetables] = useState({})
   const [loading, setLoading] = useState(true)
@@ -288,7 +281,7 @@ export default function RoutesPage() {
             <div className="form-group">
               <label className="form-label">Journey Types</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
-                {JOURNEY_TYPES.map(jt => {
+                {journeyTypes.map(jt => {
                   const on = routeForm.journey_type.includes(jt)
                   return (
                     <button key={jt} type="button"

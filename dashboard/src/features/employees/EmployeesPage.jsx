@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../shared/supabase'
 import { getCompanyId } from '../../shared/company'
 import Modal from '../../shared/components/Modal'
+import { useJourneyTypes } from '../../shared/hooks/useJourneyTypes'
 
 const ROLES = ['driver', 'ops_manager', 'super_user']
-const EMPTY_STAFF = { name: '', role: 'driver' }
+const EMPTY_EMPLOYEE = { name: '', role: 'driver', journey_types: [] }
 const EMPTY_CONTACT_FORM = { type: 'phone', value: '' }
 
 // Accepts: 07700 900123, 07700900123, +447700900123, 01234 567890, etc.
@@ -33,16 +34,17 @@ function typeBadge(type) {
   )
 }
 
-export default function DriversPage() {
-  const [staff, setStaff] = useState([])
+export default function EmployeesPage() {
+  const [employees, setEmployees] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null)
-  const [form, setForm] = useState(EMPTY_STAFF)
+  const [form, setForm] = useState(EMPTY_EMPLOYEE)
   const [contacts, setContacts] = useState([])
   const [contactForm, setContactForm] = useState(EMPTY_CONTACT_FORM)
   const [contactError, setContactError] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const { journeyTypes } = useJourneyTypes()
 
   async function load() {
     setLoading(true)
@@ -50,14 +52,14 @@ export default function DriversPage() {
       .from('staff')
       .select('*, contacts:staff_contacts(*)')
       .order('name')
-    setStaff(data ?? [])
+    setEmployees(data ?? [])
     setLoading(false)
   }
 
   useEffect(() => { load() }, [])
 
   function openAdd() {
-    setForm(EMPTY_STAFF)
+    setForm(EMPTY_EMPLOYEE)
     setContacts([])
     setContactForm(EMPTY_CONTACT_FORM)
     setContactError('')
@@ -65,9 +67,9 @@ export default function DriversPage() {
     setModal('add')
   }
 
-  function openEdit(s) {
-    setForm({ name: s.name, role: s.role })
-    const sorted = [...(s.contacts ?? [])].sort((a, b) => {
+  function openEdit(emp) {
+    setForm({ name: emp.name, role: emp.role, journey_types: emp.journey_types ?? [] })
+    const sorted = [...(emp.contacts ?? [])].sort((a, b) => {
       if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1
       return new Date(a.created_at) - new Date(b.created_at)
     })
@@ -75,7 +77,7 @@ export default function DriversPage() {
     setContactForm(EMPTY_CONTACT_FORM)
     setContactError('')
     setError('')
-    setModal(s)
+    setModal(emp)
   }
 
   function addContact() {
@@ -107,33 +109,42 @@ export default function DriversPage() {
     setContacts(c => c.map((ct, i) => ({ ...ct, is_primary: i === idx })))
   }
 
+  function toggleJourneyType(jt) {
+    setForm(f => ({
+      ...f,
+      journey_types: f.journey_types.includes(jt)
+        ? f.journey_types.filter(x => x !== jt)
+        : [...f.journey_types, jt],
+    }))
+  }
+
   async function handleSave(e) {
     e.preventDefault()
     setSaving(true)
     setError('')
     try {
       const company_id = await getCompanyId()
-      let staffId
+      let employeeId
 
       if (modal === 'add') {
         const { data, error: err } = await supabase
           .from('staff')
-          .insert({ name: form.name, role: form.role, company_id })
+          .insert({ name: form.name, role: form.role, journey_types: form.journey_types, company_id })
           .select('id')
           .single()
         if (err) throw err
-        staffId = data.id
+        employeeId = data.id
       } else {
         const { error: err } = await supabase
           .from('staff')
-          .update({ name: form.name, role: form.role })
+          .update({ name: form.name, role: form.role, journey_types: form.journey_types })
           .eq('id', modal.id)
         if (err) throw err
-        staffId = modal.id
+        employeeId = modal.id
         const { error: delErr } = await supabase
           .from('staff_contacts')
           .delete()
-          .eq('staff_id', staffId)
+          .eq('staff_id', employeeId)
         if (delErr) throw delErr
       }
 
@@ -141,7 +152,7 @@ export default function DriversPage() {
         const { error: err } = await supabase
           .from('staff_contacts')
           .insert(contacts.map(c => ({
-            staff_id: staffId,
+            staff_id: employeeId,
             type: c.type,
             value: c.value,
             is_primary: c.is_primary,
@@ -158,57 +169,68 @@ export default function DriversPage() {
   }
 
   async function handleDelete(id) {
-    if (!confirm('Delete this staff member?')) return
+    if (!confirm('Delete this employee?')) return
     await supabase.from('staff').delete().eq('id', id)
     load()
   }
 
-  function primaryContact(s) {
-    const list = s.contacts ?? []
+  function primaryContact(emp) {
+    const list = emp.contacts ?? []
     return list.find(c => c.is_primary) ?? list[0] ?? null
   }
 
   return (
     <>
       <div className="page-header">
-        <h1 className="page-title">Staff</h1>
-        <button className="btn btn-primary" onClick={openAdd}>+ Add Staff Member</button>
+        <h1 className="page-title">Employees</h1>
+        <button className="btn btn-primary" onClick={openAdd}>+ Add Employee</button>
       </div>
 
       <div className="card">
         <div className="table-wrap">
           {loading ? (
             <div className="empty-state">Loading…</div>
-          ) : staff.length === 0 ? (
-            <div className="empty-state">No staff yet. Add one to get started.</div>
+          ) : employees.length === 0 ? (
+            <div className="empty-state">No employees yet. Add one to get started.</div>
           ) : (
             <table>
               <thead>
                 <tr>
                   <th>Name</th>
                   <th>Role</th>
+                  <th>Journey Types</th>
                   <th>Primary Contact</th>
                   <th>Added</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {staff.map(s => {
-                  const pc = primaryContact(s)
+                {employees.map(emp => {
+                  const pc = primaryContact(emp)
                   return (
-                    <tr key={s.id}>
-                      <td style={{ fontWeight: 500 }}>{s.name}</td>
-                      <td>{roleBadge(s.role)}</td>
+                    <tr key={emp.id}>
+                      <td style={{ fontWeight: 500 }}>{emp.name}</td>
+                      <td>{roleBadge(emp.role)}</td>
+                      <td>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                          {(emp.journey_types ?? []).length === 0
+                            ? <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>—</span>
+                            : (emp.journey_types ?? []).map(jt => (
+                              <span key={jt} className="badge badge-gray" style={{ fontSize: 11 }}>{jt}</span>
+                            ))
+                          }
+                        </div>
+                      </td>
                       <td style={{ color: 'var(--text-muted)' }}>
                         {pc ? <span>{typeBadge(pc.type)}{pc.value}</span> : '—'}
                       </td>
                       <td style={{ color: 'var(--text-muted)' }}>
-                        {new Date(s.created_at).toLocaleDateString('en-GB')}
+                        {new Date(emp.created_at).toLocaleDateString('en-GB')}
                       </td>
                       <td>
                         <div className="td-actions">
-                          <button className="btn btn-ghost btn-sm" onClick={() => openEdit(s)}>Edit</button>
-                          <button className="btn btn-danger btn-sm" onClick={() => handleDelete(s.id)}>Delete</button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => openEdit(emp)}>Edit</button>
+                          <button className="btn btn-danger btn-sm" onClick={() => handleDelete(emp.id)}>Delete</button>
                         </div>
                       </td>
                     </tr>
@@ -222,7 +244,7 @@ export default function DriversPage() {
 
       {modal !== null && (
         <Modal
-          title={modal === 'add' ? 'Add Staff Member' : 'Edit Staff Member'}
+          title={modal === 'add' ? 'Add Employee' : 'Edit Employee'}
           onClose={() => setModal(null)}
           footer={
             <>
@@ -259,6 +281,26 @@ export default function DriversPage() {
                   <option key={r} value={r}>{r.replace('_', ' ')}</option>
                 ))}
               </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Journey Types</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                {journeyTypes.map(jt => {
+                  const on = form.journey_types.includes(jt)
+                  return (
+                    <button key={jt} type="button"
+                      onClick={() => toggleJourneyType(jt)}
+                      style={{
+                        padding: '4px 11px', fontSize: 12, borderRadius: 12, cursor: 'pointer',
+                        fontFamily: 'inherit', lineHeight: 1.5,
+                        border: `1px solid ${on ? 'var(--navy-brand)' : 'var(--border)'}`,
+                        background: on ? 'var(--navy-brand)' : 'transparent',
+                        color: on ? '#fff' : 'var(--text-muted)',
+                      }}
+                    >{jt}</button>
+                  )
+                })}
+              </div>
             </div>
           </form>
 

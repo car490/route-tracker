@@ -3,6 +3,7 @@ import { supabase } from '../../shared/supabase'
 import { getCompanyId } from '../../shared/company'
 import { searchPlaces } from '../excursions/osPlaces'
 import { getRouteORS } from './ors'
+import { useJourneyTypes } from '../../shared/hooks/useJourneyTypes'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -14,10 +15,6 @@ const TYPE_DEFAULTS = {
   'Double Decker':     { height_metres: 4.35, width_metres: 2.55, length_metres: 11.00 },
 }
 
-const JOURNEY_TYPES = [
-  'Local Bus', 'Open Door Schools', 'Contract Schools',
-  'Private Hire', 'Excursion', 'Tour', 'Other Contract',
-]
 const PERIODS    = ['Early Morning', 'Morning', 'Midday', 'Afternoon', 'Evening', 'Night', 'All Day']
 const DIRECTIONS = ['Outbound', 'Inbound', 'Circular']
 
@@ -229,6 +226,7 @@ function PlannerMap({ stops, routeGeometry, pinDropMode, onMapClick, onRemoveSto
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function RoutePlannerPage() {
+  const { journeyTypes } = useJourneyTypes()
   // Route selection: '' = none, '__new__' = inline new form, uuid = existing
   const [routeId,     setRouteId]     = useState('')
   const [timetableId, setTimetableId] = useState('')
@@ -571,7 +569,7 @@ export default function RoutePlannerPage() {
                 <div style={{ marginBottom: 6 }}>
                   <div style={{ ...S.sectionLabel, marginBottom: 4 }}>Journey Types</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                    {JOURNEY_TYPES.map(jt => {
+                    {journeyTypes.map(jt => {
                       const on = newJourneyTypes.includes(jt)
                       return (
                         <button key={jt} type="button"

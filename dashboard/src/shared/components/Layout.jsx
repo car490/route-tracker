@@ -8,7 +8,7 @@ const NAV = [
   { to: '/excursions',     label: 'Excursions' },
   { to: '/routes',         label: 'Routes & Timetables' },
   { to: '/route-planner',  label: 'Route Planner' },
-  { to: '/drivers',        label: 'Staff' },
+  { to: '/employees',      label: 'Employees' },
   { to: '/vehicles',       label: 'Vehicles' },
   { to: '/overview',       label: 'Overview' },
   { to: '/live',           label: 'Live Tracking' },

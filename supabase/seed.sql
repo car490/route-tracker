@@ -16,6 +16,18 @@
 -- ============================================================
 
 
+-- ── Journey types ────────────────────────────────────────────────────────────
+
+insert into public.journey_types (name, sort_order) values
+  ('Local Bus',          1),
+  ('Open Door Schools',  2),
+  ('Contract Schools',   3),
+  ('Private Hire',       4),
+  ('Excursion',          5),
+  ('Tour',               6),
+  ('Other Contract',     7);
+
+
 -- ── Company ───────────────────────────────────────────────────────────────────
 
 insert into companies (id, name, trading_name, operator_licence_number, traffic_area, status) values
