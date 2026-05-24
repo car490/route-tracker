@@ -230,7 +230,7 @@ export default function RoutePlannerPage() {
   // Route selection: '' = none, '__new__' = inline new form, uuid = existing
   const [routeId,     setRouteId]     = useState('')
   const [timetableId, setTimetableId] = useState('')
-  const [vehicleType, setVehicleType] = useState('')
+  const [vehicleType, setVehicleType] = useState([])
 
   const [routes,     setRoutes]     = useState([])
   const [timetables, setTimetables] = useState([])
@@ -319,7 +319,14 @@ export default function RoutePlannerPage() {
   }, [stops, vehicleType])
 
   function resolvedVehicle() {
-    return vehicleType ? (TYPE_DEFAULTS[vehicleType] ?? null) : null
+    if (!vehicleType.length) return null
+    const dims = vehicleType.map(vt => TYPE_DEFAULTS[vt]).filter(Boolean)
+    if (!dims.length) return null
+    return {
+      height_metres: Math.max(...dims.map(d => d.height_metres)),
+      width_metres:  Math.max(...dims.map(d => d.width_metres)),
+      length_metres: Math.max(...dims.map(d => d.length_metres)),
+    }
   }
 
   // ── Stop search ──────────────────────────────────────────────────────────────
@@ -555,9 +562,7 @@ export default function RoutePlannerPage() {
                       const on = newJourneyTypes.includes(jt)
                       return (
                         <button key={jt} type="button"
-                          onClick={() => setNewJourneyTypes(prev =>
-                            on ? prev.filter(x => x !== jt) : [...prev, jt]
-                          )}
+                          onClick={() => setNewJourneyTypes(on ? [] : [jt])}
                           style={{
                             padding: '3px 9px', fontSize: 11, borderRadius: 10, cursor: 'pointer',
                             fontFamily: 'inherit', lineHeight: 1.5,
@@ -639,19 +644,39 @@ export default function RoutePlannerPage() {
 
           {/* ── Card 2: Vehicle type ── */}
           <div className="card" style={{ padding: '7px 10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ ...S.sectionLabel, whiteSpace: 'nowrap', minWidth: 34 }}>Type</span>
-              <select name="vehicle_type" className="form-select" style={{ flex: 1 }}
-                value={vehicleType}
-                onChange={e => setVehicleType(e.target.value)}>
-                <option value="">— Select type —</option>
-                {Object.keys(TYPE_DEFAULTS).map(vt => (
-                  <option key={vt} value={vt}>{vt}</option>
-                ))}
-              </select>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={S.sectionLabel}>Vehicle Type</span>
+              {(() => {
+                const allSelected = vehicleType.length === Object.keys(TYPE_DEFAULTS).length
+                return (
+                  <button type="button"
+                    onClick={() => setVehicleType(allSelected ? [] : Object.keys(TYPE_DEFAULTS))}
+                    style={{ fontSize: 11, color: 'var(--navy-brand)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                  >
+                    {allSelected ? 'Deselect all' : 'Select all'}
+                  </button>
+                )
+              })()}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+              {Object.keys(TYPE_DEFAULTS).map(vt => {
+                const on = vehicleType.includes(vt)
+                return (
+                  <button key={vt} type="button"
+                    onClick={() => setVehicleType(prev => on ? prev.filter(x => x !== vt) : [...prev, vt])}
+                    style={{
+                      padding: '3px 9px', fontSize: 11, borderRadius: 10, cursor: 'pointer',
+                      fontFamily: 'inherit', lineHeight: 1.5,
+                      border: `1px solid ${on ? 'var(--navy-brand)' : 'var(--border)'}`,
+                      background: on ? 'var(--navy-brand)' : 'transparent',
+                      color: on ? '#fff' : 'var(--text-muted)',
+                    }}
+                  >{vt}</button>
+                )
+              })}
             </div>
             {vehicle && (
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, paddingLeft: 42 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
                 H {vehicle.height_metres}m · W {vehicle.width_metres}m · L {vehicle.length_metres}m
               </div>
             )}
