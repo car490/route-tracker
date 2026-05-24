@@ -287,7 +287,20 @@ export default function EmployeesPage() {
               </select>
             </div>
             <div className="form-group">
-              <label className="form-label">Journey Types <span style={{ color: 'var(--danger)' }}>*</span></label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <label className="form-label" style={{ marginBottom: 0 }}>Journey Types <span style={{ color: 'var(--danger)' }}>*</span></label>
+                {!jtLoading && journeyTypes.length > 0 && (() => {
+                  const allSelected = journeyTypes.every(jt => form.journey_types.includes(jt))
+                  return (
+                    <button type="button"
+                      onClick={() => setForm(f => ({ ...f, journey_types: allSelected ? [] : [...journeyTypes] }))}
+                      style={{ fontSize: 12, color: 'var(--navy-brand)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                    >
+                      {allSelected ? 'Deselect all' : 'Select all'}
+                    </button>
+                  )
+                })()}
+              </div>
               {jtLoading ? (
                 <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Loading…</div>
               ) : (
