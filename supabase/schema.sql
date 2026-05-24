@@ -32,11 +32,11 @@ create table companies (
 );
 
 
--- ── Staff ─────────────────────────────────────────────────────────────────────
+-- ── Employees ─────────────────────────────────────────────────────────────────
 -- Covers all roles: drivers (no dashboard login) and ops/admin (auth_user_id set).
 -- Platform-level admin (us) operates via the Supabase service role, not this table.
 
-create table staff (
+create table employees (
   id              uuid        primary key default gen_random_uuid(),
   company_id      uuid        not null references companies(id) on delete cascade,
   auth_user_id    uuid        unique references auth.users(id) on delete set null,
@@ -48,21 +48,21 @@ create table staff (
 );
 
 
--- ── Staff contacts ────────────────────────────────────────────────────────────
--- Multiple contact methods per staff member; exactly one may be primary.
+-- ── Employee contacts ─────────────────────────────────────────────────────────
+-- Multiple contact methods per employee; exactly one may be primary.
 -- Added via migration_staff_contacts_table.sql — included here for completeness.
 
-create table staff_contacts (
+create table employee_contacts (
   id          uuid        primary key default gen_random_uuid(),
-  staff_id    uuid        not null references staff(id) on delete cascade,
+  employee_id uuid        not null references employees(id) on delete cascade,
   type        text        not null check (type in ('email', 'phone')),
   value       text        not null,
   is_primary  boolean     not null default false,
   created_at  timestamptz not null default now()
 );
 
-create unique index staff_contacts_one_primary
-  on staff_contacts (staff_id)
+create unique index employee_contacts_one_primary
+  on employee_contacts (employee_id)
   where is_primary = true;
 
 
@@ -107,7 +107,7 @@ create table vehicles (
 -- ── Stops (global — not company-scoped) ───────────────────────────────────────
 -- Physical bus stops shared across all companies and routes.
 -- naptan_code reserved for Phase 5 BODS integration.
--- Only super_user staff may create or modify stops (enforced by RLS).
+-- Only super_user employees may create or modify stops (enforced by RLS).
 
 create table stops (
   id              uuid        primary key default gen_random_uuid(),
@@ -204,7 +204,7 @@ create table journeys (
   timetable_id    uuid        references timetables(id),
   journey_date    date        not null,
   journey_type    text,
-  driver_id       uuid        references staff(id) on delete set null,
+  driver_id       uuid        references employees(id) on delete set null,
   vehicle_id      uuid        references vehicles(id) on delete set null,
   status          text        not null default 'scheduled'
                     check (status in (
@@ -320,7 +320,7 @@ create table journey_stop_times (
   is_early_departure          boolean     not null default false,
 
   review_notes                text,                           -- optional ops investigation note
-  reviewed_by                 uuid        references staff(id) on delete set null,
+  reviewed_by                 uuid        references employees(id) on delete set null,
   reviewed_at                 timestamptz,
 
   created_at                  timestamptz not null default now(),
@@ -348,7 +348,7 @@ as $$
 begin
   if old.role = 'super_user' and (tg_op = 'DELETE' or new.role != 'super_user') then
     if (
-      select count(*) from staff
+      select count(*) from employees
       where company_id = old.company_id
         and role = 'super_user'
         and id != old.id
@@ -361,7 +361,7 @@ end;
 $$;
 
 create trigger trg_protect_last_super_user
-  before update or delete on staff
+  before update or delete on employees
   for each row execute function protect_last_super_user();
 
 -- Only super_user may change a vehicle's status.
@@ -370,7 +370,7 @@ returns trigger
 language plpgsql
 as $$
 begin
-  if old.status is distinct from new.status and current_staff_role() != 'super_user' then
+  if old.status is distinct from new.status and current_employee_role() != 'super_user' then
     raise exception 'Only a super_user can change vehicle status.';
   end if;
   return new;
@@ -432,8 +432,8 @@ create trigger trg_compute_stop_time_variance
 
 -- ── Indexes ───────────────────────────────────────────────────────────────────
 
-create index on staff_contacts    (staff_id);
-create index on staff             (company_id);
+create index on employee_contacts (employee_id);
+create index on employees         (company_id);
 create index on vehicles          (company_id);
 create index on routes            (company_id);
 create index on timetables        (route_id);
@@ -520,14 +520,14 @@ create or replace function current_company_id()
 returns uuid
 language sql stable security definer
 as $$
-  select company_id from staff where auth_user_id = auth.uid() limit 1
+  select company_id from employees where auth_user_id = auth.uid() limit 1
 $$;
 
-create or replace function current_staff_role()
+create or replace function current_employee_role()
 returns text
 language sql stable security definer
 as $$
-  select role from staff where auth_user_id = auth.uid() limit 1
+  select role from employees where auth_user_id = auth.uid() limit 1
 $$;
 
 -- Used by anon RLS policies on journey_events and journey_stop_times.
@@ -611,7 +611,7 @@ AS $function$
      join stops st on st.id = ts3.stop_id
      where ts3.timetable_id = t.id order by ts3.sequence desc limit 1) as last_stop_name
   from journeys j
-  left join staff      s on s.id = j.driver_id
+  left join employees  s on s.id = j.driver_id
   left join vehicles   v on v.id = j.vehicle_id
   left join timetables t on t.id = j.timetable_id
   left join routes     r on r.id = t.route_id
@@ -652,9 +652,9 @@ create or replace view schedule_view as
 -- ── Row Level Security ────────────────────────────────────────────────────────
 
 alter table excursion_passengers enable row level security;
-alter table staff_contacts      enable row level security;
+alter table employee_contacts   enable row level security;
 alter table companies           enable row level security;
-alter table staff               enable row level security;
+alter table employees           enable row level security;
 alter table vehicles            enable row level security;
 alter table stops               enable row level security;
 alter table routes              enable row level security;
@@ -677,8 +677,8 @@ create policy "company_read" on companies
   for select to authenticated
   using (id = current_company_id());
 
--- Staff: full access within own company
-create policy "company_all" on staff
+-- Employees: full access within own company
+create policy "company_all" on employees
   for all to authenticated
   using     (company_id = current_company_id())
   with check (company_id = current_company_id());
@@ -800,11 +800,11 @@ create policy "auth_read" on stops
 
 create policy "super_user_insert" on stops
   for insert to authenticated
-  with check (current_staff_role() = 'super_user');
+  with check (current_employee_role() = 'super_user');
 
 create policy "super_user_update" on stops
   for update to authenticated
-  using (current_staff_role() = 'super_user');
+  using (current_employee_role() = 'super_user');
 
 
 -- Excursion passengers: scoped via journey → company
@@ -818,23 +818,23 @@ create policy "company_all" on excursion_passengers
   );
 
 
--- Staff contacts: ops users can manage contacts for staff in their own company
-create policy "company_staff_contacts" on staff_contacts
+-- Employee contacts: ops users can manage contacts for employees in their own company
+create policy "company_employee_contacts" on employee_contacts
   for all to authenticated
   using (
     exists (
-      select 1 from staff s
-      join staff me on me.company_id = s.company_id
+      select 1 from employees e
+      join employees me on me.company_id = e.company_id
         and me.auth_user_id = auth.uid()
-      where s.id = staff_contacts.staff_id
+      where e.id = employee_contacts.employee_id
     )
   )
   with check (
     exists (
-      select 1 from staff s
-      join staff me on me.company_id = s.company_id
+      select 1 from employees e
+      join employees me on me.company_id = e.company_id
         and me.auth_user_id = auth.uid()
-      where s.id = staff_contacts.staff_id
+      where e.id = employee_contacts.employee_id
     )
   );
 

@@ -41,7 +41,7 @@ export default function JourneysPage() {
       .select(`
         *,
         timetable:timetables(period, direction, route:routes(service_code)),
-        driver:staff(name),
+        driver:employees(name),
         vehicle:vehicles(registration)
       `)
       .eq('journey_date', date)
@@ -53,7 +53,7 @@ export default function JourneysPage() {
   async function loadDeps() {
     const [t, d, v] = await Promise.all([
       supabase.from('timetables').select('id, period, direction, route:routes(service_code)').order('period'),
-      supabase.from('staff').select('id, name').order('name'),
+      supabase.from('employees').select('id, name').order('name'),
       supabase.from('vehicles').select('id, registration').order('registration'),
     ])
     setTimetables(t.data ?? [])

@@ -68,7 +68,7 @@ export default function SchedulePage() {
   const [weekStart, setWeekStart] = useState(getWeekStart(new Date()))
   const [timetables, setTimetables] = useState([])
   const [journeyMap, setJourneyMap] = useState({})
-  const [staff, setStaff] = useState([])
+  const [employees, setEmployees] = useState([])
   const [vehicles, setVehicles] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -83,18 +83,18 @@ export default function SchedulePage() {
     const saturday = new Date(sunday)
     saturday.setDate(sunday.getDate() + 6)
 
-    const [tmRes, jRes, staffRes, vRes] = await Promise.all([
+    const [tmRes, jRes, empRes, vRes] = await Promise.all([
       supabase
         .from('timetables')
         .select('id, period, direction, days_of_week, route:routes(service_code, name, journey_type)')
         .order('period'),
       supabase
         .from('journeys')
-        .select('id, journey_date, timetable_id, driver_id, vehicle_id, status, driver:staff(name), vehicle:vehicles(registration)')
+        .select('id, journey_date, timetable_id, driver_id, vehicle_id, status, driver:employees(name), vehicle:vehicles(registration)')
         .gte('journey_date', dateStr(sunday))
         .lte('journey_date', dateStr(saturday))
         .neq('status', 'cancelled'),
-      supabase.from('staff').select('id, name').order('name'),
+      supabase.from('employees').select('id, name').order('name'),
       supabase.from('vehicles').select('id, registration').order('registration'),
     ])
 
@@ -105,7 +105,7 @@ export default function SchedulePage() {
       map[`${j.timetable_id}-${j.journey_date}`] = j
     }
     setJourneyMap(map)
-    setStaff(staffRes.data ?? [])
+    setEmployees(empRes.data ?? [])
     setVehicles(vRes.data ?? [])
     setLoading(false)
   }
@@ -337,7 +337,7 @@ export default function SchedulePage() {
             <label className="form-label">Driver</label>
             <select name="driver_id" className="form-select" value={dutyForm.driver_id} onChange={e => setDutyForm(f => ({ ...f, driver_id: e.target.value }))}>
               <option value="">— Select driver —</option>
-              {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {employees.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
           <div className="form-group">
@@ -378,7 +378,7 @@ export default function SchedulePage() {
             <label className="form-label">Driver</label>
             <select name="driver_id" className="form-select" value={dutyForm.driver_id} onChange={e => setDutyForm(f => ({ ...f, driver_id: e.target.value }))}>
               <option value="">— Select driver —</option>
-              {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {employees.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
           <div className="form-group">

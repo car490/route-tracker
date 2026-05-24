@@ -40,7 +40,7 @@ function DrillTable({ type, rows }) {
     </table>
   )
 
-  if (type === 'staff') return (
+  if (type === 'employees') return (
     <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
       <thead>
         <tr style={{ borderBottom: '1px solid var(--border)' }}>
@@ -117,29 +117,29 @@ const tdStyle = { padding: '6px 8px' }
 
 const TITLES = {
   routes:   'Routes',
-  staff:    'Employees',
+  employees: 'Employees',
   vehicles: 'Vehicles',
   journeys: "Today's Journeys",
 }
 
 export default function Overview() {
-  const [rows, setRows] = useState({ routes: [], staff: [], vehicles: [], journeys: [] })
+  const [rows, setRows] = useState({ routes: [], employees: [], vehicles: [], journeys: [] })
   const [detail, setDetail] = useState(null)
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10)
     Promise.all([
       supabase.from('routes').select('id, service_code, name, journey_type').order('service_code'),
-      supabase.from('staff').select('id, name, role').order('name'),
+      supabase.from('employees').select('id, name, role').order('name'),
       supabase.from('vehicles').select('id, registration, vehicle_type, fuel_type').order('registration'),
       supabase.from('journeys')
-        .select(`id, status, timetable:timetables(period, direction, route:routes(service_code)), driver:staff(name), vehicle:vehicles(registration)`)
+        .select(`id, status, timetable:timetables(period, direction, route:routes(service_code)), driver:employees(name), vehicle:vehicles(registration)`)
         .eq('journey_date', today)
         .order('created_at'),
     ]).then(([r, s, v, j]) => {
       setRows({
         routes:   r.data ?? [],
-        staff:    s.data ?? [],
+        employees: s.data ?? [],
         vehicles: v.data ?? [],
         journeys: j.data ?? [],
       })
@@ -160,7 +160,7 @@ export default function Overview() {
       <div className="stat-grid">
         {[
           { type: 'routes',   label: 'Routes' },
-          { type: 'staff',    label: 'Employees' },
+          { type: 'employees', label: 'Employees' },
           { type: 'vehicles', label: 'Vehicles' },
           { type: 'journeys', label: "Today's Journeys" },
         ].map(({ type, label }) => (

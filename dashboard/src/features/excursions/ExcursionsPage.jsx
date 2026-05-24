@@ -163,7 +163,7 @@ export default function ExcursionsPage() {
       .from('journeys')
       .select(`
         *,
-        driver:staff(name),
+        driver:employees(name),
         vehicle:vehicles(registration),
         waypoints:journey_waypoints(id),
         passengers:excursion_passengers(id)
@@ -177,7 +177,7 @@ export default function ExcursionsPage() {
 
   async function loadDeps() {
     const [d, v] = await Promise.all([
-      supabase.from('staff').select('id, name').order('name'),
+      supabase.from('employees').select('id, name').order('name'),
       supabase.from('vehicles').select('id, registration').order('registration'),
     ])
     setDrivers(d.data ?? [])

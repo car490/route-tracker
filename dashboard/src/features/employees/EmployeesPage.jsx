@@ -49,8 +49,8 @@ export default function EmployeesPage() {
   async function load() {
     setLoading(true)
     const { data } = await supabase
-      .from('staff')
-      .select('*, contacts:staff_contacts(*)')
+      .from('employees')
+      .select('*, contacts:employee_contacts(*)')
       .order('name')
     setEmployees(data ?? [])
     setLoading(false)
@@ -128,7 +128,7 @@ export default function EmployeesPage() {
 
       if (modal === 'add') {
         const { data, error: err } = await supabase
-          .from('staff')
+          .from('employees')
           .insert({ name: form.name, role: form.role, journey_types: form.journey_types, company_id })
           .select('id')
           .single()
@@ -136,23 +136,23 @@ export default function EmployeesPage() {
         employeeId = data.id
       } else {
         const { error: err } = await supabase
-          .from('staff')
+          .from('employees')
           .update({ name: form.name, role: form.role, journey_types: form.journey_types })
           .eq('id', modal.id)
         if (err) throw err
         employeeId = modal.id
         const { error: delErr } = await supabase
-          .from('staff_contacts')
+          .from('employee_contacts')
           .delete()
-          .eq('staff_id', employeeId)
+          .eq('employee_id', employeeId)
         if (delErr) throw delErr
       }
 
       if (contacts.length > 0) {
         const { error: err } = await supabase
-          .from('staff_contacts')
+          .from('employee_contacts')
           .insert(contacts.map(c => ({
-            staff_id: employeeId,
+            employee_id: employeeId,
             type: c.type,
             value: c.value,
             is_primary: c.is_primary,
@@ -170,7 +170,7 @@ export default function EmployeesPage() {
 
   async function handleDelete(id) {
     if (!confirm('Delete this employee?')) return
-    await supabase.from('staff').delete().eq('id', id)
+    await supabase.from('employees').delete().eq('id', id)
     load()
   }
 

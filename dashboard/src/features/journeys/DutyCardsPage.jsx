@@ -54,7 +54,7 @@ export default function DutyCardsPage() {
       .select(`
         id, journey_date, status,
         timetable:timetables(period, direction, route:routes(service_code)),
-        driver:staff(id, name)
+        driver:employees(id, name)
       `)
       .eq('journey_date', d)
       .neq('status', 'cancelled')
@@ -71,12 +71,12 @@ export default function DutyCardsPage() {
     const contactsMap = {}
     if (driverIds.length > 0) {
       const { data: cData } = await supabase
-        .from('staff_contacts')
+        .from('employee_contacts')
         .select('*')
-        .in('staff_id', driverIds)
+        .in('employee_id', driverIds)
       for (const c of cData ?? []) {
-        if (!contactsMap[c.staff_id]) contactsMap[c.staff_id] = []
-        contactsMap[c.staff_id].push(c)
+        if (!contactsMap[c.employee_id]) contactsMap[c.employee_id] = []
+        contactsMap[c.employee_id].push(c)
       }
     }
 
