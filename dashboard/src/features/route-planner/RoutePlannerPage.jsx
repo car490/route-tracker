@@ -231,11 +231,9 @@ export default function RoutePlannerPage() {
   const [routeId,     setRouteId]     = useState('')
   const [timetableId, setTimetableId] = useState('')
   const [vehicleType, setVehicleType] = useState('')
-  const [vehicleId,   setVehicleId]   = useState('')
 
   const [routes,     setRoutes]     = useState([])
   const [timetables, setTimetables] = useState([])
-  const [vehicles,   setVehicles]   = useState([])
 
   // Inline new-route fields (shown when routeId === '__new__')
   const [newCode,         setNewCode]         = useState('')
@@ -273,12 +271,6 @@ export default function RoutePlannerPage() {
   }
 
   useEffect(() => { loadRoutes() }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    supabase.from('vehicles')
-      .select('id, registration, vehicle_type, height_metres, width_metres, length_metres')
-      .order('registration')
-      .then(({ data }) => setVehicles(data ?? []))
-  }, [])
 
   useEffect(() => {
     if (!routeId || routeId === '__new__') {
@@ -324,19 +316,9 @@ export default function RoutePlannerPage() {
     })
     return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stops, vehicleType, vehicleId])
+  }, [stops, vehicleType])
 
   function resolvedVehicle() {
-    if (vehicleId) {
-      const v = vehicles.find(v => v.id === vehicleId)
-      if (v) {
-        // Use actual recorded dimensions if any are set, otherwise type default
-        if (v.height_metres || v.width_metres || v.length_metres) {
-          return { height_metres: v.height_metres, width_metres: v.width_metres, length_metres: v.length_metres }
-        }
-        return TYPE_DEFAULTS[v.vehicle_type] ?? null
-      }
-    }
     return vehicleType ? (TYPE_DEFAULTS[vehicleType] ?? null) : null
   }
 
@@ -655,49 +637,24 @@ export default function RoutePlannerPage() {
             )}
           </div>
 
-          {/* ── Card 2: Vehicle (specific reg → type fallback → no restriction) ── */}
+          {/* ── Card 2: Vehicle type ── */}
           <div className="card" style={{ padding: '7px 10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-              <span style={{ ...S.sectionLabel, whiteSpace: 'nowrap', minWidth: 34 }}>Reg</span>
-              <select name="vehicle_id" className="form-select" style={{ flex: 1 }}
-                value={vehicleId}
-                onChange={e => {
-                  const val = e.target.value
-                  setVehicleId(val)
-                  if (val) {
-                    const v = vehicles.find(v => v.id === val)
-                    if (v?.vehicle_type) setVehicleType(v.vehicle_type)
-                  }
-                }}>
-                <option value="">— Any vehicle —</option>
-                {vehicles.map(v => (
-                  <option key={v.id} value={v.id}>{v.registration}</option>
-                ))}
-              </select>
-            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ ...S.sectionLabel, whiteSpace: 'nowrap', minWidth: 34 }}>Type</span>
               <select name="vehicle_type" className="form-select" style={{ flex: 1 }}
                 value={vehicleType}
-                onChange={e => { setVehicleType(e.target.value); setVehicleId('') }}>
+                onChange={e => setVehicleType(e.target.value)}>
                 <option value="">— Select type —</option>
                 {Object.keys(TYPE_DEFAULTS).map(vt => (
                   <option key={vt} value={vt}>{vt}</option>
                 ))}
               </select>
             </div>
-            {vehicle && (() => {
-              const sel = vehicleId ? vehicles.find(v => v.id === vehicleId) : null
-              const fromActual = sel && (sel.height_metres || sel.width_metres || sel.length_metres)
-              return (
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, paddingLeft: 42 }}>
-                  H {vehicle.height_metres}m · W {vehicle.width_metres}m · L {vehicle.length_metres}m
-                  <span style={{ marginLeft: 6, color: fromActual ? 'var(--green)' : 'var(--text-muted)' }}>
-                    {fromActual ? 'actual' : 'type default'}
-                  </span>
-                </div>
-              )
-            })()}
+            {vehicle && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, paddingLeft: 42 }}>
+                H {vehicle.height_metres}m · W {vehicle.width_metres}m · L {vehicle.length_metres}m
+              </div>
+            )}
           </div>
 
           {/* ── Card 3: Stops + summary + errors ── */}
