@@ -75,9 +75,6 @@ export default function Layout({ session }) {
               </div>
             )}
           </div>
-          <div className="sidebar-brand-name">
-            {employee?.companies?.name ?? 'Loading…'}
-          </div>
           <div className="sidebar-brand-sub">Operations</div>
         </div>
         <div className="sidebar-nav">
