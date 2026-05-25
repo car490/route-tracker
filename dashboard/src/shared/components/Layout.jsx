@@ -130,6 +130,9 @@ export default function Layout({ session }) {
         </div>
         <div className="sidebar-footer">
           <div className="sidebar-user">{session.user.email}</div>
+          {employee?.role && (
+            <div className="sidebar-role">{employee.role.replace('_', ' ')}</div>
+          )}
           <button className="btn-signout" onClick={() => supabase.auth.signOut()}>
             Sign out
           </button>
