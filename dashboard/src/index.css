@@ -127,6 +127,31 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
   transition: opacity 0.15s;
 }
 
+/* ── Form utilities ────────────────────────────────────────── */
+.form-section-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.form-row-inline {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.form-row-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
 .logo-modal-preview {
   display: block;
   max-width: 100%;

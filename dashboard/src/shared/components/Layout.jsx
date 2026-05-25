@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useCurrentEmployee } from '../hooks/useCurrentEmployee'
-import LogoUploadModal from '../../features/company/LogoUploadModal'
+import CompanyModal from '../../features/company/CompanyModal'
 
 const NAV = [
   { to: '/',              label: 'Schedule',           end: true },
@@ -143,7 +143,7 @@ export default function Layout({ session }) {
       </main>
 
       {logoModalOpen && employee && (
-        <LogoUploadModal
+        <CompanyModal
           companyId={employee.company_id}
           currentLogoPath={logoPath}
           onClose={() => setLogoModalOpen(false)}
