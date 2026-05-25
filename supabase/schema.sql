@@ -28,6 +28,13 @@ create table companies (
                               )),
   status                    text        not null default 'pending'
                               check (status in ('pending', 'active', 'suspended')),
+  -- Central operations location (main depot / registered office)
+  address_line_1            text,
+  address_line_2            text,
+  city                      text,
+  postcode                  text,
+  lat                       float8,
+  lon                       float8,
   created_at                timestamptz not null default now()
 );
 
