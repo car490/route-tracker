@@ -1,19 +1,9 @@
--- Add logo_path to companies and create company-logos storage bucket
+-- Restrict logo storage writes to super_user only
 
-alter table public.companies
-  add column if not exists logo_path text;
+drop policy if exists "logo_company_insert" on storage.objects;
+drop policy if exists "logo_company_update" on storage.objects;
+drop policy if exists "logo_company_delete" on storage.objects;
 
--- Public bucket: logos served without auth (sidebar display)
-insert into storage.buckets (id, name, public)
-values ('company-logos', 'company-logos', true)
-on conflict (id) do nothing;
-
--- Anyone can download logos
-create policy "logo_public_read" on storage.objects
-  for select
-  using (bucket_id = 'company-logos');
-
--- Only super_user may upload into their own company's folder
 create policy "logo_company_insert" on storage.objects
   for insert to authenticated
   with check (
@@ -22,7 +12,6 @@ create policy "logo_company_insert" on storage.objects
     and current_employee_role() = 'super_user'
   );
 
--- Only super_user may replace their own company's logo
 create policy "logo_company_update" on storage.objects
   for update to authenticated
   using (
@@ -31,7 +20,6 @@ create policy "logo_company_update" on storage.objects
     and current_employee_role() = 'super_user'
   );
 
--- Only super_user may delete their own company's logo
 create policy "logo_company_delete" on storage.objects
   for delete to authenticated
   using (
