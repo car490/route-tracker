@@ -677,6 +677,15 @@ create policy "company_read" on companies
   for select to authenticated
   using (id = current_company_id());
 
+-- Companies: super_user and ops_manager may update their own company record
+create policy "company_update" on companies
+  for update to authenticated
+  using (
+    id = current_company_id()
+    and current_employee_role() in ('super_user', 'ops_manager')
+  )
+  with check (id = current_company_id());
+
 -- Employees: full access within own company
 create policy "company_all" on employees
   for all to authenticated
@@ -863,30 +872,30 @@ create policy "logo_public_read" on storage.objects
   for select
   using (bucket_id = 'company-logos');
 
--- Only super_user may upload a logo into their own company's folder
+-- super_user and ops_manager may upload a logo into their own company's folder
 create policy "logo_company_insert" on storage.objects
   for insert to authenticated
   with check (
     bucket_id = 'company-logos'
     and (storage.foldername(name))[1] = current_company_id()::text
-    and current_employee_role() = 'super_user'
+    and current_employee_role() in ('super_user', 'ops_manager')
   );
 
--- Only super_user may replace their own company's logo
+-- super_user and ops_manager may replace their own company's logo
 create policy "logo_company_update" on storage.objects
   for update to authenticated
   using (
     bucket_id = 'company-logos'
     and (storage.foldername(name))[1] = current_company_id()::text
-    and current_employee_role() = 'super_user'
+    and current_employee_role() in ('super_user', 'ops_manager')
   );
 
--- Only super_user may delete their own company's logo
+-- super_user and ops_manager may delete their own company's logo
 create policy "logo_company_delete" on storage.objects
   for delete to authenticated
   using (
     bucket_id = 'company-logos'
     and (storage.foldername(name))[1] = current_company_id()::text
-    and current_employee_role() = 'super_user'
+    and current_employee_role() in ('super_user', 'ops_manager')
   );
 

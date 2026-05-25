@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { useCurrentEmployee } from '../hooks/useCurrentEmployee'
+import LogoUploadModal from '../../features/company/LogoUploadModal'
 
 const NAV = [
   { to: '/',              label: 'Schedule',           end: true },
@@ -25,17 +27,57 @@ const NAV = [
 ]
 
 const MORE_PATHS = ['/journeys', '/routes', '/overview', '/live']
+const CAN_EDIT_LOGO = ['super_user', 'ops_manager']
+const BUCKET = 'company-logos'
 
 export default function Layout({ session }) {
   const location = useLocation()
   const moreIsActive = MORE_PATHS.some(p => location.pathname.startsWith(p))
   const [moreOpen, setMoreOpen] = useState(moreIsActive)
+  const [logoModalOpen, setLogoModalOpen] = useState(false)
+  const [logoPathOverride, setLogoPathOverride] = useState(undefined)
+
+  const employee = useCurrentEmployee(session.user.id)
+  const canEditLogo = employee && CAN_EDIT_LOGO.includes(employee.role)
+
+  // Use override after upload/delete; fall back to DB value while loading
+  const logoPath = logoPathOverride !== undefined
+    ? logoPathOverride
+    : employee?.companies?.logo_path ?? null
+
+  const logoUrl = logoPath
+    ? supabase.storage.from(BUCKET).getPublicUrl(logoPath).data.publicUrl
+    : null
+
+  function handleLogoSaved(newPath) {
+    setLogoPathOverride(newPath)
+    setLogoModalOpen(false)
+  }
 
   return (
     <div className="layout">
       <nav className="sidebar">
-        <div className="sidebar-brand">
-          <div className="sidebar-brand-name">Phil Haines Coaches</div>
+        <div
+          className={`sidebar-brand${canEditLogo ? ' sidebar-brand--editable' : ''}`}
+          onClick={() => canEditLogo && setLogoModalOpen(true)}
+          title={canEditLogo ? 'Click to update logo' : undefined}
+        >
+          <div className="sidebar-logo-wrap">
+            {logoUrl
+              ? <img src={logoUrl} alt="Company logo" className="sidebar-logo" />
+              : <div className="sidebar-logo-placeholder">
+                  {canEditLogo ? 'Add logo' : ''}
+                </div>
+            }
+            {canEditLogo && (
+              <div className="sidebar-logo-edit">
+                {logoUrl ? 'Change logo' : 'Add logo'}
+              </div>
+            )}
+          </div>
+          <div className="sidebar-brand-name">
+            {employee?.companies?.name ?? 'Loading…'}
+          </div>
           <div className="sidebar-brand-sub">Operations</div>
         </div>
         <div className="sidebar-nav">
@@ -99,6 +141,15 @@ export default function Layout({ session }) {
           <Outlet />
         </div>
       </main>
+
+      {logoModalOpen && employee && (
+        <LogoUploadModal
+          companyId={employee.company_id}
+          currentLogoPath={logoPath}
+          onClose={() => setLogoModalOpen(false)}
+          onSaved={handleLogoSaved}
+        />
+      )}
     </div>
   )
 }
