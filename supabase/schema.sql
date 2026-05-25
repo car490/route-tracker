@@ -35,6 +35,8 @@ create table companies (
   postcode                  text,
   lat                       float8,
   lon                       float8,
+  -- Logo stored in Supabase Storage bucket 'company-logos' at path {company_id}/logo.*
+  logo_path                 text,
   created_at                timestamptz not null default now()
 );
 
@@ -845,4 +847,43 @@ alter default privileges in schema public grant all on sequences to authenticate
 
 grant select on schedule_view to anon;
 grant select on schedule_view to authenticated;
+
+
+-- ── Storage ───────────────────────────────────────────────────────────────────
+-- Public bucket: logos are served without auth (displayed in the sidebar).
+-- Upload/replace/delete is restricted to authenticated users of the owning company.
+-- Path convention: {company_id}/logo.{ext}
+
+insert into storage.buckets (id, name, public)
+values ('company-logos', 'company-logos', true)
+on conflict (id) do nothing;
+
+-- Anyone (including anon) can download logos
+create policy "logo_public_read" on storage.objects
+  for select
+  using (bucket_id = 'company-logos');
+
+-- Authenticated users may upload a logo only into their own company's folder
+create policy "logo_company_insert" on storage.objects
+  for insert to authenticated
+  with check (
+    bucket_id = 'company-logos'
+    and (storage.foldername(name))[1] = current_company_id()::text
+  );
+
+-- Authenticated users may replace their own company's logo
+create policy "logo_company_update" on storage.objects
+  for update to authenticated
+  using (
+    bucket_id = 'company-logos'
+    and (storage.foldername(name))[1] = current_company_id()::text
+  );
+
+-- Authenticated users may delete their own company's logo
+create policy "logo_company_delete" on storage.objects
+  for delete to authenticated
+  using (
+    bucket_id = 'company-logos'
+    and (storage.foldername(name))[1] = current_company_id()::text
+  );
 
