@@ -3,8 +3,21 @@ import { supabase } from '../../shared/supabase'
 
 const BUCKET = 'company-logos'
 
+const TRAFFIC_AREAS = [
+  'Northern',
+  'North Western',
+  'West Midlands',
+  'Eastern',
+  'Welsh',
+  'Western',
+  'South Eastern and Metropolitan',
+  'East Midlands',
+  'Scottish',
+]
+
 const EMPTY_FIELDS = {
   operator_licence_number: '',
+  traffic_area:            '',
   companies_house_number:  '',
   name:           '',
   trading_name:   '',
@@ -49,13 +62,14 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
   useEffect(() => {
     supabase
       .from('companies')
-      .select('operator_licence_number, companies_house_number, name, trading_name, address_line_1, address_line_2, city, postcode')
+      .select('operator_licence_number, traffic_area, companies_house_number, name, trading_name, address_line_1, address_line_2, city, postcode')
       .eq('id', companyId)
       .single()
       .then(({ data }) => {
         if (data) {
           setFields({
             operator_licence_number: data.operator_licence_number ?? '',
+            traffic_area:            data.traffic_area            ?? '',
             companies_house_number:  data.companies_house_number  ?? '',
             name:           data.name           ?? '',
             trading_name:   data.trading_name   ?? '',
@@ -91,8 +105,14 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
     setLookupError(null)
     setLicenceStatus(null)
 
+    if (!fields.traffic_area) {
+      setLookupError('Select a traffic area before looking up')
+      setLooking(false)
+      return
+    }
+
     const { data, error: fnErr } = await supabase.functions.invoke('dvsa-vol-lookup', {
-      body: { licence_number: fields.operator_licence_number },
+      body: { licence_number: fields.operator_licence_number, traffic_area: fields.traffic_area },
     })
 
     if (fnErr || data?.error) {
@@ -187,6 +207,13 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
             </div>
 
             <div className="form-section-label">Operator Licence (DVSA)</div>
+            <div className="form-group">
+              <label className="form-label">Traffic area</label>
+              <select className="form-select" value={fields.traffic_area} onChange={set('traffic_area')}>
+                <option value="">Select traffic area…</option>
+                {TRAFFIC_AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </div>
             <div className="form-group">
               <label className="form-label">Licence number</label>
               <div className="form-row-inline">
