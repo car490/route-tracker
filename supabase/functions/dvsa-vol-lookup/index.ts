@@ -10,18 +10,17 @@ const CKAN_API =
 
 const HEADERS = { 'User-Agent': 'Mozilla/5.0 (compatible; RouteTracker/1.0)' }
 
-// Maps our schema traffic_area values to a keyword found in the CKAN resource name
-const AREA_KEYWORDS: Record<string, string> = {
-  'Northern':                       'north east',
-  'North Western':                  'north west',
-  'West Midlands':                  'west midlands',
-  'Eastern':                        'east of england',
-  'Welsh':                          'wales',
-  'Western':                        'west of england',
-  'South Eastern and Metropolitan': 'south east',
-  'East Midlands':                  'east midlands',
-  'Scottish':                       'scotland',
-}
+// Valid traffic areas — must match DVSA file names exactly (case-insensitive)
+const VALID_AREAS = new Set([
+  'North East of England',
+  'North West of England',
+  'East of England',
+  'West Midlands',
+  'West of England',
+  'London and the South East of England',
+  'Wales',
+  'Scotland',
+])
 
 // Always return 200 so supabase-js parses the body — errors are signalled
 // via { error: '...' } in the JSON, not via HTTP status codes.
@@ -38,8 +37,8 @@ Deno.serve(async (req) => {
   if (!licence_number?.trim()) return json({ error: 'licence_number is required' })
   if (!traffic_area)           return json({ error: 'traffic_area is required' })
 
-  const keyword = AREA_KEYWORDS[traffic_area as string]
-  if (!keyword) return json({ error: `Unknown traffic area: ${traffic_area}` })
+  if (!VALID_AREAS.has(traffic_area as string))
+    return json({ error: `Unknown traffic area: ${traffic_area}` })
 
   // Get current resource list from CKAN
   const apiRes = await fetch(CKAN_API, { headers: HEADERS })
@@ -47,6 +46,8 @@ Deno.serve(async (req) => {
 
   const resources: Array<{ url: string; name: string; format: string }> =
     (await apiRes.json())?.result?.resources ?? []
+
+  const keyword = (traffic_area as string).toLowerCase()
 
   // Find the single CSV resource for this traffic area
   const resource = resources.find(

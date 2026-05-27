@@ -16,15 +16,14 @@ create table companies (
   operator_licence_number   text        not null unique,           -- PSV licence: required for all operators
   traffic_area              text        not null
                               check (traffic_area in (
-                                'Northern',
-                                'North Western',
+                                'North East of England',
+                                'North West of England',
+                                'East of England',
                                 'West Midlands',
-                                'Eastern',
-                                'Welsh',
-                                'Western',
-                                'South Eastern and Metropolitan',
-                                'East Midlands',
-                                'Scottish'
+                                'West of England',
+                                'London and the South East of England',
+                                'Wales',
+                                'Scotland'
                               )),
   status                    text        not null default 'pending'
                               check (status in ('pending', 'active', 'suspended')),

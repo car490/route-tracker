@@ -3,19 +3,6 @@ import { supabase } from '../../shared/supabase'
 
 const BUCKET = 'company-logos'
 
-// Maps DVSA GeographicRegion values back to our schema traffic_area values
-const REGION_TO_AREA: Record<string, string> = {
-  'north east':                    'Northern',
-  'north west':                    'North Western',
-  'west midlands':                 'West Midlands',
-  'east of england':               'Eastern',
-  'wales':                         'Welsh',
-  'west of england':               'Western',
-  'south east':                    'South Eastern and Metropolitan',
-  'east midlands':                 'East Midlands',
-  'scotland':                      'Scottish',
-}
-
 const LICENCE_STATUS: Record<string, { label: string; badge: string }> = {
   lsts_valid:       { label: 'Valid',       badge: 'badge-green' },
   lsts_curtailed:   { label: 'Curtailed',   badge: 'badge-amber' },
@@ -26,15 +13,14 @@ const LICENCE_STATUS: Record<string, { label: string; badge: string }> = {
 }
 
 const TRAFFIC_AREAS = [
-  'Northern',
-  'North Western',
+  'North East of England',
+  'North West of England',
+  'East of England',
   'West Midlands',
-  'Eastern',
-  'Welsh',
-  'Western',
-  'South Eastern and Metropolitan',
-  'East Midlands',
-  'Scottish',
+  'West of England',
+  'London and the South East of England',
+  'Wales',
+  'Scotland',
 ]
 
 const EMPTY_FIELDS = {
@@ -146,12 +132,11 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
     }
 
     const addr = parseAddress(data.correspondence_address)
-    const mappedArea = REGION_TO_AREA[data.geographic_region?.toLowerCase()] ?? ''
     setFields(f => ({
       ...f,
-      name:               f.name.trim() ? f.name : data.operator_name,
-      trading_name:       data.operator_name,
-      traffic_area:       mappedArea || f.traffic_area,
+      name:                f.name.trim() ? f.name : data.operator_name,
+      trading_name:        data.operator_name,
+      traffic_area:        data.geographic_region || f.traffic_area,
       vehicles_authorised: data.number_of_vehicles_authorised ?? '',
       ...addr,
     }))
