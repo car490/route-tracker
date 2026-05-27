@@ -257,6 +257,10 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
                   placeholder="e.g. PB1234567"
                   style={{ flex: 1 }}
                 />
+                {licenceStatus && (() => {
+                  const s = LICENCE_STATUS[licenceStatus] ?? { label: licenceStatus, badge: 'badge-gray' }
+                  return <span className={`badge ${s.badge}`} style={{ alignSelf: 'center' }}>{s.label}</span>
+                })()}
                 <button
                   className="btn btn-ghost btn-sm"
                   onClick={handleLookup}
@@ -268,14 +272,6 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
               {lookupError && (
                 <div className="error-msg" style={{ marginTop: 8, marginBottom: 0 }}>{lookupError}</div>
               )}
-              {licenceStatus && (() => {
-                const s = LICENCE_STATUS[licenceStatus] ?? { label: licenceStatus, badge: 'badge-gray' }
-                return (
-                  <div style={{ marginTop: 8 }}>
-                    <span className={`badge ${s.badge}`}>{s.label}</span>
-                  </div>
-                )
-              })()}
             </div>
 
             <div className="form-section-label">Details</div>
