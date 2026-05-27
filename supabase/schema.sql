@@ -35,6 +35,8 @@ create table companies (
   postcode                  text,
   lat                       float8,
   lon                       float8,
+  -- From DVSA VOL dataset
+  vehicles_authorised       int,
   -- Logo stored in Supabase Storage bucket 'company-logos' at path {company_id}/logo.*
   logo_path                 text,
   created_at                timestamptz not null default now()

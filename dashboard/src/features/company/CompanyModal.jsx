@@ -3,6 +3,19 @@ import { supabase } from '../../shared/supabase'
 
 const BUCKET = 'company-logos'
 
+// Maps DVSA GeographicRegion values back to our schema traffic_area values
+const REGION_TO_AREA: Record<string, string> = {
+  'north east':                    'Northern',
+  'north west':                    'North Western',
+  'west midlands':                 'West Midlands',
+  'east of england':               'Eastern',
+  'wales':                         'Welsh',
+  'west of england':               'Western',
+  'south east':                    'South Eastern and Metropolitan',
+  'east midlands':                 'East Midlands',
+  'scotland':                      'Scottish',
+}
+
 const LICENCE_STATUS: Record<string, { label: string; badge: string }> = {
   lsts_valid:       { label: 'Valid',       badge: 'badge-green' },
   lsts_curtailed:   { label: 'Curtailed',   badge: 'badge-amber' },
@@ -34,6 +47,7 @@ const EMPTY_FIELDS = {
   address_line_2: '',
   city:           '',
   postcode:       '',
+  vehicles_authorised: '',
 }
 
 // Best-effort parse of a single address string into structured fields.
@@ -71,7 +85,7 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
   useEffect(() => {
     supabase
       .from('companies')
-      .select('operator_licence_number, traffic_area, companies_house_number, name, trading_name, address_line_1, address_line_2, city, postcode')
+      .select('operator_licence_number, traffic_area, companies_house_number, name, trading_name, address_line_1, address_line_2, city, postcode, vehicles_authorised')
       .eq('id', companyId)
       .single()
       .then(({ data }) => {
@@ -80,6 +94,7 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
             operator_licence_number: data.operator_licence_number ?? '',
             traffic_area:            data.traffic_area            ?? '',
             companies_house_number:  data.companies_house_number  ?? '',
+            vehicles_authorised:     data.vehicles_authorised     ?? '',
             name:           data.name           ?? '',
             trading_name:   data.trading_name   ?? '',
             address_line_1: data.address_line_1 ?? '',
@@ -131,10 +146,13 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
     }
 
     const addr = parseAddress(data.correspondence_address)
+    const mappedArea = REGION_TO_AREA[data.geographic_region?.toLowerCase()] ?? ''
     setFields(f => ({
       ...f,
-      name:         f.name.trim() ? f.name : data.trading_name,
-      trading_name: data.trading_name,
+      name:               f.name.trim() ? f.name : data.operator_name,
+      trading_name:       data.operator_name,
+      traffic_area:       mappedArea || f.traffic_area,
+      vehicles_authorised: data.number_of_vehicles_authorised ?? '',
       ...addr,
     }))
     setLicenceStatus(data.licence_status ?? null)
@@ -171,6 +189,7 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
         companies_house_number:  fields.companies_house_number.trim()  || null,
         trading_name:            fields.trading_name.trim()            || null,
         address_line_2:          fields.address_line_2.trim()          || null,
+        vehicles_authorised:     fields.vehicles_authorised !== '' ? Number(fields.vehicles_authorised) : null,
         logo_path: newLogoPath,
       })
       .eq('id', companyId)
@@ -264,10 +283,17 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
               <input className="form-input" value={fields.trading_name} onChange={set('trading_name')}
                 placeholder="If different from registered name" />
             </div>
-            <div className="form-group">
-              <label className="form-label">Companies House number</label>
-              <input className="form-input" value={fields.companies_house_number}
-                onChange={set('companies_house_number')} placeholder="8-character number (optional)" maxLength={8} />
+            <div className="form-row-grid">
+              <div className="form-group">
+                <label className="form-label">Companies House number</label>
+                <input className="form-input" value={fields.companies_house_number}
+                  onChange={set('companies_house_number')} placeholder="Optional" maxLength={8} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Vehicles authorised</label>
+                <input className="form-input" value={fields.vehicles_authorised}
+                  onChange={set('vehicles_authorised')} type="number" min={0} />
+              </div>
             </div>
             <div className="form-group">
               <label className="form-label">Address line 1</label>

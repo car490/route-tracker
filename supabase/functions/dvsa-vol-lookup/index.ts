@@ -71,9 +71,11 @@ Deno.serve(async (req) => {
   if (!match) return json({ error: 'Licence number not found in DVSA dataset' })
 
   return json({
-    trading_name:           match['TradingName']           ?? '',
-    licence_number:         match['LicenceNumber']         ?? '',
-    licence_status:         match['LicenceStatus']         ?? '',
-    correspondence_address: match['CorrespondenceAddress'] ?? '',
+    operator_name:                match['OperatorName']               ?? '',
+    licence_number:               match['LicenceNumber']              ?? '',
+    licence_status:               match['LicenceStatus']              ?? '',
+    correspondence_address:       match['CorrespondenceAddress']      ?? '',
+    geographic_region:            match['GeographicRegion']           ?? '',
+    number_of_vehicles_authorised: match['NumberOfVehiclesAuthorised'] ?? '',
   })
 })
