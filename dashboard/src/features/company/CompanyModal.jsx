@@ -226,13 +226,13 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
                 <input type="file" accept="image/*" onChange={handleFileChange} className="form-input" />
               </div>
               {currentLogoPath && !file && !removeLogo && (
-                <button className="btn btn-danger btn-sm" style={{ alignSelf: 'flex-end' }}
+                <button className="btn btn-danger btn-sm" style={{ alignSelf: 'center' }}
                   onClick={() => setRemoveLogo(true)} disabled={saving}>
                   Remove
                 </button>
               )}
               {removeLogo && (
-                <button className="btn btn-ghost btn-sm" style={{ alignSelf: 'flex-end' }}
+                <button className="btn btn-ghost btn-sm" style={{ alignSelf: 'center' }}
                   onClick={() => setRemoveLogo(false)}>
                   Undo
                 </button>
