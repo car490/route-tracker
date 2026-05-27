@@ -20,8 +20,15 @@ Deno.serve(async (req) => {
   const { licence_number } = await req.json()
   if (!licence_number?.trim()) return json({ error: 'licence_number is required' }, 400)
 
-  const res = await fetch(VOL_URL)
-  if (!res.ok) return json({ error: 'Failed to fetch DVSA dataset' }, 502)
+  let res: Response
+  try {
+    res = await fetch(VOL_URL, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; RouteTracker/1.0)' },
+    })
+  } catch (e) {
+    return json({ error: `Network error fetching DVSA dataset: ${e}` }, 502)
+  }
+  if (!res.ok) return json({ error: `DVSA dataset fetch failed: HTTP ${res.status}` }, 502)
 
   const csv = await res.text()
   const { data } = Papa.parse<Record<string, string>>(csv, {
