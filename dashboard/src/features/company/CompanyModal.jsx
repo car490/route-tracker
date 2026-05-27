@@ -36,17 +36,37 @@ const EMPTY_FIELDS = {
   vehicles_authorised: '',
 }
 
-// Best-effort parse of a single address string into structured fields.
-// UK addresses are typically: Line1, Line2?, Town, Postcode
+// DVSA CorrespondenceAddress format: "LOCALITY STREET   TOWN  GB AB1 2CD"
+// Fields are separated by 2+ spaces; postcode and "GB" country code are appended.
 function parseAddress(raw) {
   if (!raw) return {}
-  const parts = raw.split(',').map(p => p.trim()).filter(Boolean)
-  const ukPostcode = /^[A-Z]{1,2}\d[0-9A-Z]?\s?\d[A-Z]{2}$/i
-  let postcode = '', city = '', line1 = '', line2 = ''
-  if (parts.length && ukPostcode.test(parts[parts.length - 1])) postcode = parts.pop()
-  if (parts.length) city    = parts.pop()
-  if (parts.length) line1   = parts.shift()
-  if (parts.length) line2   = parts.join(', ')
+
+  let str = raw.trim()
+  let postcode = ''
+
+  const pm = str.match(/\b([A-Z]{1,2}\d[0-9A-Z]?\s?\d[A-Z]{2})\b/i)
+  if (pm) {
+    postcode = pm[1].replace(/\s+/, ' ').trim()
+    str = str.replace(pm[0], '').trim()
+  }
+
+  str = str.replace(/\bGB\b/g, '').trim()
+
+  // Split on 2+ spaces — the DVSA file uses multiple spaces as field delimiters
+  const parts = str.split(/\s{2,}/).map(p => p.trim()).filter(Boolean)
+
+  let line1 = '', line2 = '', city = ''
+  if (parts.length >= 3) {
+    city  = parts[parts.length - 1]
+    line2 = parts[parts.length - 2]
+    line1 = parts.slice(0, -2).join(', ')
+  } else if (parts.length === 2) {
+    city  = parts[1]
+    line1 = parts[0]
+  } else if (parts.length === 1) {
+    line1 = parts[0]
+  }
+
   return { address_line_1: line1, address_line_2: line2, city, postcode }
 }
 
