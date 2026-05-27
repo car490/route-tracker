@@ -8,6 +8,8 @@ update companies set traffic_area = 'West of England'                        whe
 update companies set traffic_area = 'Wales'                                  where traffic_area = 'Welsh';
 update companies set traffic_area = 'London and the South East of England'   where traffic_area = 'South Eastern and Metropolitan';
 update companies set traffic_area = 'Scotland'                               where traffic_area = 'Scottish';
+-- East Midlands no longer exists — nearest current TC area is East of England
+update companies set traffic_area = 'East of England' where traffic_area = 'East Midlands';
 -- West Midlands is unchanged
 
 -- Drop old constraint and add new one with correct area names
