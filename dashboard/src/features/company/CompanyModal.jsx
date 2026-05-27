@@ -3,7 +3,7 @@ import { supabase } from '../../shared/supabase'
 
 const BUCKET = 'company-logos'
 
-const LICENCE_STATUS: Record<string, { label: string; badge: string }> = {
+const LICENCE_STATUS = {
   lsts_valid:       { label: 'Valid',       badge: 'badge-green' },
   lsts_curtailed:   { label: 'Curtailed',   badge: 'badge-amber' },
   lsts_suspended:   { label: 'Suspended',   badge: 'badge-amber' },
