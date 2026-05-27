@@ -31,6 +31,7 @@ create policy "logo_company_delete" on storage.objects
   );
 
 -- Companies UPDATE policy (was select-only before)
+drop policy if exists "company_update" on companies;
 create policy "company_update" on companies
   for update to authenticated
   using (
