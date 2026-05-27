@@ -1,4 +1,4 @@
-import { parse as parseCsv } from "https://deno.land/std@0.224.0/csv/parse.ts"
+import Papa from "npm:papaparse"
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -23,23 +23,21 @@ Deno.serve(async (req) => {
   const res = await fetch(VOL_URL)
   if (!res.ok) return json({ error: 'Failed to fetch DVSA dataset' }, 502)
 
-  const rows = parseCsv(await res.text())
-  if (rows.length < 2) return json({ error: 'Unexpected empty dataset' }, 502)
+  const csv = await res.text()
+  const { data } = Papa.parse<Record<string, string>>(csv, {
+    header: true,
+    skipEmptyLines: true,
+  })
 
-  const headers = rows[0]
-  const licenceIdx = headers.indexOf('LicenceNumber')
-  if (licenceIdx === -1) return json({ error: 'Unexpected CSV format' }, 502)
+  const target = licence_number.trim().toUpperCase()
+  const match  = data.find(row => row['LicenceNumber']?.toUpperCase() === target)
 
-  const target   = licence_number.trim().toUpperCase()
-  const matchRow = rows.slice(1).find(row => row[licenceIdx]?.toUpperCase() === target)
-  if (!matchRow) return json({ error: 'Licence number not found in DVSA dataset' }, 404)
-
-  const col = (name: string) => matchRow[headers.indexOf(name)] ?? ''
+  if (!match) return json({ error: 'Licence number not found in DVSA dataset' }, 404)
 
   return json({
-    trading_name:           col('TradingName'),
-    licence_number:         col('LicenceNumber'),
-    licence_status:         col('LicenceStatus'),
-    correspondence_address: col('CorrespondenceAddress'),
+    trading_name:           match['TradingName']           ?? '',
+    licence_number:         match['LicenceNumber']         ?? '',
+    licence_status:         match['LicenceStatus']         ?? '',
+    correspondence_address: match['CorrespondenceAddress'] ?? '',
   })
 })
