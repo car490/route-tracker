@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react'
-import Papa from 'papaparse'
 import { supabase } from '../../shared/supabase'
 
-const BUCKET  = 'company-logos'
-const VOL_URL = 'https://assets.publishing.service.gov.uk/media/65f1e3e68a2f410012b1e3e8/vol-public-service-vehicle-operator-licences.csv'
+const BUCKET = 'company-logos'
 
 const EMPTY_FIELDS = {
   operator_licence_number: '',
@@ -93,40 +91,25 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
     setLookupError(null)
     setLicenceStatus(null)
 
-    try {
-      const res = await fetch(VOL_URL, { cache: 'no-cache' })
-      const csv = await res.text()
-      Papa.parse(csv, {
-        header: true,
-        complete: ({ data }) => {
-          const match = data.find(
-            row => row['LicenceNumber']?.toUpperCase() === fields.operator_licence_number.trim().toUpperCase()
-          )
-          if (!match) {
-            setLookupError('Licence number not found in DVSA dataset')
-            setLooking(false)
-            return
-          }
-          const addr = parseAddress(match['CorrespondenceAddress'])
-          setFields(f => ({
-            ...f,
-            // Only overwrite name if it's blank — user may have set it manually
-            name:         f.name.trim() ? f.name : (match['TradingName'] ?? ''),
-            trading_name: match['TradingName'] ?? '',
-            ...addr,
-          }))
-          setLicenceStatus(match['LicenceStatus'] ?? null)
-          setLooking(false)
-        },
-        error: () => {
-          setLookupError('Failed to parse DVSA dataset')
-          setLooking(false)
-        },
-      })
-    } catch {
-      setLookupError('Failed to fetch DVSA dataset')
+    const { data, error: fnErr } = await supabase.functions.invoke('dvsa-vol-lookup', {
+      body: { licence_number: fields.operator_licence_number },
+    })
+
+    if (fnErr || data?.error) {
+      setLookupError(data?.error ?? fnErr.message)
       setLooking(false)
+      return
     }
+
+    const addr = parseAddress(data.correspondence_address)
+    setFields(f => ({
+      ...f,
+      name:         f.name.trim() ? f.name : data.trading_name,
+      trading_name: data.trading_name,
+      ...addr,
+    }))
+    setLicenceStatus(data.licence_status ?? null)
+    setLooking(false)
   }
 
   async function handleSave() {
