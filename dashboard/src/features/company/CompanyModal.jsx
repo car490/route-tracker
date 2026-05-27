@@ -3,6 +3,15 @@ import { supabase } from '../../shared/supabase'
 
 const BUCKET = 'company-logos'
 
+const LICENCE_STATUS: Record<string, { label: string; badge: string }> = {
+  lsts_valid:       { label: 'Valid',       badge: 'badge-green' },
+  lsts_curtailed:   { label: 'Curtailed',   badge: 'badge-amber' },
+  lsts_suspended:   { label: 'Suspended',   badge: 'badge-amber' },
+  lsts_revoked:     { label: 'Revoked',     badge: 'badge-red'   },
+  lsts_surrendered: { label: 'Surrendered', badge: 'badge-red'   },
+  lsts_expired:     { label: 'Expired',     badge: 'badge-red'   },
+}
+
 const TRAFFIC_AREAS = [
   'Northern',
   'North Western',
@@ -235,13 +244,14 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
               {lookupError && (
                 <div className="error-msg" style={{ marginTop: 8, marginBottom: 0 }}>{lookupError}</div>
               )}
-              {licenceStatus && (
-                <div style={{ marginTop: 8 }}>
-                  <span className={`badge ${licenceStatus === 'Valid' ? 'badge-green' : 'badge-amber'}`}>
-                    {licenceStatus}
-                  </span>
-                </div>
-              )}
+              {licenceStatus && (() => {
+                const s = LICENCE_STATUS[licenceStatus] ?? { label: licenceStatus, badge: 'badge-gray' }
+                return (
+                  <div style={{ marginTop: 8 }}>
+                    <span className={`badge ${s.badge}`}>{s.label}</span>
+                  </div>
+                )
+              })()}
             </div>
 
             <div className="form-section-label">Details</div>
