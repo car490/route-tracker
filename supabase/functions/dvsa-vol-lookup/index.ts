@@ -23,9 +23,11 @@ const AREA_KEYWORDS: Record<string, string> = {
   'Scottish':                       'scotland',
 }
 
-const json = (body: unknown, status = 200) =>
+// Always return 200 so supabase-js parses the body — errors are signalled
+// via { error: '...' } in the JSON, not via HTTP status codes.
+const json = (body: unknown) =>
   new Response(JSON.stringify(body), {
-    status,
+    status: 200,
     headers: { ...CORS, 'Content-Type': 'application/json' },
   })
 
@@ -33,15 +35,15 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
   const { licence_number, traffic_area } = await req.json()
-  if (!licence_number?.trim()) return json({ error: 'licence_number is required' }, 400)
-  if (!traffic_area)           return json({ error: 'traffic_area is required' }, 400)
+  if (!licence_number?.trim()) return json({ error: 'licence_number is required' })
+  if (!traffic_area)           return json({ error: 'traffic_area is required' })
 
   const keyword = AREA_KEYWORDS[traffic_area as string]
-  if (!keyword) return json({ error: `Unknown traffic area: ${traffic_area}` }, 400)
+  if (!keyword) return json({ error: `Unknown traffic area: ${traffic_area}` })
 
   // Get current resource list from CKAN
   const apiRes = await fetch(CKAN_API, { headers: HEADERS })
-  if (!apiRes.ok) return json({ error: `CKAN API error: HTTP ${apiRes.status}` }, 502)
+  if (!apiRes.ok) return json({ error: `CKAN API error: HTTP ${apiRes.status}` })
 
   const resources: Array<{ url: string; name: string; format: string }> =
     (await apiRes.json())?.result?.resources ?? []
@@ -52,11 +54,11 @@ Deno.serve(async (req) => {
       && r.name?.toLowerCase().includes(keyword)
   )
 
-  if (!resource) return json({ error: `No dataset found for traffic area: ${traffic_area}` }, 404)
+  if (!resource) return json({ error: `No dataset found for traffic area: ${traffic_area}` })
 
   // Fetch and search just that one file
   const csvRes = await fetch(resource.url, { headers: HEADERS })
-  if (!csvRes.ok) return json({ error: `Failed to fetch dataset: HTTP ${csvRes.status}` }, 502)
+  if (!csvRes.ok) return json({ error: `Failed to fetch dataset: HTTP ${csvRes.status}` })
 
   const { data } = Papa.parse<Record<string, string>>(await csvRes.text(), {
     header: true,
@@ -66,7 +68,7 @@ Deno.serve(async (req) => {
   const target = licence_number.trim().toUpperCase()
   const match  = data.find(row => row['LicenceNumber']?.toUpperCase() === target)
 
-  if (!match) return json({ error: 'Licence number not found in DVSA dataset' }, 404)
+  if (!match) return json({ error: 'Licence number not found in DVSA dataset' })
 
   return json({
     trading_name:           match['TradingName']           ?? '',
