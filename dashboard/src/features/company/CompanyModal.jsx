@@ -259,7 +259,7 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
                 />
                 {licenceStatus && (() => {
                   const s = LICENCE_STATUS[licenceStatus] ?? { label: licenceStatus, badge: 'badge-gray' }
-                  return <span className={`badge ${s.badge}`} style={{ alignSelf: 'center' }}>{s.label}</span>
+                  return <span className={`badge ${s.badge}`}>{s.label}</span>
                 })()}
                 <button
                   className="btn btn-ghost btn-sm"
