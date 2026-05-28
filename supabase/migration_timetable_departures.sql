@@ -12,21 +12,21 @@
 -- ── Step 1: Add name column to timetables ─────────────────────────────────────
 -- Derive from existing period + direction; make not null after populating.
 
-alter table timetables add column name text;
-update timetables set name = period || ' ' || direction;
+alter table timetables add column if not exists name text;
+update timetables set name = period || ' ' || direction where name is null;
 alter table timetables alter column name set not null;
 
 
 -- ── Step 2: Add offset columns to timetable_stops ────────────────────────────
 
-alter table timetable_stops add column offset_standard int;
-alter table timetable_stops add column offset_delay    int;
-alter table timetable_stops add column offset_early    int;
+alter table timetable_stops add column if not exists offset_standard int;
+alter table timetable_stops add column if not exists offset_delay    int;
+alter table timetable_stops add column if not exists offset_early    int;
 
 
 -- ── Step 3: Create timetable_departures ──────────────────────────────────────
 
-create table public.timetable_departures (
+create table if not exists public.timetable_departures (
   id                   uuid        primary key default gen_random_uuid(),
   timetable_id         uuid        not null references timetables(id) on delete cascade,
   departure_time       time        not null,
@@ -44,6 +44,9 @@ grant select on public.timetable_departures to anon;
 grant all    on public.timetable_departures to authenticated;
 
 alter table public.timetable_departures enable row level security;
+
+drop policy if exists "anon_read"   on public.timetable_departures;
+drop policy if exists "company_all" on public.timetable_departures;
 
 create policy "anon_read" on public.timetable_departures
   for select to anon using (true);
@@ -65,7 +68,7 @@ create policy "company_all" on public.timetable_departures
     )
   );
 
-create index on timetable_departures (timetable_id);
+create index if not exists timetable_departures_timetable_id_idx on timetable_departures (timetable_id);
 
 
 -- ── Step 4: Populate timetable_departures from existing timetables ────────────
@@ -88,7 +91,8 @@ select
   t.valid_from,
   t.valid_to,
   'VJ' || row_number() over (partition by t.route_id order by t.created_at)
-from timetables t;
+from timetables t
+where t.id not in (select timetable_id from timetable_departures);
 
 
 -- ── Step 5: Populate offset columns on timetable_stops ───────────────────────
@@ -121,14 +125,16 @@ set
       )
     )) / 60
   )::int
-where ts.scheduled_time is not null;
+where ts.scheduled_time is not null
+  and ts.offset_standard is null;
 
 
 -- ── Step 6: Add timetable_departure_id and timing_profile to journeys ─────────
 
 alter table journeys
-  add column timetable_departure_id uuid references timetable_departures(id),
-  add column timing_profile         text check (timing_profile in ('standard', 'delay', 'early'));
+  add column if not exists timetable_departure_id uuid references timetable_departures(id);
+alter table journeys
+  add column if not exists timing_profile text check (timing_profile in ('standard', 'delay', 'early'));
 
 
 -- ── Step 7: Populate timetable_departure_id from existing timetable_id ────────
@@ -136,7 +142,8 @@ alter table journeys
 update journeys j
 set timetable_departure_id = td.id
 from timetable_departures td
-where td.timetable_id = j.timetable_id;
+where td.timetable_id = j.timetable_id
+  and j.timetable_departure_id is null;
 
 
 -- ── Step 8: Replace the no-double-booking unique index ────────────────────────
@@ -146,7 +153,7 @@ create unique index journeys_no_double_booking
   on journeys (timetable_departure_id, journey_date)
   where status != 'cancelled' and timetable_departure_id is not null;
 
-create index on journeys (timetable_departure_id);
+create index if not exists journeys_timetable_departure_id_idx on journeys (timetable_departure_id);
 
 
 -- ── Step 9: Update check constraint on journeys ───────────────────────────────
@@ -164,26 +171,27 @@ alter table journeys add constraint journeys_check
 drop view if exists schedule_view;
 
 alter table timetable_stops drop constraint if exists timetable_stops_check;
+alter table timetable_stops drop constraint if exists timetable_stops_timing_check;
 alter table timetable_stops add constraint timetable_stops_timing_check
   check (stop_type = 'routing_point' or offset_standard is not null);
-alter table timetable_stops drop column scheduled_time;
+alter table timetable_stops drop column if exists scheduled_time;
 
 
 -- ── Step 11: Drop obsolete columns from timetables ───────────────────────────
 -- valid_from/valid_to have a table-level check; drop it first.
 
 alter table timetables drop constraint if exists timetables_check;
-alter table timetables drop column period;
-alter table timetables drop column days_of_week;
-alter table timetables drop column valid_from;
-alter table timetables drop column valid_to;
+alter table timetables drop column if exists period;
+alter table timetables drop column if exists days_of_week;
+alter table timetables drop column if exists valid_from;
+alter table timetables drop column if exists valid_to;
 
 
 -- ── Step 12: Drop timetable_id from journeys ─────────────────────────────────
 -- The plain index and FK constraint are dropped automatically with the column.
 
 drop index if exists journeys_timetable_id_idx;
-alter table journeys drop column timetable_id;
+alter table journeys drop column if exists timetable_id;
 
 
 -- ── Step 13: Recreate schedule_view ──────────────────────────────────────────
