@@ -12,27 +12,29 @@ const STATUS_BADGE = {
 
 function todayStr() { return new Date().toISOString().slice(0, 10) }
 
-const EMPTY_FORM = { timetable_id: '', driver_id: '', vehicle_id: '', journey_date: todayStr() }
+const EMPTY_FORM = { timetable_departure_id: '', driver_id: '', vehicle_id: '', journey_date: todayStr() }
 
 export default function JourneysPage() {
-  const [journeys, setJourneys] = useState([])
-  const [timetables, setTimetables] = useState([])
-  const [drivers, setDrivers] = useState([])
-  const [vehicles, setVehicles] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [dateFilter, setDateFilter] = useState(todayStr())
-  const [modal, setModal] = useState(null)
-  const [form, setForm] = useState(EMPTY_FORM)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const [copiedId, setCopiedId] = useState(null)
+  const [journeys,    setJourneys]    = useState([])
+  const [departures,  setDepartures]  = useState([])
+  const [drivers,     setDrivers]     = useState([])
+  const [vehicles,    setVehicles]    = useState([])
+  const [loading,     setLoading]     = useState(true)
+  const [dateFilter,  setDateFilter]  = useState(todayStr())
+  const [modal,       setModal]       = useState(null)
+  const [form,        setForm]        = useState(EMPTY_FORM)
+  const [saving,      setSaving]      = useState(false)
+  const [error,       setError]       = useState('')
+  const [copiedId,    setCopiedId]    = useState(null)
+
   const [detailJourney, setDetailJourney] = useState(null)
-  const [detailStops, setDetailStops] = useState([])
+  const [detailStops,   setDetailStops]   = useState([])
   const [detailLoading, setDetailLoading] = useState(false)
-  const [reportJourney, setReportJourney] = useState(null)
-  const [reportStops, setReportStops] = useState([])
+
+  const [reportJourney,   setReportJourney]   = useState(null)
+  const [reportStops,     setReportStops]     = useState([])
   const [reportIncidents, setReportIncidents] = useState([])
-  const [reportLoading, setReportLoading] = useState(false)
+  const [reportLoading,   setReportLoading]   = useState(false)
 
   async function loadJourneys(date) {
     setLoading(true)
@@ -40,7 +42,7 @@ export default function JourneysPage() {
       .from('journeys')
       .select(`
         *,
-        timetable:timetables(period, direction, route:routes(service_code)),
+        departure:timetable_departures(departure_time, timetable:timetables(name, direction, route:routes(service_code))),
         driver:employees(name),
         vehicle:vehicles(registration)
       `)
@@ -51,17 +53,20 @@ export default function JourneysPage() {
   }
 
   async function loadDeps() {
-    const [t, d, v] = await Promise.all([
-      supabase.from('timetables').select('id, period, direction, route:routes(service_code)').order('period'),
+    const [depRes, dRes, vRes] = await Promise.all([
+      supabase
+        .from('timetable_departures')
+        .select('id, departure_time, timetable:timetables(name, direction, route:routes(service_code))')
+        .order('departure_time'),
       supabase.from('employees').select('id, name').order('name'),
       supabase.from('vehicles').select('id, registration').order('registration'),
     ])
-    setTimetables(t.data ?? [])
-    setDrivers(d.data ?? [])
-    setVehicles(v.data ?? [])
+    setDepartures(depRes.data ?? [])
+    setDrivers(dRes.data ?? [])
+    setVehicles(vRes.data ?? [])
   }
 
-  useEffect(() => { loadJourneys(dateFilter); loadDeps() }, [])
+  useEffect(() => { loadJourneys(dateFilter); loadDeps() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleDateChange(e) {
     setDateFilter(e.target.value)
@@ -72,13 +77,18 @@ export default function JourneysPage() {
     setDetailJourney(j)
     setDetailStops([])
     setDetailLoading(true)
-    if (j.timetable_id) {
+    if (j.timetable_departure_id) {
       const { data } = await supabase
-        .from('timetable_stops')
-        .select('sequence, scheduled_time, stop_type, stop:stops(name)')
-        .eq('timetable_id', j.timetable_id)
+        .from('schedule_view')
+        .select('sequence, stop_type, scheduled_time, name')
+        .eq('departure_id', j.timetable_departure_id)
         .order('sequence')
-      setDetailStops(data ?? [])
+      setDetailStops((data ?? []).map(row => ({
+        sequence:       row.sequence,
+        stop_type:      row.stop_type,
+        scheduled_time: row.scheduled_time,
+        stop:           { name: row.name },
+      })))
     }
     setDetailLoading(false)
   }
@@ -88,10 +98,10 @@ export default function JourneysPage() {
     setReportStops([])
     setReportIncidents([])
     setReportLoading(true)
-    const [stopRes, incidentRes] = await Promise.all([
+    const [stopRes, incidentRes, schedRes] = await Promise.all([
       supabase
         .from('journey_stop_times')
-        .select('arrived_at, departed_at, variance_seconds, is_early_arrival, timetable_stop:timetable_stops(sequence, scheduled_time, stop_type, stop:stops(name))')
+        .select('timetable_stop_id, arrived_at, departed_at, arrival_variance_seconds, is_early_arrival')
         .eq('journey_id', j.id),
       supabase
         .from('journey_events')
@@ -99,13 +109,40 @@ export default function JourneysPage() {
         .eq('journey_id', j.id)
         .eq('event_type', 'incident')
         .order('occurred_at'),
+      j.timetable_departure_id
+        ? supabase
+            .from('schedule_view')
+            .select('timetable_stop_id, sequence, stop_type, scheduled_time, name')
+            .eq('departure_id', j.timetable_departure_id)
+        : Promise.resolve({ data: [] }),
     ])
-    const stops = (stopRes.data ?? []).sort(
-      (a, b) => (a.timetable_stop?.sequence ?? 0) - (b.timetable_stop?.sequence ?? 0)
-    )
+    const schedMap = {}
+    for (const row of schedRes.data ?? []) {
+      schedMap[row.timetable_stop_id] = row
+    }
+    const stops = (stopRes.data ?? []).map(st => {
+      const sched = schedMap[st.timetable_stop_id] ?? {}
+      return {
+        arrived_at:       st.arrived_at,
+        variance_seconds: st.arrival_variance_seconds,
+        is_early_arrival: st.is_early_arrival,
+        timetable_stop: {
+          sequence:       sched.sequence,
+          stop_type:      sched.stop_type,
+          scheduled_time: sched.scheduled_time,
+          stop:           { name: sched.name },
+        },
+      }
+    }).sort((a, b) => (a.timetable_stop?.sequence ?? 0) - (b.timetable_stop?.sequence ?? 0))
     setReportStops(stops)
     setReportIncidents(incidentRes.data ?? [])
     setReportLoading(false)
+  }
+
+  function depLabel(j) {
+    const dep = j.departure
+    if (!dep) return '—'
+    return `${dep.timetable?.route?.service_code ?? ''} ${dep.timetable?.name ?? ''} ${dep.timetable?.direction ?? ''} @ ${dep.departure_time?.slice(0, 5) ?? ''}`
   }
 
   function downloadCsv(j, stops, incidents) {
@@ -117,14 +154,12 @@ export default function JourneysPage() {
       const sign = s < 0 ? '-' : s > 0 ? '+' : ''
       return `${sign}${Math.floor(abs / 60)}m ${abs % 60}s`
     }
-    const route = j.timetable?.route?.service_code ?? ''
-    const period = j.timetable?.period ?? ''
-    const direction = j.timetable?.direction ?? ''
+    const route = j.departure?.timetable?.route?.service_code ?? ''
     const lines = [
       'Journey Report',
       `Date,${j.journey_date}`,
       `Route,${route}`,
-      `Period,${period} ${direction}`,
+      `Run,${depLabel(j)}`,
       `Driver,${j.driver?.name ?? 'Unassigned'}`,
       `Vehicle,${j.vehicle?.registration ?? 'Unassigned'}`,
       `Status,${j.status}`,
@@ -157,9 +192,9 @@ export default function JourneysPage() {
       })
     }
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
     a.download = `journey-report-${route}-${j.journey_date}.csv`
     a.click()
     URL.revokeObjectURL(url)
@@ -170,12 +205,12 @@ export default function JourneysPage() {
     const fmtTime = ts => ts ? new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—'
     const fmtVariance = s => {
       if (s == null) return '—'
-      const abs = Math.abs(s)
+      const abs  = Math.abs(s)
       const sign = s < 0 ? 'Early ' : s > 0 ? 'Late ' : ''
       return `${sign}${Math.floor(abs / 60)}m ${abs % 60}s`
     }
     const varColour = s => s == null ? '' : s < 0 ? 'color:#fb8c00' : s > 30 ? 'color:#e53935' : 'color:#4db848'
-    const route = j.timetable?.route?.service_code ?? 'Journey'
+    const route = j.departure?.timetable?.route?.service_code ?? 'Journey'
     const stopRows = stops.map(s => `
       <tr>
         <td>${s.timetable_stop?.sequence ?? ''}</td>
@@ -207,7 +242,7 @@ export default function JourneysPage() {
         tr:nth-child(even) td{background:#fafafa}
         @media print{body{margin:12px}}
       </style></head><body>
-      <h1>Journey Report — ${route} ${j.timetable?.period ?? ''} ${j.timetable?.direction ?? ''}</h1>
+      <h1>Journey Report — ${depLabel(j)}</h1>
       <div class="meta">
         <div><span>Date</span><strong>${j.journey_date}</strong></div>
         <div><span>Driver</span><strong>${j.driver?.name ?? 'Unassigned'}</strong></div>
@@ -238,7 +273,7 @@ export default function JourneysPage() {
     setSaving(true); setError('')
     const company_id = await getCompanyId()
     const payload = {
-      timetable_id: form.timetable_id || null,
+      timetable_departure_id: form.timetable_departure_id || null,
       driver_id:    form.driver_id    || null,
       vehicle_id:   form.vehicle_id   || null,
       journey_date: form.journey_date,
@@ -253,9 +288,7 @@ export default function JourneysPage() {
   }
 
   async function resetJourney(j) {
-    const label = j.timetable?.route?.service_code
-      ? `${j.timetable.route.service_code} ${j.timetable.period ?? ''} ${j.timetable.direction ?? ''}`.trim()
-      : 'this journey'
+    const label = depLabel(j) || 'this journey'
     if (!confirm(
       `Reset "${label}" to Scheduled?\n\n` +
       `This will permanently delete:\n• All stop times\n• GPS track\n• Incident log\n\nThis cannot be undone.`
@@ -302,10 +335,10 @@ export default function JourneysPage() {
 
   function openEdit(j) {
     setForm({
-      timetable_id: j.timetable_id ?? '',
-      driver_id:    j.driver_id    ?? '',
-      vehicle_id:   j.vehicle_id   ?? '',
-      journey_date: j.journey_date,
+      timetable_departure_id: j.timetable_departure_id ?? '',
+      driver_id:              j.driver_id   ?? '',
+      vehicle_id:             j.vehicle_id  ?? '',
+      journey_date:           j.journey_date,
     })
     setError(''); setModal(j)
   }
@@ -338,7 +371,7 @@ export default function JourneysPage() {
               <thead>
                 <tr>
                   <th>Route</th>
-                  <th>Period</th>
+                  <th>Run</th>
                   <th>Driver</th>
                   <th>Vehicle</th>
                   <th>Status</th>
@@ -350,13 +383,15 @@ export default function JourneysPage() {
                   <tr key={j.id}>
                     <td>
                       <span style={{ fontFamily: 'Oswald', fontWeight: 600, color: 'var(--navy-brand)' }}>
-                        {j.timetable?.route?.service_code ?? '—'}
+                        {j.departure?.timetable?.route?.service_code ?? '—'}
                       </span>
                     </td>
                     <td>
-                      {j.timetable?.period
-                        ? <span className={`badge ${j.timetable.period === 'Morning' || j.timetable.period === 'Early Morning' ? 'badge-amber' : 'badge-blue'}`}>
-                            {j.timetable.period} {j.timetable.direction}
+                      {j.departure
+                        ? <span className="badge badge-blue">
+                            {j.departure.timetable?.name} {j.departure.timetable?.direction}
+                            {' @ '}
+                            <span style={{ fontFamily: 'Oswald', fontWeight: 700 }}>{j.departure.departure_time?.slice(0, 5)}</span>
                           </span>
                         : '—'}
                     </td>
@@ -402,7 +437,7 @@ export default function JourneysPage() {
 
       {detailJourney && (
         <Modal
-          title={`${detailJourney.timetable?.route?.service_code ?? 'Journey'} — ${detailJourney.timetable?.period ?? ''} ${detailJourney.timetable?.direction ?? ''}`}
+          title={depLabel(detailJourney)}
           onClose={() => setDetailJourney(null)}
           footer={<button className="btn btn-ghost" onClick={() => setDetailJourney(null)}>Close</button>}
         >
@@ -415,7 +450,7 @@ export default function JourneysPage() {
           {detailLoading ? (
             <div style={{ color: 'var(--text-muted)', padding: '12px 0' }}>Loading stops…</div>
           ) : detailStops.length === 0 ? (
-            <div style={{ color: 'var(--text-muted)', padding: '12px 0' }}>No timetable assigned.</div>
+            <div style={{ color: 'var(--text-muted)', padding: '12px 0' }}>No departure assigned.</div>
           ) : (
             <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
               <thead>
@@ -441,7 +476,7 @@ export default function JourneysPage() {
 
       {reportJourney && (
         <Modal
-          title={`Report — ${reportJourney.timetable?.route?.service_code ?? 'Journey'} ${reportJourney.timetable?.period ?? ''} ${reportJourney.timetable?.direction ?? ''}`}
+          title={`Report — ${depLabel(reportJourney)}`}
           onClose={() => setReportJourney(null)}
           footer={
             <div style={{ display: 'flex', gap: 8, width: '100%' }}>
@@ -461,7 +496,7 @@ export default function JourneysPage() {
                 <div><span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Driver</span><strong>{reportJourney.driver?.name ?? 'Unassigned'}</strong></div>
                 <div><span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Vehicle</span><strong style={{ fontFamily: 'monospace' }}>{reportJourney.vehicle?.registration ?? 'Unassigned'}</strong></div>
                 <div><span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Date</span><strong>{new Date(reportJourney.journey_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</strong></div>
-                {reportJourney.started_at && <div><span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Started</span><strong>{new Date(reportJourney.started_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</strong></div>}
+                {reportJourney.started_at   && <div><span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Started</span><strong>{new Date(reportJourney.started_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</strong></div>}
                 {reportJourney.completed_at && <div><span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Completed</span><strong>{new Date(reportJourney.completed_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</strong></div>}
               </div>
 
@@ -483,7 +518,7 @@ export default function JourneysPage() {
                   </thead>
                   <tbody>
                     {reportStops.map((s, i) => {
-                      const v = s.variance_seconds
+                      const v      = s.variance_seconds
                       const varStr = v == null ? '—' : v === 0 ? 'On time' : `${v < 0 ? '-' : '+'}${Math.floor(Math.abs(v) / 60)}m ${Math.abs(v) % 60}s`
                       const varColour = v == null ? 'var(--text-muted)' : v < 0 ? '#fb8c00' : v > 30 ? '#e53935' : '#4db848'
                       return (
@@ -554,11 +589,13 @@ export default function JourneysPage() {
               <input name="journey_date" className="form-input" type="date" value={form.journey_date} onChange={e => setForm(f => ({ ...f, journey_date: e.target.value }))} required />
             </div>
             <div className="form-group">
-              <label className="form-label">Timetable</label>
-              <select name="timetable_id" className="form-select" value={form.timetable_id} onChange={e => setForm(f => ({ ...f, timetable_id: e.target.value }))}>
+              <label className="form-label">Departure</label>
+              <select name="timetable_departure_id" className="form-select" value={form.timetable_departure_id} onChange={e => setForm(f => ({ ...f, timetable_departure_id: e.target.value }))}>
                 <option value="">— Select —</option>
-                {timetables.map(t => (
-                  <option key={t.id} value={t.id}>{t.route?.service_code} {t.period} {t.direction}</option>
+                {departures.map(dep => (
+                  <option key={dep.id} value={dep.id}>
+                    {dep.timetable?.route?.service_code} {dep.timetable?.name} {dep.timetable?.direction} @ {dep.departure_time?.slice(0, 5)}
+                  </option>
                 ))}
               </select>
             </div>

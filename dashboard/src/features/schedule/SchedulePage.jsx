@@ -42,8 +42,7 @@ function fmtLongDate(dateString) {
 
 function jsDayToDb(jsDay) { return jsDay === 0 ? 7 : jsDay }
 
-const PERIOD_ORDER = ['Early Morning', 'Morning', 'Midday', 'Afternoon', 'Evening', 'Night', 'All Day']
-const EMPTY_DUTY = { date: todayStr(), driver_id: '', vehicle_id: '', selectedTimetables: [] }
+const EMPTY_DUTY = { date: todayStr(), driver_id: '', vehicle_id: '', selectedDepartures: [] }
 
 function CellBtn({ journey, onClick }) {
   if (!journey) {
@@ -65,32 +64,32 @@ function cellStyle(color, bg, border) {
 }
 
 export default function SchedulePage() {
-  const [weekStart, setWeekStart] = useState(getWeekStart(new Date()))
-  const [timetables, setTimetables] = useState([])
+  const [weekStart,  setWeekStart]  = useState(getWeekStart(new Date()))
+  const [departures, setDepartures] = useState([])
   const [journeyMap, setJourneyMap] = useState({})
-  const [employees, setEmployees] = useState([])
-  const [vehicles, setVehicles] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [employees,  setEmployees]  = useState([])
+  const [vehicles,   setVehicles]   = useState([])
+  const [loading,    setLoading]    = useState(true)
 
-  const [modal, setModal] = useState(null)
+  const [modal,    setModal]    = useState(null)
   const [cellData, setCellData] = useState(null)
   const [dutyForm, setDutyForm] = useState(EMPTY_DUTY)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const [saving,   setSaving]   = useState(false)
+  const [error,    setError]    = useState('')
 
   async function load(sunday) {
     setLoading(true)
     const saturday = new Date(sunday)
     saturday.setDate(sunday.getDate() + 6)
 
-    const [tmRes, jRes, empRes, vRes] = await Promise.all([
+    const [depRes, jRes, empRes, vRes] = await Promise.all([
       supabase
-        .from('timetables')
-        .select('id, period, direction, days_of_week, route:routes(service_code, name, journey_type)')
-        .order('period'),
+        .from('timetable_departures')
+        .select('id, departure_time, days_of_week, timetable:timetables(name, direction, route:routes(service_code, name, journey_type))')
+        .order('departure_time'),
       supabase
         .from('journeys')
-        .select('id, journey_date, timetable_id, driver_id, vehicle_id, status, driver:employees(name), vehicle:vehicles(registration)')
+        .select('id, journey_date, timetable_departure_id, driver_id, vehicle_id, status, driver:employees(name), vehicle:vehicles(registration)')
         .gte('journey_date', dateStr(sunday))
         .lte('journey_date', dateStr(saturday))
         .neq('status', 'cancelled'),
@@ -98,11 +97,11 @@ export default function SchedulePage() {
       supabase.from('vehicles').select('id, registration').order('registration'),
     ])
 
-    setTimetables(tmRes.data ?? [])
+    setDepartures(depRes.data ?? [])
 
     const map = {}
     for (const j of jRes.data ?? []) {
-      map[`${j.timetable_id}-${j.journey_date}`] = j
+      map[`${j.timetable_departure_id}-${j.journey_date}`] = j
     }
     setJourneyMap(map)
     setEmployees(empRes.data ?? [])
@@ -110,7 +109,7 @@ export default function SchedulePage() {
     setLoading(false)
   }
 
-  useEffect(() => { load(weekStart) }, [])
+  useEffect(() => { load(weekStart) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function shiftWeek(delta) {
     const m = new Date(weekStart)
@@ -125,42 +124,42 @@ export default function SchedulePage() {
     setModal('new-duty')
   }
 
-  function availableTimetables() {
+  function availableDepartures() {
     if (!dutyForm.date) return []
     const d = new Date(dutyForm.date + 'T00:00:00')
     const dbDay = jsDayToDb(d.getDay())
-    return [...timetables]
-      .filter(t => {
-        if (!t.days_of_week?.includes(dbDay)) return false
-        const j = journeyMap[`${t.id}-${dutyForm.date}`]
+    return [...departures]
+      .filter(dep => {
+        if (!dep.days_of_week?.includes(dbDay)) return false
+        const j = journeyMap[`${dep.id}-${dutyForm.date}`]
         return !j || !j.driver_id
       })
       .sort((a, b) => {
-        const sc = (a.route?.service_code ?? '').localeCompare(b.route?.service_code ?? '')
+        const sc = (a.timetable?.route?.service_code ?? '').localeCompare(b.timetable?.route?.service_code ?? '')
         if (sc !== 0) return sc
-        return PERIOD_ORDER.indexOf(a.period) - PERIOD_ORDER.indexOf(b.period)
+        return (a.departure_time ?? '').localeCompare(b.departure_time ?? '')
       })
   }
 
-  function toggleTimetable(id) {
+  function toggleDeparture(id) {
     setDutyForm(f => ({
       ...f,
-      selectedTimetables: f.selectedTimetables.includes(id)
-        ? f.selectedTimetables.filter(x => x !== id)
-        : [...f.selectedTimetables, id],
+      selectedDepartures: f.selectedDepartures.includes(id)
+        ? f.selectedDepartures.filter(x => x !== id)
+        : [...f.selectedDepartures, id],
     }))
   }
 
   async function saveNewDuty() {
     if (!dutyForm.driver_id) { setError('Please select a driver'); return }
     if (!dutyForm.vehicle_id) { setError('Please select a vehicle'); return }
-    if (!dutyForm.selectedTimetables.length) { setError('Select at least one run'); return }
+    if (!dutyForm.selectedDepartures.length) { setError('Select at least one run'); return }
     setSaving(true)
     setError('')
     try {
       const companyId = await getCompanyId()
-      for (const tmId of dutyForm.selectedTimetables) {
-        const existing = journeyMap[`${tmId}-${dutyForm.date}`]
+      for (const depId of dutyForm.selectedDepartures) {
+        const existing = journeyMap[`${depId}-${dutyForm.date}`]
         if (existing) {
           const { error: e } = await supabase
             .from('journeys')
@@ -169,11 +168,11 @@ export default function SchedulePage() {
           if (e) throw e
         } else {
           const { error: e } = await supabase.from('journeys').insert({
-            company_id: companyId,
-            timetable_id: tmId,
-            journey_date: dutyForm.date,
-            driver_id: dutyForm.driver_id,
-            vehicle_id: dutyForm.vehicle_id,
+            company_id:             companyId,
+            timetable_departure_id: depId,
+            journey_date:           dutyForm.date,
+            driver_id:              dutyForm.driver_id,
+            vehicle_id:             dutyForm.vehicle_id,
           })
           if (e) throw e
         }
@@ -186,13 +185,13 @@ export default function SchedulePage() {
     setSaving(false)
   }
 
-  function openCell(timetable, date, journey) {
-    setCellData({ timetable, date, journey })
+  function openCell(departure, date, journey) {
+    setCellData({ departure, date, journey })
     setDutyForm({
       date,
-      driver_id: journey?.driver_id ?? '',
-      vehicle_id: journey?.vehicle_id ?? '',
-      selectedTimetables: [],
+      driver_id:          journey?.driver_id  ?? '',
+      vehicle_id:         journey?.vehicle_id ?? '',
+      selectedDepartures: [],
     })
     setError('')
     setModal('cell')
@@ -213,11 +212,11 @@ export default function SchedulePage() {
         if (e) throw e
       } else {
         const { error: e } = await supabase.from('journeys').insert({
-          company_id: companyId,
-          timetable_id: cellData.timetable.id,
-          journey_date: cellData.date,
-          driver_id: dutyForm.driver_id,
-          vehicle_id: dutyForm.vehicle_id,
+          company_id:             companyId,
+          timetable_departure_id: cellData.departure.id,
+          journey_date:           cellData.date,
+          driver_id:              dutyForm.driver_id,
+          vehicle_id:             dutyForm.vehicle_id,
         })
         if (e) throw e
       }
@@ -231,10 +230,10 @@ export default function SchedulePage() {
 
   const days = weekDays(weekStart)
 
-  const sortedTimetables = [...timetables].sort((a, b) => {
-    const sc = (a.route?.service_code ?? '').localeCompare(b.route?.service_code ?? '')
+  const sortedDepartures = [...departures].sort((a, b) => {
+    const sc = (a.timetable?.route?.service_code ?? '').localeCompare(b.timetable?.route?.service_code ?? '')
     if (sc !== 0) return sc
-    return PERIOD_ORDER.indexOf(a.period) - PERIOD_ORDER.indexOf(b.period)
+    return (a.departure_time ?? '').localeCompare(b.departure_time ?? '')
   })
 
   return (
@@ -285,14 +284,14 @@ export default function SchedulePage() {
 
       {loading ? (
         <div className="empty-state">Loading schedule…</div>
-      ) : sortedTimetables.length === 0 ? (
-        <div className="empty-state">No timetables found. Add routes and timetables first.</div>
+      ) : sortedDepartures.length === 0 ? (
+        <div className="empty-state">No departures found. Add routes, timetables, and departures first.</div>
       ) : (
         <div className="card" style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 660 }}>
             <thead>
               <tr>
-                <th style={{ textAlign: 'left', minWidth: 180, padding: '9px 16px' }}>Run</th>
+                <th style={{ textAlign: 'left', minWidth: 200, padding: '9px 16px' }}>Run</th>
                 {days.map(d => (
                   <th key={dateStr(d)} style={{ textAlign: 'center', minWidth: 120, padding: '9px 12px' }}>
                     {fmtDay(d)}
@@ -301,19 +300,20 @@ export default function SchedulePage() {
               </tr>
             </thead>
             <tbody>
-              {sortedTimetables.map(tm => (
-                <tr key={tm.id}>
+              {sortedDepartures.map(dep => (
+                <tr key={dep.id}>
                   <td style={{ padding: '10px 16px' }}>
                     <div style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 600, fontSize: 14 }}>
-                      {tm.route?.service_code}
+                      {dep.timetable?.route?.service_code}
+                      <span style={{ marginLeft: 8, color: 'var(--navy-brand)' }}>{dep.departure_time.slice(0, 5)}</span>
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                      {tm.period} · {tm.direction}
+                      {dep.timetable?.name} · {dep.timetable?.direction}
                     </div>
                   </td>
                   {days.map(d => {
-                    const dbDay = jsDayToDb(d.getDay())
-                    const operates = tm.days_of_week?.includes(dbDay)
+                    const dbDay  = jsDayToDb(d.getDay())
+                    const operates = dep.days_of_week?.includes(dbDay)
                     if (!operates) {
                       return (
                         <td key={dateStr(d)} style={{ textAlign: 'center', padding: '10px 8px', color: 'var(--text-muted)', opacity: 0.35 }}>
@@ -321,10 +321,10 @@ export default function SchedulePage() {
                         </td>
                       )
                     }
-                    const journey = journeyMap[`${tm.id}-${dateStr(d)}`]
+                    const journey = journeyMap[`${dep.id}-${dateStr(d)}`]
                     return (
                       <td key={dateStr(d)} style={{ padding: '8px' }}>
-                        <CellBtn journey={journey} onClick={() => openCell(tm, dateStr(d), journey)} />
+                        <CellBtn journey={journey} onClick={() => openCell(dep, dateStr(d), journey)} />
                       </td>
                     )
                   })}
@@ -337,7 +337,7 @@ export default function SchedulePage() {
 
       {modal === 'cell' && cellData && (
         <Modal
-          title={`Assign — ${cellData.timetable.route?.service_code} ${cellData.timetable.period} ${cellData.timetable.direction}`}
+          title={`Assign — ${cellData.departure.timetable?.route?.service_code} ${cellData.departure.departure_time.slice(0, 5)} ${cellData.departure.timetable?.direction}`}
           onClose={() => setModal(null)}
           footer={
             <>
@@ -388,7 +388,7 @@ export default function SchedulePage() {
               type="date"
               className="form-input"
               value={dutyForm.date}
-              onChange={e => setDutyForm(f => ({ ...f, date: e.target.value, selectedTimetables: [] }))}
+              onChange={e => setDutyForm(f => ({ ...f, date: e.target.value, selectedDepartures: [] }))}
             />
           </div>
           <div className="form-group">
@@ -409,18 +409,18 @@ export default function SchedulePage() {
           <label className="form-label" style={{ marginBottom: 8 }}>
             Unassigned runs for {fmtLongDate(dutyForm.date)}
           </label>
-          {availableTimetables().length === 0 ? (
+          {availableDepartures().length === 0 ? (
             <div style={{ color: 'var(--text-muted)', fontSize: 13, padding: '10px 0' }}>
               All runs are already assigned for this date.
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {availableTimetables().map(tm => {
-                const checked = dutyForm.selectedTimetables.includes(tm.id)
-                const existing = journeyMap[`${tm.id}-${dutyForm.date}`]
+              {availableDepartures().map(dep => {
+                const checked  = dutyForm.selectedDepartures.includes(dep.id)
+                const existing = journeyMap[`${dep.id}-${dutyForm.date}`]
                 return (
                   <label
-                    key={tm.id}
+                    key={dep.id}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
                       padding: '9px 12px', borderRadius: 6,
@@ -429,10 +429,13 @@ export default function SchedulePage() {
                       transition: 'background 0.12s, border-color 0.12s',
                     }}
                   >
-                    <input type="checkbox" name="timetable_id" checked={checked} onChange={() => toggleTimetable(tm.id)} style={{ flexShrink: 0 }} />
+                    <input type="checkbox" name="departure_id" checked={checked} onChange={() => toggleDeparture(dep.id)} style={{ flexShrink: 0 }} />
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 600, fontSize: 14 }}>{tm.route?.service_code}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{tm.period} · {tm.direction}</div>
+                      <div style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 600, fontSize: 14 }}>
+                        {dep.timetable?.route?.service_code}
+                        <span style={{ fontFamily: 'inherit', fontWeight: 700, marginLeft: 8 }}>{dep.departure_time.slice(0, 5)}</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{dep.timetable?.name} · {dep.timetable?.direction}</div>
                     </div>
                     {existing && !existing.driver_id && <span className="badge badge-amber">No driver</span>}
                   </label>

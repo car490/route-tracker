@@ -5,9 +5,8 @@ import Modal from '../../shared/components/Modal'
 import { useJourneyTypes } from '../../shared/hooks/useJourneyTypes'
 
 const ROUTE_EMPTY = { service_code: '', name: '', journey_type: [] }
-const PERIODS    = ['Early Morning', 'Morning', 'Midday', 'Afternoon', 'Evening', 'Night', 'All Day']
-const DIRECTIONS = ['Outbound', 'Inbound', 'Circular']
-const TT_EMPTY = { period: 'Morning', direction: 'Outbound', valid_from: '', valid_to: '' }
+const DIRECTIONS  = ['Outbound', 'Inbound', 'Circular']
+const TT_EMPTY    = { name: '', direction: 'Outbound' }
 
 function TimetableStopCount({ timetableId }) {
   const [count, setCount] = useState('…')
@@ -84,19 +83,15 @@ export default function RoutesPage() {
     e.preventDefault()
     setSaving(true); setError('')
     const payload = {
-      route_id:   selected,
-      period:     ttForm.period,
-      direction:  ttForm.direction,
-      valid_from: ttForm.valid_from || null,
-      valid_to:   ttForm.valid_to   || null,
+      route_id:  selected,
+      name:      ttForm.name,
+      direction: ttForm.direction,
     }
     const { error: err } = ttModal === 'add'
       ? await supabase.from('timetables').insert(payload)
       : await supabase.from('timetables').update({
-          period:     ttForm.period,
-          direction:  ttForm.direction,
-          valid_from: ttForm.valid_from || null,
-          valid_to:   ttForm.valid_to   || null,
+          name:      ttForm.name,
+          direction: ttForm.direction,
         }).eq('id', ttModal.id)
     setSaving(false)
     if (err) { setError(err.message); return }
@@ -197,9 +192,9 @@ export default function RoutesPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>Period</th>
-                    <th>Valid From</th>
-                    <th>Valid To</th>
+                    <th>Name</th>
+                    <th></th>
+                    <th></th>
                     <th>Stops</th>
                     <th></th>
                   </tr>
@@ -208,19 +203,19 @@ export default function RoutesPage() {
                   {(timetables[selected] ?? []).map(t => (
                     <tr key={t.id}>
                       <td>
-                        <span className={`badge ${t.period === 'Morning' || t.period === 'Early Morning' ? 'badge-amber' : 'badge-blue'}`}>
-                          {t.period} {t.direction}
-                        </span>
+                        <span className="badge badge-blue">{t.name}</span>
+                        {' '}
+                        <span className="badge badge-gray">{t.direction}</span>
                       </td>
-                      <td style={{ color: 'var(--text-muted)' }}>{t.valid_from ?? '—'}</td>
-                      <td style={{ color: 'var(--text-muted)' }}>{t.valid_to ?? '—'}</td>
+                      <td></td>
+                      <td></td>
                       <td><TimetableStopCount timetableId={t.id} /></td>
                       <td>
                         <div className="td-actions">
                           <button
                             className="btn btn-ghost btn-sm"
                             onClick={() => {
-                              setTtForm({ period: t.period, direction: t.direction ?? 'Outbound', valid_from: t.valid_from ?? '', valid_to: t.valid_to ?? '' })
+                              setTtForm({ name: t.name, direction: t.direction ?? 'Outbound' })
                               setError(''); setTtModal(t)
                             }}
                           >
@@ -321,15 +316,16 @@ export default function RoutesPage() {
           {error && <div className="error-msg">{error}</div>}
           <form onSubmit={saveTimetable}>
             <div className="form-group">
-              <label className="form-label">Period</label>
-              <select
-                name="period"
-                className="form-select"
-                value={ttForm.period}
-                onChange={e => setTtForm(f => ({ ...f, period: e.target.value }))}
-              >
-                {PERIODS.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
+              <label className="form-label">Name</label>
+              <input
+                name="name"
+                className="form-input"
+                value={ttForm.name}
+                onChange={e => setTtForm(f => ({ ...f, name: e.target.value }))}
+                required
+                autoFocus
+                placeholder="e.g. Standard Outbound"
+              />
             </div>
             <div className="form-group">
               <label className="form-label">Direction</label>
@@ -341,20 +337,6 @@ export default function RoutesPage() {
               >
                 {DIRECTIONS.map(d => <option key={d} value={d}>{d}</option>)}
               </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">
-                Valid From{' '}
-                <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
-              </label>
-              <input name="valid_from" className="form-input" type="date" value={ttForm.valid_from} onChange={e => setTtForm(f => ({ ...f, valid_from: e.target.value }))} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">
-                Valid To{' '}
-                <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
-              </label>
-              <input name="valid_to" className="form-input" type="date" value={ttForm.valid_to} onChange={e => setTtForm(f => ({ ...f, valid_to: e.target.value }))} />
             </div>
           </form>
         </Modal>

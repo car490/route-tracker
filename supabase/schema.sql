@@ -165,36 +165,30 @@ create table routes (
 
 
 -- ── Timetables ────────────────────────────────────────────────────────────────
--- A specific scheduled variant of a route (e.g. Morning Outbound, Afternoon Inbound).
+-- A named stop-sequence pattern for a route (e.g. "Standard Outbound", "School Run Inbound").
+-- Multiple departures (timetable_departures) reference each pattern; they carry
+-- the departure_time, days_of_week, and timing_profile.
 
 create table timetables (
   id              uuid        primary key default gen_random_uuid(),
   route_id        uuid        not null references routes(id) on delete cascade,
-  period          text        not null
-                    check (period in (
-                      'Early Morning',
-                      'Morning',
-                      'Midday',
-                      'Afternoon',
-                      'Evening',
-                      'Night',
-                      'All Day'
-                    )),
+  name            text        not null,
   direction       text        not null
                     check (direction in ('Outbound', 'Inbound', 'Circular')),
-  valid_from      date,
-  valid_to        date,
-  days_of_week    int[]       not null default '{1,2,3,4,5}',
-  created_at      timestamptz not null default now(),
-  check (valid_to is null or valid_to >= valid_from)
+  created_at      timestamptz not null default now()
 );
 
 
 -- ── Timetable stops ───────────────────────────────────────────────────────────
--- The ordered list of stops for a timetable.
+-- The ordered list of stops for a timetable pattern.
 -- stop_type = 'timing_point' : shown in driver app with scheduled time, GPS arrival tracked.
 -- stop_type = 'routing_point': used for map/directions only, not shown in timing list.
--- scheduled_time is required for timing points; optional for routing points.
+-- Times stored as offsets (minutes from departure_time) in three traffic profiles:
+--   offset_standard: normal conditions
+--   offset_delay:    peak / heavy traffic
+--   offset_early:    light / off-peak
+-- Routing points keep all three offsets NULL.
+-- First stop in sequence always has offset = 0 (departure_time IS the first stop time).
 
 create table timetable_stops (
   id              uuid        primary key default gen_random_uuid(),
@@ -203,46 +197,72 @@ create table timetable_stops (
   sequence        int         not null,
   stop_type       text        not null
                     check (stop_type in ('timing_point', 'routing_point')),
-  scheduled_time  time,
+  offset_standard int,
+  offset_delay    int,
+  offset_early    int,
   created_at      timestamptz not null default now(),
   unique (timetable_id, sequence),
-  check (stop_type = 'routing_point' or scheduled_time is not null)
+  check (stop_type = 'routing_point' or offset_standard is not null)
+);
+
+
+-- ── Timetable departures ──────────────────────────────────────────────────────
+-- A specific departure slot for a timetable pattern: when it runs and under which
+-- traffic profile. Multiple departures can reference the same timetable pattern.
+-- vehicle_journey_code: stable BODS/TransXChange identifier, unique per route.
+-- timing_profile: which offset set to apply (standard / delay / early).
+-- journey.timing_profile can override this per-instance.
+
+create table timetable_departures (
+  id                   uuid        primary key default gen_random_uuid(),
+  timetable_id         uuid        not null references timetables(id) on delete cascade,
+  departure_time       time        not null,
+  days_of_week         int[]       not null default '{1,2,3,4,5}',
+  timing_profile       text        not null default 'standard'
+                         check (timing_profile in ('standard', 'delay', 'early')),
+  valid_from           date,
+  valid_to             date,
+  vehicle_journey_code text        not null,
+  created_at           timestamptz not null default now(),
+  check (valid_to is null or valid_to >= valid_from)
 );
 
 
 -- ── Journeys ──────────────────────────────────────────────────────────────────
--- An instance of a timetable running on a specific date, assigned to driver + vehicle.
--- timetable_id is nullable: ad-hoc jobs (Private Hire, Excursion, Tour) have none.
+-- An instance of a timetable departure running on a specific date, assigned to driver + vehicle.
+-- timetable_departure_id is nullable: ad-hoc jobs (Private Hire, Excursion, Tour) have none.
 -- company_id is stored directly for efficient RLS without chasing FK joins.
--- For ad-hoc journeys, journey_type must be set directly (cannot be derived from timetable).
+-- For ad-hoc journeys, journey_type must be set directly (cannot be derived from departure).
+-- timing_profile overrides the departure's default profile for this specific instance.
 
 create table journeys (
-  id              uuid        primary key default gen_random_uuid(),
-  company_id      uuid        not null references companies(id) on delete cascade,
-  timetable_id    uuid        references timetables(id),
-  journey_date    date        not null,
-  journey_type    text,
-  driver_id       uuid        references employees(id) on delete set null,
-  vehicle_id      uuid        references vehicles(id) on delete set null,
-  status          text        not null default 'scheduled'
-                    check (status in (
-                      'scheduled',
-                      'in_progress',
-                      'completed',
-                      'cancelled'
-                    )),
-  notes           text,
-  started_at      timestamptz,
-  completed_at    timestamptz,
-  created_at      timestamptz not null default now(),
-  check (timetable_id is not null or journey_type is not null),
+  id                     uuid        primary key default gen_random_uuid(),
+  company_id             uuid        not null references companies(id) on delete cascade,
+  timetable_departure_id uuid        references timetable_departures(id),
+  journey_date           date        not null,
+  journey_type           text,
+  timing_profile         text        check (timing_profile in ('standard', 'delay', 'early')),
+  driver_id              uuid        references employees(id) on delete set null,
+  vehicle_id             uuid        references vehicles(id) on delete set null,
+  status                 text        not null default 'scheduled'
+                           check (status in (
+                             'scheduled',
+                             'in_progress',
+                             'completed',
+                             'cancelled'
+                           )),
+  notes                  text,
+  started_at             timestamptz,
+  completed_at           timestamptz,
+  created_at             timestamptz not null default now(),
+  check (timetable_departure_id is not null or journey_type is not null),
   check (completed_at is null or started_at is null or completed_at >= started_at)
 );
 
--- A timetable can run at most once per day (cancelled journeys excluded).
+-- A departure slot can run at most once per day (cancelled journeys excluded).
 create unique index journeys_no_double_booking
-  on journeys (timetable_id, journey_date)
-  where status != 'cancelled' and timetable_id is not null;
+  on journeys (timetable_departure_id, journey_date)
+  where status != 'cancelled' and timetable_departure_id is not null;
 
 
 -- ── Journey waypoints ─────────────────────────────────────────────────────────
@@ -384,7 +404,8 @@ create trigger trg_protect_vehicle_status
   for each row execute function protect_vehicle_status();
 
 -- Compute arrival/departure variance and early flags on insert into journey_stop_times.
--- For timetabled stops: scheduled datetime = journey_date + scheduled_time (Europe/London).
+-- For timetabled stops: scheduled datetime = journey_date + departure_time + offset (Europe/London).
+--   The effective timing profile is journey.timing_profile (if set) else departure.timing_profile.
 -- For ad-hoc waypoints: scheduled datetime = journey_waypoints.scheduled_at.
 -- Routing points have no scheduled time — variance columns remain null, flags remain false.
 create or replace function compute_stop_time_variance()
@@ -396,12 +417,23 @@ declare
   v_stop_type     text;
 begin
   if new.timetable_stop_id is not null then
-    select (j.journey_date + ts.scheduled_time) at time zone 'Europe/London',
-           ts.stop_type
-    into   v_scheduled_at, v_stop_type
-    from   timetable_stops ts
-    join   journeys j on j.id = new.journey_id
-    where  ts.id = new.timetable_stop_id;
+    select
+      (j.journey_date +
+        td.departure_time +
+        make_interval(mins =>
+          case coalesce(j.timing_profile, td.timing_profile)
+            when 'delay' then coalesce(ts.offset_delay, ts.offset_standard, 0)
+            when 'early' then coalesce(ts.offset_early, ts.offset_standard, 0)
+            else              coalesce(ts.offset_standard, 0)
+          end
+        )
+      ) at time zone 'Europe/London',
+      ts.stop_type
+    into v_scheduled_at, v_stop_type
+    from timetable_stops      ts
+    join journeys             j  on j.id  = new.journey_id
+    join timetable_departures td on td.id = j.timetable_departure_id
+    where ts.id = new.timetable_stop_id;
 
   elsif new.journey_waypoint_id is not null then
     select jw.scheduled_at,
@@ -438,12 +470,13 @@ create index on employee_contacts (employee_id);
 create index on employees         (company_id);
 create index on vehicles          (company_id);
 create index on routes            (company_id);
-create index on timetables        (route_id);
-create index on timetable_stops   (timetable_id);
-create index on timetable_stops   (stop_id);
-create index on journeys          (company_id);
-create index on journeys          (timetable_id);
-create index on journeys          (journey_date);
+create index on timetables            (route_id);
+create index on timetable_departures  (timetable_id);
+create index on timetable_stops       (timetable_id);
+create index on timetable_stops       (stop_id);
+create index on journeys              (company_id);
+create index on journeys              (timetable_departure_id);
+create index on journeys              (journey_date);
 create index on journeys          (driver_id);
 create index on journeys          (vehicle_id);
 create index on journey_waypoints  (journey_id);
@@ -589,7 +622,21 @@ $$;
 grant execute on function complete_journey(uuid) to anon;
 
 CREATE OR REPLACE FUNCTION public.get_duty_card(journey_ids uuid[])
- RETURNS TABLE(journey_id uuid, status text, started_at timestamp with time zone, completed_at timestamp with time zone, driver_name text, vehicle_registration text, service_code text, route_name text, period text, direction text, timetable_id uuid, first_stop_time text, last_stop_name text)
+ RETURNS TABLE(
+   journey_id             uuid,
+   status                 text,
+   started_at             timestamp with time zone,
+   completed_at           timestamp with time zone,
+   driver_name            text,
+   vehicle_registration   text,
+   service_code           text,
+   route_name             text,
+   timetable_name         text,
+   direction              text,
+   timetable_departure_id uuid,
+   first_stop_time        text,
+   last_stop_name         text
+ )
  LANGUAGE sql
  STABLE SECURITY DEFINER
 AS $function$
@@ -598,25 +645,23 @@ AS $function$
     j.status,
     j.started_at,
     j.completed_at,
-    coalesce(s.name, 'Driver')                               as driver_name,
+    coalesce(e.name, 'Driver')                               as driver_name,
     coalesce(v.registration, 'Unknown')                      as vehicle_registration,
     r.service_code,
     r.name                                                   as route_name,
-    t.period,
+    t.name                                                   as timetable_name,
     t.direction,
-    t.id                                                     as timetable_id,
-    to_char(
-      (select ts2.scheduled_time from timetable_stops ts2
-       where ts2.timetable_id = t.id order by ts2.sequence limit 1),
-      'HH24:MI')                                             as first_stop_time,
+    td.id                                                    as timetable_departure_id,
+    to_char(td.departure_time, 'HH24:MI')                   as first_stop_time,
     (select st.name from timetable_stops ts3
      join stops st on st.id = ts3.stop_id
      where ts3.timetable_id = t.id order by ts3.sequence desc limit 1) as last_stop_name
   from journeys j
-  left join employees  s on s.id = j.driver_id
-  left join vehicles   v on v.id = j.vehicle_id
-  left join timetables t on t.id = j.timetable_id
-  left join routes     r on r.id = t.route_id
+  left join employees           e  on e.id  = j.driver_id
+  left join vehicles            v  on v.id  = j.vehicle_id
+  left join timetable_departures td on td.id = j.timetable_departure_id
+  left join timetables          t  on t.id  = td.timetable_id
+  left join routes              r  on r.id  = t.route_id
   where j.id = any(journey_ids)
   order by array_position(journey_ids, j.id)
 $function$;
@@ -624,31 +669,48 @@ $function$;
 grant execute on function get_duty_card(uuid[]) to anon;
 
 -- ── Views ─────────────────────────────────────────────────────────────────────
--- Used by the driver PWA to fetch a timetable by service_code + period + direction.
+-- Returns one row per (departure × stop).
+-- scheduled_time is computed as departure_time + offset for the departure's timing_profile.
+-- Filter by departure_id to get a specific departure's stops.
+-- Filter by timetable_id to get all departures for a pattern.
 
 create or replace view schedule_view as
   select
-    ts.id               as timetable_stop_id,
+    ts.id                as timetable_stop_id,
     ts.sequence,
     ts.stop_type,
-    ts.scheduled_time,
+    (td.departure_time + make_interval(mins =>
+      case td.timing_profile
+        when 'delay' then coalesce(ts.offset_delay, ts.offset_standard, 0)
+        when 'early' then coalesce(ts.offset_early, ts.offset_standard, 0)
+        else              coalesce(ts.offset_standard, 0)
+      end
+    ))::time             as scheduled_time,
+    ts.offset_standard,
+    ts.offset_delay,
+    ts.offset_early,
     s.name,
     s.lat,
     s.lon,
     s.is_depot,
     s.naptan_code,
     ts.timetable_id,
-    t.period,
+    td.id                as departure_id,
+    td.departure_time,
+    td.timing_profile,
+    td.days_of_week,
+    td.vehicle_journey_code,
+    t.name               as timetable_name,
     t.direction,
-    t.days_of_week,
     r.service_code,
-    r.name              as route_name,
+    r.name               as route_name,
     r.journey_type
-  from timetable_stops  ts
-  join stops            s  on s.id = ts.stop_id
-  join timetables       t  on t.id = ts.timetable_id
-  join routes           r  on r.id = t.route_id
-  order by r.service_code, t.period, t.direction, ts.sequence;
+  from timetable_stops     ts
+  join stops               s  on s.id  = ts.stop_id
+  join timetables          t  on t.id  = ts.timetable_id
+  join timetable_departures td on td.timetable_id = t.id
+  join routes              r  on r.id  = t.route_id
+  order by r.service_code, td.departure_time, ts.sequence;
 
 
 -- ── Row Level Security ────────────────────────────────────────────────────────
@@ -659,8 +721,9 @@ alter table employees           enable row level security;
 alter table vehicles            enable row level security;
 alter table stops               enable row level security;
 alter table routes              enable row level security;
-alter table timetables          enable row level security;
-alter table timetable_stops     enable row level security;
+alter table timetables            enable row level security;
+alter table timetable_departures  enable row level security;
+alter table timetable_stops       enable row level security;
 alter table journeys            enable row level security;
 alter table journey_waypoints   enable row level security;
 alter table journey_events      enable row level security;
@@ -669,9 +732,10 @@ alter table journey_stop_times  enable row level security;
 -- Anon: read-only access to schedule data (driver PWA — no login required)
 create policy "anon_read" on stops           for select to anon using (true);
 create policy "anon_read" on companies       for select to anon using (true);
-create policy "anon_read" on routes          for select to anon using (true);
-create policy "anon_read" on timetables      for select to anon using (true);
-create policy "anon_read" on timetable_stops for select to anon using (true);
+create policy "anon_read" on routes               for select to anon using (true);
+create policy "anon_read" on timetables           for select to anon using (true);
+create policy "anon_read" on timetable_departures for select to anon using (true);
+create policy "anon_read" on timetable_stops      for select to anon using (true);
 
 -- Companies: authenticated users see only their own company
 create policy "company_read" on companies
@@ -713,6 +777,24 @@ create policy "company_all" on timetables
   )
   with check (
     route_id in (select id from routes where company_id = current_company_id())
+  );
+
+-- Timetable departures: scoped via timetable → route → company
+create policy "company_all" on timetable_departures
+  for all to authenticated
+  using (
+    timetable_id in (
+      select t.id from timetables t
+      join routes r on r.id = t.route_id
+      where r.company_id = current_company_id()
+    )
+  )
+  with check (
+    timetable_id in (
+      select t.id from timetables t
+      join routes r on r.id = t.route_id
+      where r.company_id = current_company_id()
+    )
   );
 
 -- Timetable stops: scoped via timetable → route → company
@@ -854,6 +936,9 @@ grant all on all sequences in schema public to authenticated;
 alter default privileges in schema public grant select on tables to anon;
 alter default privileges in schema public grant all on tables to authenticated;
 alter default privileges in schema public grant all on sequences to authenticated;
+
+grant select on timetable_departures to anon;
+grant all    on timetable_departures to authenticated;
 
 grant select on schedule_view to anon;
 grant select on schedule_view to authenticated;

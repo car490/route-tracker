@@ -15,8 +15,9 @@ const TYPE_DEFAULTS = {
   'Double Decker':     { height_metres: 4.35, width_metres: 2.55, length_metres: 11.00 },
 }
 
-const PERIODS    = ['Early Morning', 'Morning', 'Midday', 'Afternoon', 'Evening', 'Night', 'All Day']
 const DIRECTIONS = ['Outbound', 'Inbound', 'Circular']
+const DAYS       = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const DEP_EMPTY  = { departure_time: '', days_of_week: [1,2,3,4,5], timing_profile: 'standard', vehicle_journey_code: '' }
 
 const S = {
   sectionLabel: {
@@ -37,6 +38,17 @@ function stopColor(i, total) {
   if (i === 0) return '#4db848'
   if (i === total - 1) return '#e53935'
   return '#1e3d72'
+}
+function timeToMinutes(t) {
+  if (!t) return null
+  const [h, m] = t.split(':').map(Number)
+  return h * 60 + m
+}
+function minutesToTime(mins) {
+  if (mins == null) return ''
+  const h = Math.floor(mins / 60) % 24
+  const m = mins % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
 // ── Leaflet map ───────────────────────────────────────────────────────────────
@@ -208,8 +220,6 @@ function PlannerMap({ stops, routeGeometry, pinDropMode, onMapClick, onRemoveSto
       markersRef.current.push(marker)
     })
 
-    // Only fit/pan when fitKey changes — i.e. when stops are loaded from the DB.
-    // User-initiated adds (pin-drop, search) leave the map view unchanged.
     if (fitKey !== null && fitKey !== prevFitKeyRef.current) {
       prevFitKeyRef.current = fitKey
       if (validStops.length >= 2) {
@@ -227,7 +237,6 @@ function PlannerMap({ stops, routeGeometry, pinDropMode, onMapClick, onRemoveSto
 
 export default function RoutePlannerPage() {
   const { journeyTypes } = useJourneyTypes()
-  // Route selection: '' = none, '__new__' = inline new form, uuid = existing
   const [routeId,     setRouteId]     = useState('')
   const [timetableId, setTimetableId] = useState('')
   const [vehicleType, setVehicleType] = useState([])
@@ -235,16 +244,21 @@ export default function RoutePlannerPage() {
   const [routes,     setRoutes]     = useState([])
   const [timetables, setTimetables] = useState([])
 
-  // Inline new-route fields (shown when routeId === '__new__')
+  // Inline new-route fields
   const [newCode,         setNewCode]         = useState('')
   const [newName,         setNewName]         = useState('')
   const [newJourneyTypes, setNewJourneyTypes] = useState([])
 
-  // Inline new-timetable fields (shown when timetableId === '__new__')
-  const [newPeriod,    setNewPeriod]    = useState('Morning')
+  // Inline new-timetable fields
+  const [newTtName,    setNewTtName]    = useState('')
   const [newDirection, setNewDirection] = useState('Outbound')
-  const [newValidFrom, setNewValidFrom] = useState('')
-  const [newValidTo,   setNewValidTo]   = useState('')
+
+  // Departures
+  const [departures, setDepartures] = useState([])
+  const [depModal,   setDepModal]   = useState(null)
+  const [depForm,    setDepForm]    = useState(DEP_EMPTY)
+  const [depSaving,  setDepSaving]  = useState(false)
+  const [depError,   setDepError]   = useState('')
 
   const [stops,       setStops]       = useState([])
   const [routing,     setRouting]     = useState(false)
@@ -258,7 +272,6 @@ export default function RoutePlannerPage() {
   const [addingStop,    setAddingStop]    = useState(false)
 
   const [fitKey,      setFitKey]      = useState(null)
-
   const [saving,      setSaving]      = useState(false)
   const [saveError,   setSaveError]   = useState('')
   const [saveSuccess, setSaveSuccess] = useState(false)
@@ -274,32 +287,41 @@ export default function RoutePlannerPage() {
 
   useEffect(() => {
     if (!routeId || routeId === '__new__') {
-      setTimetables([]); setTimetableId(routeId === '__new__' ? '__new__' : ''); setStops([])
+      setTimetables([]); setTimetableId(routeId === '__new__' ? '__new__' : '')
+      setStops([]); setDepartures([])
       return
     }
-    supabase.from('timetables').select('*').eq('route_id', routeId).order('period')
+    supabase.from('timetables').select('*').eq('route_id', routeId).order('name')
       .then(({ data }) => setTimetables(data ?? []))
     setTimetableId('')
     setStops([])
+    setDepartures([])
   }, [routeId])
 
   useEffect(() => {
-    if (!timetableId || timetableId === '__new__') { setStops([]); return }
-    supabase
-      .from('timetable_stops').select('*, stops(*)').eq('timetable_id', timetableId).order('sequence')
-      .then(({ data }) => {
-        const loaded = (data ?? []).map(ts => ({
-          _id:            ts.id,
-          stop_id:        ts.stop_id,
-          name:           ts.stops.name,
-          lat:            ts.stops.lat,
-          lon:            ts.stops.lon,
-          stop_type:      ts.stop_type,
-          scheduled_time: ts.scheduled_time ?? '',
-        }))
-        setStops(loaded)
-        if (loaded.length > 0) setFitKey(k => (k ?? 0) + 1)
-      })
+    if (!timetableId || timetableId === '__new__') { setStops([]); setDepartures([]); return }
+    Promise.all([
+      supabase.from('timetable_stops').select('*, stops(*)').eq('timetable_id', timetableId).order('sequence'),
+      supabase.from('timetable_departures').select('*').eq('timetable_id', timetableId).order('departure_time'),
+    ]).then(([{ data: tsData }, { data: depData }]) => {
+      const deps = depData ?? []
+      setDepartures(deps)
+      const baseStr = deps[0]?.departure_time ?? '07:00:00'
+      const base    = timeToMinutes(baseStr.slice(0, 5))
+      const loaded  = (tsData ?? []).map(ts => ({
+        _id:        ts.id,
+        stop_id:    ts.stop_id,
+        name:       ts.stops.name,
+        lat:        ts.stops.lat,
+        lon:        ts.stops.lon,
+        stop_type:  ts.stop_type,
+        time_std:   ts.stop_type === 'timing_point' && ts.offset_standard != null ? minutesToTime(base + ts.offset_standard) : '',
+        time_delay: ts.stop_type === 'timing_point' && ts.offset_delay    != null ? minutesToTime(base + ts.offset_delay)    : '',
+        time_early: ts.stop_type === 'timing_point' && ts.offset_early    != null ? minutesToTime(base + ts.offset_early)    : '',
+      }))
+      setStops(loaded)
+      if (loaded.length > 0) setFitKey(k => (k ?? 0) + 1)
+    })
   }, [timetableId])
 
   // ── Auto-routing ─────────────────────────────────────────────────────────────
@@ -377,7 +399,7 @@ export default function RoutePlannerPage() {
     setStops(prev => [...prev, {
       _id: crypto.randomUUID(), stop_id: stopId,
       name: result.name, lat: result.lat, lon: result.lon,
-      stop_type: 'timing_point', scheduled_time: '',
+      stop_type: 'timing_point', time_std: '', time_delay: '', time_early: '',
     }])
     setShowSearch(false); setSearchQuery(''); setSearchResults([])
     setAddingStop(false)
@@ -386,7 +408,7 @@ export default function RoutePlannerPage() {
   function handleMapPinDrop({ name, lat, lon }) {
     setStops(prev => [...prev, {
       _id: crypto.randomUUID(), stop_id: null,
-      name, lat, lon, stop_type: 'timing_point', scheduled_time: '',
+      name, lat, lon, stop_type: 'timing_point', time_std: '', time_delay: '', time_early: '',
     }])
   }
 
@@ -413,6 +435,53 @@ export default function RoutePlannerPage() {
     setStops(prev => prev.map((s, idx) => idx === i ? { ...s, [field]: value } : s))
   }
 
+  // ── Departures ────────────────────────────────────────────────────────────────
+
+  async function loadDepartures(ttId) {
+    const { data } = await supabase
+      .from('timetable_departures').select('*').eq('timetable_id', ttId).order('departure_time')
+    setDepartures(data ?? [])
+  }
+
+  async function saveDeparture(e) {
+    e.preventDefault()
+    setDepSaving(true); setDepError('')
+    const payload = {
+      timetable_id:         timetableId,
+      departure_time:       depForm.departure_time,
+      days_of_week:         depForm.days_of_week,
+      timing_profile:       depForm.timing_profile,
+      vehicle_journey_code: depForm.vehicle_journey_code,
+    }
+    const { error } = depModal === 'add'
+      ? await supabase.from('timetable_departures').insert(payload)
+      : await supabase.from('timetable_departures').update({
+          departure_time:       depForm.departure_time,
+          days_of_week:         depForm.days_of_week,
+          timing_profile:       depForm.timing_profile,
+          vehicle_journey_code: depForm.vehicle_journey_code,
+        }).eq('id', depModal.id)
+    setDepSaving(false)
+    if (error) { setDepError(error.message); return }
+    setDepModal(null)
+    loadDepartures(timetableId)
+  }
+
+  async function deleteDeparture(id) {
+    if (!confirm('Delete this departure?')) return
+    await supabase.from('timetable_departures').delete().eq('id', id)
+    loadDepartures(timetableId)
+  }
+
+  async function nextVjc() {
+    if (!timetables.length) return 'VJ1'
+    const { count } = await supabase
+      .from('timetable_departures')
+      .select('id', { count: 'exact', head: true })
+      .in('timetable_id', timetables.map(t => t.id))
+    return `VJ${(count ?? 0) + 1}`
+  }
+
   // ── Save ─────────────────────────────────────────────────────────────────────
 
   async function handleSave() {
@@ -433,7 +502,7 @@ export default function RoutePlannerPage() {
 
     if (timetableId === '__new__') {
       const { data, error } = await supabase.from('timetables')
-        .insert({ route_id: resolvedRouteId, period: newPeriod, direction: newDirection, valid_from: newValidFrom || null, valid_to: newValidTo || null })
+        .insert({ route_id: resolvedRouteId, name: newTtName, direction: newDirection })
         .select('id').single()
       if (error) { setSaveError(error.message); setSaving(false); return }
       resolvedTimetableId = data.id
@@ -442,6 +511,10 @@ export default function RoutePlannerPage() {
     const { error: delErr } = await supabase
       .from('timetable_stops').delete().eq('timetable_id', resolvedTimetableId)
     if (delErr) { setSaveError(delErr.message); setSaving(false); return }
+
+    // First timing point's time_std = departure time (offset 0)
+    const firstTiming = stops.find(s => s.stop_type === 'timing_point' && s.time_std)
+    const base        = firstTiming ? timeToMinutes(firstTiming.time_std) : null
 
     const stopRows = []
     for (let i = 0; i < stops.length; i++) {
@@ -453,10 +526,15 @@ export default function RoutePlannerPage() {
         if (error) { setSaveError(`Stop "${s.name}": ${error.message}`); setSaving(false); return }
         stopId = data.id
       }
+      const isTiming = s.stop_type === 'timing_point'
       stopRows.push({
-        timetable_id: resolvedTimetableId, stop_id: stopId, sequence: i + 1,
-        stop_type: s.stop_type,
-        scheduled_time: s.stop_type === 'timing_point' && s.scheduled_time ? s.scheduled_time : null,
+        timetable_id:    resolvedTimetableId,
+        stop_id:         stopId,
+        sequence:        i + 1,
+        stop_type:       s.stop_type,
+        offset_standard: isTiming && s.time_std   && base != null ? timeToMinutes(s.time_std)   - base : null,
+        offset_delay:    isTiming && s.time_delay  && base != null ? timeToMinutes(s.time_delay)  - base : null,
+        offset_early:    isTiming && s.time_early  && base != null ? timeToMinutes(s.time_early)  - base : null,
       })
     }
 
@@ -467,7 +545,7 @@ export default function RoutePlannerPage() {
     await loadRoutes()
     if (wasNew) {
       setNewCode(''); setNewName(''); setNewJourneyTypes([])
-      setNewPeriod('Morning'); setNewDirection('Outbound'); setNewValidFrom(''); setNewValidTo('')
+      setNewTtName(''); setNewDirection('Outbound')
       setRouteId(''); setTimetableId(''); setStops([])
     }
     setSaving(false); setSaveSuccess(true)
@@ -476,8 +554,8 @@ export default function RoutePlannerPage() {
 
   // ── Derived ───────────────────────────────────────────────────────────────────
 
-  const vehicle    = resolvedVehicle()
-  const warnings   = routeResult?.warnings ?? []
+  const vehicle  = resolvedVehicle()
+  const warnings = routeResult?.warnings ?? []
 
   const routeReady = routeId === '__new__' ? newCode.trim().length > 0 && newJourneyTypes.length > 0 : !!routeId
   const ttReady    = !!timetableId
@@ -506,17 +584,16 @@ export default function RoutePlannerPage() {
       {/* Two-panel body */}
       <div style={{ flex: 1, display: 'flex', gap: 12, overflow: 'hidden', minHeight: 0 }}>
 
-        {/* ── Sidebar (280px) ── */}
+        {/* ── Sidebar ── */}
         <div style={{
           width: 280, minWidth: 280, flexShrink: 0,
           display: 'flex', flexDirection: 'column', gap: 8,
           overflowY: 'auto', paddingBottom: 8,
         }}>
 
-          {/* ── Card 1: Route + Timetable ── */}
+          {/* Card 1: Route + Timetable */}
           <div className="card" style={{ padding: 10 }}>
 
-            {/* Route select */}
             <div style={{ marginBottom: 6 }}>
               <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Route</div>
               <select
@@ -540,7 +617,6 @@ export default function RoutePlannerPage() {
               </select>
             </div>
 
-            {/* Inline new-route form */}
             {routeId === '__new__' && (
               <div style={{
                 background: 'var(--bg)', borderRadius: 6, padding: 8, marginBottom: 6,
@@ -585,7 +661,6 @@ export default function RoutePlannerPage() {
               </div>
             )}
 
-            {/* Timetable select */}
             <div>
               <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Timetable</div>
               <select
@@ -599,50 +674,34 @@ export default function RoutePlannerPage() {
                 <option value="__new__">＋ New timetable…</option>
                 {timetables.length > 0 && <option disabled>──────────</option>}
                 {timetables.map(t => (
-                  <option key={t.id} value={t.id}>{t.period} · {t.direction}</option>
+                  <option key={t.id} value={t.id}>{t.name} · {t.direction}</option>
                 ))}
               </select>
             </div>
 
-            {/* Inline new-timetable form */}
             {timetableId === '__new__' && (
               <div style={{
                 background: 'var(--bg)', borderRadius: 6, padding: 8, marginTop: 6,
                 border: '1px solid var(--border)',
               }}>
-                <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Period</div>
-                    <select name="period" className="form-select" value={newPeriod}
-                      onChange={e => setNewPeriod(e.target.value)}>
-                      {PERIODS.map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Direction</div>
-                    <select name="direction" className="form-select" value={newDirection}
-                      onChange={e => setNewDirection(e.target.value)}>
-                      {DIRECTIONS.map(d => <option key={d} value={d}>{d}</option>)}
-                    </select>
-                  </div>
+                <div style={{ marginBottom: 6 }}>
+                  <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Name</div>
+                  <input name="tt_name" className="form-input"
+                    placeholder="e.g. Standard Outbound" value={newTtName}
+                    onChange={e => setNewTtName(e.target.value)} />
                 </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ ...S.sectionLabel, marginBottom: 3 }}>From <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(opt)</span></div>
-                    <input name="valid_from" className="form-input" type="date"
-                      value={newValidFrom} onChange={e => setNewValidFrom(e.target.value)} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ ...S.sectionLabel, marginBottom: 3 }}>To <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(opt)</span></div>
-                    <input name="valid_to" className="form-input" type="date"
-                      value={newValidTo} onChange={e => setNewValidTo(e.target.value)} />
-                  </div>
+                <div>
+                  <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Direction</div>
+                  <select name="direction" className="form-select" value={newDirection}
+                    onChange={e => setNewDirection(e.target.value)}>
+                    {DIRECTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
                 </div>
               </div>
             )}
           </div>
 
-          {/* ── Card 2: Vehicle type ── */}
+          {/* Card 2: Vehicle type */}
           <div className="card" style={{ padding: '7px 10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <span style={S.sectionLabel}>Vehicle Type</span>
@@ -682,7 +741,7 @@ export default function RoutePlannerPage() {
             )}
           </div>
 
-          {/* ── Card 3: Stops + summary + errors ── */}
+          {/* Card 3: Stops */}
           <div className="card" style={{ padding: 10 }}>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -736,17 +795,27 @@ export default function RoutePlannerPage() {
                       style={{ padding: '1px 5px', minWidth: 0, lineHeight: 1 }}
                       onClick={() => removeStop(i)} title="Remove">×</button>
                   </div>
-                  <div style={{ display: 'flex', gap: 4, paddingLeft: 19 }}>
+                  <div style={{ paddingLeft: 19 }}>
                     <select name="stop_type" className="form-select"
-                      style={{ fontSize: 12, height: 26, padding: '2px 6px', flex: 1 }}
+                      style={{ fontSize: 12, height: 26, padding: '2px 6px', width: '100%', marginBottom: 3 }}
                       value={s.stop_type} onChange={e => updateStop(i, 'stop_type', e.target.value)}>
                       <option value="timing_point">Timing point</option>
                       <option value="routing_point">Routing point</option>
                     </select>
                     {s.stop_type === 'timing_point' && (
-                      <input name="scheduled_time" type="time" className="form-input"
-                        style={{ fontSize: 12, height: 26, padding: '2px 4px', width: 78, flexShrink: 0 }}
-                        value={s.scheduled_time} onChange={e => updateStop(i, 'scheduled_time', e.target.value)} />
+                      <div style={{ display: 'flex', gap: 3 }}>
+                        {[['time_std','Std'],['time_delay','Delay'],['time_early','Early']].map(([field, label]) => (
+                          <div key={field} style={{ flex: 1 }}>
+                            <div style={{
+                              fontSize: 9, color: 'var(--text-muted)', fontFamily: 'Oswald',
+                              fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 1,
+                            }}>{label}</div>
+                            <input type="time" className="form-input"
+                              style={{ fontSize: 11, height: 24, padding: '1px 3px', width: '100%' }}
+                              value={s[field]} onChange={e => updateStop(i, field, e.target.value)} />
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -813,6 +882,133 @@ export default function RoutePlannerPage() {
 
             {saveError && <div className="error-msg" style={{ marginTop: 10 }}>{saveError}</div>}
           </div>
+
+          {/* Card 4: Departures */}
+          {timetableId && timetableId !== '__new__' && (
+            <div className="card" style={{ padding: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={S.sectionLabel}>Departures</span>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  style={{ padding: '2px 8px', fontSize: 11 }}
+                  onClick={async () => {
+                    const vjc = await nextVjc()
+                    setDepForm({ ...DEP_EMPTY, vehicle_journey_code: vjc })
+                    setDepError('')
+                    setDepModal('add')
+                  }}
+                >+ Add</button>
+              </div>
+
+              {departures.length === 0 && depModal === null && (
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>No departures yet.</p>
+              )}
+
+              {departures.map(dep => (
+                <div key={dep.id} style={{
+                  background: 'var(--bg)', borderRadius: 5, padding: '5px 7px',
+                  marginBottom: 5, display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 14, color: 'var(--navy-brand)', minWidth: 42 }}>
+                    {dep.departure_time.slice(0, 5)}
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', flex: 1 }}>
+                    {dep.days_of_week.map(d => DAYS[d - 1]).join(' ')}
+                    {dep.timing_profile !== 'standard' && (
+                      <span style={{ marginLeft: 4, color: dep.timing_profile === 'delay' ? '#d69e2e' : 'var(--green)' }}>
+                        · {dep.timing_profile}
+                      </span>
+                    )}
+                  </span>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{dep.vehicle_journey_code}</span>
+                  <button className="btn btn-ghost btn-sm"
+                    style={{ padding: '1px 5px', minWidth: 0, fontSize: 11 }}
+                    onClick={() => {
+                      setDepForm({
+                        departure_time:       dep.departure_time.slice(0, 5),
+                        days_of_week:         dep.days_of_week,
+                        timing_profile:       dep.timing_profile,
+                        vehicle_journey_code: dep.vehicle_journey_code,
+                      })
+                      setDepError('')
+                      setDepModal(dep)
+                    }}
+                  >Edit</button>
+                  <button className="btn btn-danger btn-sm"
+                    style={{ padding: '1px 5px', minWidth: 0, fontSize: 11 }}
+                    onClick={() => deleteDeparture(dep.id)}
+                  >×</button>
+                </div>
+              ))}
+
+              {depModal !== null && (
+                <div style={{
+                  background: 'var(--bg)', borderRadius: 6, padding: 8, marginTop: 6,
+                  border: '1px solid var(--border)',
+                }}>
+                  {depError && <div className="error-msg" style={{ marginBottom: 6 }}>{depError}</div>}
+                  <form onSubmit={saveDeparture}>
+                    <div style={{ marginBottom: 6 }}>
+                      <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Departure Time</div>
+                      <input type="time" className="form-input"
+                        value={depForm.departure_time}
+                        onChange={e => setDepForm(f => ({ ...f, departure_time: e.target.value }))}
+                        required />
+                    </div>
+                    <div style={{ marginBottom: 6 }}>
+                      <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Days</div>
+                      <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                        {DAYS.map((d, idx) => {
+                          const dayNum = idx + 1
+                          const on = depForm.days_of_week.includes(dayNum)
+                          return (
+                            <button key={d} type="button"
+                              onClick={() => setDepForm(f => ({
+                                ...f,
+                                days_of_week: on
+                                  ? f.days_of_week.filter(x => x !== dayNum)
+                                  : [...f.days_of_week, dayNum].sort((a, b) => a - b),
+                              }))}
+                              style={{
+                                padding: '2px 6px', fontSize: 10, borderRadius: 8, cursor: 'pointer',
+                                fontFamily: 'inherit', lineHeight: 1.5,
+                                border: `1px solid ${on ? 'var(--navy-brand)' : 'var(--border)'}`,
+                                background: on ? 'var(--navy-brand)' : 'transparent',
+                                color: on ? '#fff' : 'var(--text-muted)',
+                              }}
+                            >{d}</button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: 6 }}>
+                      <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Timing Profile</div>
+                      <select className="form-select" value={depForm.timing_profile}
+                        onChange={e => setDepForm(f => ({ ...f, timing_profile: e.target.value }))}>
+                        <option value="standard">Standard</option>
+                        <option value="delay">Delay</option>
+                        <option value="early">Early</option>
+                      </select>
+                    </div>
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Journey Code (VJC)</div>
+                      <input className="form-input"
+                        value={depForm.vehicle_journey_code}
+                        onChange={e => setDepForm(f => ({ ...f, vehicle_journey_code: e.target.value }))}
+                        required />
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDepModal(null)}>Cancel</button>
+                      <button type="submit" className="btn btn-primary btn-sm" disabled={depSaving}>
+                        {depSaving ? 'Saving…' : 'Save'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
 
         {/* ── Map panel ── */}

@@ -61,8 +61,7 @@ function getContact(contacts, type) {
 
 function jsDayToDb(jsDay) { return jsDay === 0 ? 7 : jsDay }
 
-const PERIOD_ORDER = ['Early Morning', 'Morning', 'Midday', 'Afternoon', 'Evening', 'Night', 'All Day']
-const EMPTY_DUTY = { date: todayStr(), driver_id: '', vehicle_id: '', selectedTimetables: [] }
+const EMPTY_DUTY = { date: todayStr(), driver_id: '', vehicle_id: '', selectedDepartures: [] }
 
 export default function DutyCardsPage() {
   const [weekStart,    setWeekStart]    = useState(() => getWeekStart(new Date()))
@@ -76,7 +75,7 @@ export default function DutyCardsPage() {
   const [tokenLoading, setTokenLoading] = useState(false)
   const [copied,       setCopied]       = useState(false)
 
-  const [timetables,   setTimetables]   = useState([])
+  const [departures,   setDepartures]   = useState([])
   const [journeyMap,   setJourneyMap]   = useState({})
   const [employees,    setEmployees]    = useState([])
   const [vehicles,     setVehicles]     = useState([])
@@ -88,12 +87,14 @@ export default function DutyCardsPage() {
 
   useEffect(() => {
     async function loadStatic() {
-      const [tmRes, empRes, vRes] = await Promise.all([
-        supabase.from('timetables').select('id, period, direction, days_of_week, route:routes(service_code, name)').order('period'),
+      const [depRes, empRes, vRes] = await Promise.all([
+        supabase.from('timetable_departures')
+          .select('id, departure_time, days_of_week, timetable:timetables(name, direction, route:routes(service_code, name))')
+          .order('departure_time'),
         supabase.from('employees').select('id, name').order('name'),
         supabase.from('vehicles').select('id, registration').order('registration'),
       ])
-      setTimetables(tmRes.data ?? [])
+      setDepartures(depRes.data ?? [])
       setEmployees(empRes.data ?? [])
       setVehicles(vRes.data ?? [])
     }
@@ -122,8 +123,8 @@ export default function DutyCardsPage() {
     const { data, error: qErr } = await supabase
       .from('journeys')
       .select(`
-        id, journey_date, timetable_id, driver_id, vehicle_id, status,
-        timetable:timetables(period, direction, route:routes(service_code)),
+        id, journey_date, timetable_departure_id, driver_id, vehicle_id, status,
+        departure:timetable_departures(departure_time, timetable:timetables(name, direction, route:routes(service_code))),
         driver:employees(id, name)
       `)
       .gte('journey_date', start)
@@ -135,7 +136,7 @@ export default function DutyCardsPage() {
 
     const jMap = {}
     for (const j of data ?? []) {
-      jMap[`${j.timetable_id}-${j.journey_date}`] = j
+      jMap[`${j.timetable_departure_id}-${j.journey_date}`] = j
     }
     setJourneyMap(jMap)
 
@@ -226,42 +227,42 @@ export default function DutyCardsPage() {
     setModal('new-duty')
   }
 
-  function availableTimetables() {
+  function availableDepartures() {
     if (!dutyForm.date) return []
     const d = new Date(dutyForm.date + 'T00:00:00')
     const dbDay = jsDayToDb(d.getDay())
-    return [...timetables]
-      .filter(t => {
-        if (!t.days_of_week?.includes(dbDay)) return false
-        const j = journeyMap[`${t.id}-${dutyForm.date}`]
+    return [...departures]
+      .filter(dep => {
+        if (!dep.days_of_week?.includes(dbDay)) return false
+        const j = journeyMap[`${dep.id}-${dutyForm.date}`]
         return !j || !j.driver_id
       })
       .sort((a, b) => {
-        const sc = (a.route?.service_code ?? '').localeCompare(b.route?.service_code ?? '')
+        const sc = (a.timetable?.route?.service_code ?? '').localeCompare(b.timetable?.route?.service_code ?? '')
         if (sc !== 0) return sc
-        return PERIOD_ORDER.indexOf(a.period) - PERIOD_ORDER.indexOf(b.period)
+        return (a.departure_time ?? '').localeCompare(b.departure_time ?? '')
       })
   }
 
-  function toggleTimetable(id) {
+  function toggleDeparture(id) {
     setDutyForm(f => ({
       ...f,
-      selectedTimetables: f.selectedTimetables.includes(id)
-        ? f.selectedTimetables.filter(x => x !== id)
-        : [...f.selectedTimetables, id],
+      selectedDepartures: f.selectedDepartures.includes(id)
+        ? f.selectedDepartures.filter(x => x !== id)
+        : [...f.selectedDepartures, id],
     }))
   }
 
   async function saveNewDuty() {
     if (!dutyForm.driver_id) { setError('Please select a driver'); return }
     if (!dutyForm.vehicle_id) { setError('Please select a vehicle'); return }
-    if (!dutyForm.selectedTimetables.length) { setError('Select at least one run'); return }
+    if (!dutyForm.selectedDepartures.length) { setError('Select at least one run'); return }
     setSaving(true)
     setError('')
     try {
       const companyId = await getCompanyId()
-      for (const tmId of dutyForm.selectedTimetables) {
-        const existing = journeyMap[`${tmId}-${dutyForm.date}`]
+      for (const depId of dutyForm.selectedDepartures) {
+        const existing = journeyMap[`${depId}-${dutyForm.date}`]
         if (existing) {
           const { error: e } = await supabase
             .from('journeys')
@@ -270,11 +271,11 @@ export default function DutyCardsPage() {
           if (e) throw e
         } else {
           const { error: e } = await supabase.from('journeys').insert({
-            company_id: companyId,
-            timetable_id: tmId,
-            journey_date: dutyForm.date,
-            driver_id: dutyForm.driver_id,
-            vehicle_id: dutyForm.vehicle_id,
+            company_id:             companyId,
+            timetable_departure_id: depId,
+            journey_date:           dutyForm.date,
+            driver_id:              dutyForm.driver_id,
+            vehicle_id:             dutyForm.vehicle_id,
           })
           if (e) throw e
         }
@@ -367,7 +368,7 @@ export default function DutyCardsPage() {
                         >
                           {journeys.map(j => (
                             <span key={j.id} className="dm-pill">
-                              {j.timetable?.route?.service_code ?? '?'}
+                              {j.departure?.timetable?.route?.service_code ?? '?'}
                             </span>
                           ))}
                         </td>
@@ -388,8 +389,9 @@ export default function DutyCardsPage() {
             const hasPhone   = contacts.some(c => c.type === 'phone')
             const tokenReady = !!token && !tokenLoading
             const sortedJourneys = [...journeys].sort((a, b) => {
-              const sc = (a.timetable?.route?.service_code ?? '').localeCompare(b.timetable?.route?.service_code ?? '')
-              return sc !== 0 ? sc : PERIOD_ORDER.indexOf(a.timetable?.period) - PERIOD_ORDER.indexOf(b.timetable?.period)
+              const sc = (a.departure?.timetable?.route?.service_code ?? '').localeCompare(b.departure?.timetable?.route?.service_code ?? '')
+              if (sc !== 0) return sc
+              return (a.departure?.departure_time ?? '').localeCompare(b.departure?.departure_time ?? '')
             })
             return (
               <div className="card" style={{ padding: 20 }}>
@@ -407,10 +409,11 @@ export default function DutyCardsPage() {
                   {sortedJourneys.map(j => (
                     <div key={j.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', background: 'var(--bg)', borderRadius: 6 }}>
                       <span style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 600, fontSize: 14, color: 'var(--navy-brand)', minWidth: 60 }}>
-                        {j.timetable?.route?.service_code ?? '—'}
+                        {j.departure?.timetable?.route?.service_code ?? '—'}
                       </span>
                       <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                        {j.timetable?.period} · {j.timetable?.direction}
+                        {j.departure?.timetable?.name} · {j.departure?.timetable?.direction}
+                        {j.departure?.departure_time && <span style={{ marginLeft: 6, fontFamily: 'Oswald', fontWeight: 600 }}>@ {j.departure.departure_time.slice(0, 5)}</span>}
                       </span>
                       <span style={{ marginLeft: 'auto' }}>
                         {j.status === 'completed'   && <span className="badge badge-green">Completed</span>}
@@ -486,7 +489,7 @@ export default function DutyCardsPage() {
               type="date"
               className="form-input"
               value={dutyForm.date}
-              onChange={e => setDutyForm(f => ({ ...f, date: e.target.value, selectedTimetables: [] }))}
+              onChange={e => setDutyForm(f => ({ ...f, date: e.target.value, selectedDepartures: [] }))}
             />
           </div>
           <div className="form-group">
@@ -507,18 +510,18 @@ export default function DutyCardsPage() {
           <label className="form-label" style={{ marginBottom: 8 }}>
             Unassigned runs for {fmtLongDate(dutyForm.date)}
           </label>
-          {availableTimetables().length === 0 ? (
+          {availableDepartures().length === 0 ? (
             <div style={{ color: 'var(--text-muted)', fontSize: 13, padding: '10px 0' }}>
               All runs are already assigned for this date.
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {availableTimetables().map(tm => {
-                const checked = dutyForm.selectedTimetables.includes(tm.id)
-                const existing = journeyMap[`${tm.id}-${dutyForm.date}`]
+              {availableDepartures().map(dep => {
+                const checked = dutyForm.selectedDepartures.includes(dep.id)
+                const existing = journeyMap[`${dep.id}-${dutyForm.date}`]
                 return (
                   <label
-                    key={tm.id}
+                    key={dep.id}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
                       padding: '9px 12px', borderRadius: 6,
@@ -527,10 +530,13 @@ export default function DutyCardsPage() {
                       transition: 'background 0.12s, border-color 0.12s',
                     }}
                   >
-                    <input type="checkbox" name="timetable_id" checked={checked} onChange={() => toggleTimetable(tm.id)} style={{ flexShrink: 0 }} />
+                    <input type="checkbox" name="departure_id" checked={checked} onChange={() => toggleDeparture(dep.id)} style={{ flexShrink: 0 }} />
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 600, fontSize: 14 }}>{tm.route?.service_code}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{tm.period} · {tm.direction}</div>
+                      <div style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 600, fontSize: 14 }}>
+                        {dep.timetable?.route?.service_code}
+                        <span style={{ fontFamily: 'inherit', fontWeight: 700, marginLeft: 8 }}>{dep.departure_time.slice(0, 5)}</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{dep.timetable?.name} · {dep.timetable?.direction}</div>
                     </div>
                     {existing && !existing.driver_id && <span className="badge badge-amber">No driver</span>}
                   </label>
