@@ -301,6 +301,8 @@ $$;
 -- ── Step 15: Update get_duty_card function ────────────────────────────────────
 -- Returns timetable_departure_id + timetable_name instead of timetable_id + period.
 
+DROP FUNCTION IF EXISTS public.get_duty_card(uuid[]);
+
 CREATE OR REPLACE FUNCTION public.get_duty_card(journey_ids uuid[])
  RETURNS TABLE(
    journey_id             uuid,
