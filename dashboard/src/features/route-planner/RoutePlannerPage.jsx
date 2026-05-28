@@ -277,6 +277,7 @@ export default function RoutePlannerPage() {
   const [saving,      setSaving]      = useState(false)
   const [saveError,   setSaveError]   = useState('')
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [showSetup,   setShowSetup]   = useState(true)
 
   // ── Load lookups ─────────────────────────────────────────────────────────────
 
@@ -325,6 +326,20 @@ export default function RoutePlannerPage() {
       if (loaded.length > 0) setFitKey(k => (k ?? 0) + 1)
     })
   }, [timetableId])
+
+  // ── Auto-hide setup cards when route + timetable are confirmed ───────────────
+
+  useEffect(() => {
+    const routeOk = routeId === '__new__'
+      ? newCode.trim().length > 0 && newJourneyTypes.length > 0 && newRouteCollapsed
+      : !!routeId
+    const ttOk = timetableId === '__new__'
+      ? newTtName.trim().length > 0 && newTtCollapsed
+      : !!timetableId
+    if (routeOk && ttOk) setShowSetup(false)
+  }, [routeId, timetableId, newRouteCollapsed, newTtCollapsed, newCode, newJourneyTypes, newTtName])
+
+  useEffect(() => { setShowSetup(true) }, [routeId])
 
   // ── Auto-routing ─────────────────────────────────────────────────────────────
 
@@ -593,6 +608,8 @@ export default function RoutePlannerPage() {
           overflowY: 'auto', paddingBottom: 8,
         }}>
 
+          {showSetup && (<>
+
           {/* Card 1: Route + Timetable */}
           <div className="card" style={{ padding: 10 }}>
 
@@ -779,6 +796,8 @@ export default function RoutePlannerPage() {
             )}
           </div>
 
+          </>)}
+
           {/* Card 3: Stops */}
           <div className="card" style={{ padding: 10 }}>
 
@@ -833,6 +852,10 @@ export default function RoutePlannerPage() {
                           textTransform: 'uppercase', flexShrink: 0,
                         }}>{jt}</span>
                       ))}
+                      <button type="button"
+                        onClick={() => { setShowSetup(true); setNewRouteCollapsed(false); setNewTtCollapsed(false) }}
+                        style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--navy-brand)', cursor: 'pointer', fontSize: 11, padding: 0, flexShrink: 0, textDecoration: 'underline', fontFamily: 'inherit' }}
+                      >Edit</button>
                     </div>
                   )}
                   {ttLabel && (
