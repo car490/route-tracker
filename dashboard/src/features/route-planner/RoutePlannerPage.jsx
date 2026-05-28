@@ -761,6 +761,56 @@ export default function RoutePlannerPage() {
               </div>
             </div>
 
+            {/* Summary of selections from above */}
+            {(() => {
+              const selRoute = routeId && routeId !== '__new__' ? routes.find(r => r.id === routeId) : null
+              const selTt    = timetableId && timetableId !== '__new__' ? timetables.find(t => t.id === timetableId) : null
+              const code     = routeId === '__new__' ? newCode : selRoute?.service_code
+              const name     = routeId === '__new__' ? newName : selRoute?.name
+              const jtypes   = routeId === '__new__' ? newJourneyTypes : (selRoute?.journey_types ?? [])
+              const ttLabel  = timetableId === '__new__'
+                ? [newTtName, newDirection].filter(Boolean).join(' · ')
+                : selTt ? `${selTt.name} · ${selTt.direction}` : ''
+              if (!code && !ttLabel && !vehicleType.length) return null
+              return (
+                <div style={{
+                  background: 'var(--bg)', border: '1px solid var(--border)',
+                  borderRadius: 6, padding: '6px 8px', marginBottom: 10, fontSize: 12,
+                }}>
+                  {code && (
+                    <div style={{ display: 'flex', gap: 5, alignItems: 'baseline', flexWrap: 'wrap', marginBottom: 3 }}>
+                      <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 13, color: 'var(--navy-brand)', flexShrink: 0 }}>
+                        {code}
+                      </span>
+                      {name && (
+                        <span style={{ color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                          {name}
+                        </span>
+                      )}
+                      {jtypes.map(jt => (
+                        <span key={jt} style={{
+                          fontSize: 10, fontFamily: 'Oswald', fontWeight: 700,
+                          background: 'var(--navy-brand)', color: '#fff',
+                          borderRadius: 8, padding: '1px 6px', letterSpacing: '0.04em',
+                          textTransform: 'uppercase', flexShrink: 0,
+                        }}>{jt}</span>
+                      ))}
+                    </div>
+                  )}
+                  {ttLabel && (
+                    <div style={{ color: 'var(--text-muted)', marginBottom: vehicleType.length ? 3 : 0 }}>
+                      {ttLabel}
+                    </div>
+                  )}
+                  {vehicleType.length > 0 && (
+                    <div style={{ color: 'var(--text-muted)' }}>
+                      {vehicleType.join(', ')}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+
             {stops.length === 0 && !showSearch && (
               <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 10px' }}>
                 Toggle Drop pins to click the map, or use search below.
