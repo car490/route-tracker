@@ -245,13 +245,15 @@ export default function RoutePlannerPage() {
   const [timetables, setTimetables] = useState([])
 
   // Inline new-route fields
-  const [newCode,         setNewCode]         = useState('')
-  const [newName,         setNewName]         = useState('')
-  const [newJourneyTypes, setNewJourneyTypes] = useState([])
+  const [newCode,           setNewCode]           = useState('')
+  const [newName,           setNewName]           = useState('')
+  const [newJourneyTypes,   setNewJourneyTypes]   = useState([])
+  const [newRouteCollapsed, setNewRouteCollapsed] = useState(false)
 
   // Inline new-timetable fields
-  const [newTtName,    setNewTtName]    = useState('')
-  const [newDirection, setNewDirection] = useState('Outbound')
+  const [newTtName,       setNewTtName]       = useState('')
+  const [newDirection,    setNewDirection]    = useState('Outbound')
+  const [newTtCollapsed,  setNewTtCollapsed]  = useState(false)
 
   // Departures
   const [departures, setDepartures] = useState([])
@@ -604,7 +606,7 @@ export default function RoutePlannerPage() {
                 onChange={e => {
                   const val = e.target.value
                   setRouteId(val)
-                  if (val === '__new__') setTimetableId('__new__')
+                  if (val === '__new__') { setTimetableId('__new__'); setNewRouteCollapsed(false); setNewTtCollapsed(false) }
                 }}
               >
                 <option value="">— Select route —</option>
@@ -619,46 +621,64 @@ export default function RoutePlannerPage() {
             </div>
 
             {routeId === '__new__' && (
-              <div style={{
-                background: 'var(--bg)', borderRadius: 6, padding: 8, marginBottom: 6,
-                border: '1px solid var(--border)',
-              }}>
-                <div style={{ marginBottom: 6 }}>
-                  <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Code</div>
-                  <input
-                    name="service_code"
-                    className="form-input" style={{ textTransform: 'uppercase', fontSize: 12 }}
-                    placeholder="S125S" autoFocus value={newCode}
-                    onChange={e => setNewCode(e.target.value.toUpperCase())}
-                  />
-                </div>
-                <div style={{ marginBottom: 6 }}>
-                  <div style={{ ...S.sectionLabel, marginBottom: 4 }}>Journey Types</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                    {journeyTypes.map(jt => {
-                      const on = newJourneyTypes.includes(jt)
-                      return (
-                        <button key={jt} type="button"
-                          onClick={() => setNewJourneyTypes(on ? [] : [jt])}
-                          style={{
-                            padding: '3px 9px', fontSize: 11, borderRadius: 10, cursor: 'pointer',
-                            fontFamily: 'inherit', lineHeight: 1.5,
-                            border: `1px solid ${on ? 'var(--navy-brand)' : 'var(--border)'}`,
-                            background: on ? 'var(--navy-brand)' : 'transparent',
-                            color: on ? '#fff' : 'var(--text-muted)',
-                          }}
-                        >{jt}</button>
-                      )
-                    })}
+              <div
+                style={{ background: 'var(--bg)', borderRadius: 6, padding: 8, marginBottom: 6, border: '1px solid var(--border)' }}
+                onBlur={e => {
+                  if (!e.currentTarget.contains(e.relatedTarget) && newCode.trim() && newJourneyTypes.length > 0)
+                    setNewRouteCollapsed(true)
+                }}
+              >
+                {newRouteCollapsed ? (
+                  <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 12, color: 'var(--navy-brand)', flexShrink: 0 }}>{newCode}</span>
+                    {newJourneyTypes.map(jt => (
+                      <span key={jt} style={{ fontSize: 10, fontFamily: 'Oswald', fontWeight: 700, background: 'var(--navy-brand)', color: '#fff', borderRadius: 8, padding: '1px 6px', letterSpacing: '0.04em', textTransform: 'uppercase', flexShrink: 0 }}>{jt}</span>
+                    ))}
+                    {newName && <span style={{ fontSize: 12, color: 'var(--text)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{newName}</span>}
+                    <button type="button" onClick={() => setNewRouteCollapsed(false)}
+                      style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, padding: 0, flexShrink: 0, lineHeight: 1 }}
+                      title="Edit route details">✎</button>
                   </div>
-                </div>
-                <div>
-                  <div style={{ ...S.sectionLabel, marginBottom: 3 }}>
-                    Name <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
-                  </div>
-                  <input name="route_name" className="form-input" style={{ fontSize: 12 }} placeholder="e.g. Sleaford – Cranwell"
-                    value={newName} onChange={e => setNewName(e.target.value)} />
-                </div>
+                ) : (
+                  <>
+                    <div style={{ marginBottom: 6 }}>
+                      <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Code</div>
+                      <input
+                        name="service_code"
+                        className="form-input" style={{ textTransform: 'uppercase', fontSize: 12 }}
+                        placeholder="S125S" autoFocus value={newCode}
+                        onChange={e => setNewCode(e.target.value.toUpperCase())}
+                      />
+                    </div>
+                    <div style={{ marginBottom: 6 }}>
+                      <div style={{ ...S.sectionLabel, marginBottom: 4 }}>Journey Types</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {journeyTypes.map(jt => {
+                          const on = newJourneyTypes.includes(jt)
+                          return (
+                            <button key={jt} type="button"
+                              onClick={() => setNewJourneyTypes(on ? [] : [jt])}
+                              style={{
+                                padding: '3px 9px', fontSize: 11, borderRadius: 10, cursor: 'pointer',
+                                fontFamily: 'inherit', lineHeight: 1.5,
+                                border: `1px solid ${on ? 'var(--navy-brand)' : 'var(--border)'}`,
+                                background: on ? 'var(--navy-brand)' : 'transparent',
+                                color: on ? '#fff' : 'var(--text-muted)',
+                              }}
+                            >{jt}</button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ ...S.sectionLabel, marginBottom: 3 }}>
+                        Name <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
+                      </div>
+                      <input name="route_name" className="form-input" style={{ fontSize: 12 }} placeholder="e.g. Sleaford – Cranwell"
+                        value={newName} onChange={e => setNewName(e.target.value)} />
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -669,7 +689,7 @@ export default function RoutePlannerPage() {
                 className="form-select"
                 style={{ fontSize: 12 }}
                 value={timetableId}
-                onChange={e => setTimetableId(e.target.value)}
+                onChange={e => { setTimetableId(e.target.value); if (e.target.value === '__new__') setNewTtCollapsed(false) }}
                 disabled={!routeId}
               >
                 <option value="">— Select timetable —</option>
@@ -682,23 +702,39 @@ export default function RoutePlannerPage() {
             </div>
 
             {timetableId === '__new__' && (
-              <div style={{
-                background: 'var(--bg)', borderRadius: 6, padding: 8, marginTop: 6,
-                border: '1px solid var(--border)',
-              }}>
-                <div style={{ marginBottom: 6 }}>
-                  <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Name</div>
-                  <input name="tt_name" className="form-input" style={{ fontSize: 12 }}
-                    placeholder="e.g. Standard Outbound" value={newTtName}
-                    onChange={e => setNewTtName(e.target.value)} />
-                </div>
-                <div>
-                  <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Direction</div>
-                  <select name="direction" className="form-select" style={{ fontSize: 12 }} value={newDirection}
-                    onChange={e => setNewDirection(e.target.value)}>
-                    {DIRECTIONS.map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                </div>
+              <div
+                style={{ background: 'var(--bg)', borderRadius: 6, padding: 8, marginTop: 6, border: '1px solid var(--border)' }}
+                onBlur={e => {
+                  if (!e.currentTarget.contains(e.relatedTarget) && newTtName.trim())
+                    setNewTtCollapsed(true)
+                }}
+              >
+                {newTtCollapsed ? (
+                  <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, color: 'var(--text)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {[newTtName, newDirection].filter(Boolean).join(' · ')}
+                    </span>
+                    <button type="button" onClick={() => setNewTtCollapsed(false)}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, padding: 0, flexShrink: 0, lineHeight: 1 }}
+                      title="Edit timetable details">✎</button>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ marginBottom: 6 }}>
+                      <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Name</div>
+                      <input name="tt_name" className="form-input" style={{ fontSize: 12 }}
+                        placeholder="e.g. Standard Outbound" value={newTtName}
+                        onChange={e => setNewTtName(e.target.value)} />
+                    </div>
+                    <div>
+                      <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Direction</div>
+                      <select name="direction" className="form-select" style={{ fontSize: 12 }} value={newDirection}
+                        onChange={e => setNewDirection(e.target.value)}>
+                        {DIRECTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
