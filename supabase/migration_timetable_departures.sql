@@ -159,7 +159,9 @@ alter table journeys add constraint journeys_check
 
 
 -- ── Step 10: Drop scheduled_time from timetable_stops ────────────────────────
--- Must drop the table-level check that references scheduled_time first.
+-- Drop schedule_view first (it references scheduled_time); recreated in Step 13.
+
+drop view if exists schedule_view;
 
 alter table timetable_stops drop constraint if exists timetable_stops_check;
 alter table timetable_stops add constraint timetable_stops_timing_check
