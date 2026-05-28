@@ -599,6 +599,7 @@ export default function RoutePlannerPage() {
               <select
                 name="route_id"
                 className="form-select"
+                style={{ fontSize: 12 }}
                 value={routeId}
                 onChange={e => {
                   const val = e.target.value
@@ -626,7 +627,7 @@ export default function RoutePlannerPage() {
                   <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Code</div>
                   <input
                     name="service_code"
-                    className="form-input" style={{ textTransform: 'uppercase' }}
+                    className="form-input" style={{ textTransform: 'uppercase', fontSize: 12 }}
                     placeholder="S125S" autoFocus value={newCode}
                     onChange={e => setNewCode(e.target.value.toUpperCase())}
                   />
@@ -655,7 +656,7 @@ export default function RoutePlannerPage() {
                   <div style={{ ...S.sectionLabel, marginBottom: 3 }}>
                     Name <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
                   </div>
-                  <input name="route_name" className="form-input" placeholder="e.g. Sleaford – Cranwell"
+                  <input name="route_name" className="form-input" style={{ fontSize: 12 }} placeholder="e.g. Sleaford – Cranwell"
                     value={newName} onChange={e => setNewName(e.target.value)} />
                 </div>
               </div>
@@ -666,6 +667,7 @@ export default function RoutePlannerPage() {
               <select
                 name="timetable_id"
                 className="form-select"
+                style={{ fontSize: 12 }}
                 value={timetableId}
                 onChange={e => setTimetableId(e.target.value)}
                 disabled={!routeId}
@@ -686,13 +688,13 @@ export default function RoutePlannerPage() {
               }}>
                 <div style={{ marginBottom: 6 }}>
                   <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Name</div>
-                  <input name="tt_name" className="form-input"
+                  <input name="tt_name" className="form-input" style={{ fontSize: 12 }}
                     placeholder="e.g. Standard Outbound" value={newTtName}
                     onChange={e => setNewTtName(e.target.value)} />
                 </div>
                 <div>
                   <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Direction</div>
-                  <select name="direction" className="form-select" value={newDirection}
+                  <select name="direction" className="form-select" style={{ fontSize: 12 }} value={newDirection}
                     onChange={e => setNewDirection(e.target.value)}>
                     {DIRECTIONS.map(d => <option key={d} value={d}>{d}</option>)}
                   </select>
