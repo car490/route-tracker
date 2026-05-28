@@ -610,7 +610,7 @@ export default function RoutePlannerPage() {
 
           {showSetup && (<>
 
-          {/* Card 1: Route + Timetable */}
+          {/* Card 1: Route */}
           <div className="card" style={{ padding: 10 }}>
 
             <div style={{ marginBottom: 6 }}>
@@ -699,7 +699,12 @@ export default function RoutePlannerPage() {
               </div>
             )}
 
-            <div>
+          </div>
+
+          {/* Card 2: Timetable */}
+          <div className="card" style={{ padding: 10 }}>
+
+            <div style={{ marginBottom: timetableId === '__new__' ? 6 : 0 }}>
               <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Timetable</div>
               <select
                 name="timetable_id"
@@ -720,7 +725,7 @@ export default function RoutePlannerPage() {
 
             {timetableId === '__new__' && (
               <div
-                style={{ background: 'var(--bg)', borderRadius: 6, padding: 8, marginTop: 6, border: '1px solid var(--border)' }}
+                style={{ background: 'var(--bg)', borderRadius: 6, padding: 8, border: '1px solid var(--border)' }}
                 onBlur={e => {
                   if (!e.currentTarget.contains(e.relatedTarget) && newTtName.trim())
                     setNewTtCollapsed(true)
@@ -756,7 +761,7 @@ export default function RoutePlannerPage() {
             )}
           </div>
 
-          {/* Card 2: Vehicle type */}
+          {/* Card 3: Vehicle type */}
           <div className="card" style={{ padding: '7px 10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <span style={S.sectionLabel}>Vehicle Type</span>
@@ -798,7 +803,7 @@ export default function RoutePlannerPage() {
 
           </>)}
 
-          {/* Card 3: Stops */}
+          {/* Card 4: Stops */}
           <div className="card" style={{ padding: 10 }}>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
