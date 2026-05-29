@@ -1,14 +1,3 @@
-const BASE = 'https://api.openrouteservice.org/v2/directions/driving-hgv/geojson'
-
-/**
- * Get a bus/coach-aware route from OpenRouteService.
- * Uses the driving-hgv profile with vehicle_type=bus, which respects OSM
- * maxheight / maxwidth / maxlength restriction tags.
- *
- * @param {Array<{lat, lon}>} waypoints  — ordered list of at least 2 points
- * @param {Object|null}       vehicle    — vehicle row with height/width/length_metres
- * @returns {{ geometry, distance, duration, warnings } | { error } | null}
- */
 export async function getRouteORS(waypoints, vehicle = null) {
   if (!waypoints || waypoints.length < 2) return null
 
@@ -29,12 +18,9 @@ export async function getRouteORS(waypoints, vehicle = null) {
   }
 
   try {
-    const res = await fetch(BASE, {
+    const res = await fetch('/api/directions', {
       method: 'POST',
-      headers: {
-        Authorization:   import.meta.env.VITE_ORS_API_KEY,
-        'Content-Type':  'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
 

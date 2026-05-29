@@ -999,9 +999,6 @@ export default function RoutePlannerPage() {
             {routeResult?.error && (
               <div style={{ borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 10 }}>
                 <div style={{ fontSize: 12, color: 'var(--danger)' }}>Routing error: {routeResult.error}</div>
-                {!import.meta.env.VITE_ORS_API_KEY && (
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>VITE_ORS_API_KEY is not set.</div>
-                )}
               </div>
             )}
 
