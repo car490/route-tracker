@@ -15,7 +15,10 @@ export default async function handler(req, res) {
 
   try {
     const url = `${OS_BASE}?query=${encodeURIComponent(query)}&maxresults=8&dataset=DPA&key=${key}`
-    const upstream = await fetch(url)
+    const origin = req.headers['origin'] ?? req.headers['referer'] ?? 'https://route-tracker-iota.vercel.app'
+    const upstream = await fetch(url, {
+      headers: { Referer: origin, Origin: origin },
+    })
     const data = await upstream.json().catch(() => null)
     return res.status(upstream.status).json(data ?? { results: [] })
   } catch (err) {
