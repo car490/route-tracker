@@ -290,7 +290,7 @@ export default function RoutePlannerPage() {
 
   useEffect(() => {
     if (!routeId || routeId === '__new__') {
-      setTimetables([]); setTimetableId(routeId === '__new__' ? '__new__' : '')
+      setTimetables([]); setTimetableId('')
       setStops([]); setDepartures([])
       return
     }
@@ -574,6 +574,7 @@ export default function RoutePlannerPage() {
   const vehicle  = resolvedVehicle()
   const warnings = routeResult?.warnings ?? []
 
+  const routeConfirmed = routeId === '__new__' ? newRouteCollapsed : !!routeId
   const routeReady = routeId === '__new__' ? newCode.trim().length > 0 && newJourneyTypes.length > 0 : !!routeId
   const ttReady    = !!timetableId
   const canSave    = routeReady && ttReady && stops.length >= 2 && !saving
@@ -623,7 +624,7 @@ export default function RoutePlannerPage() {
                 onChange={e => {
                   const val = e.target.value
                   setRouteId(val)
-                  if (val === '__new__') { setTimetableId('__new__'); setNewRouteCollapsed(false); setNewTtCollapsed(false) }
+                  if (val === '__new__') { setNewRouteCollapsed(false); setNewTtCollapsed(false) }
                 }}
               >
                 <option value="">— Select route —</option>
@@ -702,6 +703,8 @@ export default function RoutePlannerPage() {
             )}
 
           </div>
+
+          {routeConfirmed && (<>
 
           {/* Card 2: Timetable */}
           <div className="card" style={{ padding: 10 }}>
@@ -804,6 +807,8 @@ export default function RoutePlannerPage() {
               </div>
             )}
           </div>
+
+          </>)}
 
           </>)}
 
