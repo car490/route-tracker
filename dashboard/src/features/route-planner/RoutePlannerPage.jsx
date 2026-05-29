@@ -640,10 +640,6 @@ export default function RoutePlannerPage() {
             {routeId === '__new__' && (
               <div
                 style={{ background: 'var(--bg)', borderRadius: 6, padding: 8, marginBottom: 6, border: '1px solid var(--border)' }}
-                onBlur={e => {
-                  if (!e.currentTarget.contains(e.relatedTarget) && newCode.trim() && newJourneyTypes.length > 0)
-                    setNewRouteCollapsed(true)
-                }}
               >
                 {newRouteCollapsed ? (
                   <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -687,12 +683,18 @@ export default function RoutePlannerPage() {
                         })}
                       </div>
                     </div>
-                    <div>
+                    <div style={{ marginBottom: 6 }}>
                       <div style={{ ...S.sectionLabel, marginBottom: 3 }}>
                         Name <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
                       </div>
                       <input name="route_name" className="form-input" style={{ fontSize: 12 }} placeholder="e.g. Sleaford – Cranwell"
                         value={newName} onChange={e => setNewName(e.target.value)} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button type="button" className="btn btn-primary btn-sm"
+                        disabled={!newCode.trim() || newJourneyTypes.length === 0}
+                        onClick={() => setNewRouteCollapsed(true)}
+                      >Confirm route</button>
                     </div>
                   </>
                 )}
@@ -726,10 +728,6 @@ export default function RoutePlannerPage() {
             {timetableId === '__new__' && (
               <div
                 style={{ background: 'var(--bg)', borderRadius: 6, padding: 8, border: '1px solid var(--border)' }}
-                onBlur={e => {
-                  if (!e.currentTarget.contains(e.relatedTarget) && newTtName.trim())
-                    setNewTtCollapsed(true)
-                }}
               >
                 {newTtCollapsed ? (
                   <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
@@ -748,12 +746,18 @@ export default function RoutePlannerPage() {
                         placeholder="e.g. Standard Outbound" value={newTtName}
                         onChange={e => setNewTtName(e.target.value)} />
                     </div>
-                    <div>
+                    <div style={{ marginBottom: 6 }}>
                       <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Direction</div>
                       <select name="direction" className="form-select" style={{ fontSize: 12 }} value={newDirection}
                         onChange={e => setNewDirection(e.target.value)}>
                         {DIRECTIONS.map(d => <option key={d} value={d}>{d}</option>)}
                       </select>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button type="button" className="btn btn-primary btn-sm"
+                        disabled={!newTtName.trim()}
+                        onClick={() => setNewTtCollapsed(true)}
+                      >Confirm timetable</button>
                     </div>
                   </>
                 )}
