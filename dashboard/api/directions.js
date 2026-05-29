@@ -1,13 +1,25 @@
-const GH_BASE = 'https://graphhopper.com/api/1/route'
+const VALHALLA_BASE = 'https://valhalla.openstreetmap.de/route'
+
+// Decode Valhalla's precision-6 encoded polyline → [lon, lat] pairs
+function decodePolyline(encoded, precision = 6) {
+  const factor = Math.pow(10, precision)
+  const coords = []
+  let index = 0, lat = 0, lon = 0
+  while (index < encoded.length) {
+    let shift = 0, val = 0, b
+    do { b = encoded.charCodeAt(index++) - 63; val |= (b & 0x1f) << shift; shift += 5 } while (b >= 0x20)
+    lat += (val & 1) ? ~(val >> 1) : (val >> 1)
+    shift = 0; val = 0
+    do { b = encoded.charCodeAt(index++) - 63; val |= (b & 0x1f) << shift; shift += 5 } while (b >= 0x20)
+    lon += (val & 1) ? ~(val >> 1) : (val >> 1)
+    coords.push([lon / factor, lat / factor])
+  }
+  return coords
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
-  }
-
-  const key = process.env.GH_API_KEY
-  if (!key) {
-    return res.status(500).json({ error: 'GH_API_KEY not configured on server' })
   }
 
   const coordinates = req.body?.coordinates ?? []
@@ -15,17 +27,22 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'At least 2 coordinates required' })
   }
 
+  // Valhalla expects { lon, lat } objects
+  const locations = coordinates.map(([lon, lat]) => ({ lon, lat }))
+
   let upstream
   try {
-    upstream = await fetch(`${GH_BASE}?key=${key}`, {
+    upstream = await fetch(VALHALLA_BASE, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        profile: 'truck',
-        points: coordinates,      // [lon, lat] pairs — same order as ORS
-        points_encoded: false,
+        locations,
+        costing: 'truck',
+        costing_options: {
+          truck: { height: 4.0, width: 2.6, length: 14.0, weight: 21.77, axle_load: 9.07 },
+        },
       }),
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(10000),
     })
   } catch (err) {
     return res.status(502).json({ error: `Routing unreachable: ${err.message}` })
@@ -36,23 +53,26 @@ export default async function handler(req, res) {
   try { data = JSON.parse(text) } catch { data = null }
 
   if (!upstream.ok) {
-    const msg = data?.message ?? `Routing error ${upstream.status}: ${text.slice(0, 200)}`
+    const msg = data?.error ?? `Routing error ${upstream.status}: ${text.slice(0, 200)}`
     return res.status(upstream.status).json({ error: msg })
   }
 
-  // Normalise to ORS FeatureCollection shape so ors.js client needs no changes
-  const path = data.paths?.[0]
-  if (!path) return res.status(200).json({ features: [] })
+  const leg = data.trip?.legs?.[0]
+  if (!leg) return res.status(200).json({ features: [] })
 
+  // Normalise to ORS FeatureCollection shape so ors.js client needs no changes
   return res.status(200).json({
     features: [{
-      geometry: path.points,
+      geometry: {
+        type: 'LineString',
+        coordinates: decodePolyline(leg.shape),
+      },
       properties: {
         summary: {
-          distance: path.distance,
-          duration: path.time / 1000,
+          distance: data.trip.summary.length * 1000,  // km → metres
+          duration: data.trip.summary.time,            // seconds
         },
-        warnings: (path.warnings ?? []).map(w => ({ message: w.message ?? String(w) })),
+        warnings: [],
       },
     }],
   })
