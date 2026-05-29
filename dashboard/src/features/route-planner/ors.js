@@ -26,7 +26,7 @@ export async function getRouteORS(waypoints, vehicle = null) {
 
     if (!res.ok) {
       const payload = await res.json().catch(() => null)
-      return { error: payload?.error?.message ?? `ORS error ${res.status}` }
+      return { error: payload?.error ?? payload?.message ?? `Routing error ${res.status}` }
     }
 
     const json = await res.json()
