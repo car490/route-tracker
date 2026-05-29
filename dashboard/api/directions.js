@@ -1,4 +1,4 @@
-const ORS_BASE = 'https://api.openrouteservice.org/v2/directions/driving-car/geojson'
+const ORS_BASE = 'https://api.openrouteservice.org/v2/directions/driving-hgv/geojson'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
