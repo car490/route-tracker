@@ -3,19 +3,7 @@ export async function getRouteORS(waypoints, vehicle = null) {
 
   const coordinates = waypoints.map(w => [w.lon, w.lat])
 
-  const body = {
-    coordinates,
-    options: { vehicle_type: 'bus' },
-  }
-
-  const restrictions = {}
-  if (vehicle?.height_metres) restrictions.height = vehicle.height_metres
-  if (vehicle?.width_metres)  restrictions.width  = vehicle.width_metres
-  if (vehicle?.length_metres) restrictions.length = vehicle.length_metres
-
-  if (Object.keys(restrictions).length > 0) {
-    body.options.profile_params = { restrictions }
-  }
+  const body = { coordinates }
 
   try {
     const res = await fetch('/api/directions', {
