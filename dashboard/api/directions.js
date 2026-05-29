@@ -10,19 +10,29 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'ORS_API_KEY not configured on server' })
   }
 
+  let upstream
   try {
-    const upstream = await fetch(ORS_BASE, {
+    upstream = await fetch(ORS_BASE, {
       method: 'POST',
       headers: {
         Authorization:  key,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(req.body),
+      signal: AbortSignal.timeout(8000),
     })
-
-    const data = await upstream.json().catch(() => null)
-    return res.status(upstream.status).json(data ?? { error: `ORS error ${upstream.status}` })
   } catch (err) {
-    return res.status(500).json({ error: err.message })
+    return res.status(502).json({ error: `ORS unreachable: ${err.message}` })
   }
+
+  const text = await upstream.text()
+  let data
+  try { data = JSON.parse(text) } catch { data = null }
+
+  if (!upstream.ok) {
+    const msg = data?.error?.message ?? data?.message ?? `ORS error ${upstream.status}: ${text.slice(0, 200)}`
+    return res.status(upstream.status).json({ error: msg })
+  }
+
+  return res.status(200).json(data)
 }
