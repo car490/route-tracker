@@ -1,0 +1,27 @@
+graphhopper:
+  # Path to the OSM PBF file (place it in this folder)
+  datareader.file: great-britain-latest.osm.pbf
+
+  # Cached routing graph — built on first run (~10 min), reused after
+  graph.location: gh-graph-cache
+
+  profiles:
+    - name: hgv
+      custom_model_files: [hgv.json]
+      turn_costs: true
+
+  # Contraction Hierarchies — pre-computes shortcuts for fast queries
+  profiles_ch:
+    - profile: hgv
+
+  import.osm.ignored_highways: ""
+
+server:
+  application_connectors:
+    - type: http
+      port: 8989
+      bind_host: 127.0.0.1
+  admin_connectors:
+    - type: http
+      port: 8990
+      bind_host: 127.0.0.1

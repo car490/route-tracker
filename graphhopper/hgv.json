@@ -1,0 +1,15 @@
+{
+  "speed": [
+    { "if": "road_class == MOTORWAY",  "limit_to": 96 },
+    { "if": "road_class == TRUNK",     "limit_to": 80 },
+    { "if": "road_class == PRIMARY",   "limit_to": 60 },
+    { "if": "road_class == SECONDARY", "limit_to": 50 },
+    { "if": "road_class == TERTIARY",  "limit_to": 40 }
+  ],
+  "priority": [
+    { "if": "max_height < 4.0 && max_height > 0", "multiply_by": 0 },
+    { "if": "max_width  < 2.55 && max_width  > 0", "multiply_by": 0 },
+    { "if": "max_weight < 12.5 && max_weight  > 0", "multiply_by": 0 },
+    { "if": "hgv == NO",                           "multiply_by": 0 }
+  ]
+}

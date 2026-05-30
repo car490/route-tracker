@@ -1,6 +1,77 @@
-const VALHALLA_BASE = 'https://valhalla.openstreetmap.de/route'
+const GH_BASE = process.env.GRAPHHOPPER_URL || 'https://valhalla.openstreetmap.de'
+const USE_GH  = !!process.env.GRAPHHOPPER_URL
 
-// Decode Valhalla's precision-6 encoded polyline → [lon, lat] pairs
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  const coordinates = req.body?.coordinates ?? []
+  if (coordinates.length < 2) {
+    return res.status(400).json({ error: 'At least 2 coordinates required' })
+  }
+
+  return USE_GH
+    ? graphHopperRoute(coordinates, req, res)
+    : valhallaRoute(coordinates, req, res)
+}
+
+// ---------------------------------------------------------------------------
+// GraphHopper (local or self-hosted)
+// ---------------------------------------------------------------------------
+
+async function graphHopperRoute(coordinates, req, res) {
+  // GH expects [[lon, lat], ...] — same as our input
+  const body = {
+    points: coordinates,
+    profile: 'hgv',
+    points_encoded: false,
+    instructions: false,
+  }
+
+  let upstream
+  try {
+    upstream = await fetch(`${GH_BASE}/route`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000),
+    })
+  } catch (err) {
+    return res.status(502).json({ error: `GraphHopper unreachable: ${err.message}` })
+  }
+
+  const text = await upstream.text()
+  let data
+  try { data = JSON.parse(text) } catch { data = null }
+
+  if (!upstream.ok) {
+    const msg = data?.message ?? `Routing error ${upstream.status}: ${text.slice(0, 200)}`
+    return res.status(upstream.status).json({ error: msg })
+  }
+
+  const path = data?.paths?.[0]
+  if (!path) return res.status(200).json({ features: [] })
+
+  // Normalise to ORS FeatureCollection shape
+  return res.status(200).json({
+    features: [{
+      geometry: path.points,                        // already GeoJSON LineString
+      properties: {
+        summary: {
+          distance: path.distance,                  // metres
+          duration: Math.round(path.time / 1000),  // ms → seconds
+        },
+        warnings: [],
+      },
+    }],
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Valhalla fallback (used in production until GH is hosted)
+// ---------------------------------------------------------------------------
+
 function decodePolyline(encoded, precision = 6) {
   const factor = Math.pow(10, precision)
   const coords = []
@@ -17,22 +88,12 @@ function decodePolyline(encoded, precision = 6) {
   return coords
 }
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' })
-  }
-
-  const coordinates = req.body?.coordinates ?? []
-  if (coordinates.length < 2) {
-    return res.status(400).json({ error: 'At least 2 coordinates required' })
-  }
-
-  // Valhalla expects { lon, lat } objects
+async function valhallaRoute(coordinates, req, res) {
   const locations = coordinates.map(([lon, lat]) => ({ lon, lat }))
 
   let upstream
   try {
-    upstream = await fetch(VALHALLA_BASE, {
+    upstream = await fetch(`${GH_BASE}/route`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -60,7 +121,6 @@ export default async function handler(req, res) {
   const leg = data.trip?.legs?.[0]
   if (!leg) return res.status(200).json({ features: [] })
 
-  // Normalise to ORS FeatureCollection shape so ors.js client needs no changes
   return res.status(200).json({
     features: [{
       geometry: {
@@ -69,8 +129,8 @@ export default async function handler(req, res) {
       },
       properties: {
         summary: {
-          distance: data.trip.summary.length * 1000,  // km → metres
-          duration: data.trip.summary.time,            // seconds
+          distance: data.trip.summary.length * 1000,
+          duration: data.trip.summary.time,
         },
         warnings: [],
       },

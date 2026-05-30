@@ -1,1 +1,7 @@
 supabase/.temp/
+
+# GraphHopper — large binary files, not committed
+graphhopper/*.osm.pbf
+graphhopper/*.osm.pbf.gz
+graphhopper/gh-graph-cache/
+graphhopper/graphhopper-*.jar
