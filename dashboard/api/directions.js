@@ -21,10 +21,19 @@ export default async function handler(req, res) {
 // ---------------------------------------------------------------------------
 
 async function graphHopperRoute(coordinates, req, res) {
-  // GH expects [[lon, lat], ...] — same as our input
+  const dims = req.body?.options?.profile_params?.restrictions ?? {}
+
+  // Build per-request priority rules from vehicle dimensions
+  const priority = [{ if: 'true', multiply_by: '1' }]
+  if (dims.height) priority.push({ if: `max_height < ${dims.height} && max_height > 0`, multiply_by: '0' })
+  if (dims.width)  priority.push({ if: `max_width  < ${dims.width}  && max_width  > 0`, multiply_by: '0' })
+  if (dims.weight) priority.push({ if: `max_weight < ${dims.weight} && max_weight > 0`, multiply_by: '0' })
+  if (dims.length) priority.push({ if: `max_length < ${dims.length} && max_length > 0`, multiply_by: '0' })
+
   const body = {
     points: coordinates,
-    profile: 'hgv',
+    profile: 'pcv',
+    custom_model: { priority },
     points_encoded: false,
     instructions: false,
   }

@@ -1,20 +1,18 @@
 graphhopper:
-  # Path to the OSM PBF file (place it in this folder)
-  datareader.file: great-britain-latest.osm.pbf
-
-  # Cached routing graph — built on first run (~10 min), reused after
+  datareader.file: england-latest.osm.pbf
   graph.location: gh-graph-cache
 
+  # Encoded values needed for per-request dimension restrictions
+  graph.encoded_values: max_height, max_width, max_weight, max_length
+
   profiles:
-    - name: hgv
-      custom_model_files: [hgv.json]
-      turn_costs: true
+    - name: pcv
+      vehicle: car
+      custom_model_files: [pcv.json]
 
-  # Contraction Hierarchies — pre-computes shortcuts for fast queries
-  profiles_ch:
-    - profile: hgv
-
-  import.osm.ignored_highways: ""
+  # Landmarks (not CH) — required to support per-request custom model overrides
+  profiles_lm:
+    - profile: pcv
 
 server:
   application_connectors:
