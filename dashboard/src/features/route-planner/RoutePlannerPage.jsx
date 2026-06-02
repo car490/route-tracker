@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { supabase } from '../../shared/supabase'
 import { getCompanyId } from '../../shared/company'
 import { searchPlaces } from '../../shared/api/osPlaces'
@@ -49,6 +49,35 @@ function minutesToTime(mins) {
   const h = Math.floor(mins / 60) % 24
   const m = mins % 60
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+// Fetch one segment per consecutive stop pair in parallel
+async function fetchSegments(pts, vehicle) {
+  if (!pts || pts.length < 2) return []
+  return Promise.all(
+    pts.slice(0, -1).map((from, i) => getRoute([from, pts[i + 1]], vehicle))
+  )
+}
+
+// Merge per-segment GeoJSON LineStrings into one for the map
+function combineGeometries(segments) {
+  const coords = []
+  for (const seg of segments) {
+    const c = seg?.geometry?.coordinates
+    if (!c) continue
+    coords.push(...(coords.length ? c.slice(1) : c))
+  }
+  return coords.length >= 2 ? { type: 'LineString', coordinates: coords } : null
+}
+
+// Build a stop._id → segment map for the gap *after* each stop
+function buildSegAfterMap(stops, segments) {
+  const map = {}
+  const valid = stops.filter(s => s.lat != null && s.lon != null)
+  valid.forEach((s, i) => {
+    if (i < valid.length - 1 && segments?.[i]) map[s._id] = segments[i]
+  })
+  return map
 }
 
 // ── Leaflet map ───────────────────────────────────────────────────────────────
@@ -233,6 +262,24 @@ function PlannerMap({ stops, routeGeometry, pinDropMode, onMapClick, onRemoveSto
   return <div ref={divRef} style={{ width: '100%', height: '100%' }} />
 }
 
+// ── Segment chip ──────────────────────────────────────────────────────────────
+
+function SegChip({ seg }) {
+  if (!seg || seg.error) return null
+  return (
+    <div style={{
+      paddingLeft: 22, marginBottom: 2,
+      fontSize: 11, fontFamily: 'Oswald', fontWeight: 700,
+      color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 5,
+    }}>
+      <span>↓</span>
+      <span>{fmtDur(seg.duration)}</span>
+      <span style={{ fontWeight: 400, fontSize: 10 }}>·</span>
+      <span style={{ fontWeight: 400 }}>{fmtDist(seg.distance)}</span>
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function RoutePlannerPage() {
@@ -272,12 +319,14 @@ export default function RoutePlannerPage() {
   const [searchResults, setSearchResults] = useState([])
   const [searching,     setSearching]     = useState(false)
 
-  // Stop name editing
+  // Stop name inline editing
   const [editStopId,   setEditStopId]   = useState(null)
   const [editStopName, setEditStopName] = useState('')
 
-  // Confirmation modal
+  // Confirmation / review modal
   const [showConfirm, setShowConfirm] = useState(false)
+  const [modalStops,  setModalStops]  = useState([])
+  const [autoDepTime, setAutoDepTime] = useState('')
 
   const [fitKey,      setFitKey]      = useState(null)
   const [saving,      setSaving]      = useState(false)
@@ -333,7 +382,7 @@ export default function RoutePlannerPage() {
     })
   }, [timetableId])
 
-  // ── Auto-hide setup cards when route + timetable are confirmed ───────────────
+  // ── Auto-hide setup cards ─────────────────────────────────────────────────────
 
   useEffect(() => {
     const routeOk = routeId === '__new__'
@@ -347,7 +396,7 @@ export default function RoutePlannerPage() {
 
   useEffect(() => { setShowSetup(true) }, [routeId])
 
-  // ── Auto-routing ─────────────────────────────────────────────────────────────
+  // ── Auto-routing (N-1 parallel segment calls) ─────────────────────────────────
 
   useEffect(() => {
     const pts = stops.filter(s => s.lat != null && s.lon != null)
@@ -356,8 +405,19 @@ export default function RoutePlannerPage() {
     const vehicle = resolvedVehicle()
     let cancelled = false
     setRouting(true)
-    getRoute(pts, vehicle).then(result => {
-      if (!cancelled) { setRouteResult(result); setRouting(false) }
+
+    fetchSegments(pts, vehicle).then(segs => {
+      if (cancelled) return
+      const valid = segs.filter(s => s && !s.error)
+      setRouteResult({
+        segments: segs,
+        geometry: combineGeometries(valid),
+        distance: valid.reduce((sum, s) => sum + s.distance, 0),
+        duration: valid.reduce((sum, s) => sum + s.duration, 0),
+        warnings: valid.flatMap(s => s.warnings ?? []),
+        error:    valid.length === 0 ? 'Could not find a route' : null,
+      })
+      setRouting(false)
     })
     return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -403,8 +463,7 @@ export default function RoutePlannerPage() {
     return () => { cancelled = true; clearTimeout(timer) }
   }, [searchQuery])
 
-  // Address results (source:'addr') are held locally with stop_id:null — the same
-  // as pin-drops. The stop is inserted to the DB only on Save, in handleSave.
+  // Address results held locally with stop_id:null — inserted to DB on Save
   function handleAddStop(result) {
     setStops(prev => [...prev, {
       _id: crypto.randomUUID(),
@@ -426,7 +485,7 @@ export default function RoutePlannerPage() {
     setShowSearch(false); setSearchQuery(''); setSearchResults([])
   }
 
-  // ── Stop list mutations ───────────────────────────────────────────────────────
+  // ── Stop mutations ────────────────────────────────────────────────────────────
 
   function moveStop(i, dir) {
     setStops(prev => {
@@ -445,15 +504,45 @@ export default function RoutePlannerPage() {
     setStops(prev => prev.map((s, idx) => idx === i ? { ...s, [field]: value } : s))
   }
 
-  function startEditName(stop) {
-    setEditStopId(stop._id)
-    setEditStopName(stop.name)
-  }
-
+  function startEditName(stop) { setEditStopId(stop._id); setEditStopName(stop.name) }
   function commitEditName(i) {
     const name = editStopName.trim()
     if (name) updateStop(i, 'name', name)
     setEditStopId(null)
+  }
+
+  // ── Modal helpers ─────────────────────────────────────────────────────────────
+
+  function openModal() {
+    setModalStops([...stops])
+    setAutoDepTime('')
+    setSaveError('')
+    setShowConfirm(true)
+  }
+
+  // Given a departure time, compute time_std for each timing point from segment durations
+  function applyAutoFill(depTime, baseStops) {
+    if (!depTime) return baseStops
+    const baseMins = timeToMinutes(depTime)
+    const segs = routeResult?.segments ?? []
+
+    let cumMins = 0
+    const minsById = {}
+    baseStops
+      .filter(s => s.lat != null && s.lon != null)
+      .forEach((s, i) => {
+        minsById[s._id] = baseMins + cumMins
+        if (segs[i] && !segs[i].error) cumMins += Math.round(segs[i].duration / 60)
+      })
+
+    return baseStops.map(s => {
+      if (s.stop_type !== 'timing_point' || minsById[s._id] == null) return s
+      return { ...s, time_std: minutesToTime(minsById[s._id]) }
+    })
+  }
+
+  function updateModalStop(i, field, value) {
+    setModalStops(prev => prev.map((s, idx) => idx === i ? { ...s, [field]: value } : s))
   }
 
   // ── Departures ────────────────────────────────────────────────────────────────
@@ -505,8 +594,9 @@ export default function RoutePlannerPage() {
 
   // ── Save ─────────────────────────────────────────────────────────────────────
 
-  async function handleSave() {
-    if (stops.length < 2) return
+  // stopsToSave allows the review modal to pass its local draft directly
+  async function handleSave(stopsToSave = stops) {
+    if (stopsToSave.length < 2) return
     setSaving(true); setSaveError(''); setSaveSuccess(false)
 
     let resolvedRouteId     = routeId
@@ -533,13 +623,12 @@ export default function RoutePlannerPage() {
       .from('timetable_stops').delete().eq('timetable_id', resolvedTimetableId)
     if (delErr) { setSaveError(delErr.message); setSaving(false); return }
 
-    // First timing point's time_std = departure time (offset 0)
-    const firstTiming = stops.find(s => s.stop_type === 'timing_point' && s.time_std)
+    const firstTiming = stopsToSave.find(s => s.stop_type === 'timing_point' && s.time_std)
     const base        = firstTiming ? timeToMinutes(firstTiming.time_std) : null
 
     const stopRows = []
-    for (let i = 0; i < stops.length; i++) {
-      const s = stops[i]
+    for (let i = 0; i < stopsToSave.length; i++) {
+      const s = stopsToSave[i]
       let stopId = s.stop_id
       if (!stopId) {
         const { data, error } = await supabase
@@ -568,6 +657,8 @@ export default function RoutePlannerPage() {
       setNewCode(''); setNewName(''); setNewJourneyTypes([])
       setNewTtName(''); setNewDirection('Outbound')
       setRouteId(''); setTimetableId(''); setStops([])
+    } else {
+      setStops(stopsToSave)
     }
     setSaving(false)
     setShowConfirm(false)
@@ -585,7 +676,6 @@ export default function RoutePlannerPage() {
   const ttReady    = !!timetableId
   const canSave    = routeReady && ttReady && stops.length >= 2 && !saving
 
-  // Labels for confirmation modal
   const selRoute = routeId && routeId !== '__new__' ? routes.find(r => r.id === routeId) : null
   const selTt    = timetableId && timetableId !== '__new__' ? timetables.find(t => t.id === timetableId) : null
   const confirmCode   = routeId === '__new__' ? newCode : selRoute?.service_code
@@ -594,6 +684,10 @@ export default function RoutePlannerPage() {
   const confirmTt     = timetableId === '__new__'
     ? [newTtName, newDirection].filter(Boolean).join(' · ')
     : selTt ? `${selTt.name} · ${selTt.direction}` : ''
+
+  // Segment-after-stop maps for sidebar and modal
+  const segAfterStop      = buildSegAfterMap(stops,      routeResult?.segments)
+  const modalSegAfterStop = buildSegAfterMap(modalStops, routeResult?.segments)
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
@@ -609,7 +703,7 @@ export default function RoutePlannerPage() {
               {routeId === '__new__' ? 'Route created ✓ — select from list to continue' : 'Saved ✓'}
             </span>
           )}
-          <button className="btn btn-primary btn-sm" onClick={() => setShowConfirm(true)} disabled={!canSave}>
+          <button className="btn btn-primary btn-sm" onClick={openModal} disabled={!canSave}>
             Review &amp; Save
           </button>
         </div>
@@ -629,13 +723,10 @@ export default function RoutePlannerPage() {
 
           {/* Card 1: Route */}
           <div className="card" style={{ padding: 10 }}>
-
             <div style={{ marginBottom: 6 }}>
               <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Route</div>
               <select
-                name="route_id"
-                className="form-select"
-                style={{ fontSize: 12 }}
+                name="route_id" className="form-select" style={{ fontSize: 12 }}
                 value={routeId}
                 onChange={e => {
                   const val = e.target.value
@@ -655,9 +746,7 @@ export default function RoutePlannerPage() {
             </div>
 
             {routeId === '__new__' && (
-              <div
-                style={{ background: 'var(--bg)', borderRadius: 6, padding: 8, marginBottom: 6, border: '1px solid var(--border)' }}
-              >
+              <div style={{ background: 'var(--bg)', borderRadius: 6, padding: 8, marginBottom: 6, border: '1px solid var(--border)' }}>
                 {newRouteCollapsed ? (
                   <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
                     <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 12, color: 'var(--navy-brand)', flexShrink: 0 }}>{newCode}</span>
@@ -673,12 +762,9 @@ export default function RoutePlannerPage() {
                   <>
                     <div style={{ marginBottom: 6 }}>
                       <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Code</div>
-                      <input
-                        name="service_code"
-                        className="form-input" style={{ textTransform: 'uppercase', fontSize: 12 }}
+                      <input name="service_code" className="form-input" style={{ textTransform: 'uppercase', fontSize: 12 }}
                         placeholder="S125S" autoFocus value={newCode}
-                        onChange={e => setNewCode(e.target.value.toUpperCase())}
-                      />
+                        onChange={e => setNewCode(e.target.value.toUpperCase())} />
                     </div>
                     <div style={{ marginBottom: 6 }}>
                       <div style={{ ...S.sectionLabel, marginBottom: 4 }}>Journey Types</div>
@@ -686,8 +772,7 @@ export default function RoutePlannerPage() {
                         {journeyTypes.map(jt => {
                           const on = newJourneyTypes.includes(jt)
                           return (
-                            <button key={jt} type="button"
-                              onClick={() => setNewJourneyTypes(on ? [] : [jt])}
+                            <button key={jt} type="button" onClick={() => setNewJourneyTypes(on ? [] : [jt])}
                               style={{
                                 padding: '3px 9px', fontSize: 11, borderRadius: 10, cursor: 'pointer',
                                 fontFamily: 'inherit', lineHeight: 1.5,
@@ -717,20 +802,15 @@ export default function RoutePlannerPage() {
                 )}
               </div>
             )}
-
           </div>
 
           {routeConfirmed && (<>
 
           {/* Card 2: Timetable */}
           <div className="card" style={{ padding: 10 }}>
-
             <div style={{ marginBottom: timetableId === '__new__' ? 6 : 0 }}>
               <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Timetable</div>
-              <select
-                name="timetable_id"
-                className="form-select"
-                style={{ fontSize: 12 }}
+              <select name="timetable_id" className="form-select" style={{ fontSize: 12 }}
                 value={timetableId}
                 onChange={e => { setTimetableId(e.target.value); if (e.target.value === '__new__') setNewTtCollapsed(false) }}
                 disabled={!routeId}
@@ -745,9 +825,7 @@ export default function RoutePlannerPage() {
             </div>
 
             {timetableId === '__new__' && (
-              <div
-                style={{ background: 'var(--bg)', borderRadius: 6, padding: 8, border: '1px solid var(--border)' }}
-              >
+              <div style={{ background: 'var(--bg)', borderRadius: 6, padding: 8, border: '1px solid var(--border)' }}>
                 {newTtCollapsed ? (
                   <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
                     <span style={{ fontSize: 12, color: 'var(--text)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -825,47 +903,30 @@ export default function RoutePlannerPage() {
           </div>
 
           </>)}
-
           </>)}
 
           {/* Card 4: Stops */}
           <div className="card" style={{ padding: 10 }}>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <span style={S.sectionLabel}>
-                Stops{stops.length > 0 ? ` · ${stops.length}` : ''}
-              </span>
+              <span style={S.sectionLabel}>Stops{stops.length > 0 ? ` · ${stops.length}` : ''}</span>
               {routing && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Routing…</span>}
             </div>
 
-            {/* Summary of selections from above */}
+            {/* Route/timetable summary chip */}
             {(() => {
-              const code     = routeId === '__new__' ? newCode : selRoute?.service_code
-              const name     = routeId === '__new__' ? newName : selRoute?.name
-              const jtypes   = routeId === '__new__' ? newJourneyTypes : (selRoute?.journey_types ?? [])
+              const code   = routeId === '__new__' ? newCode : selRoute?.service_code
+              const name   = routeId === '__new__' ? newName : selRoute?.name
+              const jtypes = routeId === '__new__' ? newJourneyTypes : (selRoute?.journey_types ?? [])
               if (!code && !confirmTt && !vehicleType.length) return null
               return (
-                <div style={{
-                  background: 'var(--bg)', border: '1px solid var(--border)',
-                  borderRadius: 6, padding: '6px 8px', marginBottom: 10, fontSize: 12,
-                }}>
+                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 8px', marginBottom: 10, fontSize: 12 }}>
                   {code && (
                     <div style={{ display: 'flex', gap: 5, alignItems: 'baseline', flexWrap: 'wrap', marginBottom: 3 }}>
-                      <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 13, color: 'var(--navy-brand)', flexShrink: 0 }}>
-                        {code}
-                      </span>
-                      {name && (
-                        <span style={{ color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                          {name}
-                        </span>
-                      )}
+                      <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 13, color: 'var(--navy-brand)', flexShrink: 0 }}>{code}</span>
+                      {name && <span style={{ color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{name}</span>}
                       {jtypes.map(jt => (
-                        <span key={jt} style={{
-                          fontSize: 10, fontFamily: 'Oswald', fontWeight: 700,
-                          background: 'var(--navy-brand)', color: '#fff',
-                          borderRadius: 8, padding: '1px 6px', letterSpacing: '0.04em',
-                          textTransform: 'uppercase', flexShrink: 0,
-                        }}>{jt}</span>
+                        <span key={jt} style={{ fontSize: 10, fontFamily: 'Oswald', fontWeight: 700, background: 'var(--navy-brand)', color: '#fff', borderRadius: 8, padding: '1px 6px', letterSpacing: '0.04em', textTransform: 'uppercase', flexShrink: 0 }}>{jt}</span>
                       ))}
                       <button type="button"
                         onClick={() => { setShowSetup(true); setNewRouteCollapsed(false); setNewTtCollapsed(false) }}
@@ -873,16 +934,8 @@ export default function RoutePlannerPage() {
                       >Edit</button>
                     </div>
                   )}
-                  {confirmTt && (
-                    <div style={{ color: 'var(--text-muted)', marginBottom: vehicleType.length ? 3 : 0 }}>
-                      {confirmTt}
-                    </div>
-                  )}
-                  {vehicleType.length > 0 && (
-                    <div style={{ color: 'var(--text-muted)' }}>
-                      {vehicleType.join(', ')}
-                    </div>
-                  )}
+                  {confirmTt && <div style={{ color: 'var(--text-muted)', marginBottom: vehicleType.length ? 3 : 0 }}>{confirmTt}</div>}
+                  {vehicleType.length > 0 && <div style={{ color: 'var(--text-muted)' }}>{vehicleType.join(', ')}</div>}
                 </div>
               )
             })()}
@@ -893,99 +946,83 @@ export default function RoutePlannerPage() {
               </p>
             )}
 
+            {/* Stop list with segment chips between rows */}
             {stops.map((s, i) => {
               const color = stopColor(i, stops.length)
               const isEditing = editStopId === s._id
+              const segAfter  = segAfterStop[s._id]
               return (
-                <div key={s._id} style={{ borderLeft: `3px solid ${color}`, paddingLeft: 8, marginBottom: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginBottom: 3 }}>
-                    <span style={{
-                      fontFamily: 'Oswald', fontWeight: 700, fontSize: 10,
-                      color, width: 14, flexShrink: 0, textAlign: 'right',
-                    }}>
-                      {i + 1}
-                    </span>
-                    {isEditing ? (
-                      <input
-                        autoFocus
-                        className="form-input"
-                        style={{ flex: 1, fontSize: 12, height: 24, padding: '1px 5px', marginLeft: 3, marginRight: 2 }}
-                        value={editStopName}
-                        onChange={e => setEditStopName(e.target.value)}
-                        onBlur={() => commitEditName(i)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') { e.preventDefault(); commitEditName(i) }
-                          if (e.key === 'Escape') setEditStopId(null)
-                        }}
-                      />
-                    ) : (
-                      <span
-                        style={{
-                          flex: 1, fontSize: 13, fontWeight: 600, lineHeight: 1.3,
-                          paddingLeft: 5, paddingRight: 2,
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          cursor: 'text',
-                        }}
-                        title={`${s.name} — click to rename`}
-                        onClick={() => startEditName(s)}
-                      >
-                        {s.name}
+                <Fragment key={s._id}>
+                  <div style={{ borderLeft: `3px solid ${color}`, paddingLeft: 8, marginBottom: 2 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginBottom: 3 }}>
+                      <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 10, color, width: 14, flexShrink: 0, textAlign: 'right' }}>
+                        {i + 1}
                       </span>
-                    )}
-                    <button className="btn btn-ghost btn-sm"
-                      style={{ padding: '1px 4px', minWidth: 0, lineHeight: 1 }}
-                      onClick={() => moveStop(i, -1)} disabled={i === 0} title="Move up">↑</button>
-                    <button className="btn btn-ghost btn-sm"
-                      style={{ padding: '1px 4px', minWidth: 0, lineHeight: 1 }}
-                      onClick={() => moveStop(i, 1)} disabled={i === stops.length - 1} title="Move down">↓</button>
-                    <button className="btn btn-danger btn-sm"
-                      style={{ padding: '1px 5px', minWidth: 0, lineHeight: 1 }}
-                      onClick={() => removeStop(i)} title="Remove">×</button>
+                      {isEditing ? (
+                        <input autoFocus className="form-input"
+                          style={{ flex: 1, fontSize: 12, height: 24, padding: '1px 5px', marginLeft: 3, marginRight: 2 }}
+                          value={editStopName}
+                          onChange={e => setEditStopName(e.target.value)}
+                          onBlur={() => commitEditName(i)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') { e.preventDefault(); commitEditName(i) }
+                            if (e.key === 'Escape') setEditStopId(null)
+                          }}
+                        />
+                      ) : (
+                        <span
+                          style={{ flex: 1, fontSize: 13, fontWeight: 600, lineHeight: 1.3, paddingLeft: 5, paddingRight: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'text' }}
+                          title={`${s.name} — click to rename`}
+                          onClick={() => startEditName(s)}
+                        >{s.name}</span>
+                      )}
+                      <button className="btn btn-ghost btn-sm" style={{ padding: '1px 4px', minWidth: 0, lineHeight: 1 }}
+                        onClick={() => moveStop(i, -1)} disabled={i === 0} title="Move up">↑</button>
+                      <button className="btn btn-ghost btn-sm" style={{ padding: '1px 4px', minWidth: 0, lineHeight: 1 }}
+                        onClick={() => moveStop(i, 1)} disabled={i === stops.length - 1} title="Move down">↓</button>
+                      <button className="btn btn-danger btn-sm" style={{ padding: '1px 5px', minWidth: 0, lineHeight: 1 }}
+                        onClick={() => removeStop(i)} title="Remove">×</button>
+                    </div>
+                    <div style={{ paddingLeft: 19 }}>
+                      <select name="stop_type" className="form-select"
+                        style={{ fontSize: 12, height: 26, padding: '2px 6px', width: '100%', marginBottom: 3 }}
+                        value={s.stop_type} onChange={e => updateStop(i, 'stop_type', e.target.value)}>
+                        <option value="timing_point">Timing point</option>
+                        <option value="routing_point">Routing point</option>
+                      </select>
+                      {s.stop_type === 'timing_point' && (
+                        <div style={{ display: 'flex', gap: 3 }}>
+                          {[['time_std','Std'],['time_delay','Delay'],['time_early','Early']].map(([field, label]) => (
+                            <div key={field} style={{ flex: 1 }}>
+                              <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'Oswald', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 1 }}>{label}</div>
+                              <input type="time" className="form-input"
+                                style={{ fontSize: 11, height: 24, padding: '1px 3px', width: '100%' }}
+                                value={s[field]} onChange={e => updateStop(i, field, e.target.value)} />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ paddingLeft: 19 }}>
-                    <select name="stop_type" className="form-select"
-                      style={{ fontSize: 12, height: 26, padding: '2px 6px', width: '100%', marginBottom: 3 }}
-                      value={s.stop_type} onChange={e => updateStop(i, 'stop_type', e.target.value)}>
-                      <option value="timing_point">Timing point</option>
-                      <option value="routing_point">Routing point</option>
-                    </select>
-                    {s.stop_type === 'timing_point' && (
-                      <div style={{ display: 'flex', gap: 3 }}>
-                        {[['time_std','Std'],['time_delay','Delay'],['time_early','Early']].map(([field, label]) => (
-                          <div key={field} style={{ flex: 1 }}>
-                            <div style={{
-                              fontSize: 9, color: 'var(--text-muted)', fontFamily: 'Oswald',
-                              fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 1,
-                            }}>{label}</div>
-                            <input type="time" className="form-input"
-                              style={{ fontSize: 11, height: 24, padding: '1px 3px', width: '100%' }}
-                              value={s[field]} onChange={e => updateStop(i, field, e.target.value)} />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                  {/* Segment chip between this stop and the next */}
+                  {i < stops.length - 1 && <SegChip seg={segAfter} />}
+                </Fragment>
               )
             })}
 
-            {/* ── Add stop row ── */}
+            {/* Add stop row */}
             <div style={{ marginTop: stops.length ? 8 : 0 }}>
               {!showSearch && (
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button
                     className={`btn btn-sm ${pinDropMode ? 'btn-primary' : 'btn-ghost'}`}
                     style={{ flex: 1 }}
-                    onClick={() => { setPinDropMode(p => !p) }}
-                    title="Click the map to drop a pin and name it"
+                    onClick={() => setPinDropMode(p => !p)}
                   >
                     {pinDropMode ? 'Pinning…' : 'Drop pin'}
                   </button>
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    style={{ flex: 1 }}
-                    onClick={() => { setShowSearch(true); setPinDropMode(false) }}
-                  >
+                  <button className="btn btn-ghost btn-sm" style={{ flex: 1 }}
+                    onClick={() => { setShowSearch(true); setPinDropMode(false) }}>
                     Search
                   </button>
                 </div>
@@ -1003,22 +1040,20 @@ export default function RoutePlannerPage() {
                       display: 'flex', alignItems: 'center', gap: 6,
                       background: 'var(--bg)', marginBottom: 2,
                     }}>
-                      <span style={{
-                        fontSize: 10, fontFamily: 'Oswald', fontWeight: 700,
-                        color: r.source === 'stop' ? 'var(--green)' : 'var(--navy-brand)',
-                        textTransform: 'uppercase', minWidth: 28,
-                      }}>{r.source === 'stop' ? 'Stop' : 'Addr'}</span>
+                      <span style={{ fontSize: 10, fontFamily: 'Oswald', fontWeight: 700, color: r.source === 'stop' ? 'var(--green)' : 'var(--navy-brand)', textTransform: 'uppercase', minWidth: 28 }}>
+                        {r.source === 'stop' ? 'Stop' : 'Addr'}
+                      </span>
                       <span style={{ flex: 1, lineHeight: 1.3 }}>{r.name}</span>
                     </div>
                   ))}
-                  <div style={{ display: 'flex', gap: 6, marginTop: 5 }}>
+                  <div style={{ marginTop: 5 }}>
                     <button className="btn btn-ghost btn-sm" onClick={closeSearch}>Cancel</button>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Route summary */}
+            {/* Route totals */}
             {routeResult && !routeResult.error && (
               <div style={{ borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 10 }}>
                 <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 16, color: 'var(--navy-brand)' }}>
@@ -1043,13 +1078,8 @@ export default function RoutePlannerPage() {
 
             {saveError && <div className="error-msg" style={{ marginTop: 10 }}>{saveError}</div>}
 
-            {/* Finish button — shown when there are enough stops to save */}
             {canSave && (
-              <button
-                className="btn btn-primary btn-sm"
-                style={{ marginTop: 14, width: '100%' }}
-                onClick={() => setShowConfirm(true)}
-              >
+              <button className="btn btn-primary btn-sm" style={{ marginTop: 14, width: '100%' }} onClick={openModal}>
                 Finish &amp; Review
               </button>
             )}
@@ -1060,9 +1090,7 @@ export default function RoutePlannerPage() {
             <div className="card" style={{ padding: 10 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <span style={S.sectionLabel}>Departures</span>
-                <button
-                  className="btn btn-ghost btn-sm"
-                  style={{ padding: '2px 8px', fontSize: 11 }}
+                <button className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: 11 }}
                   onClick={async () => {
                     const vjc = await nextVjc()
                     setDepForm({ ...DEP_EMPTY, vehicle_journey_code: vjc })
@@ -1077,10 +1105,7 @@ export default function RoutePlannerPage() {
               )}
 
               {departures.map(dep => (
-                <div key={dep.id} style={{
-                  background: 'var(--bg)', borderRadius: 5, padding: '5px 7px',
-                  marginBottom: 5, display: 'flex', alignItems: 'center', gap: 6,
-                }}>
+                <div key={dep.id} style={{ background: 'var(--bg)', borderRadius: 5, padding: '5px 7px', marginBottom: 5, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 14, color: 'var(--navy-brand)', minWidth: 42 }}>
                     {dep.departure_time.slice(0, 5)}
                   </span>
@@ -1093,39 +1118,26 @@ export default function RoutePlannerPage() {
                     )}
                   </span>
                   <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{dep.vehicle_journey_code}</span>
-                  <button className="btn btn-ghost btn-sm"
-                    style={{ padding: '1px 5px', minWidth: 0, fontSize: 11 }}
+                  <button className="btn btn-ghost btn-sm" style={{ padding: '1px 5px', minWidth: 0, fontSize: 11 }}
                     onClick={() => {
-                      setDepForm({
-                        departure_time:       dep.departure_time.slice(0, 5),
-                        days_of_week:         dep.days_of_week,
-                        timing_profile:       dep.timing_profile,
-                        vehicle_journey_code: dep.vehicle_journey_code,
-                      })
+                      setDepForm({ departure_time: dep.departure_time.slice(0, 5), days_of_week: dep.days_of_week, timing_profile: dep.timing_profile, vehicle_journey_code: dep.vehicle_journey_code })
                       setDepError('')
                       setDepModal(dep)
                     }}
                   >Edit</button>
-                  <button className="btn btn-danger btn-sm"
-                    style={{ padding: '1px 5px', minWidth: 0, fontSize: 11 }}
-                    onClick={() => deleteDeparture(dep.id)}
-                  >×</button>
+                  <button className="btn btn-danger btn-sm" style={{ padding: '1px 5px', minWidth: 0, fontSize: 11 }}
+                    onClick={() => deleteDeparture(dep.id)}>×</button>
                 </div>
               ))}
 
               {depModal !== null && (
-                <div style={{
-                  background: 'var(--bg)', borderRadius: 6, padding: 8, marginTop: 6,
-                  border: '1px solid var(--border)',
-                }}>
+                <div style={{ background: 'var(--bg)', borderRadius: 6, padding: 8, marginTop: 6, border: '1px solid var(--border)' }}>
                   {depError && <div className="error-msg" style={{ marginBottom: 6 }}>{depError}</div>}
                   <form onSubmit={saveDeparture}>
                     <div style={{ marginBottom: 6 }}>
                       <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Departure Time</div>
-                      <input type="time" className="form-input"
-                        value={depForm.departure_time}
-                        onChange={e => setDepForm(f => ({ ...f, departure_time: e.target.value }))}
-                        required />
+                      <input type="time" className="form-input" value={depForm.departure_time}
+                        onChange={e => setDepForm(f => ({ ...f, departure_time: e.target.value }))} required />
                     </div>
                     <div style={{ marginBottom: 6 }}>
                       <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Days</div>
@@ -1135,19 +1147,8 @@ export default function RoutePlannerPage() {
                           const on = depForm.days_of_week.includes(dayNum)
                           return (
                             <button key={d} type="button"
-                              onClick={() => setDepForm(f => ({
-                                ...f,
-                                days_of_week: on
-                                  ? f.days_of_week.filter(x => x !== dayNum)
-                                  : [...f.days_of_week, dayNum].sort((a, b) => a - b),
-                              }))}
-                              style={{
-                                padding: '2px 6px', fontSize: 10, borderRadius: 8, cursor: 'pointer',
-                                fontFamily: 'inherit', lineHeight: 1.5,
-                                border: `1px solid ${on ? 'var(--navy-brand)' : 'var(--border)'}`,
-                                background: on ? 'var(--navy-brand)' : 'transparent',
-                                color: on ? '#fff' : 'var(--text-muted)',
-                              }}
+                              onClick={() => setDepForm(f => ({ ...f, days_of_week: on ? f.days_of_week.filter(x => x !== dayNum) : [...f.days_of_week, dayNum].sort((a, b) => a - b) }))}
+                              style={{ padding: '2px 6px', fontSize: 10, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1.5, border: `1px solid ${on ? 'var(--navy-brand)' : 'var(--border)'}`, background: on ? 'var(--navy-brand)' : 'transparent', color: on ? '#fff' : 'var(--text-muted)' }}
                             >{d}</button>
                           )
                         })}
@@ -1164,16 +1165,12 @@ export default function RoutePlannerPage() {
                     </div>
                     <div style={{ marginBottom: 8 }}>
                       <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Journey Code (VJC)</div>
-                      <input className="form-input"
-                        value={depForm.vehicle_journey_code}
-                        onChange={e => setDepForm(f => ({ ...f, vehicle_journey_code: e.target.value }))}
-                        required />
+                      <input className="form-input" value={depForm.vehicle_journey_code}
+                        onChange={e => setDepForm(f => ({ ...f, vehicle_journey_code: e.target.value }))} required />
                     </div>
                     <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                       <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDepModal(null)}>Cancel</button>
-                      <button type="submit" className="btn btn-primary btn-sm" disabled={depSaving}>
-                        {depSaving ? 'Saving…' : 'Save'}
-                      </button>
+                      <button type="submit" className="btn btn-primary btn-sm" disabled={depSaving}>{depSaving ? 'Saving…' : 'Save'}</button>
                     </div>
                   </form>
                 </div>
@@ -1184,18 +1181,9 @@ export default function RoutePlannerPage() {
         </div>
 
         {/* ── Map panel ── */}
-        <div style={{
-          flex: 1, minWidth: 0, position: 'relative',
-          borderRadius: 'var(--radius)', overflow: 'hidden',
-          border: '1px solid var(--border)', boxShadow: 'var(--shadow)',
-        }}>
+        <div style={{ flex: 1, minWidth: 0, position: 'relative', borderRadius: 'var(--radius)', overflow: 'hidden', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
           {pinDropMode && (
-            <div style={{
-              position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
-              background: 'rgba(30,61,114,0.88)', color: '#fff',
-              padding: '6px 18px', borderRadius: 20, fontSize: 13, fontWeight: 500,
-              pointerEvents: 'none', zIndex: 1000, whiteSpace: 'nowrap',
-            }}>
+            <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', background: 'rgba(30,61,114,0.88)', color: '#fff', padding: '6px 18px', borderRadius: 20, fontSize: 13, fontWeight: 500, pointerEvents: 'none', zIndex: 1000, whiteSpace: 'nowrap' }}>
               Click the map to place a stop
             </div>
           )}
@@ -1210,51 +1198,29 @@ export default function RoutePlannerPage() {
         </div>
       </div>
 
-      {/* ── Confirmation modal ── */}
+      {/* ── Review / confirmation modal ── */}
       {showConfirm && (
         <div
-          style={{
-            position: 'fixed', inset: 0, zIndex: 2000,
-            background: 'rgba(0,0,0,0.45)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: 24,
-          }}
+          style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
           onClick={e => { if (e.target === e.currentTarget) setShowConfirm(false) }}
         >
-          <div style={{
-            background: 'var(--surface)', borderRadius: 'var(--radius)',
-            boxShadow: '0 8px 40px rgba(0,0,0,0.25)',
-            width: '100%', maxWidth: 480,
-            maxHeight: 'calc(100vh - 48px)', overflowY: 'auto',
-            padding: 24,
-          }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius)', boxShadow: '0 8px 40px rgba(0,0,0,0.25)', width: '100%', maxWidth: 540, maxHeight: 'calc(100vh - 48px)', overflowY: 'auto', padding: 24 }}>
+
             <h2 style={{ fontFamily: 'Oswald', fontSize: 20, fontWeight: 700, color: 'var(--navy-brand)', margin: '0 0 16px' }}>
               Review Route
             </h2>
 
-            {/* Route & timetable */}
+            {/* Route & timetable summary */}
             <div style={{ marginBottom: 16 }}>
               <div style={{ ...S.sectionLabel, marginBottom: 6 }}>Route</div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                {confirmCode && (
-                  <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 18, color: 'var(--navy-brand)' }}>
-                    {confirmCode}
-                  </span>
-                )}
-                {confirmName && (
-                  <span style={{ fontSize: 14, color: 'var(--text)' }}>{confirmName}</span>
-                )}
+                {confirmCode && <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 18, color: 'var(--navy-brand)' }}>{confirmCode}</span>}
+                {confirmName && <span style={{ fontSize: 14, color: 'var(--text)' }}>{confirmName}</span>}
                 {confirmJTypes.map(jt => (
-                  <span key={jt} style={{
-                    fontSize: 10, fontFamily: 'Oswald', fontWeight: 700,
-                    background: 'var(--navy-brand)', color: '#fff',
-                    borderRadius: 8, padding: '1px 7px', letterSpacing: '0.04em', textTransform: 'uppercase',
-                  }}>{jt}</span>
+                  <span key={jt} style={{ fontSize: 10, fontFamily: 'Oswald', fontWeight: 700, background: 'var(--navy-brand)', color: '#fff', borderRadius: 8, padding: '1px 7px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{jt}</span>
                 ))}
               </div>
-              {confirmTt && (
-                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>{confirmTt}</div>
-              )}
+              {confirmTt && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>{confirmTt}</div>}
               {vehicleType.length > 0 && (
                 <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
                   {vehicleType.join(', ')}
@@ -1263,33 +1229,74 @@ export default function RoutePlannerPage() {
               )}
             </div>
 
-            {/* Stops list */}
+            {/* Stops with departure auto-fill + editable timing */}
             <div style={{ marginBottom: 16 }}>
-              <div style={{ ...S.sectionLabel, marginBottom: 6 }}>Stops ({stops.length})</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {stops.map((s, i) => {
-                  const color = stopColor(i, stops.length)
-                  return (
-                    <div key={s._id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{
-                        width: 22, height: 22, borderRadius: '50%',
-                        background: color, color: '#fff',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontFamily: 'Oswald', fontWeight: 700, fontSize: 10, flexShrink: 0,
-                      }}>{i + 1}</div>
-                      <span style={{ fontSize: 13, color: 'var(--text)', flex: 1 }}>{s.name}</span>
-                      {s.stop_type === 'routing_point' && (
-                        <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'Oswald', fontWeight: 700, textTransform: 'uppercase' }}>via</span>
-                      )}
-                    </div>
-                  )
-                })}
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8, gap: 8 }}>
+                <span style={S.sectionLabel}>Stops ({modalStops.length})</span>
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Departs</span>
+                  <input
+                    type="time"
+                    className="form-input"
+                    style={{ width: 95, height: 26, fontSize: 12, padding: '1px 4px' }}
+                    value={autoDepTime}
+                    title="Enter departure time to auto-fill timing points"
+                    onChange={e => {
+                      setAutoDepTime(e.target.value)
+                      if (e.target.value) setModalStops(prev => applyAutoFill(e.target.value, prev))
+                    }}
+                  />
+                </div>
               </div>
+
+              {modalStops.map((s, i) => {
+                const color    = stopColor(i, modalStops.length)
+                const segAfter = modalSegAfterStop[s._id]
+                return (
+                  <Fragment key={s._id}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+                      <div style={{ width: 22, height: 22, borderRadius: '50%', background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Oswald', fontWeight: 700, fontSize: 10, flexShrink: 0, marginTop: 1 }}>
+                        {i + 1}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: s.stop_type === 'timing_point' ? 5 : 0 }}>
+                          {s.name}
+                        </div>
+                        {s.stop_type === 'timing_point' ? (
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            {[['time_std','Std'],['time_delay','Delay'],['time_early','Early']].map(([field, label]) => (
+                              <div key={field} style={{ flex: 1 }}>
+                                <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'Oswald', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 1 }}>{label}</div>
+                                <input type="time" className="form-input"
+                                  style={{ fontSize: 11, height: 24, padding: '1px 3px', width: '100%' }}
+                                  value={s[field]}
+                                  onChange={e => updateModalStop(i, field, e.target.value)}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'Oswald', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>via</div>
+                        )}
+                      </div>
+                    </div>
+                    {/* Segment chip */}
+                    {i < modalStops.length - 1 && segAfter && !segAfter.error && (
+                      <div style={{ paddingLeft: 30, fontSize: 11, fontFamily: 'Oswald', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', gap: 5, marginBottom: 6 }}>
+                        <span>↓</span>
+                        <span>{fmtDur(segAfter.duration)}</span>
+                        <span style={{ fontWeight: 400, fontSize: 10 }}>·</span>
+                        <span style={{ fontWeight: 400 }}>{fmtDist(segAfter.distance)}</span>
+                      </div>
+                    )}
+                  </Fragment>
+                )
+              })}
             </div>
 
-            {/* Distance / duration */}
+            {/* Totals */}
             {routeResult && !routeResult.error && (
-              <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--bg)', borderRadius: 6, display: 'flex', gap: 16, alignItems: 'center' }}>
+              <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--bg)', borderRadius: 6, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
                 <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 20, color: 'var(--navy-brand)' }}>
                   {fmtDist(routeResult.distance)}
                 </span>
@@ -1310,7 +1317,12 @@ export default function RoutePlannerPage() {
               <button className="btn btn-ghost" onClick={() => setShowConfirm(false)} disabled={saving}>
                 Back to edit
               </button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+              <button className="btn btn-primary" disabled={saving}
+                onClick={() => {
+                  setStops(modalStops)
+                  handleSave(modalStops)
+                }}
+              >
                 {saving ? 'Saving…' : 'Save Route'}
               </button>
             </div>
