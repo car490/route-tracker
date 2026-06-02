@@ -271,7 +271,13 @@ export default function RoutePlannerPage() {
   const [searchQuery,   setSearchQuery]   = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching,     setSearching]     = useState(false)
-  const [addingStop,    setAddingStop]    = useState(false)
+
+  // Stop name editing
+  const [editStopId,   setEditStopId]   = useState(null)
+  const [editStopName, setEditStopName] = useState('')
+
+  // Confirmation modal
+  const [showConfirm, setShowConfirm] = useState(false)
 
   const [fitKey,      setFitKey]      = useState(null)
   const [saving,      setSaving]      = useState(false)
@@ -397,29 +403,16 @@ export default function RoutePlannerPage() {
     return () => { cancelled = true; clearTimeout(timer) }
   }, [searchQuery])
 
-  async function handleAddStop(result) {
-    setAddingStop(true)
-    let stopId = result.stop_id
-
-    if (!stopId) {
-      const { data, error } = await supabase
-        .from('stops').insert({ name: result.name, lat: result.lat, lon: result.lon })
-        .select('id').single()
-      if (error) {
-        alert('Could not create stop: ' + error.message + '\n\nOnly super_user accounts can create new stops.')
-        setAddingStop(false)
-        return
-      }
-      stopId = data.id
-    }
-
+  // Address results (source:'addr') are held locally with stop_id:null — the same
+  // as pin-drops. The stop is inserted to the DB only on Save, in handleSave.
+  function handleAddStop(result) {
     setStops(prev => [...prev, {
-      _id: crypto.randomUUID(), stop_id: stopId,
+      _id: crypto.randomUUID(),
+      stop_id: result.stop_id ?? null,
       name: result.name, lat: result.lat, lon: result.lon,
       stop_type: 'timing_point', time_std: '', time_delay: '', time_early: '',
     }])
     setShowSearch(false); setSearchQuery(''); setSearchResults([])
-    setAddingStop(false)
   }
 
   function handleMapPinDrop({ name, lat, lon }) {
@@ -450,6 +443,17 @@ export default function RoutePlannerPage() {
 
   function updateStop(i, field, value) {
     setStops(prev => prev.map((s, idx) => idx === i ? { ...s, [field]: value } : s))
+  }
+
+  function startEditName(stop) {
+    setEditStopId(stop._id)
+    setEditStopName(stop.name)
+  }
+
+  function commitEditName(i) {
+    const name = editStopName.trim()
+    if (name) updateStop(i, 'name', name)
+    setEditStopId(null)
   }
 
   // ── Departures ────────────────────────────────────────────────────────────────
@@ -565,7 +569,9 @@ export default function RoutePlannerPage() {
       setNewTtName(''); setNewDirection('Outbound')
       setRouteId(''); setTimetableId(''); setStops([])
     }
-    setSaving(false); setSaveSuccess(true)
+    setSaving(false)
+    setShowConfirm(false)
+    setSaveSuccess(true)
     setTimeout(() => setSaveSuccess(false), 3000)
   }
 
@@ -578,6 +584,16 @@ export default function RoutePlannerPage() {
   const routeReady = routeId === '__new__' ? newCode.trim().length > 0 && newJourneyTypes.length > 0 : !!routeId
   const ttReady    = !!timetableId
   const canSave    = routeReady && ttReady && stops.length >= 2 && !saving
+
+  // Labels for confirmation modal
+  const selRoute = routeId && routeId !== '__new__' ? routes.find(r => r.id === routeId) : null
+  const selTt    = timetableId && timetableId !== '__new__' ? timetables.find(t => t.id === timetableId) : null
+  const confirmCode   = routeId === '__new__' ? newCode : selRoute?.service_code
+  const confirmName   = routeId === '__new__' ? newName : selRoute?.name
+  const confirmJTypes = routeId === '__new__' ? newJourneyTypes : (selRoute?.journey_types ?? [])
+  const confirmTt     = timetableId === '__new__'
+    ? [newTtName, newDirection].filter(Boolean).join(' · ')
+    : selTt ? `${selTt.name} · ${selTt.direction}` : ''
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
@@ -593,8 +609,8 @@ export default function RoutePlannerPage() {
               {routeId === '__new__' ? 'Route created ✓ — select from list to continue' : 'Saved ✓'}
             </span>
           )}
-          <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={!canSave}>
-            {saving ? 'Saving…' : 'Save Route'}
+          <button className="btn btn-primary btn-sm" onClick={() => setShowConfirm(true)} disabled={!canSave}>
+            Review &amp; Save
           </button>
         </div>
       </div>
@@ -819,30 +835,15 @@ export default function RoutePlannerPage() {
               <span style={S.sectionLabel}>
                 Stops{stops.length > 0 ? ` · ${stops.length}` : ''}
               </span>
-              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                {routing && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Routing…</span>}
-                <button
-                  className={`btn btn-sm ${pinDropMode ? 'btn-primary' : 'btn-ghost'}`}
-                  style={{ padding: '2px 8px' }}
-                  onClick={() => setPinDropMode(p => !p)}
-                  title="Toggle map pin-drop mode"
-                >
-                  {pinDropMode ? 'Pinning…' : 'Drop pins'}
-                </button>
-              </div>
+              {routing && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Routing…</span>}
             </div>
 
             {/* Summary of selections from above */}
             {(() => {
-              const selRoute = routeId && routeId !== '__new__' ? routes.find(r => r.id === routeId) : null
-              const selTt    = timetableId && timetableId !== '__new__' ? timetables.find(t => t.id === timetableId) : null
               const code     = routeId === '__new__' ? newCode : selRoute?.service_code
               const name     = routeId === '__new__' ? newName : selRoute?.name
               const jtypes   = routeId === '__new__' ? newJourneyTypes : (selRoute?.journey_types ?? [])
-              const ttLabel  = timetableId === '__new__'
-                ? [newTtName, newDirection].filter(Boolean).join(' · ')
-                : selTt ? `${selTt.name} · ${selTt.direction}` : ''
-              if (!code && !ttLabel && !vehicleType.length) return null
+              if (!code && !confirmTt && !vehicleType.length) return null
               return (
                 <div style={{
                   background: 'var(--bg)', border: '1px solid var(--border)',
@@ -872,9 +873,9 @@ export default function RoutePlannerPage() {
                       >Edit</button>
                     </div>
                   )}
-                  {ttLabel && (
+                  {confirmTt && (
                     <div style={{ color: 'var(--text-muted)', marginBottom: vehicleType.length ? 3 : 0 }}>
-                      {ttLabel}
+                      {confirmTt}
                     </div>
                   )}
                   {vehicleType.length > 0 && (
@@ -886,14 +887,15 @@ export default function RoutePlannerPage() {
               )
             })()}
 
-            {stops.length === 0 && !showSearch && (
+            {stops.length === 0 && (
               <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 10px' }}>
-                Toggle Drop pins to click the map, or use search below.
+                Drop a pin on the map or search for a stop or address below.
               </p>
             )}
 
             {stops.map((s, i) => {
               const color = stopColor(i, stops.length)
+              const isEditing = editStopId === s._id
               return (
                 <div key={s._id} style={{ borderLeft: `3px solid ${color}`, paddingLeft: 8, marginBottom: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginBottom: 3 }}>
@@ -903,13 +905,33 @@ export default function RoutePlannerPage() {
                     }}>
                       {i + 1}
                     </span>
-                    <span style={{
-                      flex: 1, fontSize: 13, fontWeight: 600, lineHeight: 1.3,
-                      paddingLeft: 5, paddingRight: 2,
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }} title={s.name}>
-                      {s.name}
-                    </span>
+                    {isEditing ? (
+                      <input
+                        autoFocus
+                        className="form-input"
+                        style={{ flex: 1, fontSize: 12, height: 24, padding: '1px 5px', marginLeft: 3, marginRight: 2 }}
+                        value={editStopName}
+                        onChange={e => setEditStopName(e.target.value)}
+                        onBlur={() => commitEditName(i)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') { e.preventDefault(); commitEditName(i) }
+                          if (e.key === 'Escape') setEditStopId(null)
+                        }}
+                      />
+                    ) : (
+                      <span
+                        style={{
+                          flex: 1, fontSize: 13, fontWeight: 600, lineHeight: 1.3,
+                          paddingLeft: 5, paddingRight: 2,
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          cursor: 'text',
+                        }}
+                        title={`${s.name} — click to rename`}
+                        onClick={() => startEditName(s)}
+                      >
+                        {s.name}
+                      </span>
+                    )}
                     <button className="btn btn-ghost btn-sm"
                       style={{ padding: '1px 4px', minWidth: 0, lineHeight: 1 }}
                       onClick={() => moveStop(i, -1)} disabled={i === 0} title="Move up">↑</button>
@@ -947,39 +969,56 @@ export default function RoutePlannerPage() {
               )
             })}
 
-            {showSearch ? (
-              <div style={{ marginTop: stops.length ? 4 : 0 }}>
-                <input name="stop_search" autoFocus className="form-input" style={{ marginBottom: 5 }}
-                  placeholder="Search stops or address…" value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)} />
-                {searching && <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 0 4px' }}>Searching…</div>}
-                {searchResults.map((r, idx) => (
-                  <div key={idx} onMouseDown={e => { e.preventDefault(); handleAddStop(r) }} style={{
-                    padding: '5px 8px', cursor: 'pointer', borderRadius: 4, fontSize: 13,
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    background: 'var(--bg)', marginBottom: 2,
-                  }}>
-                    <span style={{
-                      fontSize: 10, fontFamily: 'Oswald', fontWeight: 700,
-                      color: r.source === 'stop' ? 'var(--green)' : 'var(--navy-brand)',
-                      textTransform: 'uppercase', minWidth: 28,
-                    }}>{r.source === 'stop' ? 'Stop' : 'Addr'}</span>
-                    <span style={{ flex: 1, lineHeight: 1.3 }}>{r.name}</span>
-                  </div>
-                ))}
-                <div style={{ display: 'flex', gap: 6, marginTop: 5 }}>
-                  <button className="btn btn-ghost btn-sm" onClick={closeSearch}>Cancel</button>
-                  {addingStop && <span style={{ fontSize: 12, color: 'var(--text-muted)', alignSelf: 'center' }}>Adding…</span>}
+            {/* ── Add stop row ── */}
+            <div style={{ marginTop: stops.length ? 8 : 0 }}>
+              {!showSearch && (
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    className={`btn btn-sm ${pinDropMode ? 'btn-primary' : 'btn-ghost'}`}
+                    style={{ flex: 1 }}
+                    onClick={() => { setPinDropMode(p => !p) }}
+                    title="Click the map to drop a pin and name it"
+                  >
+                    {pinDropMode ? 'Pinning…' : 'Drop pin'}
+                  </button>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ flex: 1 }}
+                    onClick={() => { setShowSearch(true); setPinDropMode(false) }}
+                  >
+                    Search
+                  </button>
                 </div>
-              </div>
-            ) : (
-              <button className="btn btn-ghost btn-sm"
-                style={{ marginTop: stops.length ? 4 : 0 }}
-                onClick={() => setShowSearch(true)}>
-                + Add from search
-              </button>
-            )}
+              )}
 
+              {showSearch && (
+                <div>
+                  <input name="stop_search" autoFocus className="form-input" style={{ marginBottom: 5 }}
+                    placeholder="Search stops or address…" value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)} />
+                  {searching && <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 0 4px' }}>Searching…</div>}
+                  {searchResults.map((r, idx) => (
+                    <div key={idx} onMouseDown={e => { e.preventDefault(); handleAddStop(r) }} style={{
+                      padding: '5px 8px', cursor: 'pointer', borderRadius: 4, fontSize: 13,
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      background: 'var(--bg)', marginBottom: 2,
+                    }}>
+                      <span style={{
+                        fontSize: 10, fontFamily: 'Oswald', fontWeight: 700,
+                        color: r.source === 'stop' ? 'var(--green)' : 'var(--navy-brand)',
+                        textTransform: 'uppercase', minWidth: 28,
+                      }}>{r.source === 'stop' ? 'Stop' : 'Addr'}</span>
+                      <span style={{ flex: 1, lineHeight: 1.3 }}>{r.name}</span>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', gap: 6, marginTop: 5 }}>
+                    <button className="btn btn-ghost btn-sm" onClick={closeSearch}>Cancel</button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Route summary */}
             {routeResult && !routeResult.error && (
               <div style={{ borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 10 }}>
                 <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 16, color: 'var(--navy-brand)' }}>
@@ -1003,9 +1042,20 @@ export default function RoutePlannerPage() {
             )}
 
             {saveError && <div className="error-msg" style={{ marginTop: 10 }}>{saveError}</div>}
+
+            {/* Finish button — shown when there are enough stops to save */}
+            {canSave && (
+              <button
+                className="btn btn-primary btn-sm"
+                style={{ marginTop: 14, width: '100%' }}
+                onClick={() => setShowConfirm(true)}
+              >
+                Finish &amp; Review
+              </button>
+            )}
           </div>
 
-          {/* Card 4: Departures */}
+          {/* Card 5: Departures */}
           {timetableId && timetableId !== '__new__' && (
             <div className="card" style={{ padding: 10 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -1139,14 +1189,14 @@ export default function RoutePlannerPage() {
           borderRadius: 'var(--radius)', overflow: 'hidden',
           border: '1px solid var(--border)', boxShadow: 'var(--shadow)',
         }}>
-          {pinDropMode && stops.length === 0 && (
+          {pinDropMode && (
             <div style={{
               position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
               background: 'rgba(30,61,114,0.88)', color: '#fff',
               padding: '6px 18px', borderRadius: 20, fontSize: 13, fontWeight: 500,
               pointerEvents: 'none', zIndex: 1000, whiteSpace: 'nowrap',
             }}>
-              Click the map to place your first stop
+              Click the map to place a stop
             </div>
           )}
           <PlannerMap
@@ -1159,6 +1209,115 @@ export default function RoutePlannerPage() {
           />
         </div>
       </div>
+
+      {/* ── Confirmation modal ── */}
+      {showConfirm && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 2000,
+            background: 'rgba(0,0,0,0.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 24,
+          }}
+          onClick={e => { if (e.target === e.currentTarget) setShowConfirm(false) }}
+        >
+          <div style={{
+            background: 'var(--surface)', borderRadius: 'var(--radius)',
+            boxShadow: '0 8px 40px rgba(0,0,0,0.25)',
+            width: '100%', maxWidth: 480,
+            maxHeight: 'calc(100vh - 48px)', overflowY: 'auto',
+            padding: 24,
+          }}>
+            <h2 style={{ fontFamily: 'Oswald', fontSize: 20, fontWeight: 700, color: 'var(--navy-brand)', margin: '0 0 16px' }}>
+              Review Route
+            </h2>
+
+            {/* Route & timetable */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ ...S.sectionLabel, marginBottom: 6 }}>Route</div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                {confirmCode && (
+                  <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 18, color: 'var(--navy-brand)' }}>
+                    {confirmCode}
+                  </span>
+                )}
+                {confirmName && (
+                  <span style={{ fontSize: 14, color: 'var(--text)' }}>{confirmName}</span>
+                )}
+                {confirmJTypes.map(jt => (
+                  <span key={jt} style={{
+                    fontSize: 10, fontFamily: 'Oswald', fontWeight: 700,
+                    background: 'var(--navy-brand)', color: '#fff',
+                    borderRadius: 8, padding: '1px 7px', letterSpacing: '0.04em', textTransform: 'uppercase',
+                  }}>{jt}</span>
+                ))}
+              </div>
+              {confirmTt && (
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>{confirmTt}</div>
+              )}
+              {vehicleType.length > 0 && (
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
+                  {vehicleType.join(', ')}
+                  {vehicle && ` — H ${vehicle.height_metres}m · W ${vehicle.width_metres}m · L ${vehicle.length_metres}m`}
+                </div>
+              )}
+            </div>
+
+            {/* Stops list */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ ...S.sectionLabel, marginBottom: 6 }}>Stops ({stops.length})</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {stops.map((s, i) => {
+                  const color = stopColor(i, stops.length)
+                  return (
+                    <div key={s._id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{
+                        width: 22, height: 22, borderRadius: '50%',
+                        background: color, color: '#fff',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontFamily: 'Oswald', fontWeight: 700, fontSize: 10, flexShrink: 0,
+                      }}>{i + 1}</div>
+                      <span style={{ fontSize: 13, color: 'var(--text)', flex: 1 }}>{s.name}</span>
+                      {s.stop_type === 'routing_point' && (
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'Oswald', fontWeight: 700, textTransform: 'uppercase' }}>via</span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Distance / duration */}
+            {routeResult && !routeResult.error && (
+              <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--bg)', borderRadius: 6, display: 'flex', gap: 16, alignItems: 'center' }}>
+                <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 20, color: 'var(--navy-brand)' }}>
+                  {fmtDist(routeResult.distance)}
+                </span>
+                <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>
+                  {fmtDur(routeResult.duration)}
+                </span>
+                {warnings.map((w, idx) => (
+                  <div key={idx} style={{ fontSize: 12, color: '#d69e2e', display: 'flex', gap: 4 }}>
+                    <span>⚠</span><span>{w.message ?? `Routing warning (code ${w.code})`}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {saveError && <div className="error-msg" style={{ marginBottom: 12 }}>{saveError}</div>}
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost" onClick={() => setShowConfirm(false)} disabled={saving}>
+                Back to edit
+              </button>
+              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+                {saving ? 'Saving…' : 'Save Route'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
