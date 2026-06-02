@@ -1,3 +1,5 @@
+import { buildGHBody, normaliseGHResponse } from './_graphhopper.js'
+
 const GH_BASE = process.env.GRAPHHOPPER_URL || 'https://valhalla.openstreetmap.de'
 const USE_GH  = !!process.env.GRAPHHOPPER_URL
 
@@ -6,44 +8,27 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const coordinates = req.body?.coordinates ?? []
-  if (coordinates.length < 2) {
+  const { coordinates, vehicle } = req.body ?? {}
+  if (!coordinates || coordinates.length < 2) {
     return res.status(400).json({ error: 'At least 2 coordinates required' })
   }
 
   return USE_GH
-    ? graphHopperRoute(coordinates, req, res)
-    : valhallaRoute(coordinates, req, res)
+    ? graphHopperRoute(coordinates, vehicle, res)
+    : valhallaRoute(coordinates, res)
 }
 
 // ---------------------------------------------------------------------------
 // GraphHopper (local or self-hosted)
 // ---------------------------------------------------------------------------
 
-async function graphHopperRoute(coordinates, req, res) {
-  const dims = req.body?.options?.profile_params?.restrictions ?? {}
-
-  // Build per-request priority rules from vehicle dimensions
-  const priority = [{ if: 'true', multiply_by: '1' }]
-  if (dims.height) priority.push({ if: `max_height < ${dims.height} && max_height > 0`, multiply_by: '0' })
-  if (dims.width)  priority.push({ if: `max_width  < ${dims.width}  && max_width  > 0`, multiply_by: '0' })
-  if (dims.weight) priority.push({ if: `max_weight < ${dims.weight} && max_weight > 0`, multiply_by: '0' })
-  if (dims.length) priority.push({ if: `max_length < ${dims.length} && max_length > 0`, multiply_by: '0' })
-
-  const body = {
-    points: coordinates,
-    profile: 'pcv',
-    custom_model: { priority },
-    points_encoded: false,
-    instructions: false,
-  }
-
+async function graphHopperRoute(coordinates, vehicle, res) {
   let upstream
   try {
     upstream = await fetch(`${GH_BASE}/route`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify(buildGHBody(coordinates, vehicle)),
       signal: AbortSignal.timeout(15000),
     })
   } catch (err) {
@@ -59,22 +44,7 @@ async function graphHopperRoute(coordinates, req, res) {
     return res.status(upstream.status).json({ error: msg })
   }
 
-  const path = data?.paths?.[0]
-  if (!path) return res.status(200).json({ features: [] })
-
-  // Normalise to ORS FeatureCollection shape
-  return res.status(200).json({
-    features: [{
-      geometry: path.points,                        // already GeoJSON LineString
-      properties: {
-        summary: {
-          distance: path.distance,                  // metres
-          duration: Math.round(path.time / 1000),  // ms → seconds
-        },
-        warnings: [],
-      },
-    }],
-  })
+  return res.status(200).json(normaliseGHResponse(data))
 }
 
 // ---------------------------------------------------------------------------
@@ -97,7 +67,7 @@ function decodePolyline(encoded, precision = 6) {
   return coords
 }
 
-async function valhallaRoute(coordinates, req, res) {
+async function valhallaRoute(coordinates, res) {
   const locations = coordinates.map(([lon, lat]) => ({ lon, lat }))
 
   let upstream

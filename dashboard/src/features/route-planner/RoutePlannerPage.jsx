@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../shared/supabase'
 import { getCompanyId } from '../../shared/company'
 import { searchPlaces } from '../../shared/api/osPlaces'
-import { getRouteORS } from './ors'
+import { getRoute } from './directions'
 import { useJourneyTypes } from '../../shared/hooks/useJourneyTypes'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -350,7 +350,7 @@ export default function RoutePlannerPage() {
     const vehicle = resolvedVehicle()
     let cancelled = false
     setRouting(true)
-    getRouteORS(pts, vehicle).then(result => {
+    getRoute(pts, vehicle).then(result => {
       if (!cancelled) { setRouteResult(result); setRouting(false) }
     })
     return () => { cancelled = true }
