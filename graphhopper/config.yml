@@ -3,11 +3,11 @@ graphhopper:
   graph.location: gh-graph-cache
 
   # Encoded values needed for per-request dimension restrictions
-  graph.encoded_values: max_height, max_width, max_weight, max_length
+  graph.encoded_values: max_height, max_width, max_weight, max_length, road_class
+  import.osm.ignored_highways: footway, cycleway, path, pedestrian, steps
 
   profiles:
     - name: pcv
-      vehicle: car
       custom_model_files: [pcv.json]
 
   # Landmarks (not CH) — required to support per-request custom model overrides
