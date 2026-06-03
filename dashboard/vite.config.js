@@ -56,15 +56,12 @@ function localDirectionsApi() {
   }
 }
 
+function base64url(str) {
+  return Buffer.from(str, 'utf8').toString('base64')
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+}
+
 function localSignTokenApi() {
-  const secret = process.env.SUPABASE_JWT_SECRET
-  if (!secret) return { name: 'local-sign-token-api' }
-
-  function base64url(str) {
-    return Buffer.from(str, 'utf8').toString('base64')
-      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
-  }
-
   return {
     name: 'local-sign-token-api',
     configureServer(server) {
@@ -79,6 +76,14 @@ function localSignTokenApi() {
         let raw = ''
         req.on('data', chunk => { raw += chunk })
         req.on('end', () => {
+          // Read lazily — env vars are loaded after config is evaluated
+          const secret = process.env.SUPABASE_JWT_SECRET
+          if (!secret) {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: 'SUPABASE_JWT_SECRET not configured in .env.local' }))
+            return
+          }
           try {
             const { journey_ids, driver_name, driver_id } = JSON.parse(raw)
             if (!Array.isArray(journey_ids) || journey_ids.length === 0) {
