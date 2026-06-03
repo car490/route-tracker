@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { createHmac } from 'crypto'
 import { buildGHBody, normaliseGHResponse } from './api/_graphhopper.js'
 
 // Local-dev middleware: handles /api/directions when GRAPHHOPPER_URL is set.
@@ -56,9 +57,13 @@ function localDirectionsApi() {
 }
 
 function localSignTokenApi() {
-  const supabaseUrl = process.env.VITE_SUPABASE_URL
-  const anonKey    = process.env.VITE_SUPABASE_ANON_KEY
-  if (!supabaseUrl || !anonKey) return { name: 'local-sign-token-api' }
+  const secret = process.env.SUPABASE_JWT_SECRET
+  if (!secret) return { name: 'local-sign-token-api' }
+
+  function base64url(str) {
+    return Buffer.from(str, 'utf8').toString('base64')
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+  }
 
   return {
     name: 'local-sign-token-api',
@@ -73,33 +78,35 @@ function localSignTokenApi() {
 
         let raw = ''
         req.on('data', chunk => { raw += chunk })
-        req.on('end', async () => {
+        req.on('end', () => {
           try {
-            const body = JSON.parse(raw)
-            const upstream = await fetch(
-              `${supabaseUrl}/functions/v1/generate-duty-token`,
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type':  'application/json',
-                  'Authorization': req.headers['authorization'] ?? '',
-                  'apikey':        anonKey,
-                },
-                body: JSON.stringify(body),
-                signal: AbortSignal.timeout(15000),
-              }
-            )
-            const text = await upstream.text()
-            let data
-            try { data = JSON.parse(text) } catch {
-              res.statusCode = upstream.status
+            const { journey_ids, driver_name, driver_id } = JSON.parse(raw)
+            if (!Array.isArray(journey_ids) || journey_ids.length === 0) {
+              res.statusCode = 400
               res.setHeader('Content-Type', 'application/json')
-              res.end(JSON.stringify({ error: `Edge Function returned non-JSON: ${text.slice(0, 200)}` }))
+              res.end(JSON.stringify({ error: 'journey_ids required' }))
               return
             }
-            res.statusCode = upstream.status
+
+            const header  = base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
+            const now     = Math.floor(Date.now() / 1000)
+            const payload = base64url(JSON.stringify({
+              iss:         'supabase',
+              role:        'anon',
+              driver_name: driver_name ?? 'Driver',
+              driver_id,
+              journey_ids,
+              iat:         now,
+              exp:         now + 86400,
+            }))
+            const sig = createHmac('sha256', secret)
+              .update(`${header}.${payload}`)
+              .digest('base64')
+              .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+
+            res.statusCode = 200
             res.setHeader('Content-Type', 'application/json')
-            res.end(JSON.stringify(data))
+            res.end(JSON.stringify({ token: `${header}.${payload}.${sig}` }))
           } catch (e) {
             res.statusCode = 500
             res.setHeader('Content-Type', 'application/json')
