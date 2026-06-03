@@ -171,20 +171,15 @@ export default function DutyCardsPage() {
     setTokenLoading(true)
     setToken(null)
     setTokenError(null)
-    const { data: { session } } = await supabase.auth.getSession()
-    const authHeader = session?.access_token
-      ? `Bearer ${session.access_token}`
-      : `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
     try {
-      const resp = await fetch('/api/sign-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },
-        body: JSON.stringify({ journey_ids: journeys.map(j => j.id), driver_name: driver.name, driver_id: driver.id }),
+      const { data, error } = await supabase.rpc('generate_duty_token', {
+        p_journey_ids: journeys.map(j => j.id),
+        p_driver_name: driver.name,
+        p_driver_id:   driver.id,
       })
-      const payload = await resp.json().catch(() => ({}))
-      if (!resp.ok) setTokenError(payload.error ?? `HTTP ${resp.status}`)
-      else if (payload.token) setToken(payload.token)
-      else setTokenError('No token in response')
+      if (error) setTokenError(error.message)
+      else if (data) setToken(data)
+      else setTokenError('No token returned')
     } catch (err) {
       setTokenError(`fetch failed: ${err.message}`)
     }
