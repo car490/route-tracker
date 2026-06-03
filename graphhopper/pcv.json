@@ -1,8 +1,8 @@
 {
   "speed": [
-    { "if": "road_class == MOTORWAY || road_class == TRUNK",     "limit_to": 97 },
-    { "if": "road_class == PRIMARY  || road_class == SECONDARY",  "limit_to": 48 },
-    { "if": "true",                                               "limit_to": 32 }
+    { "if": "road_class == MOTORWAY || road_class == TRUNK",          "limit_to": 97 },
+    { "else_if": "road_class == PRIMARY || road_class == SECONDARY",  "limit_to": 48 },
+    { "else": {},                                                      "limit_to": 32 }
   ],
   "priority": [
     { "if": "true", "multiply_by": "1" }
