@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { createHmac } from 'crypto'
 import { buildGHBody, normaliseGHResponse } from './api/_graphhopper.js'
@@ -61,7 +61,7 @@ function base64url(str) {
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
 }
 
-function localSignTokenApi() {
+function localSignTokenApi(secret) {
   return {
     name: 'local-sign-token-api',
     configureServer(server) {
@@ -76,8 +76,6 @@ function localSignTokenApi() {
         let raw = ''
         req.on('data', chunk => { raw += chunk })
         req.on('end', () => {
-          // Read lazily — env vars are loaded after config is evaluated
-          const secret = process.env.SUPABASE_JWT_SECRET
           if (!secret) {
             res.statusCode = 500
             res.setHeader('Content-Type', 'application/json')
@@ -123,6 +121,9 @@ function localSignTokenApi() {
   }
 }
 
-export default defineConfig({
-  plugins: [react(), localDirectionsApi(), localSignTokenApi()],
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  return {
+    plugins: [react(), localDirectionsApi(), localSignTokenApi(env.SUPABASE_JWT_SECRET)],
+  }
 })
