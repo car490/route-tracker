@@ -1,10 +1,13 @@
 import { supabase } from './supabase'
 
-let _companyId = null
+let _company = null
 
-export async function getCompanyId() {
-  if (_companyId) return _companyId
-  const { data } = await supabase.from('companies').select('id').limit(1).single()
-  _companyId = data?.id ?? null
-  return _companyId
+async function getCompany() {
+  if (_company) return _company
+  const { data } = await supabase.from('companies').select('id, name').limit(1).single()
+  _company = data ?? null
+  return _company
 }
+
+export async function getCompanyId()   { return (await getCompany())?.id   ?? null }
+export async function getCompanyName() { return (await getCompany())?.name ?? null }

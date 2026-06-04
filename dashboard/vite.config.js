@@ -149,15 +149,16 @@ function localSendDutyEmailApi(resendApiKey, resendFrom) {
             return
           }
           try {
-            const { to, driver_name, date, url } = JSON.parse(raw)
+            const { to, driver_name, date, url, company_name } = JSON.parse(raw)
             const longDate = new Date(date + 'T00:00:00').toLocaleDateString('en-GB', {
               weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
             })
+            const fromField = company_name ? `${company_name} <${resendFrom}>` : resendFrom
             const r = await fetch('https://api.resend.com/emails', {
               method: 'POST',
               headers: { 'Authorization': `Bearer ${resendApiKey}`, 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                from: resendFrom,
+                from: fromField,
                 to,
                 subject: `Your Duty Card — ${longDate}`,
                 text: `Hi ${driver_name},\n\nYour duty card for ${longDate} is ready:\n${url}\n\nPhil Haines Coaches`,

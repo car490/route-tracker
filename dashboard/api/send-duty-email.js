@@ -10,7 +10,7 @@ export default async function handler(req, res) {
   const authHeader = req.headers['authorization']
   if (!authHeader) return res.status(401).json({ error: 'Unauthorized' })
 
-  const { to, driver_name, date, url } = req.body ?? {}
+  const { to, driver_name, date, url, company_name } = req.body ?? {}
   if (!to || !driver_name || !date || !url)
     return res.status(400).json({ error: 'to, driver_name, date, url required' })
 
@@ -21,11 +21,12 @@ export default async function handler(req, res) {
   if (!from) return res.status(500).json({ error: 'RESEND_FROM not configured' })
 
   const longDate = fmtLongDate(date)
+  const fromField = company_name ? `${company_name} <${from}>` : from
   const r = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      from,
+      from: fromField,
       to,
       subject: `Your Duty Card — ${longDate}`,
       text: `Hi ${driver_name},\n\nYour duty card for ${longDate} is ready:\n${url}\n\nPhil Haines Coaches`,

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../shared/supabase'
-import { getCompanyId } from '../../shared/company'
+import { getCompanyId, getCompanyName } from '../../shared/company'
 import Modal from '../../shared/components/Modal'
 
 const PWA_BASE = 'https://car490.github.io/route-tracker'
@@ -227,7 +227,7 @@ export default function DutyCardsPage() {
           'Content-Type':  'application/json',
           'Authorization': `Bearer ${session?.access_token ?? ''}`,
         },
-        body: JSON.stringify({ to: contact.value, driver_name: driver.name, date, url }),
+        body: JSON.stringify({ to: contact.value, driver_name: driver.name, date, url, company_name: await getCompanyName() }),
       })
       const data = await res.json()
       if (!res.ok) setEmailError(data.error ?? 'Send failed')
