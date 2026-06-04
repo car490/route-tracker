@@ -159,6 +159,7 @@ create table routes (
   name            text        not null,
   journey_type    text[]      not null
                     check (array_length(journey_type, 1) > 0),
+  single_journey  boolean     not null default false,
   created_at      timestamptz not null default now(),
   unique (company_id, service_code)
 );

@@ -328,8 +328,9 @@ export default function RoutePlannerPage() {
   const [modalStops,  setModalStops]  = useState([])
   const [autoDepTime, setAutoDepTime] = useState('')
 
-  const [fitKey,      setFitKey]      = useState(null)
-  const [saving,      setSaving]      = useState(false)
+  const [fitKey,        setFitKey]        = useState(null)
+  const [singleJourney, setSingleJourney] = useState(false)
+  const [saving,        setSaving]        = useState(false)
   const [saveError,   setSaveError]   = useState('')
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [showSetup,   setShowSetup]   = useState(true)
@@ -500,8 +501,31 @@ export default function RoutePlannerPage() {
   function removeStop(i) { setStops(prev => prev.filter((_, idx) => idx !== i)) }
   function removeStopById(id) { setStops(prev => prev.filter(s => s._id !== id)) }
 
+  function autoFillNextTiming(stopsArr, changedIdx, newTime) {
+    const baseMins = timeToMinutes(newTime)
+    if (baseMins == null) return stopsArr
+    const segsMap = buildSegAfterMap(stopsArr, routeResult?.segments)
+    let cumSecs = 0
+    for (let i = changedIdx; i < stopsArr.length - 1; i++) {
+      const seg = segsMap[stopsArr[i]._id]
+      if (seg && !seg.error) cumSecs += seg.duration
+      const next = stopsArr[i + 1]
+      if (next.stop_type === 'timing_point') {
+        return stopsArr.map((s, idx) =>
+          idx === i + 1 ? { ...s, time_std: minutesToTime(baseMins + Math.round(cumSecs / 60)) } : s
+        )
+      }
+    }
+    return stopsArr
+  }
+
   function updateStop(i, field, value) {
-    setStops(prev => prev.map((s, idx) => idx === i ? { ...s, [field]: value } : s))
+    setStops(prev => {
+      const updated = prev.map((s, idx) => idx === i ? { ...s, [field]: value } : s)
+      if (field === 'time_std' && prev[i]?.stop_type === 'timing_point' && value)
+        return autoFillNextTiming(updated, i, value)
+      return updated
+    })
   }
 
   function startEditName(stop) { setEditStopId(stop._id); setEditStopName(stop.name) }
@@ -605,7 +629,7 @@ export default function RoutePlannerPage() {
     if (routeId === '__new__') {
       const company_id = await getCompanyId()
       const { data, error } = await supabase.from('routes')
-        .insert({ company_id, service_code: newCode.toUpperCase(), name: newName || null, journey_type: newJourneyTypes })
+        .insert({ company_id, service_code: newCode.toUpperCase(), name: newName || null, journey_type: newJourneyTypes, single_journey: singleJourney })
         .select('id').single()
       if (error) { setSaveError(error.message); setSaving(false); return }
       resolvedRouteId = data.id
@@ -731,7 +755,12 @@ export default function RoutePlannerPage() {
                 onChange={e => {
                   const val = e.target.value
                   setRouteId(val)
-                  if (val === '__new__') { setNewRouteCollapsed(false); setNewTtCollapsed(false) }
+                  if (val === '__new__') {
+                    setNewRouteCollapsed(false); setNewTtCollapsed(false)
+                    setSingleJourney(false)
+                  } else {
+                    setSingleJourney(routes.find(r => r.id === val)?.single_journey ?? false)
+                  }
                 }}
               >
                 <option value="">— Select route —</option>
@@ -784,6 +813,12 @@ export default function RoutePlannerPage() {
                           )
                         })}
                       </div>
+                    </div>
+                    <div style={{ marginBottom: 6 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={singleJourney} onChange={e => setSingleJourney(e.target.checked)} />
+                        <span style={{ fontSize: 12, color: 'var(--text)' }}>One journey each way</span>
+                      </label>
                     </div>
                     <div style={{ marginBottom: 6 }}>
                       <div style={{ ...S.sectionLabel, marginBottom: 3 }}>
@@ -992,7 +1027,10 @@ export default function RoutePlannerPage() {
                       </select>
                       {s.stop_type === 'timing_point' && (
                         <div style={{ display: 'flex', gap: 3 }}>
-                          {[['time_std','Std'],['time_delay','Delay'],['time_early','Early']].map(([field, label]) => (
+                          {(singleJourney
+                            ? [['time_std', 'Std']]
+                            : [['time_std','Std'],['time_delay','Delay'],['time_early','Early']]
+                          ).map(([field, label]) => (
                             <div key={field} style={{ flex: 1 }}>
                               <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'Oswald', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 1 }}>{label}</div>
                               <input type="time" className="form-input"
@@ -1264,7 +1302,10 @@ export default function RoutePlannerPage() {
                         </div>
                         {s.stop_type === 'timing_point' ? (
                           <div style={{ display: 'flex', gap: 4 }}>
-                            {[['time_std','Std'],['time_delay','Delay'],['time_early','Early']].map(([field, label]) => (
+                            {(singleJourney
+                              ? [['time_std', 'Std']]
+                              : [['time_std','Std'],['time_delay','Delay'],['time_early','Early']]
+                            ).map(([field, label]) => (
                               <div key={field} style={{ flex: 1 }}>
                                 <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'Oswald', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 1 }}>{label}</div>
                                 <input type="time" className="form-input"
