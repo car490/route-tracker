@@ -921,7 +921,11 @@ export default function RoutePlannerPage() {
             )}
           </div>
 
-          {/* Card 3: Vehicle type */}
+          </>)}
+          </>)}
+
+          {/* Card 3: Vehicle type — outside showSetup so it stays visible after setup collapses */}
+          {routeConfirmed && (
           <div className="card" style={{ padding: '7px 10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <span style={S.sectionLabel}>Vehicle Type</span>
@@ -960,9 +964,7 @@ export default function RoutePlannerPage() {
               </div>
             )}
           </div>
-
-          </>)}
-          </>)}
+          )}
 
           {/* Card 4: Stops */}
           <div className="card" style={{ padding: 10 }}>
