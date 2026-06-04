@@ -503,24 +503,19 @@ export default function RoutePlannerPage() {
 
   function autoFillNextTiming(stopsArr, changedIdx, newTime) {
     const baseMins = timeToMinutes(newTime)
-    console.log('[autoFill] baseMins:', baseMins, 'changedIdx:', changedIdx, 'routeResult:', routeResult)
     if (baseMins == null) return stopsArr
     const segsMap = buildSegAfterMap(stopsArr, routeResult?.segments)
-    console.log('[autoFill] segsMap keys:', Object.keys(segsMap), 'stop _ids:', stopsArr.map(s => s._id))
     let cumSecs = 0
     for (let i = changedIdx; i < stopsArr.length - 1; i++) {
       const seg = segsMap[stopsArr[i]._id]
-      const next = stopsArr[i + 1]
-      console.log('[autoFill] i:', i, 'seg:', seg, 'next.stop_type:', next?.stop_type)
       if (seg && !seg.error) cumSecs += seg.duration
+      const next = stopsArr[i + 1]
       if (next.stop_type === 'timing_point') {
-        console.log('[autoFill] filling idx', i + 1, 'with', minutesToTime(baseMins + Math.round(cumSecs / 60)))
         return stopsArr.map((s, idx) =>
           idx === i + 1 ? { ...s, time_std: minutesToTime(baseMins + Math.round(cumSecs / 60)) } : s
         )
       }
     }
-    console.log('[autoFill] no next timing point found')
     return stopsArr
   }
 
