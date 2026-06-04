@@ -828,17 +828,18 @@ create policy "company_all" on journey_stop_times
     journey_id in (select id from journeys where company_id = current_company_id())
   );
 
--- Stops: any authenticated user can read; only super_user can create or modify
+-- Stops: any authenticated user can read, insert, or update
+-- TODO: restore super_user_insert / super_user_update policies for production
 create policy "auth_read" on stops
   for select to authenticated using (true);
 
-create policy "super_user_insert" on stops
+create policy "auth_insert" on stops
   for insert to authenticated
-  with check (current_employee_role() = 'super_user');
+  with check (true);
 
-create policy "super_user_update" on stops
+create policy "auth_update" on stops
   for update to authenticated
-  using (current_employee_role() = 'super_user');
+  using (true);
 
 
 -- Employee contacts: ops users can manage contacts for employees in their own company
