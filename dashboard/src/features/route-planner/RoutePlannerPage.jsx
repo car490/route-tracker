@@ -424,6 +424,30 @@ export default function RoutePlannerPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stops, vehicleType])
 
+  // Catch-up fill: routing resolved after the user already typed a time
+  useEffect(() => {
+    if (!routeResult?.segments) return
+    setStops(prev => {
+      const firstSetIdx = prev.findIndex(s => s.stop_type === 'timing_point' && s.time_std)
+      if (firstSetIdx === -1) return prev
+      const hasEmptyAfter = prev.slice(firstSetIdx + 1).some(s => s.stop_type === 'timing_point' && !s.time_std)
+      if (!hasEmptyAfter) return prev
+      const segsMap = buildSegAfterMap(prev, routeResult.segments)
+      const baseMins = timeToMinutes(prev[firstSetIdx].time_std)
+      let cumSecs = 0
+      const updated = [...prev]
+      for (let i = firstSetIdx; i < prev.length - 1; i++) {
+        const seg = segsMap[prev[i]._id]
+        if (seg && !seg.error) cumSecs += seg.duration
+        const next = prev[i + 1]
+        if (next.stop_type === 'timing_point' && !next.time_std) {
+          updated[i + 1] = { ...next, time_std: minutesToTime(baseMins + Math.round(cumSecs / 60)) }
+        }
+      }
+      return updated
+    })
+  }, [routeResult]) // eslint-disable-line react-hooks/exhaustive-deps
+
   function resolvedVehicle() {
     if (!vehicleType.length) return null
     const dims = vehicleType.map(vt => TYPE_DEFAULTS[vt]).filter(Boolean)
