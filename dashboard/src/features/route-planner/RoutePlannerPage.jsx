@@ -652,6 +652,7 @@ export default function RoutePlannerPage() {
 
     if (routeId === '__new__') {
       const company_id = await getCompanyId()
+      if (!company_id) { setSaveError('Could not determine company — please reload and try again.'); setSaving(false); return }
       const code = newCode.toUpperCase()
       const { data: existing } = await supabase.from('routes')
         .select('id').eq('company_id', company_id).eq('service_code', code).maybeSingle()
