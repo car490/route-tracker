@@ -839,6 +839,26 @@ export default function RoutePlannerPage() {
                       </div>
                     </div>
                     <div style={{ marginBottom: 6 }}>
+                      <div style={{ ...S.sectionLabel, marginBottom: 4 }}>Vehicle Type</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {Object.keys(TYPE_DEFAULTS).map(vt => {
+                          const on = vehicleType.includes(vt)
+                          return (
+                            <button key={vt} type="button"
+                              onClick={() => setVehicleType(prev => on ? prev.filter(x => x !== vt) : [...prev, vt])}
+                              style={{
+                                padding: '3px 9px', fontSize: 11, borderRadius: 10, cursor: 'pointer',
+                                fontFamily: 'inherit', lineHeight: 1.5,
+                                border: `1px solid ${on ? 'var(--navy-brand)' : 'var(--border)'}`,
+                                background: on ? 'var(--navy-brand)' : 'transparent',
+                                color: on ? '#fff' : 'var(--text-muted)',
+                              }}
+                            >{vt}</button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: 6 }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}>
                         <input type="checkbox" checked={singleJourney} onChange={e => setSingleJourney(e.target.checked)} />
                         <span style={{ fontSize: 12, color: 'var(--text)' }}>One journey each way</span>
@@ -858,6 +878,34 @@ export default function RoutePlannerPage() {
                       >Confirm route</button>
                     </div>
                   </>
+                )}
+              </div>
+            )}
+
+            {routeId && routeId !== '__new__' && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ ...S.sectionLabel, marginBottom: 4 }}>Vehicle Type</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {Object.keys(TYPE_DEFAULTS).map(vt => {
+                    const on = vehicleType.includes(vt)
+                    return (
+                      <button key={vt} type="button"
+                        onClick={() => setVehicleType(prev => on ? prev.filter(x => x !== vt) : [...prev, vt])}
+                        style={{
+                          padding: '3px 9px', fontSize: 11, borderRadius: 10, cursor: 'pointer',
+                          fontFamily: 'inherit', lineHeight: 1.5,
+                          border: `1px solid ${on ? 'var(--navy-brand)' : 'var(--border)'}`,
+                          background: on ? 'var(--navy-brand)' : 'transparent',
+                          color: on ? '#fff' : 'var(--text-muted)',
+                        }}
+                      >{vt}</button>
+                    )
+                  })}
+                </div>
+                {vehicle && (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                    H {vehicle.height_metres}m · W {vehicle.width_metres}m · L {vehicle.length_metres}m
+                  </div>
                 )}
               </div>
             )}
@@ -917,46 +965,6 @@ export default function RoutePlannerPage() {
                     </div>
                   </>
                 )}
-              </div>
-            )}
-          </div>
-
-          {/* Card 3: Vehicle type */}
-          <div className="card" style={{ padding: '7px 10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={S.sectionLabel}>Vehicle Type</span>
-              {(() => {
-                const allSelected = vehicleType.length === Object.keys(TYPE_DEFAULTS).length
-                return (
-                  <button type="button"
-                    onClick={() => setVehicleType(allSelected ? [] : Object.keys(TYPE_DEFAULTS))}
-                    style={{ fontSize: 11, color: 'var(--navy-brand)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
-                  >
-                    {allSelected ? 'Deselect all' : 'Select all'}
-                  </button>
-                )
-              })()}
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-              {Object.keys(TYPE_DEFAULTS).map(vt => {
-                const on = vehicleType.includes(vt)
-                return (
-                  <button key={vt} type="button"
-                    onClick={() => setVehicleType(prev => on ? prev.filter(x => x !== vt) : [...prev, vt])}
-                    style={{
-                      padding: '3px 9px', fontSize: 11, borderRadius: 10, cursor: 'pointer',
-                      fontFamily: 'inherit', lineHeight: 1.5,
-                      border: `1px solid ${on ? 'var(--navy-brand)' : 'var(--border)'}`,
-                      background: on ? 'var(--navy-brand)' : 'transparent',
-                      color: on ? '#fff' : 'var(--text-muted)',
-                    }}
-                  >{vt}</button>
-                )
-              })}
-            </div>
-            {vehicle && (
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
-                H {vehicle.height_metres}m · W {vehicle.width_metres}m · L {vehicle.length_metres}m
               </div>
             )}
           </div>
