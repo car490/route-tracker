@@ -121,9 +121,77 @@ function localSignTokenApi(secret) {
   }
 }
 
+function localSendDutyEmailApi(resendApiKey, resendFrom) {
+  return {
+    name: 'local-send-duty-email-api',
+    configureServer(server) {
+      server.middlewares.use('/api/send-duty-email', (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ error: 'Method not allowed' }))
+          return
+        }
+
+        let raw = ''
+        req.on('data', chunk => { raw += chunk })
+        req.on('end', async () => {
+          if (!resendApiKey) {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: 'RESEND_API_KEY not configured in .env.local' }))
+            return
+          }
+          if (!resendFrom) {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: 'RESEND_FROM not configured in .env.local' }))
+            return
+          }
+          try {
+            const { to, driver_name, date, url } = JSON.parse(raw)
+            const longDate = new Date(date + 'T00:00:00').toLocaleDateString('en-GB', {
+              weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+            })
+            const r = await fetch('https://api.resend.com/emails', {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${resendApiKey}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                from: resendFrom,
+                to,
+                subject: `Your Duty Card — ${longDate}`,
+                text: `Hi ${driver_name},\n\nYour duty card for ${longDate} is ready:\n${url}\n\nPhil Haines Coaches`,
+              }),
+            })
+            const data = await r.json()
+            if (!r.ok) {
+              res.statusCode = r.status
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ error: data.message ?? 'Email send failed' }))
+              return
+            }
+            res.statusCode = 200
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ ok: true }))
+          } catch (e) {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: e.message }))
+          }
+        })
+      })
+    },
+  }
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   return {
-    plugins: [react(), localDirectionsApi(), localSignTokenApi(env.SUPABASE_JWT_SECRET)],
+    plugins: [
+      react(),
+      localDirectionsApi(),
+      localSignTokenApi(env.SUPABASE_JWT_SECRET),
+      localSendDutyEmailApi(env.RESEND_API_KEY, env.RESEND_FROM),
+    ],
   }
 })

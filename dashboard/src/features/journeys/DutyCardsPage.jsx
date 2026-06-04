@@ -74,6 +74,9 @@ export default function DutyCardsPage() {
   const [tokenError,   setTokenError]   = useState(null)
   const [tokenLoading, setTokenLoading] = useState(false)
   const [copied,       setCopied]       = useState(false)
+  const [emailSending, setEmailSending] = useState(false)
+  const [emailSent,    setEmailSent]    = useState(false)
+  const [emailError,   setEmailError]   = useState(null)
 
   const [departures,   setDepartures]   = useState([])
   const [journeyMap,   setJourneyMap]   = useState({})
@@ -200,6 +203,7 @@ export default function DutyCardsPage() {
     if (!journeys?.length) return
     setSelected({ driver, date, journeys })
     setToken(null); setTokenError(null); setCopied(false)
+    setEmailSending(false); setEmailSent(false); setEmailError(null)
     generateToken(driver, journeys)
   }
 
@@ -209,12 +213,29 @@ export default function DutyCardsPage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  function openEmail() {
+  async function sendEmail() {
     const { driver, date, journeys } = selected
     const contact = getContact(driver.contacts ?? [], 'email')
     if (!contact) { alert(`No email address on file for ${driver.name}.\nAdd one on the Employees page.`); return }
     const url = dutyUrl(journeys.map(j => j.id), token)
-    window.open(`mailto:${contact.value}?subject=${encodeURIComponent(`Your Duty Card — ${fmtLongDate(date)}`)}&body=${encodeURIComponent(dutyMessage(driver.name, date, url))}`)
+    setEmailSending(true); setEmailError(null); setEmailSent(false)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/send-duty-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${session?.access_token ?? ''}`,
+        },
+        body: JSON.stringify({ to: contact.value, driver_name: driver.name, date, url }),
+      })
+      const data = await res.json()
+      if (!res.ok) setEmailError(data.error ?? 'Send failed')
+      else { setEmailSent(true); setTimeout(() => setEmailSent(false), 3000) }
+    } catch (err) {
+      setEmailError(`fetch failed: ${err.message}`)
+    }
+    setEmailSending(false)
   }
 
   function openWhatsApp() {
@@ -449,11 +470,15 @@ export default function DutyCardsPage() {
                       Retry Signing
                     </button>
                   )}
-                  <button className="btn btn-ghost btn-sm" onClick={openEmail}
-                    disabled={!hasEmail || !tokenReady}
-                    title={hasEmail ? `Send to ${getContact(contacts, 'email')?.value}` : 'No email on file'}>
-                    Send Email
+                  <button className="btn btn-ghost btn-sm" onClick={sendEmail}
+                    disabled={!hasEmail || !tokenReady || emailSending}
+                    title={hasEmail ? `Send to ${getContact(contacts, 'email')?.value}` : 'No email on file'}
+                    style={emailSent ? { color: '#4db848', borderColor: '#4db848' } : emailError ? { color: '#e53935', borderColor: '#e53935' } : {}}>
+                    {emailSending ? 'Sending…' : emailSent ? '✓ Email sent' : 'Send Email'}
                   </button>
+                  {emailError && (
+                    <span style={{ fontSize: 11, color: '#e53935', alignSelf: 'center' }}>{emailError}</span>
+                  )}
                   <button className="btn btn-ghost btn-sm" onClick={openWhatsApp}
                     disabled={!hasPhone || !tokenReady}
                     title={hasPhone ? `Send to ${getContact(contacts, 'phone')?.value}` : 'No phone on file'}
