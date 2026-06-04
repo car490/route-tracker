@@ -520,12 +520,12 @@ export default function RoutePlannerPage() {
   }
 
   function updateStop(i, field, value) {
-    setStops(prev => {
-      const updated = prev.map((s, idx) => idx === i ? { ...s, [field]: value } : s)
-      if (field === 'time_std' && prev[i]?.stop_type === 'timing_point' && value)
-        return autoFillNextTiming(updated, i, value)
-      return updated
-    })
+    const updated = stops.map((s, idx) => idx === i ? { ...s, [field]: value } : s)
+    if (field === 'time_std' && stops[i]?.stop_type === 'timing_point' && value) {
+      setStops(autoFillNextTiming(updated, i, value))
+    } else {
+      setStops(updated)
+    }
   }
 
   function startEditName(stop) { setEditStopId(stop._id); setEditStopName(stop.name) }
