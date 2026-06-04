@@ -50,7 +50,7 @@ function dutyUrl(ids, token) {
   return token ? `${base}&token=${token}` : base
 }
 function dutyMessage(driverName, date, url) {
-  return `Hi ${driverName}, your duty card for ${fmtLongDate(date)} is ready:\n${url}`
+  return `Hi ${driverName}, your duty card for ${fmtLongDate(date)} is ready.\n\nTap the link to view it:\n${url}`
 }
 
 function getContact(contacts, type) {
@@ -449,14 +449,13 @@ export default function DutyCardsPage() {
                   ))}
                 </div>
 
-                <div style={{ background: 'var(--bg)', borderRadius: 6, padding: '8px 12px', marginBottom: 14, fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                  {dutyBaseUrl(ids)}
+                <div style={{ fontSize: 12, marginBottom: 14 }}>
                   {tokenLoading
-                    ? <span style={{ marginLeft: 6, color: 'var(--text-muted)', fontFamily: 'sans-serif', fontSize: 11 }}>signing…</span>
+                    ? <span style={{ color: 'var(--text-muted)' }}>Preparing duty card…</span>
                     : tokenReady
-                      ? <span style={{ marginLeft: 6, color: '#4db848', fontFamily: 'sans-serif', fontSize: 11 }}>✓ signed</span>
+                      ? <span style={{ color: '#4db848' }}>✓ Duty card ready to send</span>
                       : tokenError
-                        ? <span style={{ marginLeft: 6, color: '#e53935', fontFamily: 'sans-serif', fontSize: 11 }}>✗ {tokenError}</span>
+                        ? <span style={{ color: '#e53935' }}>✗ {tokenError}</span>
                         : null}
                 </div>
 

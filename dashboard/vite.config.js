@@ -154,6 +154,7 @@ function localSendDutyEmailApi(resendApiKey, resendFrom) {
               weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
             })
             const fromField = company_name ? `${company_name} <${resendFrom}>` : resendFrom
+            const sender = company_name ?? 'RouteTracker'
             const r = await fetch('https://api.resend.com/emails', {
               method: 'POST',
               headers: { 'Authorization': `Bearer ${resendApiKey}`, 'Content-Type': 'application/json' },
@@ -161,7 +162,8 @@ function localSendDutyEmailApi(resendApiKey, resendFrom) {
                 from: fromField,
                 to,
                 subject: `Your Duty Card — ${longDate}`,
-                text: `Hi ${driver_name},\n\nYour duty card for ${longDate} is ready:\n${url}\n\nPhil Haines Coaches`,
+                html: `<p>Hi ${driver_name},</p><p>Your duty card for ${longDate} is ready.</p><p><a href="${url}">View Duty Card →</a></p><p>${sender}</p>`,
+                text: `Hi ${driver_name},\n\nYour duty card for ${longDate} is ready.\n\nView Duty Card: ${url}\n\n${sender}`,
               }),
             })
             const data = await r.json()

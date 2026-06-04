@@ -22,6 +22,7 @@ export default async function handler(req, res) {
 
   const longDate = fmtLongDate(date)
   const fromField = company_name ? `${company_name} <${from}>` : from
+  const sender = company_name ?? 'RouteTracker'
   const r = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -29,7 +30,8 @@ export default async function handler(req, res) {
       from: fromField,
       to,
       subject: `Your Duty Card — ${longDate}`,
-      text: `Hi ${driver_name},\n\nYour duty card for ${longDate} is ready:\n${url}\n\nPhil Haines Coaches`,
+      html: `<p>Hi ${driver_name},</p><p>Your duty card for ${longDate} is ready.</p><p><a href="${url}">View Duty Card →</a></p><p>${sender}</p>`,
+      text: `Hi ${driver_name},\n\nYour duty card for ${longDate} is ready.\n\nView Duty Card: ${url}\n\n${sender}`,
     }),
   })
 
