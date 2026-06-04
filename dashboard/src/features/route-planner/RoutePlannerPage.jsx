@@ -652,11 +652,18 @@ export default function RoutePlannerPage() {
 
     if (routeId === '__new__') {
       const company_id = await getCompanyId()
-      const { data, error } = await supabase.from('routes')
-        .insert({ company_id, service_code: newCode.toUpperCase(), name: newName || null, journey_type: newJourneyTypes, single_journey: singleJourney })
-        .select('id').single()
-      if (error) { setSaveError(error.message); setSaving(false); return }
-      resolvedRouteId = data.id
+      const code = newCode.toUpperCase()
+      const { data: existing } = await supabase.from('routes')
+        .select('id').eq('company_id', company_id).eq('service_code', code).maybeSingle()
+      if (existing) {
+        resolvedRouteId = existing.id
+      } else {
+        const { data, error } = await supabase.from('routes')
+          .insert({ company_id, service_code: code, name: newName || null, journey_type: newJourneyTypes, single_journey: singleJourney })
+          .select('id').single()
+        if (error) { setSaveError(error.message); setSaving(false); return }
+        resolvedRouteId = data.id
+      }
     }
 
     if (timetableId === '__new__') {
