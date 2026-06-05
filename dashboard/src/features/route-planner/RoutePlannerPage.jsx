@@ -1,268 +1,13 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { supabase } from '../../shared/supabase'
 import { getCompanyId } from '../../shared/company'
 import { searchPlaces } from '../../shared/api/osPlaces'
-import { getRoute } from './directions'
 import { useJourneyTypes } from '../../shared/hooks/useJourneyTypes'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
-
-const TYPE_DEFAULTS = {
-  'Minibus':           { height_metres: 2.85, width_metres: 2.20, length_metres:  8.00 },
-  'Midi Coach':        { height_metres: 3.20, width_metres: 2.40, length_metres: 10.00 },
-  'Full Size Coach':   { height_metres: 3.70, width_metres: 2.55, length_metres: 13.75 },
-  'Single Decker Bus': { height_metres: 3.15, width_metres: 2.55, length_metres: 12.00 },
-  'Double Decker':     { height_metres: 4.35, width_metres: 2.55, length_metres: 11.00 },
-}
-
-const DIRECTIONS = ['Outbound', 'Inbound', 'Circular']
-const DAYS       = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-const DEP_EMPTY  = { departure_time: '', days_of_week: [1,2,3,4,5], timing_profile: 'standard', vehicle_journey_code: '' }
-
-const S = {
-  sectionLabel: {
-    fontFamily: 'Oswald', fontWeight: 700, fontSize: 10,
-    textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)',
-  },
-}
-
-function fmtDist(m) {
-  return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`
-}
-function fmtDur(s) {
-  const h = Math.floor(s / 3600)
-  const m = Math.floor((s % 3600) / 60)
-  return h > 0 ? `${h}h ${m}m` : `${m} min`
-}
-function stopColor(i, total) {
-  if (i === 0) return '#4db848'
-  if (i === total - 1) return '#e53935'
-  return '#1e3d72'
-}
-function timeToMinutes(t) {
-  if (!t) return null
-  const [h, m] = t.split(':').map(Number)
-  return h * 60 + m
-}
-function minutesToTime(mins) {
-  if (mins == null) return ''
-  const h = Math.floor(mins / 60) % 24
-  const m = mins % 60
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-}
-
-// Fetch one segment per consecutive stop pair in parallel
-async function fetchSegments(pts, vehicle) {
-  if (!pts || pts.length < 2) return []
-  return Promise.all(
-    pts.slice(0, -1).map((from, i) => getRoute([from, pts[i + 1]], vehicle))
-  )
-}
-
-// Merge per-segment GeoJSON LineStrings into one for the map
-function combineGeometries(segments) {
-  const coords = []
-  for (const seg of segments) {
-    const c = seg?.geometry?.coordinates
-    if (!c) continue
-    coords.push(...(coords.length ? c.slice(1) : c))
-  }
-  return coords.length >= 2 ? { type: 'LineString', coordinates: coords } : null
-}
-
-// Build a stop._id → segment map for the gap *after* each stop
-function buildSegAfterMap(stops, segments) {
-  const map = {}
-  const valid = stops.filter(s => s.lat != null && s.lon != null)
-  valid.forEach((s, i) => {
-    if (i < valid.length - 1 && segments?.[i]) map[s._id] = segments[i]
-  })
-  return map
-}
-
-// ── Leaflet map ───────────────────────────────────────────────────────────────
-
-function PlannerMap({ stops, routeGeometry, pinDropMode, onMapClick, onRemoveStop, fitKey }) {
-  const divRef        = useRef(null)
-  const mapRef        = useRef(null)
-  const markersRef    = useRef([])
-  const lineRef       = useRef(null)
-  const clickRef      = useRef(null)
-  const prevFitKeyRef = useRef(null)
-
-  useEffect(() => {
-    if (!divRef.current || mapRef.current) return
-    const map = L.map(divRef.current).setView([52.97, -0.02], 9)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      maxZoom: 18,
-    }).addTo(map)
-    mapRef.current = map
-    return () => { map.remove(); mapRef.current = null }
-  }, [])
-
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map) return
-
-    if (clickRef.current) {
-      map.off('click', clickRef.current)
-      clickRef.current = null
-      map.getContainer().style.cursor = ''
-    }
-
-    if (!pinDropMode || !onMapClick) return
-
-    map.getContainer().style.cursor = 'crosshair'
-    let popupOpen = false
-
-    const handler = (e) => {
-      if (popupOpen) return
-      popupOpen = true
-      const { lat, lng } = e.latlng
-
-      const wrap = document.createElement('div')
-      wrap.style.cssText = 'padding:8px;min-width:210px'
-
-      const input = document.createElement('input')
-      input.type = 'text'
-      input.placeholder = 'Finding location…'
-      input.style.cssText = [
-        'width:100%', 'padding:4px 8px', 'font-size:13px',
-        'border:1px solid #cbd5e1', 'border-radius:4px',
-        'margin-bottom:8px', 'box-sizing:border-box', 'font-family:inherit',
-      ].join(';')
-
-      const btnRow = document.createElement('div')
-      btnRow.style.cssText = 'display:flex;gap:6px;justify-content:flex-end'
-
-      const cancelBtn = document.createElement('button')
-      cancelBtn.textContent = 'Cancel'
-      cancelBtn.style.cssText = 'padding:3px 10px;font-size:12px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:4px;cursor:pointer;font-family:inherit'
-
-      const addBtn = document.createElement('button')
-      addBtn.textContent = 'Add Stop'
-      addBtn.style.cssText = 'padding:3px 10px;font-size:12px;background:#1e3d72;color:#fff;border:none;border-radius:4px;cursor:pointer;font-family:inherit'
-
-      btnRow.appendChild(cancelBtn)
-      btnRow.appendChild(addBtn)
-      wrap.appendChild(input)
-      wrap.appendChild(btnRow)
-
-      const popup = L.popup({ closeButton: false, maxWidth: 260 })
-        .setLatLng([lat, lng])
-        .setContent(wrap)
-        .openOn(map)
-
-      popup.on('remove', () => { popupOpen = false })
-      setTimeout(() => input.focus(), 50)
-
-      fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1`,
-        { headers: { 'Accept-Language': 'en' } },
-      )
-        .then(r => r.json())
-        .then(data => {
-          input.placeholder = 'Stop name…'
-          if (input.value) return
-          const addr = data.address || {}
-          const road  = addr.road || addr.pedestrian || addr.footway || addr.path
-          const place = addr.village || addr.suburb || addr.town || addr.city || addr.hamlet
-          const suggestion = road && place ? `${road}, ${place}` : (road || place || '')
-          if (suggestion) { input.value = suggestion; input.select() }
-        })
-        .catch(() => { input.placeholder = 'Stop name…' })
-
-      const confirm = () => {
-        const name = input.value.trim()
-        if (!name) return
-        onMapClick({ name, lat, lon: lng })
-        map.closePopup()
-      }
-
-      addBtn.addEventListener('click', confirm)
-      cancelBtn.addEventListener('click', () => map.closePopup())
-      input.addEventListener('keydown', ev => {
-        if (ev.key === 'Enter') confirm()
-        if (ev.key === 'Escape') map.closePopup()
-      })
-    }
-
-    map.on('click', handler)
-    clickRef.current = handler
-  }, [pinDropMode, onMapClick])
-
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map) return
-
-    markersRef.current.forEach(m => m.remove())
-    markersRef.current = []
-    if (lineRef.current) { lineRef.current.remove(); lineRef.current = null }
-
-    if (routeGeometry) {
-      lineRef.current = L.geoJSON(routeGeometry, {
-        style: { color: '#1e3d72', weight: 4, opacity: 0.85 },
-      }).addTo(map)
-    }
-
-    const validStops = stops.filter(s => s.lat != null && s.lon != null)
-    validStops.forEach((s, i) => {
-      const color = stopColor(i, validStops.length)
-      const icon = L.divIcon({
-        className: '',
-        html: `<div style="
-          width:24px;height:24px;border-radius:50%;
-          background:${color};border:2px solid #fff;
-          box-shadow:0 1px 4px rgba(0,0,0,0.4);
-          display:flex;align-items:center;justify-content:center;
-          font-family:Oswald,sans-serif;font-size:11px;font-weight:700;color:#fff;
-        ">${i + 1}</div>`,
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
-      })
-      const marker = L.marker([s.lat, s.lon], { icon })
-      marker.bindTooltip(s.name, { direction: 'right', offset: [14, 0] })
-
-      if (onRemoveStop) {
-        marker.on('click', () => {
-          const wrap = document.createElement('div')
-          wrap.style.cssText = 'padding:8px;text-align:center;min-width:160px'
-
-          const nameEl = document.createElement('div')
-          nameEl.style.cssText = 'font-size:13px;font-weight:600;margin-bottom:8px;color:#1a2535;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'
-          nameEl.textContent = s.name
-
-          const btn = document.createElement('button')
-          btn.textContent = 'Remove stop'
-          btn.style.cssText = 'padding:4px 14px;font-size:12px;background:#e53e3e;color:#fff;border:none;border-radius:4px;cursor:pointer;font-family:inherit'
-          btn.addEventListener('click', () => { onRemoveStop(s._id); map.closePopup() })
-
-          wrap.appendChild(nameEl)
-          wrap.appendChild(btn)
-          L.popup({ closeButton: true, maxWidth: 240 })
-            .setLatLng([s.lat, s.lon]).setContent(wrap).openOn(map)
-        })
-      }
-
-      marker.addTo(map)
-      markersRef.current.push(marker)
-    })
-
-    if (fitKey !== null && fitKey !== prevFitKeyRef.current) {
-      prevFitKeyRef.current = fitKey
-      if (validStops.length >= 2) {
-        map.fitBounds(L.latLngBounds(validStops.map(s => [s.lat, s.lon])), { padding: [32, 32] })
-      } else if (validStops.length === 1) {
-        map.setView([validStops[0].lat, validStops[0].lon], 13)
-      }
-    }
-  }, [stops, routeGeometry, fitKey, onRemoveStop])
-
-  return <div ref={divRef} style={{ width: '100%', height: '100%' }} />
-}
-
-// ── Segment chip ──────────────────────────────────────────────────────────────
+import { TYPE_DEFAULTS, DIRECTIONS, S } from './constants'
+import { fmtDist, fmtDur, stopColor, timeToMinutes, minutesToTime, fetchSegments, combineGeometries, buildSegAfterMap } from './utils'
+import PlannerMap from './PlannerMap'
+import ReviewModal from './ReviewModal'
+import DeparturesCard from './DeparturesCard'
 
 function SegChip({ seg }) {
   if (!seg || seg.error) return null
@@ -280,8 +25,6 @@ function SegChip({ seg }) {
   )
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
-
 export default function RoutePlannerPage() {
   const { journeyTypes } = useJourneyTypes()
   const [routeId,     setRouteId]     = useState('')
@@ -298,16 +41,11 @@ export default function RoutePlannerPage() {
   const [newRouteCollapsed, setNewRouteCollapsed] = useState(false)
 
   // Inline new-timetable fields
-  const [newTtName,       setNewTtName]       = useState('')
-  const [newDirection,    setNewDirection]    = useState('Outbound')
-  const [newTtCollapsed,  setNewTtCollapsed]  = useState(false)
+  const [newTtName,      setNewTtName]      = useState('')
+  const [newDirection,   setNewDirection]   = useState('Outbound')
+  const [newTtCollapsed, setNewTtCollapsed] = useState(false)
 
-  // Departures
   const [departures, setDepartures] = useState([])
-  const [depModal,   setDepModal]   = useState(null)
-  const [depForm,    setDepForm]    = useState(DEP_EMPTY)
-  const [depSaving,  setDepSaving]  = useState(false)
-  const [depError,   setDepError]   = useState('')
 
   const [stops,       setStops]       = useState([])
   const [routing,     setRouting]     = useState(false)
@@ -488,7 +226,6 @@ export default function RoutePlannerPage() {
     return () => { cancelled = true; clearTimeout(timer) }
   }, [searchQuery])
 
-  // Address results held locally with stop_id:null — inserted to DB on Save
   function handleAddStop(result) {
     setStops(prev => [...prev, {
       _id: crypto.randomUUID(),
@@ -559,7 +296,7 @@ export default function RoutePlannerPage() {
     setEditStopId(null)
   }
 
-  // ── Modal helpers ─────────────────────────────────────────────────────────────
+  // ── Save ─────────────────────────────────────────────────────────────────────
 
   function openModal() {
     setModalStops([...stops])
@@ -568,81 +305,6 @@ export default function RoutePlannerPage() {
     setShowConfirm(true)
   }
 
-  // Given a departure time, compute time_std for each timing point from segment durations
-  function applyAutoFill(depTime, baseStops) {
-    if (!depTime) return baseStops
-    const baseMins = timeToMinutes(depTime)
-    const segs = routeResult?.segments ?? []
-
-    let cumMins = 0
-    const minsById = {}
-    baseStops
-      .filter(s => s.lat != null && s.lon != null)
-      .forEach((s, i) => {
-        minsById[s._id] = baseMins + cumMins
-        if (segs[i] && !segs[i].error) cumMins += Math.round(segs[i].duration / 60)
-      })
-
-    return baseStops.map(s => {
-      if (s.stop_type !== 'timing_point' || minsById[s._id] == null) return s
-      return { ...s, time_std: minutesToTime(minsById[s._id]) }
-    })
-  }
-
-  function updateModalStop(i, field, value) {
-    setModalStops(prev => prev.map((s, idx) => idx === i ? { ...s, [field]: value } : s))
-  }
-
-  // ── Departures ────────────────────────────────────────────────────────────────
-
-  async function loadDepartures(ttId) {
-    const { data } = await supabase
-      .from('timetable_departures').select('*').eq('timetable_id', ttId).order('departure_time')
-    setDepartures(data ?? [])
-  }
-
-  async function saveDeparture(e) {
-    e.preventDefault()
-    setDepSaving(true); setDepError('')
-    const payload = {
-      timetable_id:         timetableId,
-      departure_time:       depForm.departure_time,
-      days_of_week:         depForm.days_of_week,
-      timing_profile:       depForm.timing_profile,
-      vehicle_journey_code: depForm.vehicle_journey_code,
-    }
-    const { error } = depModal === 'add'
-      ? await supabase.from('timetable_departures').insert(payload)
-      : await supabase.from('timetable_departures').update({
-          departure_time:       depForm.departure_time,
-          days_of_week:         depForm.days_of_week,
-          timing_profile:       depForm.timing_profile,
-          vehicle_journey_code: depForm.vehicle_journey_code,
-        }).eq('id', depModal.id)
-    setDepSaving(false)
-    if (error) { setDepError(error.message); return }
-    setDepModal(null)
-    loadDepartures(timetableId)
-  }
-
-  async function deleteDeparture(id) {
-    if (!confirm('Delete this departure?')) return
-    await supabase.from('timetable_departures').delete().eq('id', id)
-    loadDepartures(timetableId)
-  }
-
-  async function nextVjc() {
-    if (!timetables.length) return 'VJ1'
-    const { count } = await supabase
-      .from('timetable_departures')
-      .select('id', { count: 'exact', head: true })
-      .in('timetable_id', timetables.map(t => t.id))
-    return `VJ${(count ?? 0) + 1}`
-  }
-
-  // ── Save ─────────────────────────────────────────────────────────────────────
-
-  // stopsToSave allows the review modal to pass its local draft directly
   async function handleSave(stopsToSave = stops) {
     if (stopsToSave.length < 2) return
     setSaving(true); setSaveError(''); setSaveSuccess(false)
@@ -741,9 +403,7 @@ export default function RoutePlannerPage() {
     ? [newTtName, newDirection].filter(Boolean).join(' · ')
     : selTt ? `${selTt.name} · ${selTt.direction}` : ''
 
-  // Segment-after-stop maps for sidebar and modal
-  const segAfterStop      = buildSegAfterMap(stops,      routeResult?.segments)
-  const modalSegAfterStop = buildSegAfterMap(modalStops, routeResult?.segments)
+  const segAfterStop = buildSegAfterMap(stops, routeResult?.segments)
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
@@ -980,7 +640,7 @@ export default function RoutePlannerPage() {
           </>)}
           </>)}
 
-          {/* Card 4: Stops */}
+          {/* Card 3: Stops */}
           <div className="card" style={{ padding: 10 }}>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -1021,7 +681,6 @@ export default function RoutePlannerPage() {
               </p>
             )}
 
-            {/* Stop list with segment chips between rows */}
             {stops.map((s, i) => {
               const color = stopColor(i, stops.length)
               const isEditing = editStopId === s._id
@@ -1082,7 +741,6 @@ export default function RoutePlannerPage() {
                       )}
                     </div>
                   </div>
-                  {/* Segment chip between this stop and the next */}
                   {i < stops.length - 1 && <SegChip seg={segAfter} />}
                 </Fragment>
               )
@@ -1163,97 +821,14 @@ export default function RoutePlannerPage() {
             )}
           </div>
 
-          {/* Card 5: Departures */}
+          {/* Card 4: Departures */}
           {timetableId && timetableId !== '__new__' && (
-            <div className="card" style={{ padding: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <span style={S.sectionLabel}>Departures</span>
-                <button className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: 11 }}
-                  onClick={async () => {
-                    const vjc = await nextVjc()
-                    setDepForm({ ...DEP_EMPTY, vehicle_journey_code: vjc })
-                    setDepError('')
-                    setDepModal('add')
-                  }}
-                >+ Add</button>
-              </div>
-
-              {departures.length === 0 && depModal === null && (
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>No departures yet.</p>
-              )}
-
-              {departures.map(dep => (
-                <div key={dep.id} style={{ background: 'var(--bg)', borderRadius: 5, padding: '5px 7px', marginBottom: 5, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 14, color: 'var(--navy-brand)', minWidth: 42 }}>
-                    {dep.departure_time.slice(0, 5)}
-                  </span>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)', flex: 1 }}>
-                    {dep.days_of_week.map(d => DAYS[d - 1]).join(' ')}
-                    {dep.timing_profile !== 'standard' && (
-                      <span style={{ marginLeft: 4, color: dep.timing_profile === 'delay' ? '#d69e2e' : 'var(--green)' }}>
-                        · {dep.timing_profile}
-                      </span>
-                    )}
-                  </span>
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{dep.vehicle_journey_code}</span>
-                  <button className="btn btn-ghost btn-sm" style={{ padding: '1px 5px', minWidth: 0, fontSize: 11 }}
-                    onClick={() => {
-                      setDepForm({ departure_time: dep.departure_time.slice(0, 5), days_of_week: dep.days_of_week, timing_profile: dep.timing_profile, vehicle_journey_code: dep.vehicle_journey_code })
-                      setDepError('')
-                      setDepModal(dep)
-                    }}
-                  >Edit</button>
-                  <button className="btn btn-danger btn-sm" style={{ padding: '1px 5px', minWidth: 0, fontSize: 11 }}
-                    onClick={() => deleteDeparture(dep.id)}>×</button>
-                </div>
-              ))}
-
-              {depModal !== null && (
-                <div style={{ background: 'var(--bg)', borderRadius: 6, padding: 8, marginTop: 6, border: '1px solid var(--border)' }}>
-                  {depError && <div className="error-msg" style={{ marginBottom: 6 }}>{depError}</div>}
-                  <form onSubmit={saveDeparture}>
-                    <div style={{ marginBottom: 6 }}>
-                      <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Departure Time</div>
-                      <input type="time" className="form-input" value={depForm.departure_time}
-                        onChange={e => setDepForm(f => ({ ...f, departure_time: e.target.value }))} required />
-                    </div>
-                    <div style={{ marginBottom: 6 }}>
-                      <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Days</div>
-                      <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-                        {DAYS.map((d, idx) => {
-                          const dayNum = idx + 1
-                          const on = depForm.days_of_week.includes(dayNum)
-                          return (
-                            <button key={d} type="button"
-                              onClick={() => setDepForm(f => ({ ...f, days_of_week: on ? f.days_of_week.filter(x => x !== dayNum) : [...f.days_of_week, dayNum].sort((a, b) => a - b) }))}
-                              style={{ padding: '2px 6px', fontSize: 10, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1.5, border: `1px solid ${on ? 'var(--navy-brand)' : 'var(--border)'}`, background: on ? 'var(--navy-brand)' : 'transparent', color: on ? '#fff' : 'var(--text-muted)' }}
-                            >{d}</button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                    <div style={{ marginBottom: 6 }}>
-                      <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Timing Profile</div>
-                      <select className="form-select" value={depForm.timing_profile}
-                        onChange={e => setDepForm(f => ({ ...f, timing_profile: e.target.value }))}>
-                        <option value="standard">Standard</option>
-                        <option value="delay">Delay</option>
-                        <option value="early">Early</option>
-                      </select>
-                    </div>
-                    <div style={{ marginBottom: 8 }}>
-                      <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Journey Code (VJC)</div>
-                      <input className="form-input" value={depForm.vehicle_journey_code}
-                        onChange={e => setDepForm(f => ({ ...f, vehicle_journey_code: e.target.value }))} required />
-                    </div>
-                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDepModal(null)}>Cancel</button>
-                      <button type="submit" className="btn btn-primary btn-sm" disabled={depSaving}>{depSaving ? 'Saving…' : 'Save'}</button>
-                    </div>
-                  </form>
-                </div>
-              )}
-            </div>
+            <DeparturesCard
+              timetableId={timetableId}
+              timetables={timetables}
+              departures={departures}
+              setDepartures={setDepartures}
+            />
           )}
 
         </div>
@@ -1276,139 +851,26 @@ export default function RoutePlannerPage() {
         </div>
       </div>
 
-      {/* ── Review / confirmation modal ── */}
       {showConfirm && (
-        <div
-          style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
-          onClick={e => { if (e.target === e.currentTarget) setShowConfirm(false) }}
-        >
-          <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius)', boxShadow: '0 8px 40px rgba(0,0,0,0.25)', width: '100%', maxWidth: 540, maxHeight: 'calc(100vh - 48px)', overflowY: 'auto', padding: 24 }}>
-
-            <h2 style={{ fontFamily: 'Oswald', fontSize: 20, fontWeight: 700, color: 'var(--navy-brand)', margin: '0 0 16px' }}>
-              Review Route
-            </h2>
-
-            {/* Route & timetable summary */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ ...S.sectionLabel, marginBottom: 6 }}>Route</div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                {confirmCode && <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 18, color: 'var(--navy-brand)' }}>{confirmCode}</span>}
-                {confirmName && <span style={{ fontSize: 14, color: 'var(--text)' }}>{confirmName}</span>}
-                {confirmJTypes.map(jt => (
-                  <span key={jt} style={{ fontSize: 10, fontFamily: 'Oswald', fontWeight: 700, background: 'var(--navy-brand)', color: '#fff', borderRadius: 8, padding: '1px 7px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{jt}</span>
-                ))}
-              </div>
-              {confirmTt && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>{confirmTt}</div>}
-              {vehicleType.length > 0 && (
-                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
-                  {vehicleType.join(', ')}
-                  {vehicle && ` — H ${vehicle.height_metres}m · W ${vehicle.width_metres}m · L ${vehicle.length_metres}m`}
-                </div>
-              )}
-            </div>
-
-            {/* Stops with departure auto-fill + editable timing */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8, gap: 8 }}>
-                <span style={S.sectionLabel}>Stops ({modalStops.length})</span>
-                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Departs</span>
-                  <input
-                    type="time"
-                    className="form-input"
-                    style={{ width: 95, height: 26, fontSize: 12, padding: '1px 4px' }}
-                    value={autoDepTime}
-                    title="Enter departure time to auto-fill timing points"
-                    onChange={e => {
-                      setAutoDepTime(e.target.value)
-                      if (e.target.value) setModalStops(prev => applyAutoFill(e.target.value, prev))
-                    }}
-                  />
-                </div>
-              </div>
-
-              {modalStops.map((s, i) => {
-                const color    = stopColor(i, modalStops.length)
-                const segAfter = modalSegAfterStop[s._id]
-                return (
-                  <Fragment key={s._id}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
-                      <div style={{ width: 22, height: 22, borderRadius: '50%', background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Oswald', fontWeight: 700, fontSize: 10, flexShrink: 0, marginTop: 1 }}>
-                        {i + 1}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: s.stop_type === 'timing_point' ? 5 : 0 }}>
-                          {s.name}
-                        </div>
-                        {s.stop_type === 'timing_point' ? (
-                          <div style={{ display: 'flex', gap: 4 }}>
-                            {(singleJourney
-                              ? [['time_std', 'Std']]
-                              : [['time_std','Std'],['time_delay','Delay'],['time_early','Early']]
-                            ).map(([field, label]) => (
-                              <div key={field} style={{ flex: 1 }}>
-                                <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'Oswald', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 1 }}>{label}</div>
-                                <input type="time" className="form-input"
-                                  style={{ fontSize: 11, height: 24, padding: '1px 3px', width: '100%' }}
-                                  value={s[field]}
-                                  onChange={e => updateModalStop(i, field, e.target.value)}
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'Oswald', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>via</div>
-                        )}
-                      </div>
-                    </div>
-                    {/* Segment chip */}
-                    {i < modalStops.length - 1 && segAfter && !segAfter.error && (
-                      <div style={{ paddingLeft: 30, fontSize: 11, fontFamily: 'Oswald', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', gap: 5, marginBottom: 6 }}>
-                        <span>↓</span>
-                        <span>{fmtDur(segAfter.duration)}</span>
-                        <span style={{ fontWeight: 400, fontSize: 10 }}>·</span>
-                        <span style={{ fontWeight: 400 }}>{fmtDist(segAfter.distance)}</span>
-                      </div>
-                    )}
-                  </Fragment>
-                )
-              })}
-            </div>
-
-            {/* Totals */}
-            {routeResult && !routeResult.error && (
-              <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--bg)', borderRadius: 6, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 20, color: 'var(--navy-brand)' }}>
-                  {fmtDist(routeResult.distance)}
-                </span>
-                <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>
-                  {fmtDur(routeResult.duration)}
-                </span>
-                {warnings.map((w, idx) => (
-                  <div key={idx} style={{ fontSize: 12, color: '#d69e2e', display: 'flex', gap: 4 }}>
-                    <span>⚠</span><span>{w.message ?? `Routing warning (code ${w.code})`}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {saveError && <div className="error-msg" style={{ marginBottom: 12 }}>{saveError}</div>}
-
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button className="btn btn-ghost" onClick={() => setShowConfirm(false)} disabled={saving}>
-                Back to edit
-              </button>
-              <button className="btn btn-primary" disabled={saving}
-                onClick={() => {
-                  setStops(modalStops)
-                  handleSave(modalStops)
-                }}
-              >
-                {saving ? 'Saving…' : 'Save Route'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ReviewModal
+          modalStops={modalStops}
+          setModalStops={setModalStops}
+          routeResult={routeResult}
+          singleJourney={singleJourney}
+          confirmCode={confirmCode}
+          confirmName={confirmName}
+          confirmJTypes={confirmJTypes}
+          confirmTt={confirmTt}
+          vehicleType={vehicleType}
+          vehicle={vehicle}
+          warnings={warnings}
+          autoDepTime={autoDepTime}
+          setAutoDepTime={setAutoDepTime}
+          saving={saving}
+          saveError={saveError}
+          onClose={() => setShowConfirm(false)}
+          onSave={stopsToSave => { setStops(stopsToSave); handleSave(stopsToSave) }}
+        />
       )}
 
     </div>
