@@ -29,6 +29,7 @@ const EMPTY_FIELDS = {
   companies_house_number:  '',
   name:           '',
   trading_name:   '',
+  email:          '',
   address_line_1: '',
   address_line_2: '',
   city:           '',
@@ -91,7 +92,7 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
   useEffect(() => {
     supabase
       .from('companies')
-      .select('operator_licence_number, traffic_area, companies_house_number, name, trading_name, address_line_1, address_line_2, city, postcode, vehicles_authorised')
+      .select('operator_licence_number, traffic_area, companies_house_number, name, trading_name, email, address_line_1, address_line_2, city, postcode, vehicles_authorised')
       .eq('id', companyId)
       .single()
       .then(({ data }) => {
@@ -103,6 +104,7 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
             vehicles_authorised:     data.vehicles_authorised     ?? '',
             name:           data.name           ?? '',
             trading_name:   data.trading_name   ?? '',
+            email:          data.email          ?? '',
             address_line_1: data.address_line_1 ?? '',
             address_line_2: data.address_line_2 ?? '',
             city:           data.city           ?? '',
@@ -283,6 +285,11 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
               <label className="form-label">Trading name</label>
               <input className="form-input" value={fields.trading_name} onChange={set('trading_name')}
                 placeholder="If different from registered name" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Email address</label>
+              <input className="form-input" type="email" value={fields.email} onChange={set('email')}
+                placeholder="e.g. office@example.com" />
             </div>
             <div className="form-row-grid">
               <div className="form-group">
