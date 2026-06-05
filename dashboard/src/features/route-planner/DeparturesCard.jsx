@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../../shared/supabase'
 import { S, DAYS, DEP_EMPTY } from './constants'
 
-export default function DeparturesCard({ timetableId, timetables, departures, setDepartures }) {
+export default function DeparturesCard({ timetableId, timetables, departures, setDepartures, isBodsRoute }) {
   const [depModal,  setDepModal]  = useState(null)
   const [depForm,   setDepForm]   = useState(DEP_EMPTY)
   const [depSaving, setDepSaving] = useState(false)
@@ -23,6 +23,8 @@ export default function DeparturesCard({ timetableId, timetables, departures, se
       days_of_week:         depForm.days_of_week,
       timing_profile:       depForm.timing_profile,
       vehicle_journey_code: depForm.vehicle_journey_code,
+      valid_from:           depForm.valid_from || null,
+      valid_to:             depForm.valid_to   || null,
     }
     const { error } = depModal === 'add'
       ? await supabase.from('timetable_departures').insert(payload)
@@ -31,6 +33,8 @@ export default function DeparturesCard({ timetableId, timetables, departures, se
           days_of_week:         depForm.days_of_week,
           timing_profile:       depForm.timing_profile,
           vehicle_journey_code: depForm.vehicle_journey_code,
+          valid_from:           depForm.valid_from || null,
+          valid_to:             depForm.valid_to   || null,
         }).eq('id', depModal.id)
     setDepSaving(false)
     if (error) { setDepError(error.message); return }
@@ -87,7 +91,7 @@ export default function DeparturesCard({ timetableId, timetables, departures, se
           <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{dep.vehicle_journey_code}</span>
           <button className="btn btn-ghost btn-sm" style={{ padding: '1px 5px', minWidth: 0, fontSize: 11 }}
             onClick={() => {
-              setDepForm({ departure_time: dep.departure_time.slice(0, 5), days_of_week: dep.days_of_week, timing_profile: dep.timing_profile, vehicle_journey_code: dep.vehicle_journey_code })
+              setDepForm({ departure_time: dep.departure_time.slice(0, 5), days_of_week: dep.days_of_week, timing_profile: dep.timing_profile, vehicle_journey_code: dep.vehicle_journey_code, valid_from: dep.valid_from ?? '', valid_to: dep.valid_to ?? '' })
               setDepError('')
               setDepModal(dep)
             }}
@@ -130,11 +134,27 @@ export default function DeparturesCard({ timetableId, timetables, departures, se
                 <option value="early">Early</option>
               </select>
             </div>
-            <div style={{ marginBottom: 8 }}>
+            <div style={{ marginBottom: isBodsRoute ? 6 : 8 }}>
               <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Journey Code (VJC)</div>
               <input className="form-input" value={depForm.vehicle_journey_code}
                 onChange={e => setDepForm(f => ({ ...f, vehicle_journey_code: e.target.value }))} required />
             </div>
+            {isBodsRoute && (
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Service Validity</div>
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                  <input type="date" className="form-input" style={{ flex: 1, fontSize: 11 }}
+                    value={depForm.valid_from}
+                    onChange={e => setDepForm(f => ({ ...f, valid_from: e.target.value }))}
+                    required={isBodsRoute} />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>to</span>
+                  <input type="date" className="form-input" style={{ flex: 1, fontSize: 11 }}
+                    value={depForm.valid_to}
+                    onChange={e => setDepForm(f => ({ ...f, valid_to: e.target.value }))}
+                    required={isBodsRoute} />
+                </div>
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDepModal(null)}>Cancel</button>
               <button type="submit" className="btn btn-primary btn-sm" disabled={depSaving}>{depSaving ? 'Saving…' : 'Save'}</button>

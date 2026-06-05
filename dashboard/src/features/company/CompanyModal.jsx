@@ -25,6 +25,7 @@ const TRAFFIC_AREAS = [
 
 const EMPTY_FIELDS = {
   operator_licence_number: '',
+  noc_code:                '',
   traffic_area:            '',
   companies_house_number:  '',
   name:           '',
@@ -92,13 +93,14 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
   useEffect(() => {
     supabase
       .from('companies')
-      .select('operator_licence_number, traffic_area, companies_house_number, name, trading_name, email, address_line_1, address_line_2, city, postcode, vehicles_authorised')
+      .select('operator_licence_number, noc_code, traffic_area, companies_house_number, name, trading_name, email, address_line_1, address_line_2, city, postcode, vehicles_authorised')
       .eq('id', companyId)
       .single()
       .then(({ data }) => {
         if (data) {
           setFields({
             operator_licence_number: data.operator_licence_number ?? '',
+            noc_code:                data.noc_code                ?? '',
             traffic_area:            data.traffic_area            ?? '',
             companies_house_number:  data.companies_house_number  ?? '',
             vehicles_authorised:     data.vehicles_authorised     ?? '',
@@ -193,6 +195,7 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
       .from('companies')
       .update({
         ...fields,
+        noc_code:                fields.noc_code.trim().toUpperCase()  || null,
         companies_house_number:  fields.companies_house_number.trim()  || null,
         trading_name:            fields.trading_name.trim()            || null,
         address_line_2:          fields.address_line_2.trim()          || null,
@@ -274,6 +277,16 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
               {lookupError && (
                 <div className="error-msg" style={{ marginTop: 8, marginBottom: 0 }}>{lookupError}</div>
               )}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">National Operator Code (NOC)
+                <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>Required for BODS publishing</span>
+              </label>
+              <input className="form-input" value={fields.noc_code}
+                onChange={set('noc_code')}
+                placeholder="e.g. PHCO" maxLength={4}
+                style={{ textTransform: 'uppercase', width: 100 }} />
             </div>
 
             <div className="form-section-label">Details</div>

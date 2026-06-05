@@ -37,6 +37,8 @@ create table companies (
   -- From DVSA VOL dataset
   vehicles_authorised       int,
   email                     text,
+  -- BODS: National Operator Code assigned by Traveline/DfT (mandatory for BODS publishing)
+  noc_code                  char(4)     unique,
   -- Logo stored in Supabase Storage bucket 'company-logos' at path {company_id}/logo.*
   logo_path                 text,
   created_at                timestamptz not null default now()
@@ -125,7 +127,7 @@ create table stops (
   name            text        not null,
   lat             float8      not null,
   lon             float8      not null,
-  naptan_code     char(9)     unique,
+  naptan_code     text        unique,   -- NaPTAN ATCO code (up to 12 chars)
   is_depot        boolean     not null default false,
   created_at      timestamptz not null default now()
 );
@@ -135,8 +137,9 @@ create table stops (
 -- Source of truth for valid journey type values. Replaces hardcoded CHECK constraints.
 
 create table journey_types (
-  name       text    primary key,
-  sort_order integer not null default 0
+  name          text    primary key,
+  sort_order    integer not null default 0,
+  requires_bods boolean not null default false
 );
 
 grant select on public.journey_types to anon;
@@ -161,6 +164,10 @@ create table routes (
   journey_type    text[]      not null
                     check (array_length(journey_type, 1) > 0),
   single_journey  boolean     not null default false,
+  -- BODS / TransXChange fields (required when journey_type requires_bods = true)
+  origin                      text,       -- service description start, e.g. "Spalding"
+  destination                 text,       -- service description end, e.g. "Peterborough"
+  service_registration_number text        unique, -- Traffic Commissioner registration, e.g. "PC0006014:1"
   created_at      timestamptz not null default now(),
   unique (company_id, service_code)
 );
@@ -228,6 +235,48 @@ create table timetable_departures (
   created_at           timestamptz not null default now(),
   check (valid_to is null or valid_to >= valid_from)
 );
+
+
+-- ── Service exceptions ────────────────────────────────────────────────────────
+-- Bank holidays and exceptional added/removed dates for a specific departure.
+-- exception_type = 'removed': service does not run on this date (e.g. bank holiday).
+-- exception_type = 'added':   service runs on this date despite not matching days_of_week.
+
+create table service_exceptions (
+  id                     uuid        primary key default gen_random_uuid(),
+  timetable_departure_id uuid        not null references timetable_departures(id) on delete cascade,
+  exception_date         date        not null,
+  exception_type         text        not null
+                           check (exception_type in ('added', 'removed')),
+  created_at             timestamptz not null default now(),
+  unique (timetable_departure_id, exception_date)
+);
+
+grant select on public.service_exceptions to anon;
+grant all    on public.service_exceptions to authenticated;
+
+alter table public.service_exceptions enable row level security;
+
+create policy "company_all" on public.service_exceptions
+  for all to authenticated
+  using (
+    timetable_departure_id in (
+      select td.id from timetable_departures td
+      join timetables t on t.id = td.timetable_id
+      join routes r     on r.id = t.route_id
+      where r.company_id = current_company_id()
+    )
+  )
+  with check (
+    timetable_departure_id in (
+      select td.id from timetable_departures td
+      join timetables t on t.id = td.timetable_id
+      join routes r     on r.id = t.route_id
+      where r.company_id = current_company_id()
+    )
+  );
+
+create index on service_exceptions (timetable_departure_id);
 
 
 -- ── Journeys ──────────────────────────────────────────────────────────────────

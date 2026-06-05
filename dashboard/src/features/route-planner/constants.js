@@ -8,7 +8,7 @@ export const TYPE_DEFAULTS = {
 
 export const DIRECTIONS = ['Outbound', 'Inbound', 'Circular']
 export const DAYS       = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-export const DEP_EMPTY  = { departure_time: '', days_of_week: [1,2,3,4,5], timing_profile: 'standard', vehicle_journey_code: '' }
+export const DEP_EMPTY  = { departure_time: '', days_of_week: [1,2,3,4,5], timing_profile: 'standard', vehicle_journey_code: '', valid_from: '', valid_to: '' }
 
 export const S = {
   sectionLabel: {

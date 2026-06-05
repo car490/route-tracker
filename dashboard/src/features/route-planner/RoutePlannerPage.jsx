@@ -26,7 +26,7 @@ function SegChip({ seg }) {
 }
 
 export default function RoutePlannerPage() {
-  const { journeyTypes } = useJourneyTypes()
+  const { journeyTypes, bodsTypes } = useJourneyTypes()
   const [routeId,     setRouteId]     = useState('')
   const [timetableId, setTimetableId] = useState('')
   const [vehicleType, setVehicleType] = useState([])
@@ -39,6 +39,10 @@ export default function RoutePlannerPage() {
   const [newName,           setNewName]           = useState('')
   const [newJourneyTypes,   setNewJourneyTypes]   = useState([])
   const [newRouteCollapsed, setNewRouteCollapsed] = useState(false)
+  // BODS-specific fields (only relevant when journey type requires_bods = true)
+  const [newOrigin,      setNewOrigin]      = useState('')
+  const [newDestination, setNewDestination] = useState('')
+  const [newServiceReg,  setNewServiceReg]  = useState('')
 
   // Inline new-timetable fields
   const [newTtName,      setNewTtName]      = useState('')
@@ -322,7 +326,18 @@ export default function RoutePlannerPage() {
         resolvedRouteId = existing.id
       } else {
         const { data, error } = await supabase.from('routes')
-          .insert({ company_id, service_code: code, name: newName || null, journey_type: newJourneyTypes, single_journey: singleJourney })
+          .insert({
+            company_id,
+            service_code:   code,
+            name:           newName || null,
+            journey_type:   newJourneyTypes,
+            single_journey: singleJourney,
+            ...(isBodsRoute && {
+              origin:                      newOrigin.trim()      || null,
+              destination:                 newDestination.trim() || null,
+              service_registration_number: newServiceReg.trim()  || null,
+            }),
+          })
           .select('id').single()
         if (error) { setSaveError(error.message); setSaving(false); return }
         resolvedRouteId = data.id
@@ -373,6 +388,7 @@ export default function RoutePlannerPage() {
     await loadRoutes()
     if (wasNew) {
       setNewCode(''); setNewName(''); setNewJourneyTypes([])
+      setNewOrigin(''); setNewDestination(''); setNewServiceReg('')
       setNewTtName(''); setNewDirection('Outbound')
       setRouteId(''); setTimetableId(''); setStops([])
     } else {
@@ -388,6 +404,9 @@ export default function RoutePlannerPage() {
 
   const vehicle  = resolvedVehicle()
   const warnings = routeResult?.warnings ?? []
+
+  const activeJTypes  = routeId === '__new__' ? newJourneyTypes : (selRoute?.journey_type ?? [])
+  const isBodsRoute   = activeJTypes.some(jt => bodsTypes.has(jt))
 
   const routeConfirmed = routeId === '__new__' ? newRouteCollapsed : !!routeId
   const routeReady = routeId === '__new__' ? newCode.trim().length > 0 && newJourneyTypes.length > 0 : !!routeId
@@ -539,6 +558,25 @@ export default function RoutePlannerPage() {
                       <input name="route_name" className="form-input" style={{ fontSize: 12 }} placeholder="e.g. Sleaford – Cranwell"
                         value={newName} onChange={e => setNewName(e.target.value)} />
                     </div>
+                    {isBodsRoute && (<>
+                      <div style={{ marginBottom: 6 }}>
+                        <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Origin</div>
+                        <input className="form-input" style={{ fontSize: 12 }} placeholder="e.g. Spalding"
+                          value={newOrigin} onChange={e => setNewOrigin(e.target.value)} />
+                      </div>
+                      <div style={{ marginBottom: 6 }}>
+                        <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Destination</div>
+                        <input className="form-input" style={{ fontSize: 12 }} placeholder="e.g. Boston"
+                          value={newDestination} onChange={e => setNewDestination(e.target.value)} />
+                      </div>
+                      <div style={{ marginBottom: 6 }}>
+                        <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Registration No.
+                          <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, marginLeft: 4 }}>(optional)</span>
+                        </div>
+                        <input className="form-input" style={{ fontSize: 12 }} placeholder="e.g. PC0006014:1"
+                          value={newServiceReg} onChange={e => setNewServiceReg(e.target.value)} />
+                      </div>
+                    </>)}
                     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                       <button type="button" className="btn btn-primary btn-sm"
                         disabled={!newCode.trim() || newJourneyTypes.length === 0}
@@ -828,6 +866,7 @@ export default function RoutePlannerPage() {
               timetables={timetables}
               departures={departures}
               setDepartures={setDepartures}
+              isBodsRoute={isBodsRoute}
             />
           )}
 

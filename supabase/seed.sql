@@ -18,13 +18,13 @@
 
 -- ── Journey types ────────────────────────────────────────────────────────────
 
-insert into public.journey_types (name, sort_order) values
-  ('Local Bus',          1),
-  ('Open Door Schools',  2),
-  ('Contract Schools',   3),
-  ('Private Hire',       4),
-  ('Tour',               5),
-  ('Other Contract',     6);
+insert into public.journey_types (name, sort_order, requires_bods) values
+  ('Local Bus',          1, true),
+  ('Open Door Schools',  2, true),
+  ('Contract Schools',   3, false),
+  ('Private Hire',       4, false),
+  ('Tour',               5, false),
+  ('Other Contract',     6, false);
 
 
 -- ── Company ───────────────────────────────────────────────────────────────────
