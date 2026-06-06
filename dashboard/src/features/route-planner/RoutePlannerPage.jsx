@@ -588,7 +588,7 @@ export default function RoutePlannerPage() {
                           value={newServiceReg} onChange={e => setNewServiceReg(e.target.value)} />
                       </div>
                     </>)}
-                    <div ref={confirmRouteRef} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <div ref={confirmRouteRef} style={{ display: 'flex', justifyContent: 'flex-end', scrollMarginBottom: 24 }}>
                       <button type="button" className="btn btn-primary btn-sm"
                         disabled={!newCode.trim() || newJourneyTypes.length === 0}
                         onClick={() => setNewRouteCollapsed(true)}
