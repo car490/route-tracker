@@ -169,7 +169,7 @@ export default function RoutePlannerPage() {
         distance: valid.reduce((sum, s) => sum + s.distance, 0),
         duration: valid.reduce((sum, s) => sum + s.duration, 0),
         warnings: valid.flatMap(s => s.warnings ?? []),
-        error:    valid.length === 0 ? 'Could not find a route' : null,
+        error:    valid.length === 0 ? (segs.find(s => s?.error)?.error ?? 'Could not find a route') : null,
       })
       setRouting(false)
     })

@@ -13,8 +13,7 @@ export function buildGHBody(coordinates, vehicle) {
 
   return {
     points: coordinates,
-    profile: 'pcv',
-    custom_model: { speed: PCV_SPEED_RULES, priority },
+    profile: 'car',
     points_encoded: false,
     instructions: false,
   }

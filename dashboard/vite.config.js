@@ -5,8 +5,7 @@ import { buildGHBody, normaliseGHResponse } from './api/_graphhopper.js'
 
 // Local-dev middleware: handles /api/directions when GRAPHHOPPER_URL is set.
 // In production the equivalent logic runs in dashboard/api/directions.js (Vercel).
-function localDirectionsApi() {
-  const ghBase = process.env.GRAPHHOPPER_URL
+function localDirectionsApi(ghBase) {
   if (!ghBase) return { name: 'local-directions-api' }
 
   return {
@@ -192,7 +191,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
-      localDirectionsApi(),
+      localDirectionsApi(env.GRAPHHOPPER_URL),
       localSignTokenApi(env.SUPABASE_JWT_SECRET),
       localSendDutyEmailApi(env.RESEND_API_KEY, env.RESEND_FROM),
     ],
