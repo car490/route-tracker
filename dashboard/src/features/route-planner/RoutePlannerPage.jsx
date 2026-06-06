@@ -405,6 +405,9 @@ export default function RoutePlannerPage() {
   const vehicle  = resolvedVehicle()
   const warnings = routeResult?.warnings ?? []
 
+  const selRoute = routeId && routeId !== '__new__' ? routes.find(r => r.id === routeId) : null
+  const selTt    = timetableId && timetableId !== '__new__' ? timetables.find(t => t.id === timetableId) : null
+
   const activeJTypes  = routeId === '__new__' ? newJourneyTypes : (selRoute?.journey_type ?? [])
   const isBodsRoute   = activeJTypes.some(jt => bodsTypes.has(jt))
 
@@ -412,9 +415,6 @@ export default function RoutePlannerPage() {
   const routeReady = routeId === '__new__' ? newCode.trim().length > 0 && newJourneyTypes.length > 0 : !!routeId
   const ttReady    = !!timetableId
   const canSave    = routeReady && ttReady && stops.length >= 2 && !saving
-
-  const selRoute = routeId && routeId !== '__new__' ? routes.find(r => r.id === routeId) : null
-  const selTt    = timetableId && timetableId !== '__new__' ? timetables.find(t => t.id === timetableId) : null
   const confirmCode   = routeId === '__new__' ? newCode : selRoute?.service_code
   const confirmName   = routeId === '__new__' ? newName : selRoute?.name
   const confirmJTypes = routeId === '__new__' ? newJourneyTypes : (selRoute?.journey_types ?? [])
