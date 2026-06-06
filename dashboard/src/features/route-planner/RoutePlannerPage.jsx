@@ -3,7 +3,7 @@ import { supabase } from '../../shared/supabase'
 import { getCompanyId } from '../../shared/company'
 import { searchPlaces } from '../../shared/api/osPlaces'
 import { useJourneyTypes } from '../../shared/hooks/useJourneyTypes'
-import { TYPE_DEFAULTS, DIRECTIONS, S } from './constants'
+import { TYPE_DEFAULTS, DIRECTIONS, SINGLE_JOURNEY_DIRECTIONS, S } from './constants'
 import { fmtDist, fmtDur, stopColor, timeToMinutes, minutesToTime, fetchSegments, combineGeometries, buildSegAfterMap } from './utils'
 import PlannerMap from './PlannerMap'
 import ReviewModal from './ReviewModal'
@@ -138,6 +138,10 @@ export default function RoutePlannerPage() {
   }, [routeId, timetableId, newRouteCollapsed, newTtCollapsed, newCode, newJourneyTypes, newTtName])
 
   useEffect(() => { setShowSetup(true) }, [routeId])
+
+  useEffect(() => {
+    setNewDirection(singleJourney ? 'Morning' : 'Outbound')
+  }, [singleJourney])
 
   // ── Auto-routing (N-1 parallel segment calls) ─────────────────────────────────
 
@@ -660,7 +664,7 @@ export default function RoutePlannerPage() {
                       <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Direction</div>
                       <select name="direction" className="form-select" style={{ fontSize: 12 }} value={newDirection}
                         onChange={e => setNewDirection(e.target.value)}>
-                        {DIRECTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                        {(singleJourney ? SINGLE_JOURNEY_DIRECTIONS : DIRECTIONS).map(d => <option key={d} value={d}>{d}</option>)}
                       </select>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
