@@ -187,7 +187,7 @@ function localSendDutyEmailApi(resendApiKey, resendFrom) {
 }
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
+  const env = loadEnv(mode, import.meta.dirname, '')
   return {
     plugins: [
       react(),
