@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { supabase } from '../../shared/supabase'
 import { getCompanyId } from '../../shared/company'
 import { searchPlaces } from '../../shared/api/osPlaces'
@@ -39,6 +39,7 @@ export default function RoutePlannerPage() {
   const [newName,           setNewName]           = useState('')
   const [newJourneyTypes,   setNewJourneyTypes]   = useState([])
   const [newRouteCollapsed, setNewRouteCollapsed] = useState(false)
+  const confirmRouteRef = useRef(null)
   // BODS-specific fields (only relevant when journey type requires_bods = true)
   const [newOrigin,      setNewOrigin]      = useState('')
   const [newDestination, setNewDestination] = useState('')
@@ -142,6 +143,12 @@ export default function RoutePlannerPage() {
   useEffect(() => {
     setNewDirection(singleJourney ? 'Morning' : 'Outbound')
   }, [singleJourney])
+
+  useEffect(() => {
+    if (routeId === '__new__' && !newRouteCollapsed) {
+      confirmRouteRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }, [routeId, newRouteCollapsed, newJourneyTypes])
 
   // ── Auto-routing (N-1 parallel segment calls) ─────────────────────────────────
 
@@ -581,7 +588,7 @@ export default function RoutePlannerPage() {
                           value={newServiceReg} onChange={e => setNewServiceReg(e.target.value)} />
                       </div>
                     </>)}
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <div ref={confirmRouteRef} style={{ display: 'flex', justifyContent: 'flex-end' }}>
                       <button type="button" className="btn btn-primary btn-sm"
                         disabled={!newCode.trim() || newJourneyTypes.length === 0}
                         onClick={() => setNewRouteCollapsed(true)}
