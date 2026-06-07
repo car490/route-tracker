@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../shared/supabase'
 import { getCompanyId } from '../../shared/company'
 import { searchPlaces } from '../../shared/api/osPlaces'
@@ -26,6 +27,8 @@ function SegChip({ seg }) {
 }
 
 export default function RoutePlannerPage() {
+  const [searchParams] = useSearchParams()
+  const pendingTtId = useRef(null)
   const { journeyTypes, bodsTypes } = useJourneyTypes()
   const [routeId,     setRouteId]     = useState('')
   const [timetableId, setTimetableId] = useState('')
@@ -85,7 +88,12 @@ export default function RoutePlannerPage() {
     setRoutes(data ?? [])
   }
 
-  useEffect(() => { loadRoutes() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    loadRoutes()
+    const r = searchParams.get('route')
+    const t = searchParams.get('timetable')
+    if (r) { pendingTtId.current = t; setRouteId(r) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!routeId || routeId === '__new__') {
@@ -94,7 +102,13 @@ export default function RoutePlannerPage() {
       return
     }
     supabase.from('timetables').select('*').eq('route_id', routeId).order('name')
-      .then(({ data }) => setTimetables(data ?? []))
+      .then(({ data }) => {
+        setTimetables(data ?? [])
+        if (pendingTtId.current) {
+          setTimetableId(pendingTtId.current)
+          pendingTtId.current = null
+        }
+      })
     setTimetableId('')
     setStops([])
     setDepartures([])

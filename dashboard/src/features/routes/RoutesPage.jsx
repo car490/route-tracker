@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../shared/supabase'
 import { getCompanyId } from '../../shared/company'
 import Modal from '../../shared/components/Modal'
@@ -21,6 +22,7 @@ function TimetableStopCount({ timetableId }) {
 }
 
 export default function RoutesPage() {
+  const navigate = useNavigate()
   const { journeyTypes } = useJourneyTypes()
   const [routes, setRoutes] = useState([])
   const [timetables, setTimetables] = useState({})
@@ -212,6 +214,12 @@ export default function RoutesPage() {
                       <td><TimetableStopCount timetableId={t.id} /></td>
                       <td>
                         <div className="td-actions">
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => navigate(`/route-planner?route=${selected}&timetable=${t.id}`)}
+                          >
+                            View
+                          </button>
                           <button
                             className="btn btn-ghost btn-sm"
                             onClick={() => {
