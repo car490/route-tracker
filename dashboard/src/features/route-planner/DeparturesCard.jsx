@@ -82,12 +82,7 @@ export default function DeparturesCard({ timetableId, timetables, departures, se
           </span>
           <span style={{ fontSize: 11, color: 'var(--text-muted)', flex: 1 }}>
             {dep.days_of_week.map(d => DAYS[d - 1]).join(' ')}
-            {dep.timing_profile !== 'standard' && (
-              <span style={{ marginLeft: 4, color: dep.timing_profile === 'delay' ? '#d69e2e' : 'var(--green)' }}>
-                · {dep.timing_profile}
-              </span>
-            )}
-          </span>
+            </span>
           <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{dep.vehicle_journey_code}</span>
           <button className="btn btn-ghost btn-sm" style={{ padding: '1px 5px', minWidth: 0, fontSize: 11 }}
             onClick={() => {
@@ -124,15 +119,6 @@ export default function DeparturesCard({ timetableId, timetables, departures, se
                   )
                 })}
               </div>
-            </div>
-            <div style={{ marginBottom: 6 }}>
-              <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Timing Profile</div>
-              <select className="form-select" value={depForm.timing_profile}
-                onChange={e => setDepForm(f => ({ ...f, timing_profile: e.target.value }))}>
-                <option value="standard">Standard</option>
-                <option value="delay">Delay</option>
-                <option value="early">Early</option>
-              </select>
             </div>
             <div style={{ marginBottom: isBodsRoute ? 6 : 8 }}>
               <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Journey Code (VJC)</div>

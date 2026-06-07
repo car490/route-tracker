@@ -25,7 +25,6 @@ function applyAutoFill(depTime, baseStops, routeResult) {
 export default function ReviewModal({
   modalStops, setModalStops,
   routeResult,
-  singleJourney,
   confirmCode, confirmName, confirmJTypes, confirmTt,
   vehicleType, vehicle,
   warnings,
@@ -101,20 +100,12 @@ export default function ReviewModal({
                       {s.name}
                     </div>
                     {s.stop_type === 'timing_point' ? (
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        {(singleJourney
-                          ? [['time_std', 'Std']]
-                          : [['time_std','Std'],['time_delay','Delay'],['time_early','Early']]
-                        ).map(([field, label]) => (
-                          <div key={field} style={{ flex: 1 }}>
-                            <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'Oswald', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 1 }}>{label}</div>
-                            <input type="time" className="form-input"
-                              style={{ fontSize: 11, height: 24, padding: '1px 3px', width: '100%' }}
-                              value={s[field]}
-                              onChange={e => updateModalStop(i, field, e.target.value)}
-                            />
-                          </div>
-                        ))}
+                      <div>
+                        <input type="time" className="form-input"
+                          style={{ fontSize: 11, height: 24, padding: '1px 3px', width: '100%' }}
+                          value={s.time_std}
+                          onChange={e => updateModalStop(i, 'time_std', e.target.value)}
+                        />
                       </div>
                     ) : (
                       <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'Oswald', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>via</div>

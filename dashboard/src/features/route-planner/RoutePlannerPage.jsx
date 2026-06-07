@@ -132,8 +132,6 @@ export default function RoutePlannerPage() {
         lon:        ts.stops.lon,
         stop_type:  ts.stop_type,
         time_std:   ts.stop_type === 'timing_point' && ts.offset_standard != null ? minutesToTime(base + ts.offset_standard) : '',
-        time_delay: ts.stop_type === 'timing_point' && ts.offset_delay    != null ? minutesToTime(base + ts.offset_delay)    : '',
-        time_early: ts.stop_type === 'timing_point' && ts.offset_early    != null ? minutesToTime(base + ts.offset_early)    : '',
       }))
       setStops(loaded)
       if (loaded.length > 0) setFitKey(k => (k ?? 0) + 1)
@@ -260,7 +258,7 @@ export default function RoutePlannerPage() {
       _id: crypto.randomUUID(),
       stop_id: result.stop_id ?? null,
       name: result.name, lat: result.lat, lon: result.lon,
-      stop_type: 'timing_point', time_std: '', time_delay: '', time_early: '',
+      stop_type: 'timing_point', time_std: '',
     }])
     setShowSearch(false); setSearchQuery(''); setSearchResults([])
   }
@@ -268,7 +266,7 @@ export default function RoutePlannerPage() {
   function handleMapPinDrop({ name, lat, lon }) {
     setStops(prev => [...prev, {
       _id: crypto.randomUUID(), stop_id: null,
-      name, lat, lon, stop_type: 'timing_point', time_std: '', time_delay: '', time_early: '',
+      name, lat, lon, stop_type: 'timing_point', time_std: '',
     }])
   }
 
@@ -400,9 +398,7 @@ export default function RoutePlannerPage() {
         stop_id:         stopId,
         sequence:        i + 1,
         stop_type:       s.stop_type,
-        offset_standard: isTiming && s.time_std   && base != null ? timeToMinutes(s.time_std)   - base : null,
-        offset_delay:    isTiming && s.time_delay  && base != null ? timeToMinutes(s.time_delay)  - base : null,
-        offset_early:    isTiming && s.time_early  && base != null ? timeToMinutes(s.time_early)  - base : null,
+        offset_standard: isTiming && s.time_std && base != null ? timeToMinutes(s.time_std) - base : null,
       })
     }
 
@@ -788,18 +784,10 @@ export default function RoutePlannerPage() {
                         <option value="routing_point">Routing point</option>
                       </select>
                       {s.stop_type === 'timing_point' && (
-                        <div style={{ display: 'flex', gap: 3 }}>
-                          {(singleJourney
-                            ? [['time_std', 'Std']]
-                            : [['time_std','Std'],['time_delay','Delay'],['time_early','Early']]
-                          ).map(([field, label]) => (
-                            <div key={field} style={{ flex: 1 }}>
-                              <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'Oswald', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 1 }}>{label}</div>
-                              <input type="time" className="form-input"
-                                style={{ fontSize: 11, height: 24, padding: '1px 3px', width: '100%' }}
-                                value={s[field]} onChange={e => updateStop(i, field, e.target.value)} />
-                            </div>
-                          ))}
+                        <div>
+                          <input type="time" className="form-input"
+                            style={{ fontSize: 11, height: 24, padding: '1px 3px', width: '100%' }}
+                            value={s.time_std} onChange={e => updateStop(i, 'time_std', e.target.value)} />
                         </div>
                       )}
                     </div>
@@ -920,7 +908,6 @@ export default function RoutePlannerPage() {
           modalStops={modalStops}
           setModalStops={setModalStops}
           routeResult={routeResult}
-          singleJourney={singleJourney}
           confirmCode={confirmCode}
           confirmName={confirmName}
           confirmJTypes={confirmJTypes}
