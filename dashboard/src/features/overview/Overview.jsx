@@ -9,7 +9,7 @@ const STATUS_BADGE = {
   cancelled:   <span className="badge badge-red">Cancelled</span>,
 }
 
-const ROLE_BADGE = {
+const ACCESS_LEVEL_BADGE = {
   super_user:  <span className="badge badge-red">Super User</span>,
   ops_manager: <span className="badge badge-blue">Ops Manager</span>,
   driver:      <span className="badge badge-gray">Driver</span>,
@@ -52,7 +52,7 @@ function DrillTable({ type, rows }) {
         {rows.map(r => (
           <tr key={r.id} style={{ borderBottom: '1px solid var(--border)' }}>
             <td style={{ ...tdStyle, fontWeight: 500 }}>{r.name}</td>
-            <td style={tdStyle}>{ROLE_BADGE[r.role] ?? r.role}</td>
+            <td style={tdStyle}>{ACCESS_LEVEL_BADGE[r.access_level] ?? r.access_level}</td>
           </tr>
         ))}
       </tbody>
@@ -130,7 +130,7 @@ export default function Overview() {
     const today = new Date().toISOString().slice(0, 10)
     Promise.all([
       supabase.from('routes').select('id, service_code, name, journey_type').order('service_code'),
-      supabase.from('employees').select('id, name, role').order('name'),
+      supabase.from('employees').select('id, name, access_level').order('name'),
       supabase.from('vehicles').select('id, registration, vehicle_type, fuel_type').order('registration'),
       supabase.from('journeys')
         .select(`id, status, timetable:timetables(period, direction, route:routes(service_code)), driver:employees(name), vehicle:vehicles(registration)`)

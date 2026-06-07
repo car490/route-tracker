@@ -8,7 +8,7 @@ export function useCurrentEmployee(userId) {
     if (!userId) return
     supabase
       .from('employees')
-      .select('role, company_id, companies(name, logo_path)')
+      .select('access_level, company_id, companies(name, logo_path)')
       .eq('auth_user_id', userId)
       .single()
       .then(({ data }) => setEmployee(data))

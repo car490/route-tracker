@@ -54,8 +54,12 @@ create table employees (
   company_id      uuid        not null references companies(id) on delete cascade,
   auth_user_id    uuid        unique references auth.users(id) on delete set null,
   name            text        not null,
-  role            text        not null
-                    check (role in ('super_user', 'ops_manager', 'driver')),
+  access_level    text        not null
+                    check (access_level in ('super_user', 'ops_manager', 'driver')),
+  job_role        text        check (job_role  in ('DRIVER', 'OPS', 'OFFICE')),
+  status          text        not null default 'AVAILABLE'
+                    check (status in ('AVAILABLE', 'UNAVAILABLE')),
+  work_type       text        check (work_type in ('FTE', 'SPLITSHIFT', 'TEMP')),
   journey_types   text[]      not null default '{}',
   created_at      timestamptz not null default now()
 );
@@ -77,6 +81,23 @@ create table employee_contacts (
 create unique index employee_contacts_one_primary
   on employee_contacts (employee_id)
   where is_primary = true;
+
+
+-- ── Employee availability ─────────────────────────────────────────────────────
+-- One row per time window per working day.
+-- FTE: one row per day.  SPLITSHIFT: two rows per day (AM + PM window).
+-- day_of_week: 0 = Monday … 6 = Sunday (ISO week order).
+
+create table employee_availability (
+  id            uuid      primary key default gen_random_uuid(),
+  employee_id   uuid      not null references employees(id) on delete cascade,
+  day_of_week   smallint  not null check (day_of_week between 0 and 6),
+  window_start  time      not null,
+  window_end    time      not null,
+  check (window_end > window_start)
+);
+
+create index on employee_availability (employee_id);
 
 
 -- ── Vehicles ──────────────────────────────────────────────────────────────────
@@ -419,11 +440,11 @@ returns trigger
 language plpgsql
 as $$
 begin
-  if old.role = 'super_user' and (tg_op = 'DELETE' or new.role != 'super_user') then
+  if old.access_level = 'super_user' and (tg_op = 'DELETE' or new.access_level != 'super_user') then
     if (
       select count(*) from employees
       where company_id = old.company_id
-        and role = 'super_user'
+        and access_level = 'super_user'
         and id != old.id
     ) = 0 then
       raise exception 'A company must retain at least one super_user.';
@@ -554,7 +575,7 @@ create or replace function current_employee_role()
 returns text
 language sql stable security definer
 as $$
-  select role from employees where auth_user_id = auth.uid() limit 1
+  select access_level from employees where auth_user_id = auth.uid() limit 1
 $$;
 
 -- Used by anon RLS policies on journey_events and journey_stop_times.
@@ -707,9 +728,10 @@ create or replace view schedule_view as
 
 -- ── Row Level Security ────────────────────────────────────────────────────────
 
-alter table employee_contacts   enable row level security;
-alter table companies           enable row level security;
-alter table employees           enable row level security;
+alter table employee_contacts        enable row level security;
+alter table employee_availability    enable row level security;
+alter table companies                enable row level security;
+alter table employees                enable row level security;
 alter table vehicles            enable row level security;
 alter table stops               enable row level security;
 alter table routes              enable row level security;
@@ -909,6 +931,27 @@ create policy "company_employee_contacts" on employee_contacts
       join employees me on me.company_id = e.company_id
         and me.auth_user_id = auth.uid()
       where e.id = employee_contacts.employee_id
+    )
+  );
+
+
+-- Employee availability: same company scoping as employee_contacts
+create policy "company_employee_availability" on employee_availability
+  for all to authenticated
+  using (
+    exists (
+      select 1 from employees e
+      join employees me on me.company_id = e.company_id
+        and me.auth_user_id = auth.uid()
+      where e.id = employee_availability.employee_id
+    )
+  )
+  with check (
+    exists (
+      select 1 from employees e
+      join employees me on me.company_id = e.company_id
+        and me.auth_user_id = auth.uid()
+      where e.id = employee_availability.employee_id
     )
   );
 

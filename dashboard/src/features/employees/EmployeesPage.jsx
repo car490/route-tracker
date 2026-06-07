@@ -4,8 +4,15 @@ import { getCompanyId } from '../../shared/company'
 import Modal from '../../shared/components/Modal'
 import { useJourneyTypes } from '../../shared/hooks/useJourneyTypes'
 
-const ROLES = ['driver', 'ops_manager', 'super_user']
-const EMPTY_EMPLOYEE = { name: '', role: 'driver', journey_types: [] }
+const ACCESS_LEVELS = ['driver', 'ops_manager', 'super_user']
+const JOB_ROLES     = ['DRIVER', 'OPS', 'OFFICE']
+const WORK_TYPES    = ['FTE', 'SPLITSHIFT', 'TEMP']
+const DAYS          = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+const EMPTY_EMPLOYEE = {
+  name: '', access_level: 'driver', job_role: 'DRIVER',
+  status: 'AVAILABLE', work_type: 'FTE', journey_types: [],
+}
 const EMPTY_CONTACT_FORM = { type: 'phone', value: '' }
 
 // Accepts: 07700 900123, 07700900123, +447700900123, 01234 567890, etc.
@@ -14,43 +21,77 @@ function validateUkPhone(raw) {
   return /^(0[1-9][0-9]{9}|\+44[1-9][0-9]{9})$/.test(s)
 }
 
-// Normalise to +44XXXXXXXXXX
 function normalisePhone(raw) {
   const s = raw.replace(/[\s\-().]/g, '')
   return s.startsWith('0') ? '+44' + s.slice(1) : s
 }
 
-const roleBadge = r => {
-  if (r === 'super_user')  return <span className="badge badge-red">Super User</span>
-  if (r === 'ops_manager') return <span className="badge badge-blue">Ops Manager</span>
+const accessLevelBadge = lvl => {
+  if (lvl === 'super_user')  return <span className="badge badge-red">Super User</span>
+  if (lvl === 'ops_manager') return <span className="badge badge-blue">Ops Manager</span>
   return <span className="badge badge-gray">Driver</span>
 }
 
+const jobRoleBadge = r => {
+  if (r === 'DRIVER') return <span className="badge badge-blue">Driver</span>
+  if (r === 'OPS')    return <span className="badge badge-gray">Ops</span>
+  if (r === 'OFFICE') return <span className="badge badge-gray">Office</span>
+  return null
+}
+
+const statusBadge = s =>
+  s === 'AVAILABLE'
+    ? <span className="badge badge-green">Available</span>
+    : <span className="badge badge-red">Unavailable</span>
+
 function typeBadge(type) {
   return (
-    <span className={`badge ${type === 'email' ? 'badge-blue' : 'badge-gray'}`} style={{ fontSize: 10, marginRight: 6 }}>
+    <span className={`badge ${type === 'email' ? 'badge-blue' : 'badge-gray'}`}
+      style={{ fontSize: 10, marginRight: 6 }}>
       {type}
     </span>
   )
 }
 
+// Build availability state from DB rows: { [day]: [{start, end}, ...] }
+function rowsToAvail(rows) {
+  const avail = {}
+  for (const r of rows) {
+    if (!avail[r.day_of_week]) avail[r.day_of_week] = []
+    avail[r.day_of_week].push({
+      start: r.window_start.slice(0, 5),
+      end:   r.window_end.slice(0, 5),
+    })
+  }
+  return avail
+}
+
+const DEFAULT_AVAIL = {
+  0: [{ start: '07:00', end: '18:00' }],
+  1: [{ start: '07:00', end: '18:00' }],
+  2: [{ start: '07:00', end: '18:00' }],
+  3: [{ start: '07:00', end: '18:00' }],
+  4: [{ start: '07:00', end: '18:00' }],
+}
+
 export default function EmployeesPage() {
-  const [employees, setEmployees] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [modal, setModal] = useState(null)
-  const [form, setForm] = useState(EMPTY_EMPLOYEE)
-  const [contacts, setContacts] = useState([])
+  const [employees, setEmployees]     = useState([])
+  const [loading, setLoading]         = useState(true)
+  const [modal, setModal]             = useState(null)
+  const [form, setForm]               = useState(EMPTY_EMPLOYEE)
+  const [avail, setAvail]             = useState(DEFAULT_AVAIL)
+  const [contacts, setContacts]       = useState([])
   const [contactForm, setContactForm] = useState(EMPTY_CONTACT_FORM)
   const [contactError, setContactError] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const [saving, setSaving]           = useState(false)
+  const [error, setError]             = useState('')
   const { journeyTypes, loading: jtLoading } = useJourneyTypes()
 
   async function load() {
     setLoading(true)
     const { data } = await supabase
       .from('employees')
-      .select('*, contacts:employee_contacts(*)')
+      .select('*, contacts:employee_contacts(*), availability:employee_availability(*)')
       .order('name')
     setEmployees(data ?? [])
     setLoading(false)
@@ -60,6 +101,7 @@ export default function EmployeesPage() {
 
   function openAdd() {
     setForm(EMPTY_EMPLOYEE)
+    setAvail(DEFAULT_AVAIL)
     setContacts([])
     setContactForm(EMPTY_CONTACT_FORM)
     setContactError('')
@@ -68,7 +110,15 @@ export default function EmployeesPage() {
   }
 
   function openEdit(emp) {
-    setForm({ name: emp.name, role: emp.role, journey_types: emp.journey_types ?? [] })
+    setForm({
+      name:         emp.name,
+      access_level: emp.access_level,
+      job_role:     emp.job_role    ?? 'DRIVER',
+      status:       emp.status      ?? 'AVAILABLE',
+      work_type:    emp.work_type   ?? 'FTE',
+      journey_types: emp.journey_types ?? [],
+    })
+    setAvail(rowsToAvail(emp.availability ?? []))
     const sorted = [...(emp.contacts ?? [])].sort((a, b) => {
       if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1
       return new Date(a.created_at) - new Date(b.created_at)
@@ -79,6 +129,32 @@ export default function EmployeesPage() {
     setError('')
     setModal(emp)
   }
+
+  // ── Availability helpers ───────────────────────────────────────────────────
+
+  function toggleDay(day) {
+    setAvail(a => {
+      if (a[day]) { const n = { ...a }; delete n[day]; return n }
+      return { ...a, [day]: [{ start: '07:00', end: '18:00' }] }
+    })
+  }
+
+  function updateWindow(day, wi, field, val) {
+    setAvail(a => ({
+      ...a,
+      [day]: a[day].map((w, i) => i === wi ? { ...w, [field]: val } : w),
+    }))
+  }
+
+  function addSplitWindow(day) {
+    setAvail(a => ({ ...a, [day]: [...a[day], { start: '14:00', end: '18:00' }] }))
+  }
+
+  function removeSplitWindow(day) {
+    setAvail(a => ({ ...a, [day]: [a[day][0]] }))
+  }
+
+  // ── Contact helpers ────────────────────────────────────────────────────────
 
   function addContact() {
     setContactError('')
@@ -118,6 +194,8 @@ export default function EmployeesPage() {
     }))
   }
 
+  // ── Save ──────────────────────────────────────────────────────────────────
+
   async function handleSave(e) {
     e.preventDefault()
     if (form.journey_types.length === 0) {
@@ -130,10 +208,19 @@ export default function EmployeesPage() {
       const company_id = await getCompanyId()
       let employeeId
 
+      const employeePayload = {
+        name:          form.name,
+        access_level:  form.access_level,
+        job_role:      form.job_role,
+        status:        form.status,
+        work_type:     form.work_type,
+        journey_types: form.journey_types,
+      }
+
       if (modal === 'add') {
         const { data, error: err } = await supabase
           .from('employees')
-          .insert({ name: form.name, role: form.role, journey_types: form.journey_types, company_id })
+          .insert({ ...employeePayload, company_id })
           .select('id')
           .single()
         if (err) throw err
@@ -141,7 +228,7 @@ export default function EmployeesPage() {
       } else {
         const { error: err } = await supabase
           .from('employees')
-          .update({ name: form.name, role: form.role, journey_types: form.journey_types })
+          .update(employeePayload)
           .eq('id', modal.id)
         if (err) throw err
         employeeId = modal.id
@@ -157,10 +244,25 @@ export default function EmployeesPage() {
           .from('employee_contacts')
           .insert(contacts.map(c => ({
             employee_id: employeeId,
-            type: c.type,
-            value: c.value,
-            is_primary: c.is_primary,
+            type:        c.type,
+            value:       c.value,
+            is_primary:  c.is_primary,
           })))
+        if (err) throw err
+      }
+
+      // Availability: delete-then-reinsert
+      await supabase.from('employee_availability').delete().eq('employee_id', employeeId)
+      const availRows = Object.entries(avail).flatMap(([day, windows]) =>
+        windows.map(w => ({
+          employee_id:  employeeId,
+          day_of_week:  parseInt(day),
+          window_start: w.start,
+          window_end:   w.end,
+        }))
+      )
+      if (availRows.length > 0) {
+        const { error: err } = await supabase.from('employee_availability').insert(availRows)
         if (err) throw err
       }
 
@@ -201,10 +303,11 @@ export default function EmployeesPage() {
               <thead>
                 <tr>
                   <th>Name</th>
-                  <th>Role</th>
-                  <th>Journey Types</th>
+                  <th>Access Level</th>
+                  <th>Job Role</th>
+                  <th>Status</th>
+                  <th>Work Type</th>
                   <th>Primary Contact</th>
-                  <th>Added</th>
                   <th></th>
                 </tr>
               </thead>
@@ -214,22 +317,12 @@ export default function EmployeesPage() {
                   return (
                     <tr key={emp.id}>
                       <td style={{ fontWeight: 500 }}>{emp.name}</td>
-                      <td>{roleBadge(emp.role)}</td>
-                      <td>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                          {(emp.journey_types ?? []).length === 0
-                            ? <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>—</span>
-                            : (emp.journey_types ?? []).map(jt => (
-                              <span key={jt} className="badge badge-gray" style={{ fontSize: 11 }}>{jt}</span>
-                            ))
-                          }
-                        </div>
-                      </td>
+                      <td>{accessLevelBadge(emp.access_level)}</td>
+                      <td>{emp.job_role ? jobRoleBadge(emp.job_role) : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+                      <td>{statusBadge(emp.status ?? 'AVAILABLE')}</td>
+                      <td style={{ color: 'var(--text-muted)', fontSize: 13 }}>{emp.work_type ?? '—'}</td>
                       <td style={{ color: 'var(--text-muted)' }}>
                         {pc ? <span>{typeBadge(pc.type)}{pc.value}</span> : '—'}
-                      </td>
-                      <td style={{ color: 'var(--text-muted)' }}>
-                        {new Date(emp.created_at).toLocaleDateString('en-GB')}
                       </td>
                       <td>
                         <div className="td-actions">
@@ -262,6 +355,7 @@ export default function EmployeesPage() {
           {error && <div className="error-msg">{error}</div>}
 
           <form onSubmit={handleSave}>
+            {/* Name */}
             <div className="form-group">
               <label className="form-label">Name</label>
               <input
@@ -273,22 +367,76 @@ export default function EmployeesPage() {
                 autoFocus
               />
             </div>
-            <div className="form-group">
-              <label className="form-label">Role</label>
-              <select
-                name="role"
-                className="form-select"
-                value={form.role}
-                onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
-              >
-                {ROLES.map(r => (
-                  <option key={r} value={r}>{r.replace('_', ' ')}</option>
-                ))}
-              </select>
+
+            {/* Three-column row: Access Level / Job Role / Work Type */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Access Level</label>
+                <select
+                  className="form-select"
+                  value={form.access_level}
+                  onChange={e => setForm(f => ({ ...f, access_level: e.target.value }))}
+                >
+                  {ACCESS_LEVELS.map(l => (
+                    <option key={l} value={l}>{l.replace(/_/g, ' ')}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Job Role</label>
+                <select
+                  className="form-select"
+                  value={form.job_role}
+                  onChange={e => setForm(f => ({ ...f, job_role: e.target.value }))}
+                >
+                  {JOB_ROLES.map(r => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Work Type</label>
+                <select
+                  className="form-select"
+                  value={form.work_type}
+                  onChange={e => setForm(f => ({ ...f, work_type: e.target.value }))}
+                >
+                  {WORK_TYPES.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
             </div>
+
+            {/* Status */}
+            <div className="form-group" style={{ marginTop: 12 }}>
+              <label className="form-label">Status</label>
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                {['AVAILABLE', 'UNAVAILABLE'].map(s => {
+                  const on = form.status === s
+                  return (
+                    <button key={s} type="button"
+                      onClick={() => setForm(f => ({ ...f, status: s }))}
+                      style={{
+                        padding: '5px 14px', fontSize: 13, borderRadius: 6, cursor: 'pointer',
+                        fontFamily: 'inherit',
+                        border: `1px solid ${on ? (s === 'AVAILABLE' ? 'var(--success)' : 'var(--danger)') : 'var(--border)'}`,
+                        background: on ? (s === 'AVAILABLE' ? 'rgba(77,184,72,0.12)' : 'rgba(220,53,69,0.12)') : 'transparent',
+                        color: on ? (s === 'AVAILABLE' ? 'var(--success)' : 'var(--danger)') : 'var(--text-muted)',
+                        fontWeight: on ? 600 : 400,
+                      }}
+                    >{s === 'AVAILABLE' ? 'Available' : 'Unavailable'}</button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Journey Types */}
             <div className="form-group">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                <label className="form-label" style={{ marginBottom: 0 }}>Journey Types <span style={{ color: 'var(--danger)' }}>*</span></label>
+                <label className="form-label" style={{ marginBottom: 0 }}>
+                  Journey Types <span style={{ color: 'var(--danger)' }}>*</span>
+                </label>
                 {!jtLoading && journeyTypes.length > 0 && (() => {
                   const allSelected = journeyTypes.every(jt => form.journey_types.includes(jt))
                   return (
@@ -325,7 +473,68 @@ export default function EmployeesPage() {
             </div>
           </form>
 
+          {/* Working Hours */}
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 4 }}>
+            <div className="form-label" style={{ marginBottom: 10 }}>Working Hours</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {DAYS.map((day, i) => {
+                const windows = avail[i]
+                const active  = !!windows && windows.length > 0
+                const isSplit = form.work_type === 'SPLITSHIFT'
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, width: 52, paddingTop: 6, cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={active}
+                        onChange={() => toggleDay(i)}
+                        style={{ accentColor: 'var(--navy-brand)' }}
+                      />
+                      <span style={{ fontSize: 13, fontWeight: 500 }}>{day}</span>
+                    </label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {active ? windows.map((w, wi) => (
+                        <div key={wi} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <input
+                            type="time"
+                            value={w.start}
+                            onChange={e => updateWindow(i, wi, 'start', e.target.value)}
+                            className="form-input"
+                            style={{ width: 100, padding: '4px 8px' }}
+                          />
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>to</span>
+                          <input
+                            type="time"
+                            value={w.end}
+                            onChange={e => updateWindow(i, wi, 'end', e.target.value)}
+                            className="form-input"
+                            style={{ width: 100, padding: '4px 8px' }}
+                          />
+                          {wi === 0 && isSplit && windows.length === 1 && (
+                            <button type="button" onClick={() => addSplitWindow(i)}
+                              style={{ fontSize: 11, color: 'var(--navy-brand)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 2px', whiteSpace: 'nowrap' }}>
+                              + split
+                            </button>
+                          )}
+                          {wi === 1 && (
+                            <button type="button" onClick={() => removeSplitWindow(i)}
+                              style={{ fontSize: 11, color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 2px' }}>
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      )) : (
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: '30px' }}>Not working</span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Contact Methods */}
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 16 }}>
             <div className="form-label" style={{ marginBottom: 10 }}>Contact Methods</div>
 
             {contacts.length === 0 ? (
@@ -335,39 +544,24 @@ export default function EmployeesPage() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
                 {contacts.map((c, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '7px 10px',
-                      borderRadius: 6,
-                      background: 'var(--bg)',
-                      border: c.is_primary
-                        ? '1px solid rgba(77,184,72,0.45)'
-                        : '1px solid var(--border)',
-                    }}
-                  >
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '7px 10px', borderRadius: 6, background: 'var(--bg)',
+                    border: c.is_primary ? '1px solid rgba(77,184,72,0.45)' : '1px solid var(--border)',
+                  }}>
                     {typeBadge(c.type)}
                     <span style={{ flex: 1, fontSize: 13 }}>{c.value}</span>
                     {c.is_primary
                       ? <span className="badge badge-green" style={{ fontSize: 10 }}>Primary</span>
                       : (
-                        <button
-                          className="btn btn-ghost btn-sm"
-                          style={{ fontSize: 11, padding: '2px 8px' }}
-                          onClick={() => setPrimary(i)}
-                        >
+                        <button className="btn btn-ghost btn-sm" style={{ fontSize: 11, padding: '2px 8px' }}
+                          onClick={() => setPrimary(i)}>
                           Set Primary
                         </button>
                       )
                     }
-                    <button
-                      className="btn btn-danger btn-sm"
-                      style={{ fontSize: 11, padding: '2px 8px' }}
-                      onClick={() => removeContact(i)}
-                    >
+                    <button className="btn btn-danger btn-sm" style={{ fontSize: 11, padding: '2px 8px' }}
+                      onClick={() => removeContact(i)}>
                       Remove
                     </button>
                   </div>
@@ -380,7 +574,6 @@ export default function EmployeesPage() {
             )}
             <div style={{ display: 'flex', gap: 6 }}>
               <select
-                name="contact_type"
                 className="form-select"
                 value={contactForm.type}
                 onChange={e => setContactForm({ type: e.target.value, value: '' })}
@@ -390,19 +583,14 @@ export default function EmployeesPage() {
                 <option value="email">Email</option>
               </select>
               <input
-                name="contact_value"
                 className="form-input"
                 value={contactForm.value}
                 onChange={e => setContactForm(f => ({ ...f, value: e.target.value }))}
                 placeholder={contactForm.type === 'phone' ? '07700 900123' : 'driver@example.com'}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addContact() } }}
               />
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={addContact}
-                style={{ flexShrink: 0, padding: '9px 14px' }}
-              >
+              <button type="button" className="btn btn-ghost btn-sm"
+                onClick={addContact} style={{ flexShrink: 0, padding: '9px 14px' }}>
                 Add
               </button>
             </div>

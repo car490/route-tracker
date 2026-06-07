@@ -38,7 +38,7 @@ export default function Layout({ session }) {
   const [logoPathOverride, setLogoPathOverride] = useState(undefined)
 
   const employee = useCurrentEmployee(session.user.id)
-  const canEditLogo = employee && CAN_EDIT_LOGO.includes(employee.role)
+  const canEditLogo = employee && CAN_EDIT_LOGO.includes(employee.access_level)
 
   // Use override after upload/delete; fall back to DB value while loading
   const logoPath = logoPathOverride !== undefined
@@ -127,8 +127,8 @@ export default function Layout({ session }) {
         </div>
         <div className="sidebar-footer">
           <div className="sidebar-user">{session.user.email}</div>
-          {employee?.role && (
-            <div className="sidebar-role">{employee.role.replace('_', ' ')}</div>
+          {employee?.access_level && (
+            <div className="sidebar-role">{employee.access_level.replace(/_/g, ' ')}</div>
           )}
           <button className="btn-signout" onClick={() => supabase.auth.signOut()}>
             Sign out
