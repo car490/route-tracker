@@ -183,7 +183,7 @@ create table timetables (
   route_id        uuid        not null references routes(id) on delete cascade,
   name            text        not null,
   direction       text        not null
-                    check (direction in ('Outbound', 'Inbound', 'Circular')),
+                    check (direction in ('Outbound', 'Inbound', 'Circular', 'Morning', 'Afternoon')),
   created_at      timestamptz not null default now()
 );
 
