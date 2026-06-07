@@ -46,7 +46,7 @@ export default function RoutesPage() {
         .from('timetables')
         .select('*')
         .in('route_id', rows.map(r => r.id))
-        .order('period')
+        .order('name')
       const grouped = {}
       for (const t of tData ?? []) {
         if (!grouped[t.route_id]) grouped[t.route_id] = []
