@@ -45,6 +45,60 @@ create table companies (
 );
 
 
+-- ── Drivers' hours rules ──────────────────────────────────────────────────────
+-- Static reference table — values are set by regulation, not by the operator.
+-- All time values in minutes. NULL = no statutory limit / not applicable to this regime.
+-- Must be defined before employees as employees.hours_rule references it.
+
+create table drivers_hours_rules (
+  id                           text     primary key,
+  label                        text     not null,
+  max_daily_driving_mins       smallint,
+  max_daily_duty_spread_mins   smallint,
+  max_continuous_driving_mins  smallint,
+  min_break_mins               smallint,
+  break_can_be_split           boolean  not null default false,
+  min_split_break_mins         smallint,
+  min_daily_rest_mins          smallint,
+  max_weekly_driving_mins      smallint,
+  min_weekly_rest_mins         smallint,
+  max_fortnightly_driving_mins smallint,
+  notes                        text
+);
+
+grant select on drivers_hours_rules to anon;
+grant select on drivers_hours_rules to authenticated;
+
+alter table drivers_hours_rules enable row level security;
+
+create policy "anon_read" on drivers_hours_rules for select to anon using (true);
+create policy "auth_read" on drivers_hours_rules for select to authenticated using (true);
+
+insert into drivers_hours_rules
+  (id, label,
+   max_daily_driving_mins, max_daily_duty_spread_mins,
+   max_continuous_driving_mins, min_break_mins, break_can_be_split, min_split_break_mins,
+   min_daily_rest_mins,
+   max_weekly_driving_mins, min_weekly_rest_mins, max_fortnightly_driving_mins,
+   notes)
+values
+(
+  'DOMESTIC_GB', 'Domestic GB (PSV)',
+  600, 960, 330, 30, true, 15, 600, null, null, null,
+  'Applies to PSV operations within Great Britain. Break may be taken as two separate periods of at least 15 minutes each.'
+),
+(
+  'AETR', 'AETR (International)',
+  540, null, 270, 45, true, 15, 660, 3360, 2700, 5400,
+  'Applies to international passenger transport to/from AETR signatory countries. Daily driving extendable to 600 mins twice per week. Daily rest reducible to 540 mins up to 3 times between weekly rests.'
+),
+(
+  'EXEMPT', 'Exempt (Community/Permit)',
+  null, null, null, null, false, null, null, null, null, null,
+  'S19/S22 permit services where drivers are not required to hold PCV entitlement. Statutory drivers hours rules do not apply.'
+);
+
+
 -- ── Employees ─────────────────────────────────────────────────────────────────
 -- Covers all roles: drivers (no dashboard login) and ops/admin (auth_user_id set).
 -- Platform-level admin (us) operates via the Supabase service role, not this table.
@@ -60,6 +114,8 @@ create table employees (
   status          text        not null default 'AVAILABLE'
                     check (status in ('AVAILABLE', 'UNAVAILABLE')),
   work_type       text        check (work_type in ('FTE', 'SPLITSHIFT', 'TEMP')),
+  hours_rule      text        not null default 'DOMESTIC_GB'
+                    references drivers_hours_rules(id),
   journey_types   text[]      not null default '{}',
   created_at      timestamptz not null default now()
 );

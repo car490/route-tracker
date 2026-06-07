@@ -11,7 +11,7 @@ const DAYS          = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 const EMPTY_EMPLOYEE = {
   name: '', access_level: 'driver', job_role: 'DRIVER',
-  status: 'AVAILABLE', work_type: 'FTE', journey_types: [],
+  status: 'AVAILABLE', work_type: 'FTE', hours_rule: 'DOMESTIC_GB', journey_types: [],
 }
 const EMPTY_CONTACT_FORM = { type: 'phone', value: '' }
 
@@ -76,6 +76,7 @@ const DEFAULT_AVAIL = {
 
 export default function EmployeesPage() {
   const [employees, setEmployees]     = useState([])
+  const [hoursRules, setHoursRules]   = useState([])
   const [loading, setLoading]         = useState(true)
   const [modal, setModal]             = useState(null)
   const [form, setForm]               = useState(EMPTY_EMPLOYEE)
@@ -97,7 +98,11 @@ export default function EmployeesPage() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    supabase.from('drivers_hours_rules').select('id, label').order('id')
+      .then(({ data }) => setHoursRules(data ?? []))
+  }, [])
 
   function openAdd() {
     setForm(EMPTY_EMPLOYEE)
@@ -116,6 +121,7 @@ export default function EmployeesPage() {
       job_role:     emp.job_role    ?? 'DRIVER',
       status:       emp.status      ?? 'AVAILABLE',
       work_type:    emp.work_type   ?? 'FTE',
+      hours_rule:   emp.hours_rule  ?? 'DOMESTIC_GB',
       journey_types: emp.journey_types ?? [],
     })
     setAvail(rowsToAvail(emp.availability ?? []))
@@ -214,6 +220,7 @@ export default function EmployeesPage() {
         job_role:      form.job_role,
         status:        form.status,
         work_type:     form.work_type,
+        hours_rule:    form.hours_rule,
         journey_types: form.journey_types,
       }
 
@@ -408,8 +415,22 @@ export default function EmployeesPage() {
               </div>
             </div>
 
-            {/* Status */}
+            {/* Hours Regime */}
             <div className="form-group" style={{ marginTop: 12 }}>
+              <label className="form-label">Drivers' Hours Regime</label>
+              <select
+                className="form-select"
+                value={form.hours_rule}
+                onChange={e => setForm(f => ({ ...f, hours_rule: e.target.value }))}
+              >
+                {hoursRules.map(r => (
+                  <option key={r.id} value={r.id}>{r.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Status */}
+            <div className="form-group" style={{ marginTop: 0 }}>
               <label className="form-label">Status</label>
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                 {['AVAILABLE', 'UNAVAILABLE'].map(s => {
