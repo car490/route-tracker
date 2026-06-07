@@ -1,0 +1,29 @@
+version: '3.9'
+
+services:
+  graphhopper:
+    image: ghcr.io/graphhopper/graphhopper:latest
+    container_name: graphhopper
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8989:8989"
+    volumes:
+      - ./graphhopper/config.yml:/config/config.yml:ro
+      - ./graphhopper/data:/data
+    command: ["server", "/config/config.yml"]
+
+  # Optional reverse proxy stub (replace with your preferred setup)
+  # proxy:
+  #   image: caddy:2
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+  #     - caddy_data:/data
+  #     - caddy_config:/config
+
+# volumes:
+#   caddy_data:
+#   caddy_config:

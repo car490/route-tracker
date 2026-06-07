@@ -3,9 +3,22 @@ import react from '@vitejs/plugin-react'
 import { createHmac } from 'crypto'
 import { buildGHBody, normaliseGHResponse } from './api/_graphhopper.js'
 
+function firstNonEmpty(...values) {
+  return values.find(v => typeof v === 'string' && v.trim().length > 0)
+}
+
+function firstNonEmptyEntry(candidates) {
+  for (const [key, value] of candidates) {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return { key, value: value.trim() }
+    }
+  }
+  return null
+}
+
 // Local-dev middleware: handles /api/directions when GRAPHHOPPER_URL is set.
 // In production the equivalent logic runs in dashboard/api/directions.js (Vercel).
-function localDirectionsApi(ghBase) {
+function localDirectionsApi(ghBase, ghProfile) {
   if (!ghBase) return { name: 'local-directions-api' }
 
   return {
@@ -28,7 +41,7 @@ function localDirectionsApi(ghBase) {
             const upstream = await fetch(`${ghBase}/route`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(buildGHBody(coordinates, vehicle)),
+              body: JSON.stringify(buildGHBody(coordinates, vehicle, ghProfile)),
               signal: AbortSignal.timeout(15000),
             })
 
@@ -50,6 +63,88 @@ function localDirectionsApi(ghBase) {
             res.end(JSON.stringify({ error: e.message }))
           }
         })
+      })
+    },
+  }
+}
+
+function localDirectionsDiagnosticsApi(env) {
+  return {
+    name: 'local-directions-diagnostics-api',
+    configureServer(server) {
+      server.middlewares.use('/api/directions-diagnostics', async (req, res) => {
+        if (req.method !== 'GET') {
+          res.statusCode = 405
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ error: 'Method not allowed' }))
+          return
+        }
+
+        const urlEntry = firstNonEmptyEntry([
+          ['GRAPHHOPPER_URL', env.GRAPHHOPPER_URL],
+          ['GH_URL', env.GH_URL],
+          ['GRAPHHOPPER_API_URL', env.GRAPHHOPPER_API_URL],
+          ['VITE_GRAPHHOPPER_URL', env.VITE_GRAPHHOPPER_URL],
+          ['VITE_GH_URL', env.VITE_GH_URL],
+        ])
+
+        const profileEntry = firstNonEmptyEntry([
+          ['GRAPHHOPPER_PROFILE', env.GRAPHHOPPER_PROFILE],
+          ['GH_PROFILE', env.GH_PROFILE],
+          ['VITE_GRAPHHOPPER_PROFILE', env.VITE_GRAPHHOPPER_PROFILE],
+          ['VITE_GH_PROFILE', env.VITE_GH_PROFILE],
+        ])
+
+        const profile = profileEntry?.value ?? 'pcv'
+        let urlHost = null
+        if (urlEntry?.value) {
+          try {
+            urlHost = new URL(urlEntry.value).host
+          } catch {
+            urlHost = '(invalid URL)'
+          }
+        }
+
+        let health = {
+          attempted: false,
+          ok: false,
+          status: null,
+          error: null,
+        }
+
+        if (urlEntry?.value) {
+          health.attempted = true
+          try {
+            const upstream = await fetch(`${urlEntry.value}/route`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                points: [[-0.1, 51.5], [-0.12, 51.51]],
+                profile,
+                points_encoded: false,
+                instructions: false,
+              }),
+              signal: AbortSignal.timeout(5000),
+            })
+            health.ok = upstream.ok
+            health.status = upstream.status
+          } catch (err) {
+            health.error = err?.message ?? 'Unknown probe error'
+          }
+        }
+
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify({
+          graphhopper: {
+            urlConfigured: Boolean(urlEntry),
+            urlSource: urlEntry?.key ?? null,
+            urlHost,
+            profile,
+            profileSource: profileEntry?.key ?? 'default',
+            health,
+          },
+        }))
       })
     },
   }
@@ -188,10 +283,24 @@ function localSendDutyEmailApi(resendApiKey, resendFrom) {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, import.meta.dirname, '')
+  const ghBase = firstNonEmpty(
+    env.GRAPHHOPPER_URL,
+    env.GH_URL,
+    env.GRAPHHOPPER_API_URL,
+    env.VITE_GRAPHHOPPER_URL,
+    env.VITE_GH_URL,
+  )
+  const ghProfile = firstNonEmpty(
+    env.GRAPHHOPPER_PROFILE,
+    env.GH_PROFILE,
+    env.VITE_GRAPHHOPPER_PROFILE,
+    env.VITE_GH_PROFILE,
+  ) ?? 'pcv'
   return {
     plugins: [
       react(),
-      localDirectionsApi(env.GRAPHHOPPER_URL),
+      localDirectionsApi(ghBase, ghProfile),
+      localDirectionsDiagnosticsApi(env),
       localSignTokenApi(env.SUPABASE_JWT_SECRET),
       localSendDutyEmailApi(env.RESEND_API_KEY, env.RESEND_FROM),
     ],

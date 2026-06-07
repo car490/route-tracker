@@ -5,7 +5,7 @@ const PCV_SPEED_RULES = [
   { if: 'true',                                               limit_to: 32 },
 ]
 
-export function buildGHBody(coordinates, vehicle) {
+export function buildGHBody(coordinates, vehicle, profile = 'pcv') {
   const priority = [{ if: 'true', multiply_by: '1' }]
   if (vehicle?.height) priority.push({ if: `max_height < ${vehicle.height} && max_height > 0`, multiply_by: '0' })
   if (vehicle?.width)  priority.push({ if: `max_width  < ${vehicle.width}  && max_width  > 0`, multiply_by: '0' })
@@ -13,7 +13,7 @@ export function buildGHBody(coordinates, vehicle) {
 
   return {
     points: coordinates,
-    profile: 'car',
+    profile,
     points_encoded: false,
     instructions: false,
   }
