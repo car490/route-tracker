@@ -34,12 +34,11 @@ const readline = require('readline')
 const SUPABASE_URL     = process.env.SUPABASE_URL     || 'https://nwhayupsvcelyiwltdqo.supabase.co'
 const SUPABASE_KEY     = process.env.SUPABASE_SERVICE_KEY
 
-// ATCO prefixes to keep. All Lincolnshire sub-areas start with "26":
-//   260 South Holland  263 East Lindsey   264 City of Lincoln
-//   265 North Kesteven 266 South Kesteven 267 West Lindsey
-//   268 North Lincolnshire UA             269 NE Lincolnshire UA
-// Add other 2-digit county prefixes here if routes expand beyond Lincolnshire.
-const ATCO_PREFIXES = ['26']
+// Geographic bounding box — keeps all active bus stops within this lat/lon rectangle.
+// ATCO area codes don't align predictably with county boundaries so we filter by
+// coordinates instead. This box covers Lincolnshire + a small margin on all sides.
+// Widen it if routes expand into neighbouring counties.
+const BBOX = { latMin: 52.65, latMax: 53.75, lonMin: -1.0, lonMax: 0.5 }
 
 const BUS_STOP_TYPES = new Set(['BCT', 'BCS', 'BCQ', 'BCP'])
 
@@ -132,14 +131,15 @@ function streamNaptanCsv() {
         const status   = (row['Status'] || '').toLowerCase()
         const stopType = row['StopType'] || ''
 
-        // Filter: correct area, active, bus stop type
-        if (!ATCO_PREFIXES.some(p => atco.startsWith(p))) { skipped++; return }
+        // Filter: active bus stop type first (cheap)
         if (status !== 'active') { skipped++; return }
         if (!BUS_STOP_TYPES.has(stopType)) { skipped++; return }
 
+        // Filter: within geographic bounding box
         const lat = parseFloat(row['Latitude'])
         const lon = parseFloat(row['Longitude'])
         if (!lat || !lon) { skipped++; return }
+        if (lat < BBOX.latMin || lat > BBOX.latMax || lon < BBOX.lonMin || lon > BBOX.lonMax) { skipped++; return }
 
         stops.push({
           atco_code:    atco,
