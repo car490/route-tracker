@@ -210,6 +210,29 @@ create table stops (
 );
 
 
+-- ── NAPTAN reference data ─────────────────────────────────────────────────────
+-- Raw NAPTAN bus stop data, updated weekly via supabase/scripts/import-naptan.js.
+-- Global read-only reference — separate from the operational stops table.
+-- The route planner queries naptan_near_point() after pin-drop/address selection.
+
+create table naptan_stops (
+  atco_code     text        primary key,
+  naptan_code   text,
+  common_name   text        not null,
+  locality_name text,
+  street        text,
+  indicator     text,
+  bearing       text,
+  lat           float8      not null,
+  lon           float8      not null,
+  stop_type     text        not null default 'BCT',
+  status        text        not null default 'active',
+  updated_at    timestamptz not null default now()
+);
+
+create index naptan_stops_coords_idx on naptan_stops (lat, lon);
+
+
 -- ── Journey types lookup ──────────────────────────────────────────────────────
 -- Source of truth for valid journey type values. Replaces hardcoded CHECK constraints.
 
@@ -737,6 +760,57 @@ $function$;
 
 grant execute on function get_duty_card(uuid[]) to anon;
 
+
+-- ── naptan_near_point ─────────────────────────────────────────────────────────
+-- Returns active NAPTAN bus stops within p_radius_m metres of a coordinate.
+-- Bounding-box pre-filter + exact Haversine check; no PostGIS required.
+
+create or replace function naptan_near_point(
+  p_lat      float8,
+  p_lon      float8,
+  p_radius_m float8 default 5
+)
+returns table (
+  atco_code     text,
+  common_name   text,
+  locality_name text,
+  indicator     text,
+  lat           float8,
+  lon           float8,
+  distance_m    float8
+)
+language sql stable security definer
+as $$
+  with candidates as (
+    select
+      n.atco_code,
+      n.common_name,
+      n.locality_name,
+      n.indicator,
+      n.lat,
+      n.lon,
+      6371000.0 * 2 * asin(sqrt(
+        power(sin(radians((n.lat  - p_lat) / 2)), 2) +
+        cos(radians(p_lat)) * cos(radians(n.lat)) *
+        power(sin(radians((n.lon - p_lon) / 2)), 2)
+      )) as distance_m
+    from naptan_stops n
+    where n.status = 'active'
+      and n.lat between p_lat - (p_radius_m / 111320.0)
+                    and p_lat + (p_radius_m / 111320.0)
+      and n.lon between p_lon - (p_radius_m / (111320.0 * cos(radians(p_lat))))
+                    and p_lon + (p_radius_m / (111320.0 * cos(radians(p_lat))))
+  )
+  select atco_code, common_name, locality_name, indicator, lat, lon, distance_m
+  from candidates
+  where distance_m <= p_radius_m
+  order by distance_m
+  limit 5;
+$$;
+
+grant execute on function naptan_near_point(float8, float8, float8) to anon, authenticated;
+
+
 -- ── Views ─────────────────────────────────────────────────────────────────────
 -- Returns one row per (departure × stop).
 -- scheduled_time is computed as departure_time + offset for the departure's timing_profile.
@@ -784,6 +858,7 @@ create or replace view schedule_view as
 
 -- ── Row Level Security ────────────────────────────────────────────────────────
 
+alter table naptan_stops             enable row level security;
 alter table employee_contacts        enable row level security;
 alter table employee_availability    enable row level security;
 alter table companies                enable row level security;
@@ -798,6 +873,9 @@ alter table journeys            enable row level security;
 alter table journey_waypoints   enable row level security;
 alter table journey_events      enable row level security;
 alter table journey_stop_times  enable row level security;
+
+-- NAPTAN reference data: publicly readable, no writes via API
+create policy "naptan_public_read" on naptan_stops for select using (true);
 
 -- Anon: read-only access to schedule data (driver PWA — no login required)
 create policy "anon_read" on stops           for select to anon using (true);

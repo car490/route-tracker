@@ -65,6 +65,10 @@ export default function RoutePlannerPage() {
   const [searchResults, setSearchResults] = useState([])
   const [searching,     setSearching]     = useState(false)
 
+  // NAPTAN proximity suggestion — set when a pin drop or address result lands within 5m of a known bus stop
+  const [naptanPending,    setNaptanPending]    = useState(null)   // { original, naptan }
+  const [checkingNaptan,   setCheckingNaptan]   = useState(false)
+
   // Stop name inline editing
   const [editStopId,   setEditStopId]   = useState(null)
   const [editStopName, setEditStopName] = useState('')
@@ -253,21 +257,46 @@ export default function RoutePlannerPage() {
     return () => { cancelled = true; clearTimeout(timer) }
   }, [searchQuery])
 
-  function handleAddStop(result) {
+  function commitStop(name, lat, lon, stopId = null, naptanCode = null) {
     setStops(prev => [...prev, {
       _id: crypto.randomUUID(),
-      stop_id: result.stop_id ?? null,
-      name: result.name, lat: result.lat, lon: result.lon,
+      stop_id:     stopId,
+      naptan_code: naptanCode,
+      name, lat, lon,
       stop_type: 'timing_point', time_std: '',
     }])
+  }
+
+  async function checkNaptanThenCommit(name, lat, lon) {
+    setCheckingNaptan(true)
+    try {
+      const { data } = await supabase.rpc('naptan_near_point', { p_lat: lat, p_lon: lon, p_radius_m: 5 })
+      const nearest = data?.[0] ?? null
+      if (nearest) {
+        setNaptanPending({ original: { name, lat, lon }, naptan: nearest })
+      } else {
+        commitStop(name, lat, lon)
+      }
+    } catch {
+      commitStop(name, lat, lon)
+    } finally {
+      setCheckingNaptan(false)
+    }
+  }
+
+  function handleAddStop(result) {
     setShowSearch(false); setSearchQuery(''); setSearchResults([])
+    if (result.stop_id) {
+      // Already a known DB stop — skip NAPTAN check
+      commitStop(result.name, result.lat, result.lon, result.stop_id)
+    } else {
+      // Address result — check for a nearby NAPTAN bus stop
+      checkNaptanThenCommit(result.name, result.lat, result.lon)
+    }
   }
 
   function handleMapPinDrop({ name, lat, lon }) {
-    setStops(prev => [...prev, {
-      _id: crypto.randomUUID(), stop_id: null,
-      name, lat, lon, stop_type: 'timing_point', time_std: '',
-    }])
+    checkNaptanThenCommit(name, lat, lon)
   }
 
   function closeSearch() {
@@ -387,10 +416,25 @@ export default function RoutePlannerPage() {
       const s = stopsToSave[i]
       let stopId = s.stop_id
       if (!stopId) {
-        const { data, error } = await supabase
-          .from('stops').insert({ name: s.name, lat: s.lat, lon: s.lon }).select('id').single()
-        if (error) { setSaveError(`Stop "${s.name}": ${error.message}`); setSaving(false); return }
-        stopId = data.id
+        if (s.naptan_code) {
+          // Reuse existing stops row if this NAPTAN stop was already created
+          const { data: existing } = await supabase
+            .from('stops').select('id').eq('naptan_code', s.naptan_code).maybeSingle()
+          if (existing) {
+            stopId = existing.id
+          } else {
+            const { data, error } = await supabase
+              .from('stops').insert({ name: s.name, lat: s.lat, lon: s.lon, naptan_code: s.naptan_code })
+              .select('id').single()
+            if (error) { setSaveError(`Stop "${s.name}": ${error.message}`); setSaving(false); return }
+            stopId = data.id
+          }
+        } else {
+          const { data, error } = await supabase
+            .from('stops').insert({ name: s.name, lat: s.lat, lon: s.lon }).select('id').single()
+          if (error) { setSaveError(`Stop "${s.name}": ${error.message}`); setSaving(false); return }
+          stopId = data.id
+        }
       }
       const isTiming = s.stop_type === 'timing_point'
       stopRows.push({
@@ -799,7 +843,56 @@ export default function RoutePlannerPage() {
 
             {/* Add stop row */}
             <div style={{ marginTop: stops.length ? 8 : 0 }}>
-              {!showSearch && (
+
+              {/* NAPTAN proximity suggestion */}
+              {checkingNaptan && (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '6px 0 4px' }}>
+                  Checking for nearby bus stops…
+                </div>
+              )}
+              {naptanPending && (
+                <div style={{
+                  background: 'var(--bg)', border: '1px solid var(--navy-brand)',
+                  borderRadius: 6, padding: 8, marginBottom: 8,
+                }}>
+                  <div style={{
+                    fontSize: 10, fontFamily: 'Oswald', fontWeight: 700,
+                    color: 'var(--navy-brand)', textTransform: 'uppercase',
+                    letterSpacing: '0.06em', marginBottom: 4,
+                  }}>
+                    Bus stop {Math.round(naptanPending.naptan.distance_m)}m away
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.3, marginBottom: 2 }}>
+                    {naptanPending.naptan.common_name}
+                  </div>
+                  {(naptanPending.naptan.indicator || naptanPending.naptan.locality_name) && (
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
+                      {[naptanPending.naptan.indicator, naptanPending.naptan.locality_name].filter(Boolean).join(', ')}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button className="btn btn-primary btn-sm" style={{ flex: 1 }}
+                      onClick={() => {
+                        const { naptan } = naptanPending
+                        const stopName = naptan.indicator
+                          ? `${naptan.common_name} (${naptan.indicator})`
+                          : naptan.common_name
+                        commitStop(stopName, naptan.lat, naptan.lon, null, naptan.atco_code)
+                        setNaptanPending(null)
+                      }}
+                    >Use bus stop</button>
+                    <button className="btn btn-ghost btn-sm" style={{ flex: 1 }}
+                      onClick={() => {
+                        const { original } = naptanPending
+                        commitStop(original.name, original.lat, original.lon)
+                        setNaptanPending(null)
+                      }}
+                    >Use location</button>
+                  </div>
+                </div>
+              )}
+
+              {!showSearch && !naptanPending && !checkingNaptan && (
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button
                     className={`btn btn-sm ${pinDropMode ? 'btn-primary' : 'btn-ghost'}`}
