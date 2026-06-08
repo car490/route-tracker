@@ -34,15 +34,15 @@ const readline = require('readline')
 const SUPABASE_URL     = process.env.SUPABASE_URL     || 'https://nwhayupsvcelyiwltdqo.supabase.co'
 const SUPABASE_KEY     = process.env.SUPABASE_SERVICE_KEY
 
-// ATCO area prefixes to import.
-// 260 = Lincolnshire
-// Add others as routes expand, e.g. 329 (Nottinghamshire), 300 (Northamptonshire)
+// ATCO area prefixes — used as a client-side sanity filter after the API download.
+// Should match the ATCOAreaCode value in NAPTAN_URL above.
+// Add more here AND add &ATCOAreaCode=NNN to the URL if routes expand to other counties.
 const ATCO_PREFIXES = ['260']
 
 const BUS_STOP_TYPES = new Set(['BCT', 'BCS', 'BCQ', 'BCP'])
 
-// NAPTAN full GB download (CSV, may be gzip-compressed depending on Accept-Encoding)
-const NAPTAN_URL = 'https://naptan.api.dft.gov.uk/v1/gb/stops?dataFormat=csv'
+// NAPTAN API — Lincolnshire only (ATCOAreaCode 260 keeps the download small)
+const NAPTAN_URL = 'https://naptan.api.dft.gov.uk/v1/access-nodes?dataFormat=csv&ATCOAreaCode=260'
 
 const BATCH_SIZE = 500
 
