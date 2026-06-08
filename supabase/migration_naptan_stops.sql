@@ -25,6 +25,7 @@ create table if not exists naptan_stops (
 create index if not exists naptan_stops_coords_idx on naptan_stops (lat, lon);
 
 grant select on public.naptan_stops to anon, authenticated;
+grant all    on public.naptan_stops to service_role;
 
 alter table public.naptan_stops enable row level security;
 

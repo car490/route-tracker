@@ -232,6 +232,9 @@ create table naptan_stops (
 
 create index naptan_stops_coords_idx on naptan_stops (lat, lon);
 
+grant select on public.naptan_stops to anon, authenticated;
+grant all    on public.naptan_stops to service_role;
+
 
 -- ── Journey types lookup ──────────────────────────────────────────────────────
 -- Source of truth for valid journey type values. Replaces hardcoded CHECK constraints.
