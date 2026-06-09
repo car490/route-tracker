@@ -1,6 +1,6 @@
 import { Fragment } from 'react'
 import { S } from './constants'
-import { fmtDist, fmtDur, stopColor, buildSegAfterMap } from './utils'
+import { fmtDist, fmtDur, stopColor, buildSegAfterMap, timeToMinutes, minutesToTime } from './utils'
 
 export default function ReviewModal({
   modalStops, setModalStops,
@@ -15,7 +15,22 @@ export default function ReviewModal({
   const segAfterStop = buildSegAfterMap(modalStops, routeResult?.segments)
 
   function updateModalStop(i, field, value) {
-    setModalStops(prev => prev.map((s, idx) => idx === i ? { ...s, [field]: value } : s))
+    setModalStops(prev => {
+      const updated = prev.map((s, idx) => idx === i ? { ...s, [field]: value } : s)
+      if (field !== 'time_std' || !value) return updated
+      const baseMins = timeToMinutes(value)
+      if (baseMins == null) return updated
+      const segsMap = buildSegAfterMap(updated, routeResult?.segments)
+      let cumSecs = 0
+      for (let j = i; j < updated.length - 1; j++) {
+        const seg = segsMap[updated[j]._id]
+        if (seg && !seg.error) cumSecs += seg.duration
+        const next = updated[j + 1]
+        if (next.stop_type === 'timing_point')
+          updated[j + 1] = { ...next, time_std: minutesToTime(baseMins + Math.round(cumSecs / 60)) }
+      }
+      return updated
+    })
   }
 
   return (
