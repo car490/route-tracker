@@ -28,7 +28,8 @@ function SegChip({ seg }) {
 
 export default function RoutePlannerPage() {
   const [searchParams] = useSearchParams()
-  const pendingTtId = useRef(null)
+  const pendingTtId       = useRef(null)
+  const pendingInvertFrom = useRef(null)
   const { journeyTypes, bodsTypes } = useJourneyTypes()
   const [routeId,     setRouteId]     = useState('')
   const [timetableId, setTimetableId] = useState('')
@@ -93,9 +94,10 @@ export default function RoutePlannerPage() {
 
   useEffect(() => {
     loadRoutes()
-    const r = searchParams.get('route')
-    const t = searchParams.get('timetable')
-    if (r) { pendingTtId.current = t; setRouteId(r) }
+    const r   = searchParams.get('route')
+    const t   = searchParams.get('timetable')
+    const inv = searchParams.get('invertFrom')
+    if (r) { pendingTtId.current = t; pendingInvertFrom.current = inv; setRouteId(r) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -118,7 +120,14 @@ export default function RoutePlannerPage() {
   }, [routeId])
 
   useEffect(() => {
-    if (!timetableId || timetableId === '__new__') { setStops([]); setDepartures([]); return }
+    if (!timetableId || timetableId === '__new__') {
+      setStops([]); setDepartures([])
+      if (timetableId === '__new__' && pendingInvertFrom.current) {
+        handleInvertFrom(pendingInvertFrom.current)
+        pendingInvertFrom.current = null
+      }
+      return
+    }
     Promise.all([
       supabase.from('timetable_stops').select('*, stops(*)').eq('timetable_id', timetableId).order('sequence'),
       supabase.from('timetable_departures').select('*').eq('timetable_id', timetableId).order('departure_time'),
