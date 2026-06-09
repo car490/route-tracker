@@ -31,21 +31,18 @@ export default function ReviewModal({
 
         <div style={{ marginBottom: 16, flexShrink: 0 }}>
           <div style={{ ...S.sectionLabel, marginBottom: 6 }}>Route</div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
-            {confirmCode && <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 18, color: 'var(--navy-brand)' }}>{confirmCode}</span>}
-            {confirmName && <span style={{ fontSize: 14, color: 'var(--text)' }}>{confirmName}</span>}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {confirmCode && <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 18, color: 'var(--navy-brand)', flexShrink: 0 }}>{confirmCode}</span>}
+            {isNewTimetable
+              ? <input type="text" className="form-input" style={{ fontSize: 14, flex: 1, minWidth: 0 }}
+                  value={newTtName} onChange={e => setNewTtName(e.target.value)} />
+              : confirmName && <span style={{ fontSize: 14, color: 'var(--text)' }}>{confirmName}</span>
+            }
             {confirmJTypes.map(jt => (
               <span key={jt} style={{ fontSize: 10, fontFamily: 'Oswald', fontWeight: 700, background: 'var(--navy-brand)', color: '#fff', borderRadius: 8, padding: '1px 7px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{jt}</span>
             ))}
           </div>
           {confirmTt && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>{confirmTt}</div>}
-          {isNewTimetable && (
-            <div style={{ marginTop: 8 }}>
-              <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Timetable name</div>
-              <input type="text" className="form-input" style={{ fontSize: 12, width: '100%' }}
-                value={newTtName} onChange={e => setNewTtName(e.target.value)} />
-            </div>
-          )}
           {vehicleType.length > 0 && (
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
               {vehicleType.join(', ')}
