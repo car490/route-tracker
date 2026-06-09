@@ -766,7 +766,7 @@ export default function RoutePlannerPage() {
           </>)}
 
           {/* Card 3: Stops */}
-          <div className="card" style={{ padding: 10 }}>
+          <div className="card" style={{ padding: 10, display: 'flex', flexDirection: 'column', flex: '1 1 0', minHeight: 0 }}>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <span style={S.sectionLabel}>Stops{stops.length > 0 ? ` · ${stops.length}` : ''}</span>
@@ -806,6 +806,7 @@ export default function RoutePlannerPage() {
               </p>
             )}
 
+            <div style={{ flex: '1 1 0', overflowY: 'auto', minHeight: 0 }}>
             {stops.map((s, i) => {
               const color = stopColor(i, stops.length)
               const isEditing = editStopId === s._id
@@ -862,6 +863,7 @@ export default function RoutePlannerPage() {
                 </Fragment>
               )
             })}
+            </div>
 
             {/* Add stop row */}
             <div style={{ marginTop: stops.length ? 8 : 0 }}>
