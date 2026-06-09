@@ -11,8 +11,8 @@
  *   Supabase Dashboard → Settings → API → service_role (secret)
  *
  * NAPTAN data is downloaded from the DfT open API. The full GB CSV is filtered
- * to the ATCO area codes listed in ATCO_PREFIXES below. Extend this list to
- * cover routes that pass through neighbouring counties.
+ * to a geographic bounding box (BBOX) covering Lincolnshire. Widen the box in
+ * the config section below if routes expand into neighbouring counties.
  *
  * Bus stop types imported (others — rail, ferry, tram — are excluded):
  *   BCT  On-street Bus/Coach/Tram stop  (the most common type)
@@ -42,9 +42,7 @@ const BBOX = { latMin: 52.65, latMax: 53.75, lonMin: -1.0, lonMax: 0.5 }
 
 const BUS_STOP_TYPES = new Set(['BCT', 'BCS', 'BCQ', 'BCP'])
 
-// Full GB download — area filtering is done client-side via ATCO_PREFIXES below.
-// Lincolnshire is split across many 3-digit ATCO sub-areas (260, 263-269) so a
-// single ATCOAreaCode param would miss most of the county. The full CSV is ~150 MB.
+// Full GB download — area filtering done client-side by BBOX above.
 const NAPTAN_URL = 'https://naptan.api.dft.gov.uk/v1/access-nodes?dataFormat=csv'
 
 const BATCH_SIZE = 500
@@ -58,7 +56,7 @@ async function main() {
     process.exit(1)
   }
 
-  console.log(`ATCO prefixes: ${ATCO_PREFIXES.join(', ')}`)
+  console.log(`Bounding box: lat ${BBOX.latMin}–${BBOX.latMax}, lon ${BBOX.lonMin}–${BBOX.lonMax}`)
   console.log('Downloading NAPTAN data from DfT...')
   console.log('(This may take a minute — full GB CSV is ~150 MB)\n')
 
@@ -66,7 +64,7 @@ async function main() {
   console.log(`\nFiltered to ${stops.length} active bus stops`)
 
   if (stops.length === 0) {
-    console.error('No stops found — check ATCO_PREFIXES and the NAPTAN download URL')
+    console.error('No stops found — check BBOX and the NAPTAN download URL')
     process.exit(1)
   }
 
