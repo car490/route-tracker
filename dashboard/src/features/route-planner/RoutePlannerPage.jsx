@@ -30,6 +30,7 @@ export default function RoutePlannerPage() {
   const [searchParams] = useSearchParams()
   const pendingTtId       = useRef(null)
   const pendingInvertFrom = useRef(null)
+  const pendingFromDir    = useRef(null)
   const { journeyTypes, bodsTypes } = useJourneyTypes()
   const [routeId,     setRouteId]     = useState('')
   const [timetableId, setTimetableId] = useState('')
@@ -49,10 +50,9 @@ export default function RoutePlannerPage() {
   const [newDestination, setNewDestination] = useState('')
   const [newServiceReg,  setNewServiceReg]  = useState('')
 
-  // Inline new-timetable fields
-  const [newTtName,      setNewTtName]      = useState('')
-  const [newDirection,   setNewDirection]   = useState('Outbound')
-  const [newTtCollapsed, setNewTtCollapsed] = useState(false)
+  // Inline new-timetable fields (name/direction collected in the Review modal)
+  const [newTtName,    setNewTtName]    = useState('')
+  const [newDirection, setNewDirection] = useState('Outbound')
 
   const [departures, setDepartures] = useState([])
 
@@ -97,7 +97,13 @@ export default function RoutePlannerPage() {
     const r   = searchParams.get('route')
     const t   = searchParams.get('timetable')
     const inv = searchParams.get('invertFrom')
-    if (r) { pendingTtId.current = t; pendingInvertFrom.current = inv; setRouteId(r) }
+    const dir = searchParams.get('fromDir')
+    if (r) {
+      pendingTtId.current       = t
+      pendingInvertFrom.current = inv
+      pendingFromDir.current    = dir
+      setRouteId(r)
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -123,8 +129,9 @@ export default function RoutePlannerPage() {
     if (!timetableId || timetableId === '__new__') {
       setStops([]); setDepartures([])
       if (timetableId === '__new__' && pendingInvertFrom.current) {
-        handleInvertFrom(pendingInvertFrom.current)
+        handleInvertFrom(pendingInvertFrom.current, pendingFromDir.current)
         pendingInvertFrom.current = null
+        pendingFromDir.current    = null
       }
       return
     }
@@ -156,11 +163,9 @@ export default function RoutePlannerPage() {
     const routeOk = routeId === '__new__'
       ? newCode.trim().length > 0 && newJourneyTypes.length > 0 && newRouteCollapsed
       : !!routeId
-    const ttOk = timetableId === '__new__'
-      ? newTtName.trim().length > 0 && newTtCollapsed
-      : !!timetableId
+    const ttOk = !!timetableId
     if (routeOk && ttOk) setShowSetup(false)
-  }, [routeId, timetableId, newRouteCollapsed, newTtCollapsed, newCode, newJourneyTypes, newTtName])
+  }, [routeId, timetableId, newRouteCollapsed, newCode, newJourneyTypes])
 
   useEffect(() => { setShowSetup(true) }, [routeId])
 
@@ -311,7 +316,9 @@ export default function RoutePlannerPage() {
     setShowSearch(false); setSearchQuery(''); setSearchResults([])
   }
 
-  async function handleInvertFrom(sourceTtId) {
+  const FLIP_DIRECTION = { Outbound: 'Inbound', Inbound: 'Outbound', Morning: 'Afternoon', Afternoon: 'Morning' }
+
+  async function handleInvertFrom(sourceTtId, fromDir) {
     const { data } = await supabase
       .from('timetable_stops').select('*, stops(*)')
       .eq('timetable_id', sourceTtId).order('sequence')
@@ -327,6 +334,7 @@ export default function RoutePlannerPage() {
     }))
     setStops(inverted)
     setFitKey(k => (k ?? 0) + 1)
+    if (fromDir) setNewDirection(FLIP_DIRECTION[fromDir] ?? 'Outbound')
   }
 
   // ── Stop mutations ────────────────────────────────────────────────────────────
@@ -508,7 +516,7 @@ export default function RoutePlannerPage() {
   const confirmName   = routeId === '__new__' ? newName : selRoute?.name
   const confirmJTypes = routeId === '__new__' ? newJourneyTypes : (selRoute?.journey_types ?? [])
   const confirmTt     = timetableId === '__new__'
-    ? [newTtName, newDirection].filter(Boolean).join(' · ')
+    ? ''
     : selTt ? `${selTt.name} · ${selTt.direction}` : ''
 
   const segAfterStop = buildSegAfterMap(stops, routeResult?.segments)
@@ -710,58 +718,19 @@ export default function RoutePlannerPage() {
 
           {/* Card 2: Timetable */}
           <div className="card" style={{ padding: 10 }}>
-            <div style={{ marginBottom: timetableId === '__new__' ? 6 : 0 }}>
-              <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Timetable</div>
-              <select name="timetable_id" className="form-select" style={{ fontSize: 12 }}
-                value={timetableId}
-                onChange={e => { setTimetableId(e.target.value); if (e.target.value === '__new__') setNewTtCollapsed(false) }}
-                disabled={!routeId}
-              >
-                <option value="">— Select timetable —</option>
-                <option value="__new__">＋ New timetable…</option>
-                {timetables.length > 0 && <option disabled>──────────</option>}
-                {timetables.map(t => (
-                  <option key={t.id} value={t.id}>{t.name} · {t.direction}</option>
-                ))}
-              </select>
-            </div>
-
-            {timetableId === '__new__' && (
-              <div style={{ background: 'var(--bg)', borderRadius: 6, padding: 8, border: '1px solid var(--border)' }}>
-                {newTtCollapsed ? (
-                  <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, color: 'var(--text)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {[newTtName, newDirection].filter(Boolean).join(' · ')}
-                    </span>
-                    <button type="button" onClick={() => setNewTtCollapsed(false)}
-                      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, padding: 0, flexShrink: 0, lineHeight: 1 }}
-                      title="Edit timetable details">✎</button>
-                  </div>
-                ) : (
-                  <>
-                    <div style={{ marginBottom: 6 }}>
-                      <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Name</div>
-                      <input name="tt_name" className="form-input" style={{ fontSize: 12 }}
-                        placeholder="e.g. Standard Outbound" value={newTtName}
-                        onChange={e => setNewTtName(e.target.value)} />
-                    </div>
-                    <div style={{ marginBottom: 6 }}>
-                      <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Direction</div>
-                      <select name="direction" className="form-select" style={{ fontSize: 12 }} value={newDirection}
-                        onChange={e => setNewDirection(e.target.value)}>
-                        {(singleJourney ? SINGLE_JOURNEY_DIRECTIONS : DIRECTIONS).map(d => <option key={d} value={d}>{d}</option>)}
-                      </select>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      <button type="button" className="btn btn-primary btn-sm"
-                        disabled={!newTtName.trim()}
-                        onClick={() => setNewTtCollapsed(true)}
-                      >Confirm timetable</button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
+            <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Timetable</div>
+            <select name="timetable_id" className="form-select" style={{ fontSize: 12 }}
+              value={timetableId}
+              onChange={e => setTimetableId(e.target.value)}
+              disabled={!routeId}
+            >
+              <option value="">— Select timetable —</option>
+              <option value="__new__">＋ New timetable…</option>
+              {timetables.length > 0 && <option disabled>──────────</option>}
+              {timetables.map(t => (
+                <option key={t.id} value={t.id}>{t.name} · {t.direction}</option>
+              ))}
+            </select>
           </div>
 
           </>)}
@@ -1053,6 +1022,12 @@ export default function RoutePlannerPage() {
           vehicleType={vehicleType}
           vehicle={vehicle}
           warnings={warnings}
+          isNewTimetable={timetableId === '__new__'}
+          newTtName={newTtName}
+          setNewTtName={setNewTtName}
+          newDirection={newDirection}
+          setNewDirection={setNewDirection}
+          singleJourney={singleJourney}
           saving={saving}
           saveError={saveError}
           onClose={() => setShowConfirm(false)}

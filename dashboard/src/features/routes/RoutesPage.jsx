@@ -222,7 +222,7 @@ export default function RoutesPage() {
                           </button>
                           <button
                             className="btn btn-ghost btn-sm"
-                            onClick={() => navigate(`/route-planner?route=${selected}&timetable=__new__&invertFrom=${t.id}`)}
+                            onClick={() => navigate(`/route-planner?route=${selected}&timetable=__new__&invertFrom=${t.id}&fromDir=${encodeURIComponent(t.direction)}`)}
                             title="Open route planner with stops reversed, ready to save as a new timetable"
                           >
                             ↕ Return
