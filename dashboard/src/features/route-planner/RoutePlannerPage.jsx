@@ -931,7 +931,7 @@ export default function RoutePlannerPage() {
                       Search
                     </button>
                   </div>
-                  {singleJourney && (() => {
+                  {(() => {
                     const sources = timetables.filter(t => t.id !== timetableId)
                     if (!sources.length) return null
                     return (
