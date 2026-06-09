@@ -321,11 +321,16 @@ export default function EmployeesPage() {
                   const pc = primaryContact(emp)
                   return (
                     <tr key={emp.id}>
-                      <td style={{ fontWeight: 500 }}>{emp.name}</td>
+                      <td style={{ fontWeight: 500, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{emp.name}</td>
                       <td>{accessLevelBadge(emp.access_level)}</td>
                       <td>{statusBadge(emp.status ?? 'AVAILABLE')}</td>
-                      <td style={{ color: 'var(--text-muted)' }}>
-                        {pc ? <span>{typeBadge(pc.type)}{pc.value}</span> : '—'}
+                      <td style={{ maxWidth: 180 }}>
+                        {pc ? (
+                          <span style={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
+                            {typeBadge(pc.type)}
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-muted)', flex: 1 }}>{pc.value}</span>
+                          </span>
+                        ) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
                       </td>
                       <td>
                         <div className="td-actions">

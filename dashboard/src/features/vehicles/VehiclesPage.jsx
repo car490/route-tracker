@@ -108,7 +108,6 @@ export default function VehiclesPage() {
                   <th>Registration</th>
                   <th>Fleet No.</th>
                   <th>Type</th>
-                  <th>Fuel</th>
                   <th>Dimensions (H × W × L)</th>
                   <th></th>
                 </tr>
@@ -121,7 +120,6 @@ export default function VehiclesPage() {
                     </td>
                     <td style={{ color: 'var(--text-muted)' }}>{v.fleet_number ?? '—'}</td>
                     <td>{v.vehicle_type}</td>
-                    <td style={{ color: 'var(--text-muted)' }}>{v.fuel_type}</td>
                     <td style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: 'monospace' }}>
                       {v.height_metres != null
                         ? `${v.height_metres}m × ${v.width_metres}m × ${v.length_metres}m`
