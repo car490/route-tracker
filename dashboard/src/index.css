@@ -23,7 +23,6 @@
 
 html, body {
   height: 100%;
-  overflow: hidden;
 }
 
 body {
@@ -56,8 +55,7 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 /* ── Layout ────────────────────────────────────────────────── */
 .layout {
   display: flex;
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;
 }
 
 /* ── Sidebar ───────────────────────────────────────────────── */
@@ -68,6 +66,9 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
   background: var(--navy-mid);
   display: flex;
   flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
   overflow-y: auto;
 }
 
@@ -324,15 +325,12 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 /* ── Main Area ─────────────────────────────────────────────── */
 .main {
   flex: 1;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
 .page {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
   padding: 28px 32px;
 }
 
