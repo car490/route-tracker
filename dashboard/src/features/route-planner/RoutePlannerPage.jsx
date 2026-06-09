@@ -340,18 +340,22 @@ export default function RoutePlannerPage() {
     const baseMins = timeToMinutes(newTime)
     if (baseMins == null) return stopsArr
     const segsMap = buildSegAfterMap(stopsArr, routeResult?.segments)
+    // All downstream empty → fill the whole run (first-time entry / fresh invert).
+    // Some already have times → only update the immediately next timing point.
+    const allDownstreamEmpty = stopsArr.slice(changedIdx + 1)
+      .every(s => s.stop_type !== 'timing_point' || !s.time_std)
     let cumSecs = 0
+    const updated = [...stopsArr]
     for (let i = changedIdx; i < stopsArr.length - 1; i++) {
       const seg = segsMap[stopsArr[i]._id]
       if (seg && !seg.error) cumSecs += seg.duration
       const next = stopsArr[i + 1]
       if (next.stop_type === 'timing_point') {
-        return stopsArr.map((s, idx) =>
-          idx === i + 1 ? { ...s, time_std: minutesToTime(baseMins + Math.round(cumSecs / 60)) } : s
-        )
+        updated[i + 1] = { ...next, time_std: minutesToTime(baseMins + Math.round(cumSecs / 60)) }
+        if (!allDownstreamEmpty) return updated
       }
     }
-    return stopsArr
+    return updated
   }
 
   function updateStop(i, field, value) {
