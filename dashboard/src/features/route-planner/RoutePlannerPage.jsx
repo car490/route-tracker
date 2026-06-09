@@ -270,7 +270,7 @@ export default function RoutePlannerPage() {
   async function checkNaptanThenCommit(name, lat, lon) {
     setCheckingNaptan(true)
     try {
-      const { data } = await supabase.rpc('naptan_near_point', { p_lat: lat, p_lon: lon, p_radius_m: 5 })
+      const { data } = await supabase.rpc('naptan_near_point', { p_lat: lat, p_lon: lon, p_radius_m: 25 })
       const nearest = data?.[0] ?? null
       if (nearest) {
         setNaptanPending({ original: { name, lat, lon }, naptan: nearest })
