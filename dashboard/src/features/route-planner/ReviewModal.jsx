@@ -22,13 +22,13 @@ export default function ReviewModal({
       style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius)', boxShadow: '0 8px 40px rgba(0,0,0,0.25)', width: '100%', maxWidth: 540, maxHeight: 'calc(100vh - 48px)', overflowY: 'auto', padding: 24 }}>
+      <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius)', boxShadow: '0 8px 40px rgba(0,0,0,0.25)', width: '100%', maxWidth: 540, maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column', padding: 24 }}>
 
-        <h2 style={{ fontFamily: 'Oswald', fontSize: 20, fontWeight: 700, color: 'var(--navy-brand)', margin: '0 0 16px' }}>
+        <h2 style={{ fontFamily: 'Oswald', fontSize: 20, fontWeight: 700, color: 'var(--navy-brand)', margin: '0 0 16px', flexShrink: 0 }}>
           Review Route
         </h2>
 
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 16, flexShrink: 0 }}>
           <div style={{ ...S.sectionLabel, marginBottom: 6 }}>Route</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
             {confirmCode && <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 18, color: 'var(--navy-brand)' }}>{confirmCode}</span>}
@@ -46,52 +46,54 @@ export default function ReviewModal({
           )}
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ marginBottom: 8 }}>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', marginBottom: 16 }}>
+          <div style={{ marginBottom: 8, flexShrink: 0 }}>
             <span style={S.sectionLabel}>Stops ({modalStops.length})</span>
           </div>
 
-          {modalStops.map((s, i) => {
-            const color    = stopColor(i, modalStops.length)
-            const segAfter = segAfterStop[s._id]
-            return (
-              <Fragment key={s._id}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
-                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Oswald', fontWeight: 700, fontSize: 10, flexShrink: 0, marginTop: 1 }}>
-                    {i + 1}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: s.stop_type === 'timing_point' ? 5 : 0 }}>
-                      {s.name}
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+            {modalStops.map((s, i) => {
+              const color    = stopColor(i, modalStops.length)
+              const segAfter = segAfterStop[s._id]
+              return (
+                <Fragment key={s._id}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Oswald', fontWeight: 700, fontSize: 10, flexShrink: 0, marginTop: 1 }}>
+                      {i + 1}
                     </div>
-                    {s.stop_type === 'timing_point' ? (
-                      <div>
-                        <input type="time" className="form-input"
-                          style={{ fontSize: 11, height: 24, padding: '1px 3px', width: '100%' }}
-                          value={s.time_std}
-                          onChange={e => updateModalStop(i, 'time_std', e.target.value)}
-                        />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: s.stop_type === 'timing_point' ? 5 : 0 }}>
+                        {s.name}
                       </div>
-                    ) : (
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'Oswald', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>via</div>
-                    )}
+                      {s.stop_type === 'timing_point' ? (
+                        <div>
+                          <input type="time" className="form-input"
+                            style={{ fontSize: 11, height: 24, padding: '1px 3px', width: '100%' }}
+                            value={s.time_std}
+                            onChange={e => updateModalStop(i, 'time_std', e.target.value)}
+                          />
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'Oswald', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>via</div>
+                      )}
+                    </div>
                   </div>
-                </div>
-                {i < modalStops.length - 1 && segAfter && !segAfter.error && (
-                  <div style={{ paddingLeft: 30, fontSize: 11, fontFamily: 'Oswald', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', gap: 5, marginBottom: 6 }}>
-                    <span>↓</span>
-                    <span>{fmtDur(segAfter.duration)}</span>
-                    <span style={{ fontWeight: 400, fontSize: 10 }}>·</span>
-                    <span style={{ fontWeight: 400 }}>{fmtDist(segAfter.distance)}</span>
-                  </div>
-                )}
-              </Fragment>
-            )
-          })}
+                  {i < modalStops.length - 1 && segAfter && !segAfter.error && (
+                    <div style={{ paddingLeft: 30, fontSize: 11, fontFamily: 'Oswald', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', gap: 5, marginBottom: 6 }}>
+                      <span>↓</span>
+                      <span>{fmtDur(segAfter.duration)}</span>
+                      <span style={{ fontWeight: 400, fontSize: 10 }}>·</span>
+                      <span style={{ fontWeight: 400 }}>{fmtDist(segAfter.distance)}</span>
+                    </div>
+                  )}
+                </Fragment>
+              )
+            })}
+          </div>
         </div>
 
         {routeResult && !routeResult.error && (
-          <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--bg)', borderRadius: 6, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--bg)', borderRadius: 6, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
             <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 20, color: 'var(--navy-brand)' }}>
               {fmtDist(routeResult.distance)}
             </span>
@@ -106,9 +108,9 @@ export default function ReviewModal({
           </div>
         )}
 
-        {saveError && <div className="error-msg" style={{ marginBottom: 12 }}>{saveError}</div>}
+        {saveError && <div className="error-msg" style={{ marginBottom: 12, flexShrink: 0 }}>{saveError}</div>}
 
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexShrink: 0 }}>
           <button className="btn btn-ghost" onClick={onClose} disabled={saving}>
             Back to edit
           </button>
