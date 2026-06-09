@@ -1,5 +1,5 @@
 import { Fragment } from 'react'
-import { S, DIRECTIONS, SINGLE_JOURNEY_DIRECTIONS } from './constants'
+import { S } from './constants'
 import { fmtDist, fmtDur, stopColor, buildSegAfterMap } from './utils'
 
 export default function ReviewModal({
@@ -8,7 +8,7 @@ export default function ReviewModal({
   confirmCode, confirmName, confirmJTypes, confirmTt,
   vehicleType, vehicle,
   warnings,
-  isNewTimetable, newTtName, setNewTtName, newDirection, setNewDirection, singleJourney,
+  isNewTimetable, newTtName, setNewTtName,
   saving, saveError,
   onClose, onSave,
 }) {
@@ -40,20 +40,10 @@ export default function ReviewModal({
           </div>
           {confirmTt && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>{confirmTt}</div>}
           {isNewTimetable && (
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Timetable name</div>
-                <input type="text" className="form-input" style={{ fontSize: 12, width: '100%' }}
-                  placeholder="e.g. Standard Outbound"
-                  value={newTtName} onChange={e => setNewTtName(e.target.value)} />
-              </div>
-              <div style={{ width: 120 }}>
-                <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Direction</div>
-                <select className="form-select" style={{ fontSize: 12, width: '100%' }}
-                  value={newDirection} onChange={e => setNewDirection(e.target.value)}>
-                  {(singleJourney ? SINGLE_JOURNEY_DIRECTIONS : DIRECTIONS).map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
+            <div style={{ marginTop: 8 }}>
+              <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Timetable name</div>
+              <input type="text" className="form-input" style={{ fontSize: 12, width: '100%' }}
+                value={newTtName} onChange={e => setNewTtName(e.target.value)} />
             </div>
           )}
           {vehicleType.length > 0 && (

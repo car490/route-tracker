@@ -389,6 +389,8 @@ export default function RoutePlannerPage() {
 
   function openModal() {
     setModalStops([...stops])
+    if (timetableId === '__new__' && stops.length >= 2)
+      setNewTtName(`${stops[0].name} to ${stops[stops.length - 1].name}`)
     setSaveError('')
     setShowConfirm(true)
   }
@@ -1025,9 +1027,6 @@ export default function RoutePlannerPage() {
           isNewTimetable={timetableId === '__new__'}
           newTtName={newTtName}
           setNewTtName={setNewTtName}
-          newDirection={newDirection}
-          setNewDirection={setNewDirection}
-          singleJourney={singleJourney}
           saving={saving}
           saveError={saveError}
           onClose={() => setShowConfirm(false)}
