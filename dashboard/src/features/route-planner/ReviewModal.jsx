@@ -1,26 +1,6 @@
 import { Fragment } from 'react'
 import { S } from './constants'
-import { fmtDist, fmtDur, stopColor, timeToMinutes, minutesToTime, buildSegAfterMap } from './utils'
-
-function applyAutoFill(depTime, baseStops, routeResult) {
-  if (!depTime) return baseStops
-  const baseMins = timeToMinutes(depTime)
-  const segs = routeResult?.segments ?? []
-
-  let cumMins = 0
-  const minsById = {}
-  baseStops
-    .filter(s => s.lat != null && s.lon != null)
-    .forEach((s, i) => {
-      minsById[s._id] = baseMins + cumMins
-      if (segs[i] && !segs[i].error) cumMins += Math.round(segs[i].duration / 60)
-    })
-
-  return baseStops.map(s => {
-    if (s.stop_type !== 'timing_point' || minsById[s._id] == null) return s
-    return { ...s, time_std: minutesToTime(minsById[s._id]) }
-  })
-}
+import { fmtDist, fmtDur, stopColor, buildSegAfterMap } from './utils'
 
 export default function ReviewModal({
   modalStops, setModalStops,
@@ -28,7 +8,6 @@ export default function ReviewModal({
   confirmCode, confirmName, confirmJTypes, confirmTt,
   vehicleType, vehicle,
   warnings,
-  autoDepTime, setAutoDepTime,
   saving, saveError,
   onClose, onSave,
 }) {
@@ -68,22 +47,8 @@ export default function ReviewModal({
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8, gap: 8 }}>
+          <div style={{ marginBottom: 8 }}>
             <span style={S.sectionLabel}>Stops ({modalStops.length})</span>
-            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Departs</span>
-              <input
-                type="time"
-                className="form-input"
-                style={{ width: 95, height: 26, fontSize: 12, padding: '1px 4px' }}
-                value={autoDepTime}
-                title="Enter departure time to auto-fill timing points"
-                onChange={e => {
-                  setAutoDepTime(e.target.value)
-                  if (e.target.value) setModalStops(prev => applyAutoFill(e.target.value, prev, routeResult))
-                }}
-              />
-            </div>
           </div>
 
           {modalStops.map((s, i) => {

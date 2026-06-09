@@ -76,7 +76,6 @@ export default function RoutePlannerPage() {
   // Confirmation / review modal
   const [showConfirm, setShowConfirm] = useState(false)
   const [modalStops,  setModalStops]  = useState([])
-  const [autoDepTime, setAutoDepTime] = useState('')
 
   const [fitKey,        setFitKey]        = useState(null)
   const [singleJourney, setSingleJourney] = useState(false)
@@ -340,10 +339,6 @@ export default function RoutePlannerPage() {
     const baseMins = timeToMinutes(newTime)
     if (baseMins == null) return stopsArr
     const segsMap = buildSegAfterMap(stopsArr, routeResult?.segments)
-    // All downstream empty → fill the whole run (first-time entry / fresh invert).
-    // Some already have times → only update the immediately next timing point.
-    const allDownstreamEmpty = stopsArr.slice(changedIdx + 1)
-      .every(s => s.stop_type !== 'timing_point' || !s.time_std)
     let cumSecs = 0
     const updated = [...stopsArr]
     for (let i = changedIdx; i < stopsArr.length - 1; i++) {
@@ -352,7 +347,6 @@ export default function RoutePlannerPage() {
       const next = stopsArr[i + 1]
       if (next.stop_type === 'timing_point') {
         updated[i + 1] = { ...next, time_std: minutesToTime(baseMins + Math.round(cumSecs / 60)) }
-        if (!allDownstreamEmpty) return updated
       }
     }
     return updated
@@ -378,7 +372,6 @@ export default function RoutePlannerPage() {
 
   function openModal() {
     setModalStops([...stops])
-    setAutoDepTime('')
     setSaveError('')
     setShowConfirm(true)
   }
@@ -1051,8 +1044,6 @@ export default function RoutePlannerPage() {
           vehicleType={vehicleType}
           vehicle={vehicle}
           warnings={warnings}
-          autoDepTime={autoDepTime}
-          setAutoDepTime={setAutoDepTime}
           saving={saving}
           saveError={saveError}
           onClose={() => setShowConfirm(false)}
