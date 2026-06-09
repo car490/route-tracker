@@ -331,6 +331,7 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 
 .page {
   flex: 1;
+  overflow-x: hidden;
   padding: 28px 32px;
 }
 
