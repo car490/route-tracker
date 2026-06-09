@@ -303,6 +303,24 @@ export default function RoutePlannerPage() {
     setShowSearch(false); setSearchQuery(''); setSearchResults([])
   }
 
+  async function handleInvertFrom(sourceTtId) {
+    const { data } = await supabase
+      .from('timetable_stops').select('*, stops(*)')
+      .eq('timetable_id', sourceTtId).order('sequence')
+    if (!data?.length) return
+    const inverted = [...data].reverse().map(ts => ({
+      _id:       crypto.randomUUID(),
+      stop_id:   ts.stop_id,
+      name:      ts.stops.name,
+      lat:       ts.stops.lat,
+      lon:       ts.stops.lon,
+      stop_type: ts.stop_type,
+      time_std:  '',
+    }))
+    setStops(inverted)
+    setFitKey(k => (k ?? 0) + 1)
+  }
+
   // ── Stop mutations ────────────────────────────────────────────────────────────
 
   function moveStop(i, dir) {
@@ -893,19 +911,38 @@ export default function RoutePlannerPage() {
               )}
 
               {!showSearch && !naptanPending && !checkingNaptan && (
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button
-                    className={`btn btn-sm ${pinDropMode ? 'btn-primary' : 'btn-ghost'}`}
-                    style={{ flex: 1 }}
-                    onClick={() => setPinDropMode(p => !p)}
-                  >
-                    {pinDropMode ? 'Pinning…' : 'Drop pin'}
-                  </button>
-                  <button className="btn btn-ghost btn-sm" style={{ flex: 1 }}
-                    onClick={() => { setShowSearch(true); setPinDropMode(false) }}>
-                    Search
-                  </button>
-                </div>
+                <>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      className={`btn btn-sm ${pinDropMode ? 'btn-primary' : 'btn-ghost'}`}
+                      style={{ flex: 1 }}
+                      onClick={() => setPinDropMode(p => !p)}
+                    >
+                      {pinDropMode ? 'Pinning…' : 'Drop pin'}
+                    </button>
+                    <button className="btn btn-ghost btn-sm" style={{ flex: 1 }}
+                      onClick={() => { setShowSearch(true); setPinDropMode(false) }}>
+                      Search
+                    </button>
+                  </div>
+                  {singleJourney && (() => {
+                    const sources = timetables.filter(t => t.id !== timetableId)
+                    if (!sources.length) return null
+                    return (
+                      <div style={{ marginTop: 6 }}>
+                        {sources.map(t => (
+                          <button key={t.id} className="btn btn-ghost btn-sm"
+                            style={{ width: '100%', marginBottom: 4 }}
+                            title="Copy stops from this timetable in reverse order"
+                            onClick={() => handleInvertFrom(t.id)}
+                          >
+                            ↕ Invert from {t.name}
+                          </button>
+                        ))}
+                      </div>
+                    )
+                  })()}
+                </>
               )}
 
               {showSearch && (
