@@ -325,6 +325,7 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 /* ── Main Area ─────────────────────────────────────────────── */
 .main {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
 }
