@@ -110,7 +110,6 @@ export default function VehiclesPage() {
                   <th>Type</th>
                   <th>Fuel</th>
                   <th>Dimensions (H × W × L)</th>
-                  <th>Added</th>
                   <th></th>
                 </tr>
               </thead>
@@ -127,9 +126,6 @@ export default function VehiclesPage() {
                       {v.height_metres != null
                         ? `${v.height_metres}m × ${v.width_metres}m × ${v.length_metres}m`
                         : '—'}
-                    </td>
-                    <td style={{ color: 'var(--text-muted)' }}>
-                      {new Date(v.created_at).toLocaleDateString('en-GB')}
                     </td>
                     <td>
                       <div className="td-actions">

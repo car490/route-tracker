@@ -311,9 +311,7 @@ export default function EmployeesPage() {
                 <tr>
                   <th>Name</th>
                   <th>Access Level</th>
-                  <th>Job Role</th>
                   <th>Status</th>
-                  <th>Work Type</th>
                   <th>Primary Contact</th>
                   <th></th>
                 </tr>
@@ -325,9 +323,7 @@ export default function EmployeesPage() {
                     <tr key={emp.id}>
                       <td style={{ fontWeight: 500 }}>{emp.name}</td>
                       <td>{accessLevelBadge(emp.access_level)}</td>
-                      <td>{emp.job_role ? jobRoleBadge(emp.job_role) : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
                       <td>{statusBadge(emp.status ?? 'AVAILABLE')}</td>
-                      <td style={{ color: 'var(--text-muted)', fontSize: 13 }}>{emp.work_type ?? '—'}</td>
                       <td style={{ color: 'var(--text-muted)' }}>
                         {pc ? <span>{typeBadge(pc.type)}{pc.value}</span> : '—'}
                       </td>
