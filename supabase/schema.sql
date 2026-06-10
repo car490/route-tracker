@@ -716,6 +716,8 @@ $$;
 
 grant execute on function complete_journey(uuid) to anon;
 
+DROP FUNCTION IF EXISTS public.get_duty_card(uuid[]);
+
 CREATE OR REPLACE FUNCTION public.get_duty_card(journey_ids uuid[])
  RETURNS TABLE(
    journey_id             uuid,

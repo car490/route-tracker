@@ -1,5 +1,8 @@
 -- Add notes column to get_duty_card return type so the PWA can display driver notes.
 -- The notes column already exists on the journeys table; this just exposes it via the RPC.
+-- Must DROP first because PostgreSQL won't allow changing the return type in-place.
+
+DROP FUNCTION IF EXISTS public.get_duty_card(uuid[]);
 
 CREATE OR REPLACE FUNCTION public.get_duty_card(journey_ids uuid[])
  RETURNS TABLE(
