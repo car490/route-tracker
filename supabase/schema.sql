@@ -730,7 +730,8 @@ CREATE OR REPLACE FUNCTION public.get_duty_card(journey_ids uuid[])
    direction              text,
    timetable_departure_id uuid,
    first_stop_time        text,
-   last_stop_name         text
+   last_stop_name         text,
+   notes                  text
  )
  LANGUAGE sql
  STABLE SECURITY DEFINER
@@ -750,7 +751,8 @@ AS $function$
     to_char(td.departure_time, 'HH24:MI')                   as first_stop_time,
     (select st.name from timetable_stops ts3
      join stops st on st.id = ts3.stop_id
-     where ts3.timetable_id = t.id order by ts3.sequence desc limit 1) as last_stop_name
+     where ts3.timetable_id = t.id order by ts3.sequence desc limit 1) as last_stop_name,
+    j.notes
   from journeys j
   left join employees           e  on e.id  = j.driver_id
   left join vehicles            v  on v.id  = j.vehicle_id

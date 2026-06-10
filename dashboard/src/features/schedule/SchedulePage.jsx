@@ -44,7 +44,7 @@ function fmtLongDate(dateString) {
 
 function jsDayToDb(jsDay) { return jsDay === 0 ? 7 : jsDay }
 
-const EMPTY_DUTY = { date: todayStr(), driver_id: '', vehicle_id: '', selectedDepartures: [] }
+const EMPTY_DUTY = { date: todayStr(), driver_id: '', vehicle_id: '', notes: '', selectedDepartures: [] }
 
 function CellBtn({ journey, onClick }) {
   if (!journey) {
@@ -175,6 +175,7 @@ export default function SchedulePage() {
             journey_date:           dutyForm.date,
             driver_id:              dutyForm.driver_id,
             vehicle_id:             dutyForm.vehicle_id,
+            notes:                  dutyForm.notes || null,
           })
           if (e) throw e
         }
@@ -408,6 +409,16 @@ export default function SchedulePage() {
             </select>
           </div>
 
+          <div className="form-group">
+            <label className="form-label">Driver notes (optional)</label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Visible to the driver on their duty card"
+              value={dutyForm.notes}
+              onChange={e => setDutyForm(f => ({ ...f, notes: e.target.value }))}
+            />
+          </div>
           <label className="form-label" style={{ marginBottom: 8 }}>
             Unassigned runs for {fmtLongDate(dutyForm.date)}
           </label>

@@ -838,6 +838,16 @@ body {
   color: var(--text-muted);
 }
 
+.dc-route-notes {
+  font-size: 0.8rem;
+  color: var(--text);
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border-left: 3px solid var(--brand-green);
+  border-radius: 0 4px 4px 0;
+}
+
 .dc-action-btn {
   background: var(--brand-green);
   color: #fff;

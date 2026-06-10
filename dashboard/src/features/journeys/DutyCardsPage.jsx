@@ -63,7 +63,7 @@ function getContact(contacts, type) {
 
 function jsDayToDb(jsDay) { return jsDay === 0 ? 7 : jsDay }
 
-const EMPTY_DUTY = { date: todayStr(), driver_id: '', vehicle_id: '', selectedDepartures: [] }
+const EMPTY_DUTY = { date: todayStr(), driver_id: '', vehicle_id: '', notes: '', selectedDepartures: [] }
 
 export default function DutyCardsPage() {
   const [weekStart,    setWeekStart]    = useState(() => getWeekStart(new Date()))
@@ -87,6 +87,13 @@ export default function DutyCardsPage() {
   const [modal,        setModal]        = useState(null)
   const [dutyForm,     setDutyForm]     = useState(EMPTY_DUTY)
   const [saving,       setSaving]       = useState(false)
+
+  const [editModal,    setEditModal]    = useState(false)
+  const [editJourneys, setEditJourneys] = useState([])
+  const [editNewDeps,  setEditNewDeps]  = useState([])
+  const [editNewNotes, setEditNewNotes] = useState('')
+  const [editSaving,   setEditSaving]   = useState(false)
+  const [editError,    setEditError]    = useState('')
 
   useEffect(() => { load(weekStart) }, [])
 
@@ -128,7 +135,7 @@ export default function DutyCardsPage() {
     const { data, error: qErr } = await supabase
       .from('journeys')
       .select(`
-        id, journey_date, timetable_departure_id, driver_id, vehicle_id, status,
+        id, journey_date, timetable_departure_id, driver_id, vehicle_id, status, notes,
         departure:timetable_departures(departure_time, timetable:timetables(name, direction, route:routes(service_code))),
         driver:employees(id, name)
       `)
@@ -303,6 +310,7 @@ export default function DutyCardsPage() {
             journey_date:           dutyForm.date,
             driver_id:              dutyForm.driver_id,
             vehicle_id:             dutyForm.vehicle_id,
+            notes:                  dutyForm.notes || null,
           })
           if (e) throw e
         }
@@ -313,6 +321,92 @@ export default function DutyCardsPage() {
       setError(e.message)
     }
     setSaving(false)
+  }
+
+  function openEdit() {
+    setEditJourneys(selected.journeys.map(j => ({
+      id:           j.id,
+      departure_id: j.timetable_departure_id,
+      departure:    j.departure,
+      driver_id:    j.driver_id  ?? '',
+      vehicle_id:   j.vehicle_id ?? '',
+      notes:        j.notes      ?? '',
+      _cancel:      false,
+    })))
+    setEditNewDeps([])
+    setEditNewNotes('')
+    setEditError('')
+    setEditModal(true)
+  }
+
+  function availableEditDepartures() {
+    if (!selected) return []
+    const d = new Date(selected.date + 'T00:00:00')
+    const dbDay = jsDayToDb(d.getDay())
+    const existingIds = new Set(editJourneys.map(r => r.departure_id))
+    return departures
+      .filter(dep => {
+        if (!dep.days_of_week?.includes(dbDay)) return false
+        if (existingIds.has(dep.id)) return false
+        const j = journeyMap[`${dep.id}-${selected.date}`]
+        return !j || !j.driver_id
+      })
+      .sort((a, b) => {
+        const sc = (a.timetable?.route?.service_code ?? '').localeCompare(b.timetable?.route?.service_code ?? '')
+        return sc !== 0 ? sc : (a.departure_time ?? '').localeCompare(b.departure_time ?? '')
+      })
+  }
+
+  async function saveEdit() {
+    setEditSaving(true)
+    setEditError('')
+    try {
+      const companyId = await getCompanyId()
+      for (const r of editJourneys) {
+        if (r._cancel) {
+          const { error: e } = await supabase.from('journeys').update({ status: 'cancelled' }).eq('id', r.id)
+          if (e) throw e
+        } else {
+          const { error: e } = await supabase.from('journeys')
+            .update({ driver_id: r.driver_id || null, vehicle_id: r.vehicle_id || null, notes: r.notes || null })
+            .eq('id', r.id)
+          if (e) throw e
+        }
+      }
+      const activeVehicle = editJourneys.find(r => !r._cancel)?.vehicle_id || null
+      for (const depId of editNewDeps) {
+        const { error: e } = await supabase.from('journeys').insert({
+          company_id:             companyId,
+          timetable_departure_id: depId,
+          journey_date:           selected.date,
+          driver_id:              selected.driver.id,
+          vehicle_id:             activeVehicle,
+          notes:                  editNewNotes || null,
+        })
+        if (e) throw e
+      }
+      setEditModal(false)
+      setSelected(null)
+      load(weekStart)
+    } catch (e) {
+      setEditError(e.message)
+    }
+    setEditSaving(false)
+  }
+
+  async function deleteDuty() {
+    if (!window.confirm(`Delete the entire duty for ${selected.driver.name} on ${fmtLongDate(selected.date)}?\n\nThis cannot be undone.`)) return
+    setEditError('')
+    try {
+      const ids = selected.journeys.map(j => j.id)
+      const { error: e } = await supabase.from('journeys').delete().in('id', ids)
+      if (e) throw e
+      setEditModal(false)
+      setSelected(null)
+      load(weekStart)
+    } catch (e) {
+      setEditError(e.message)
+    }
   }
 
   const days  = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
@@ -429,7 +523,10 @@ export default function DutyCardsPage() {
                     </div>
                     <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{fmtLongDate(date)}</div>
                   </div>
-                  <button className="btn btn-ghost btn-sm" onClick={() => setSelected(null)}>✕</button>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button className="btn btn-ghost btn-sm" onClick={openEdit}>Edit</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setSelected(null)}>✕</button>
+                  </div>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
@@ -498,6 +595,149 @@ export default function DutyCardsPage() {
         </>
       )}
 
+      {editModal && selected && (
+        <Modal
+          title={`Edit Duty — ${selected.driver.name} — ${fmtLongDate(selected.date)}`}
+          onClose={() => setEditModal(false)}
+          wide
+          footer={
+            <>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={deleteDuty}
+                style={{ marginRight: 'auto', color: '#e53935', borderColor: '#e53935' }}
+              >
+                Delete Duty
+              </button>
+              <button className="btn btn-ghost" onClick={() => setEditModal(false)}>Close</button>
+              <button className="btn btn-primary" onClick={saveEdit} disabled={editSaving}>
+                {editSaving ? 'Saving…' : 'Save Changes'}
+              </button>
+            </>
+          }
+        >
+          {editError && <div className="error-msg">{editError}</div>}
+
+          <div style={{ marginBottom: 20 }}>
+            {editJourneys.map((r, i) => (
+              <div
+                key={r.id}
+                style={{
+                  padding: '14px 16px', marginBottom: 10, borderRadius: 8,
+                  background: r._cancel ? 'rgba(229,57,53,0.06)' : 'var(--bg)',
+                  border: `1px solid ${r._cancel ? 'rgba(229,57,53,0.3)' : 'var(--border)'}`,
+                  opacity: r._cancel ? 0.65 : 1,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: r._cancel ? 0 : 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="dm-pill">{r.departure?.timetable?.route?.service_code ?? '?'}</span>
+                    <span style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 600, fontSize: 14 }}>
+                      {r.departure?.departure_time?.slice(0, 5)}
+                    </span>
+                    <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                      {r.departure?.timetable?.name} · {r.departure?.timetable?.direction}
+                    </span>
+                  </div>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ fontSize: 11, color: r._cancel ? '#4db848' : '#e53935', borderColor: r._cancel ? '#4db848' : '#e53935' }}
+                    onClick={() => setEditJourneys(rows => rows.map((x, j) => j === i ? { ...x, _cancel: !x._cancel } : x))}
+                  >
+                    {r._cancel ? 'Restore' : 'Cancel Journey'}
+                  </button>
+                </div>
+                {!r._cancel && (
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <div className="form-group" style={{ flex: '1 1 160px', marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: 11 }}>Driver</label>
+                      <select
+                        className="form-select" style={{ fontSize: 13 }}
+                        value={r.driver_id}
+                        onChange={e => setEditJourneys(rows => rows.map((x, j) => j === i ? { ...x, driver_id: e.target.value } : x))}
+                      >
+                        <option value="">— Unassigned —</option>
+                        {employees.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group" style={{ flex: '1 1 160px', marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: 11 }}>Vehicle</label>
+                      <select
+                        className="form-select" style={{ fontSize: 13 }}
+                        value={r.vehicle_id}
+                        onChange={e => setEditJourneys(rows => rows.map((x, j) => j === i ? { ...x, vehicle_id: e.target.value } : x))}
+                      >
+                        <option value="">— Unassigned —</option>
+                        {vehicles.map(v => <option key={v.id} value={v.id}>{v.registration}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group" style={{ flex: '2 1 220px', marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: 11 }}>Driver notes</label>
+                      <input
+                        className="form-input" type="text" style={{ fontSize: 13 }}
+                        placeholder="Optional — visible to driver on duty card"
+                        value={r.notes}
+                        onChange={e => setEditJourneys(rows => rows.map((x, j) => j === i ? { ...x, notes: e.target.value } : x))}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {(() => {
+            const avail = availableEditDepartures()
+            if (avail.length === 0) return null
+            return (
+              <div>
+                <div style={{ fontFamily: 'Oswald, sans-serif', fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+                  Add Journeys
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                  {avail.map(dep => {
+                    const checked = editNewDeps.includes(dep.id)
+                    return (
+                      <label
+                        key={dep.id}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                          padding: '9px 12px', borderRadius: 6,
+                          background: checked ? 'rgba(77,184,72,0.08)' : 'var(--bg)',
+                          border: `1px solid ${checked ? 'rgba(77,184,72,0.4)' : 'var(--border)'}`,
+                        }}
+                      >
+                        <input type="checkbox" checked={checked} onChange={() =>
+                          setEditNewDeps(ids => ids.includes(dep.id) ? ids.filter(x => x !== dep.id) : [...ids, dep.id])
+                        } style={{ flexShrink: 0 }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 600, fontSize: 14 }}>
+                            {dep.timetable?.route?.service_code}
+                            <span style={{ marginLeft: 8 }}>{dep.departure_time.slice(0, 5)}</span>
+                          </div>
+                          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{dep.timetable?.name} · {dep.timetable?.direction}</div>
+                        </div>
+                      </label>
+                    )
+                  })}
+                </div>
+                {editNewDeps.length > 0 && (
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Notes for new journeys (optional)</label>
+                    <input
+                      className="form-input" type="text"
+                      placeholder="Visible to driver on duty card"
+                      value={editNewNotes}
+                      onChange={e => setEditNewNotes(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+        </Modal>
+      )}
+
       {modal === 'new-duty' && (
         <Modal
           title="Create New Duty"
@@ -537,6 +777,16 @@ export default function DutyCardsPage() {
             </select>
           </div>
 
+          <div className="form-group">
+            <label className="form-label">Driver notes (optional)</label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Visible to the driver on their duty card"
+              value={dutyForm.notes}
+              onChange={e => setDutyForm(f => ({ ...f, notes: e.target.value }))}
+            />
+          </div>
           <label className="form-label" style={{ marginBottom: 8 }}>
             Unassigned runs for {fmtLongDate(dutyForm.date)}
           </label>

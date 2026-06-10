@@ -377,6 +377,10 @@ function renderDutyCard(duties, journeyIds) {
       actionHtml = `<button class="dc-action-btn" data-idx="${idx}">Start Route</button>`;
     }
 
+    const notesHtml = j.notes
+      ? `<div class="dc-route-notes">${j.notes.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`
+      : '';
+
     card.innerHTML = `
       <div class="dc-route-top">
         <span class="dc-service-badge">${j.service_code}</span>
@@ -387,6 +391,7 @@ function renderDutyCard(duties, journeyIds) {
         <span class="dc-vehicle">${j.vehicle_registration}</span>
         <span class="dc-depart">Departs ${deptTime}</span>
       </div>
+      ${notesHtml}
       ${actionHtml}
     `;
     container.appendChild(card);
