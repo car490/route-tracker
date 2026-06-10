@@ -10,7 +10,9 @@ function getWeekStart(d) {
   return m
 }
 
-function dateStr(d) { return d.toISOString().slice(0, 10) }
+function dateStr(d) {
+  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-')
+}
 function todayStr() { return dateStr(new Date()) }
 
 function weekDays(sunday) {
