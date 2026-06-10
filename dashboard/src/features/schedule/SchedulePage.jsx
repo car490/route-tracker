@@ -73,11 +73,12 @@ export default function SchedulePage() {
   const [vehicles,   setVehicles]   = useState([])
   const [loading,    setLoading]    = useState(true)
 
-  const [modal,    setModal]    = useState(null)
-  const [cellData, setCellData] = useState(null)
-  const [dutyForm, setDutyForm] = useState(EMPTY_DUTY)
-  const [saving,   setSaving]   = useState(false)
-  const [error,    setError]    = useState('')
+  const [modal,         setModal]         = useState(null)
+  const [cellData,      setCellData]      = useState(null)
+  const [dutyForm,      setDutyForm]      = useState(EMPTY_DUTY)
+  const [saving,        setSaving]        = useState(false)
+  const [error,         setError]         = useState('')
+  const [cancelJourney, setCancelJourney] = useState(false)
 
   async function load(sunday) {
     setLoading(true)
@@ -91,7 +92,7 @@ export default function SchedulePage() {
         .order('departure_time'),
       supabase
         .from('journeys')
-        .select('id, journey_date, timetable_departure_id, driver_id, vehicle_id, status, driver:employees(name), vehicle:vehicles(registration)')
+        .select('id, journey_date, timetable_departure_id, driver_id, vehicle_id, status, notes, driver:employees(name), vehicle:vehicles(registration)')
         .gte('journey_date', dateStr(sunday))
         .lte('journey_date', dateStr(saturday))
         .neq('status', 'cancelled'),
@@ -165,7 +166,7 @@ export default function SchedulePage() {
         if (existing) {
           const { error: e } = await supabase
             .from('journeys')
-            .update({ driver_id: dutyForm.driver_id, vehicle_id: dutyForm.vehicle_id })
+            .update({ driver_id: dutyForm.driver_id, vehicle_id: dutyForm.vehicle_id, notes: dutyForm.notes || null })
             .eq('id', existing.id)
           if (e) throw e
         } else {
@@ -189,40 +190,46 @@ export default function SchedulePage() {
   }
 
   function openCell(departure, date, journey) {
-    setCellData({ departure, date, journey })
-    setDutyForm({
-      date,
-      driver_id:          journey?.driver_id  ?? '',
-      vehicle_id:         journey?.vehicle_id ?? '',
-      selectedDepartures: [],
-    })
-    setError('')
-    setModal('cell')
+    if (journey?.driver_id) {
+      // Green cell — edit existing assignment
+      setCellData({ departure, date, journey })
+      setDutyForm({ date, driver_id: journey.driver_id, vehicle_id: journey.vehicle_id ?? '', notes: journey.notes ?? '', selectedDepartures: [] })
+      setCancelJourney(false)
+      setError('')
+      setModal('cell')
+    } else {
+      // Red/amber cell — create duty, pre-ticking this departure
+      setDutyForm({ date, driver_id: '', vehicle_id: '', notes: '', selectedDepartures: [departure.id] })
+      setError('')
+      setModal('new-duty')
+    }
   }
 
   async function saveCellAssignment() {
+    if (cancelJourney) {
+      setSaving(true)
+      setError('')
+      try {
+        const { error: e } = await supabase.from('journeys').update({ status: 'cancelled' }).eq('id', cellData.journey.id)
+        if (e) throw e
+        setModal(null)
+        load(weekStart)
+      } catch (e) {
+        setError(e.message)
+      }
+      setSaving(false)
+      return
+    }
     if (!dutyForm.driver_id) { setError('Please select a driver'); return }
     if (!dutyForm.vehicle_id) { setError('Please select a vehicle'); return }
     setSaving(true)
     setError('')
     try {
-      const companyId = await getCompanyId()
-      if (cellData.journey) {
-        const { error: e } = await supabase
-          .from('journeys')
-          .update({ driver_id: dutyForm.driver_id, vehicle_id: dutyForm.vehicle_id })
-          .eq('id', cellData.journey.id)
-        if (e) throw e
-      } else {
-        const { error: e } = await supabase.from('journeys').insert({
-          company_id:             companyId,
-          timetable_departure_id: cellData.departure.id,
-          journey_date:           cellData.date,
-          driver_id:              dutyForm.driver_id,
-          vehicle_id:             dutyForm.vehicle_id,
-        })
-        if (e) throw e
-      }
+      const { error: e } = await supabase
+        .from('journeys')
+        .update({ driver_id: dutyForm.driver_id, vehicle_id: dutyForm.vehicle_id, notes: dutyForm.notes || null })
+        .eq('id', cellData.journey.id)
+      if (e) throw e
       setModal(null)
       load(weekStart)
     } catch (e) {
@@ -340,32 +347,59 @@ export default function SchedulePage() {
 
       {modal === 'cell' && cellData && (
         <Modal
-          title={`Assign — ${cellData.departure.timetable?.route?.service_code} ${cellData.departure.departure_time.slice(0, 5)} ${cellData.departure.timetable?.direction}`}
+          title={`Edit — ${cellData.departure.timetable?.route?.service_code} ${cellData.departure.departure_time.slice(0, 5)} ${cellData.departure.timetable?.direction}`}
           onClose={() => setModal(null)}
           footer={
             <>
-              <button className="btn btn-ghost" onClick={() => setModal(null)}>Cancel</button>
-              <button className="btn btn-primary" onClick={saveCellAssignment} disabled={saving}>
-                {saving ? 'Saving…' : 'Save'}
+              <button className="btn btn-ghost" onClick={() => setModal(null)}>Close</button>
+              <button
+                className="btn btn-primary"
+                onClick={saveCellAssignment}
+                disabled={saving}
+                style={cancelJourney ? { background: '#e53935', borderColor: '#e53935' } : {}}
+              >
+                {saving ? 'Saving…' : cancelJourney ? 'Confirm Cancel' : 'Save'}
               </button>
             </>
           }
         >
           <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>{fmtLongDate(cellData.date)}</p>
           {error && <div className="error-msg">{error}</div>}
-          <div className="form-group">
-            <label className="form-label">Driver</label>
-            <select name="driver_id" className="form-select" value={dutyForm.driver_id} onChange={e => setDutyForm(f => ({ ...f, driver_id: e.target.value }))}>
-              <option value="">— Select driver —</option>
-              {employees.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Vehicle</label>
-            <select name="vehicle_id" className="form-select" value={dutyForm.vehicle_id} onChange={e => setDutyForm(f => ({ ...f, vehicle_id: e.target.value }))}>
-              <option value="">— Select vehicle —</option>
-              {vehicles.map(v => <option key={v.id} value={v.id}>{v.registration}</option>)}
-            </select>
+          {!cancelJourney && (
+            <>
+              <div className="form-group">
+                <label className="form-label">Driver</label>
+                <select name="driver_id" className="form-select" value={dutyForm.driver_id} onChange={e => setDutyForm(f => ({ ...f, driver_id: e.target.value }))}>
+                  <option value="">— Select driver —</option>
+                  {employees.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Vehicle</label>
+                <select name="vehicle_id" className="form-select" value={dutyForm.vehicle_id} onChange={e => setDutyForm(f => ({ ...f, vehicle_id: e.target.value }))}>
+                  <option value="">— Select vehicle —</option>
+                  {vehicles.map(v => <option key={v.id} value={v.id}>{v.registration}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Driver notes (optional)</label>
+                <input type="text" className="form-input" placeholder="Visible to driver on duty card" value={dutyForm.notes} onChange={e => setDutyForm(f => ({ ...f, notes: e.target.value }))} />
+              </div>
+            </>
+          )}
+          {cancelJourney && (
+            <p style={{ color: '#e53935', fontSize: 13, margin: '8px 0 16px' }}>
+              This journey will be marked as cancelled.
+            </p>
+          )}
+          <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{ color: cancelJourney ? '#4db848' : '#e53935', borderColor: cancelJourney ? '#4db848' : '#e53935' }}
+              onClick={() => { setCancelJourney(c => !c); setError('') }}
+            >
+              {cancelJourney ? 'Keep Journey' : 'Cancel Journey'}
+            </button>
           </div>
         </Modal>
       )}
