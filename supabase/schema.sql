@@ -41,6 +41,9 @@ create table companies (
   noc_code                  char(4)     unique,
   -- Logo stored in Supabase Storage bucket 'company-logos' at path {company_id}/logo.*
   logo_path                 text,
+  -- County names used to build the NAPTAN import bounding box via OpenCage.
+  -- Multiple counties supported for operators whose routes cross county lines.
+  service_counties          text[]      not null default '{}',
   created_at                timestamptz not null default now()
 );
 
