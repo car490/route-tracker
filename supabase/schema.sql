@@ -824,7 +824,7 @@ grant execute on function naptan_near_point(float8, float8, float8) to anon, aut
 -- Filter by departure_id to get a specific departure's stops.
 -- Filter by timetable_id to get all departures for a pattern.
 
-create or replace view schedule_view as
+create or replace view schedule_view with (security_invoker = true) as
   select
     ts.id                as timetable_stop_id,
     ts.sequence,
