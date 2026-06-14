@@ -12,7 +12,9 @@ See memory files for full project state, deploy URLs, and phase roadmap.
 
 ## Supabase: table creation rules
 
-**Every `CREATE TABLE` must be immediately followed by GRANT statements, RLS enable, and RLS policies.** Tables without explicit GRANTs are invisible to supabase-js/PostgREST (changed 2026-05-30). RLS must be enabled on every table.
+**Every `CREATE TABLE` must have GRANT statements, RLS enable, and RLS policies.** Tables without explicit GRANTs are invisible to supabase-js/PostgREST (changed 2026-05-30). RLS must be enabled on every table.
+
+**Important ordering rule**: If a policy references a helper function (`current_company_id()`, `current_employee_role()`, etc.), the policy **must** come after the function definition. Put simple `using (true)` policies inline with the table. Defer any policy that calls a helper to the main RLS block at the bottom of the file (after all helper functions). Add a comment `-- RLS policy added after helper functions below` as a placeholder.
 
 ### Standard pattern (authenticated-only table)
 ```sql
@@ -57,12 +59,39 @@ Always follow GRANTs with the appropriate RLS policy.
 
 ## Git / deploy workflow
 
+### Branches
+- `develop` — all active development; **always start here**
+- `main` — production; merge from `develop` only when tested and approved
+
+### Environments
+| Layer | Develop | Production |
+|---|---|---|
+| **Dashboard** | Vercel preview URL (auto on every push to `develop`) | `route-tracker-iota.vercel.app` (auto on merge to `main`) |
+| **PWA** | Local server (`server.js`) — hits dev Supabase automatically | GitHub Pages (deploy from `main`) |
+| **Supabase** | `cgcbfgceputvdvhzrgio` (`route-tracker-dev`) | `nwhayupsvcelyiwltdqo` (production) |
+
+### Environment switching
+- **Dashboard**: `dashboard/.env.development` holds dev Supabase URL/key; Vite's dev server picks
+  it up automatically. Vercel production build ignores this file and uses Vercel's own env vars.
+- **PWA**: `src/main.js` detects `localhost`/`127.0.0.1` at runtime and switches Supabase project.
+  No build step needed.
+
+### Committing
+- Commit at logical checkpoints — when a feature or fix is complete and working.
+- Always commit before applying a DB migration.
+- Always commit at end of session, even if WIP (prefix message with `wip:`).
 - The Git repo root is `route-tracker/` — **not** `route-tracker/public/`.
 - PWA source files live in `route-tracker/public/`; before committing, copy changed
   files to the repo root (e.g. `index.html`, `src/`, `sw.js`).
 - Dashboard is a separate Vite project in `route-tracker/dashboard/`; Vercel deploys
   from that directory automatically on push.
 - `.git` persists between sessions — no need to re-init.
+
+### DB migrations
+- Apply to **dev** first via MCP plugin (project ID `cgcbfgceputvdvhzrgio`).
+- After testing, apply the same migration to **production** (project ID `nwhayupsvcelyiwltdqo`).
+- Keep migration files in `supabase/` for audit trail.
+- Update `supabase/schema.sql` so a fresh reset only needs `schema.sql + seed.sql`.
 
 ---
 

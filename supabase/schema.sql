@@ -358,28 +358,8 @@ create table service_exceptions (
 grant select on public.service_exceptions to anon;
 grant all    on public.service_exceptions to authenticated;
 
-alter table public.service_exceptions enable row level security;
-
-create policy "company_all" on public.service_exceptions
-  for all to authenticated
-  using (
-    timetable_departure_id in (
-      select td.id from timetable_departures td
-      join timetables t on t.id = td.timetable_id
-      join routes r     on r.id = t.route_id
-      where r.company_id = current_company_id()
-    )
-  )
-  with check (
-    timetable_departure_id in (
-      select td.id from timetable_departures td
-      join timetables t on t.id = td.timetable_id
-      join routes r     on r.id = t.route_id
-      where r.company_id = current_company_id()
-    )
-  );
-
 create index on service_exceptions (timetable_departure_id);
+-- RLS enable + policy added after helper functions below
 
 
 -- ── Journeys ──────────────────────────────────────────────────────────────────
@@ -512,6 +492,23 @@ create unique index journey_stop_times_timetable_unique
 create unique index journey_stop_times_waypoint_unique
   on journey_stop_times (journey_id, journey_waypoint_id)
   where journey_waypoint_id is not null;
+
+
+-- ── Excursion passengers ──────────────────────────────────────────────────────
+-- Optional passenger list per excursion journey. Not used for timetabled journeys.
+
+create table excursion_passengers (
+  id          uuid        primary key default gen_random_uuid(),
+  journey_id  uuid        not null references journeys(id) on delete cascade,
+  name        text        not null,
+  phone       text,
+  notes       text,
+  created_at  timestamptz not null default now()
+);
+
+grant select on public.excursion_passengers to anon;
+grant all    on public.excursion_passengers to authenticated;
+-- RLS enable + policy added after helper functions below
 
 
 -- ── Triggers ──────────────────────────────────────────────────────────────────
@@ -1094,6 +1091,41 @@ create policy "company_employee_availability" on employee_availability
         and me.auth_user_id = auth.uid()
       where e.id = employee_availability.employee_id
     )
+  );
+
+
+-- service_exceptions: scoped via departure → timetable → route → company
+alter table public.service_exceptions enable row level security;
+
+create policy "company_all" on public.service_exceptions
+  for all to authenticated
+  using (
+    timetable_departure_id in (
+      select td.id from timetable_departures td
+      join timetables t on t.id = td.timetable_id
+      join routes r     on r.id = t.route_id
+      where r.company_id = current_company_id()
+    )
+  )
+  with check (
+    timetable_departure_id in (
+      select td.id from timetable_departures td
+      join timetables t on t.id = td.timetable_id
+      join routes r     on r.id = t.route_id
+      where r.company_id = current_company_id()
+    )
+  );
+
+-- excursion_passengers: scoped via journey → company
+alter table public.excursion_passengers enable row level security;
+
+create policy "company_all" on public.excursion_passengers
+  for all to authenticated
+  using (
+    journey_id in (select id from journeys where company_id = current_company_id())
+  )
+  with check (
+    journey_id in (select id from journeys where company_id = current_company_id())
   );
 
 
