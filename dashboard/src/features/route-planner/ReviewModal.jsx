@@ -1,6 +1,6 @@
 import { Fragment } from 'react'
 import { S } from './constants'
-import { fmtDist, fmtDur, stopColor, buildSegAfterMap, timeToMinutes, minutesToTime } from './utils'
+import { fmtDist, fmtDur, stopColor, buildSegAfterMap, timeToMinutes, minutesToTime, getScheduledMin, totalScheduledDuration } from './utils'
 
 export default function ReviewModal({
   modalStops, setModalStops,
@@ -73,8 +73,9 @@ export default function ReviewModal({
 
           <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
             {modalStops.map((s, i) => {
-              const color    = stopColor(i, modalStops.length)
-              const segAfter = segAfterStop[s._id]
+              const color       = stopColor(i, modalStops.length)
+              const segAfter    = segAfterStop[s._id]
+              const scheduledMin = getScheduledMin(s, modalStops[i + 1])
               return (
                 <Fragment key={s._id}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
@@ -101,7 +102,7 @@ export default function ReviewModal({
                   {i < modalStops.length - 1 && segAfter && !segAfter.error && (
                     <div style={{ paddingLeft: 30, fontSize: 11, fontFamily: 'Oswald', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', gap: 5, marginBottom: 6 }}>
                       <span>↓</span>
-                      <span>{fmtDur(segAfter.duration)}</span>
+                      <span>{scheduledMin != null ? `${scheduledMin} min` : fmtDur(segAfter.duration)}</span>
                       <span style={{ fontWeight: 400, fontSize: 10 }}>·</span>
                       <span style={{ fontWeight: 400 }}>{fmtDist(segAfter.distance)}</span>
                     </div>
@@ -118,7 +119,7 @@ export default function ReviewModal({
               {fmtDist(routeResult.distance)}
             </span>
             <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>
-              {fmtDur(routeResult.duration)}
+              {fmtDur(totalScheduledDuration(modalStops, segAfterStop))}
             </span>
             {warnings.map((w, idx) => (
               <div key={idx} style={{ fontSize: 12, color: '#d69e2e', display: 'flex', gap: 4 }}>

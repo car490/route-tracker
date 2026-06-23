@@ -5,13 +5,14 @@ import { getCompanyId } from '../../shared/company'
 import { searchPlaces } from '../../shared/api/osPlaces'
 import { useJourneyTypes } from '../../shared/hooks/useJourneyTypes'
 import { TYPE_DEFAULTS, DIRECTIONS, SINGLE_JOURNEY_DIRECTIONS, S } from './constants'
-import { fmtDist, fmtDur, stopColor, timeToMinutes, minutesToTime, fetchSegments, combineGeometries, buildSegAfterMap } from './utils'
+import { fmtDist, fmtDur, stopColor, timeToMinutes, minutesToTime, fetchSegments, combineGeometries, buildSegAfterMap, getScheduledMin, totalScheduledDuration } from './utils'
 import PlannerMap from './PlannerMap'
 import ReviewModal from './ReviewModal'
 import DeparturesCard from './DeparturesCard'
 
-function SegChip({ seg }) {
+function SegChip({ seg, scheduledMin }) {
   if (!seg || seg.error) return null
+  const durationLabel = scheduledMin != null ? `${scheduledMin} min` : fmtDur(seg.duration)
   return (
     <div style={{
       paddingLeft: 22, marginBottom: 2,
@@ -19,7 +20,7 @@ function SegChip({ seg }) {
       color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 5,
     }}>
       <span>↓</span>
-      <span>{fmtDur(seg.duration)}</span>
+      <span>{durationLabel}</span>
       <span style={{ fontWeight: 400, fontSize: 10 }}>·</span>
       <span style={{ fontWeight: 400 }}>{fmtDist(seg.distance)}</span>
     </div>
@@ -442,8 +443,11 @@ export default function RoutePlannerPage() {
       .from('timetable_stops').delete().eq('timetable_id', resolvedTimetableId)
     if (delErr) { setSaveError(delErr.message); setSaving(false); return }
 
-    const firstTiming = stopsToSave.find(s => s.stop_type === 'timing_point' && s.time_std)
-    const base        = firstTiming ? timeToMinutes(firstTiming.time_std) : null
+    // Must match the anchor used when loading stops (line ~146): offsets are relative to the
+    // timetable's first departure, not to whatever the first stop's time happened to show here —
+    // otherwise edits to that stop's time silently collapse to offset 0 and revert on reload.
+    const baseStr = departures[0]?.departure_time ?? '07:00:00'
+    const base    = timeToMinutes(baseStr.slice(0, 5))
 
     const stopRows = []
     for (let i = 0; i < stopsToSave.length; i++) {
@@ -522,6 +526,7 @@ export default function RoutePlannerPage() {
     : selTt ? `${selTt.name} · ${selTt.direction}` : ''
 
   const segAfterStop = buildSegAfterMap(stops, routeResult?.segments)
+  const totalDurationSec = totalScheduledDuration(stops, segAfterStop)
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
@@ -537,9 +542,6 @@ export default function RoutePlannerPage() {
               {routeId === '__new__' ? 'Route created ✓ — select from list to continue' : 'Saved ✓'}
             </span>
           )}
-          <button className="btn btn-primary btn-sm" onClick={openModal} disabled={!canSave}>
-            Review &amp; Save
-          </button>
         </div>
       </div>
 
@@ -784,6 +786,7 @@ export default function RoutePlannerPage() {
               const color = stopColor(i, stops.length)
               const isEditing = editStopId === s._id
               const segAfter  = segAfterStop[s._id]
+              const scheduledMin = getScheduledMin(s, stops[i + 1])
               return (
                 <Fragment key={s._id}>
                   <div style={{ borderLeft: `3px solid ${color}`, paddingLeft: 8, marginBottom: 2 }}>
@@ -832,7 +835,7 @@ export default function RoutePlannerPage() {
                       )}
                     </div>
                   </div>
-                  {i < stops.length - 1 && <SegChip seg={segAfter} />}
+                  {i < stops.length - 1 && <SegChip seg={segAfter} scheduledMin={scheduledMin} />}
                 </Fragment>
               )
             })}
@@ -956,7 +959,7 @@ export default function RoutePlannerPage() {
                   {fmtDist(routeResult.distance)}
                 </span>
                 <span style={{ fontSize: 13, color: 'var(--text-muted)', marginLeft: 10 }}>
-                  {fmtDur(routeResult.duration)}
+                  {fmtDur(totalDurationSec)}
                 </span>
                 {warnings.map((w, idx) => (
                   <div key={idx} style={{ fontSize: 12, color: '#d69e2e', display: 'flex', gap: 4, marginTop: 4 }}>

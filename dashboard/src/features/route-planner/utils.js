@@ -1,7 +1,7 @@
 import { getRoute } from './directions'
 
 export function fmtDist(m) {
-  return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`
+  return m < 1000 ? `${Math.round(m * 1.09361)} yd` : `${(m / 1609.344).toFixed(1)} mi`
 }
 
 export function fmtDur(s) {
@@ -53,4 +53,20 @@ export function buildSegAfterMap(stops, segments) {
     if (i < valid.length - 1 && segments?.[i]) map[s._id] = segments[i]
   })
   return map
+}
+
+export function getScheduledMin(a, b) {
+  if (a?.stop_type !== 'timing_point' || b?.stop_type !== 'timing_point') return null
+  if (!a.time_std || !b.time_std) return null
+  const diff = timeToMinutes(b.time_std) - timeToMinutes(a.time_std)
+  return diff > 0 ? diff : null
+}
+
+export function totalScheduledDuration(stops, segAfterStop) {
+  return stops.reduce((sum, s, i) => {
+    const seg = segAfterStop[s._id]
+    if (!seg || seg.error) return sum
+    const sched = getScheduledMin(s, stops[i + 1])
+    return sum + (sched != null ? sched * 60 : seg.duration)
+  }, 0)
 }
