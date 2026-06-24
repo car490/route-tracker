@@ -12,10 +12,13 @@
 --
 -- ─────────────────────────────────────────────────────────────────────────────
 
--- Store the project URL as a DB-level setting (not secret, safe to commit).
--- Replace with the correct URL for each environment when applying.
--- Dev:  alter database postgres set "app.supabase_url" = 'https://cgcbfgceputvdvhzrgio.supabase.co';
--- Prod: alter database postgres set "app.supabase_url" = 'https://nwhayupsvcelyiwltdqo.supabase.co';
+-- Project URL: read from public.app_config at runtime (see schema.sql).
+-- `alter database postgres set "app.supabase_url" = ...` was the original
+-- approach but Supabase's pooled/restricted roles can't run ALTER DATABASE
+-- SET — see supabase/migrations/20260624094216_naptan_app_config_settings.sql.
+-- Per-environment step, run once:
+--   insert into public.app_config (key, value) values ('supabase_url', 'https://PROJECT_REF.supabase.co')
+--   on conflict (key) do update set value = excluded.value, updated_at = now();
 
 -- ── Enable required extensions ────────────────────────────────────────────────
 
@@ -55,11 +58,16 @@ begin
     return NEW;
   end if;
 
-  _url := current_setting('app.supabase_url', true) || '/functions/v1/naptan-import';
+  select value into _url from public.app_config where key = 'supabase_url';
+
+  if _url is null then
+    raise warning 'app_config.supabase_url not set — new counties not imported automatically. Run import-naptan.js manually.';
+    return NEW;
+  end if;
 
   -- Fire-and-forget async HTTP call via pg_net
   perform net.http_post(
-    url     => _url,
+    url     => _url || '/functions/v1/naptan-import',
     headers => jsonb_build_object(
       'Content-Type',  'application/json',
       'Authorization', 'Bearer ' || _token
@@ -96,7 +104,7 @@ select cron.schedule(
   '0 2 * * 0',
   $$
   select net.http_post(
-    url     => current_setting('app.supabase_url', true) || '/functions/v1/naptan-import',
+    url     => (select value from public.app_config where key = 'supabase_url') || '/functions/v1/naptan-import',
     headers => jsonb_build_object(
       'Content-Type',  'application/json',
       'Authorization', 'Bearer ' || (

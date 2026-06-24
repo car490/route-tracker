@@ -259,6 +259,25 @@ $$;
 grant execute on function public.display_name(stops) to anon, authenticated;
 
 
+-- ── App config (internal) ─────────────────────────────────────────────────────
+-- Small key/value settings table for SQL-side config that can't use
+-- ALTER DATABASE SET (Supabase's pooled roles can't run that). Currently
+-- holds 'supabase_url', read by the NAPTAN trigger/cron in migration_naptan_trigger.sql
+-- to build the naptan-import Edge Function URL. Per-environment row, set manually:
+--   insert into public.app_config (key, value) values ('supabase_url', 'https://PROJECT_REF.supabase.co')
+--   on conflict (key) do update set value = excluded.value, updated_at = now();
+-- Deliberately not exposed via PostgREST: no anon/authenticated grants,
+-- RLS enabled with no policies (default-deny for any non-owner role).
+
+create table if not exists public.app_config (
+  key        text        primary key,
+  value      text        not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.app_config enable row level security;
+
+
 -- ── Journey types lookup ──────────────────────────────────────────────────────
 -- Source of truth for valid journey type values. Replaces hardcoded CHECK constraints.
 
