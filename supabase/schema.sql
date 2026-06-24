@@ -238,6 +238,26 @@ create index naptan_stops_coords_idx on naptan_stops (lat, lon);
 grant select on public.naptan_stops to anon, authenticated;
 grant all    on public.naptan_stops to service_role;
 
+-- Computed "<locality>, <landmark> (<indicator>)" display name for a stop,
+-- derived from naptan_stops via stops.naptan_code. Falls back to stops.name
+-- when there's no NAPTAN match (e.g. stops outside imported counties).
+-- Exposed via PostgREST as a computed column: select=name,display_name
+create or replace function public.display_name(s stops)
+returns text
+language sql
+stable
+as $$
+  select coalesce(
+    (select n.locality_name || ', ' || n.common_name ||
+       case when n.indicator is not null and n.indicator <> '' then ' (' || n.indicator || ')' else '' end
+     from naptan_stops n
+     where n.atco_code = s.naptan_code),
+    s.name
+  )
+$$;
+
+grant execute on function public.display_name(stops) to anon, authenticated;
+
 
 -- ── Journey types lookup ──────────────────────────────────────────────────────
 -- Source of truth for valid journey type values. Replaces hardcoded CHECK constraints.
@@ -751,7 +771,7 @@ AS $function$
     t.direction,
     td.id                                                    as timetable_departure_id,
     to_char(td.departure_time, 'HH24:MI')                   as first_stop_time,
-    (select st.name from timetable_stops ts3
+    (select display_name(st.*) from timetable_stops ts3
      join stops st on st.id = ts3.stop_id
      where ts3.timetable_id = t.id order by ts3.sequence desc limit 1) as last_stop_name,
     j.notes
@@ -854,7 +874,8 @@ create or replace view schedule_view with (security_invoker = true) as
     t.direction,
     r.service_code,
     r.name               as route_name,
-    r.journey_type
+    r.journey_type,
+    display_name(s.*)    as display_name
   from timetable_stops     ts
   join stops               s  on s.id  = ts.stop_id
   join timetables          t  on t.id  = ts.timetable_id

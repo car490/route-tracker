@@ -7,7 +7,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 const url =
   `${SUPABASE_URL}/rest/v1/schedule_view` +
-  `?select=timetable_stop_id,stop_type,scheduled_time,name,lat,lon,service_code,timetable_name,direction,departure_id,departure_time,sequence` +
+  `?select=timetable_stop_id,stop_type,scheduled_time,display_name,lat,lon,service_code,timetable_name,direction,departure_id,departure_time,sequence` +
   `&order=service_code,departure_time,sequence`
 
 const res = await fetch(url, {
@@ -26,7 +26,7 @@ const rows = await res.json()
 console.log(`Fetched ${rows.length} rows from schedule_view`)
 
 const schedule = {}
-for (const { service_code, timetable_name, direction, departure_id, departure_time, name, lat, lon, scheduled_time, stop_type, timetable_stop_id } of rows) {
+for (const { service_code, timetable_name, direction, departure_id, departure_time, display_name, lat, lon, scheduled_time, stop_type, timetable_stop_id } of rows) {
   if (!schedule[service_code]) schedule[service_code] = {}
   if (!schedule[service_code][departure_id]) {
     const deptStr = departure_time ? departure_time.substring(0, 5) : ''
@@ -38,7 +38,7 @@ for (const { service_code, timetable_name, direction, departure_id, departure_ti
     }
   }
   schedule[service_code][departure_id].stops.push({
-    name,
+    name: display_name,
     lat,
     lon,
     time: scheduled_time ? scheduled_time.substring(0, 5) : '',
