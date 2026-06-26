@@ -31,7 +31,7 @@ function DrillTable({ type, rows }) {
       <tbody>
         {rows.map(r => (
           <tr key={r.id} style={{ borderBottom: '1px solid var(--border)' }}>
-            <td style={{ ...tdStyle, fontFamily: 'Oswald', fontWeight: 600, color: 'var(--navy-brand)' }}>{r.service_code}</td>
+            <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--navy-brand)' }}>{r.service_code}</td>
             <td style={tdStyle}>{r.name}</td>
             <td style={{ ...tdStyle, color: 'var(--text-muted)' }}>{r.journey_type}</td>
           </tr>
@@ -94,7 +94,7 @@ function DrillTable({ type, rows }) {
       <tbody>
         {rows.map(r => (
           <tr key={r.id} style={{ borderBottom: '1px solid var(--border)' }}>
-            <td style={{ ...tdStyle, fontFamily: 'Oswald', fontWeight: 600, color: 'var(--navy-brand)' }}>
+            <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--navy-brand)' }}>
               {r.timetable?.route?.service_code ?? '—'}
             </td>
             <td style={{ ...tdStyle, color: 'var(--text-muted)' }}>

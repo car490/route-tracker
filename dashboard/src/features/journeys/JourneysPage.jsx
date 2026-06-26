@@ -209,7 +209,7 @@ export default function JourneysPage() {
       const sign = s < 0 ? 'Early ' : s > 0 ? 'Late ' : ''
       return `${sign}${Math.floor(abs / 60)}m ${abs % 60}s`
     }
-    const varColour = s => s == null ? '' : s < 0 ? 'color:#fb8c00' : s > 30 ? 'color:#e53935' : 'color:#4db848'
+    const varColour = s => s == null ? '' : s < 0 ? 'color:#F59E0B' : s > 30 ? 'color:#EF4444' : 'color:#10B981'
     const route = j.departure?.timetable?.route?.service_code ?? 'Journey'
     const stopRows = stops.map(s => `
       <tr>
@@ -382,7 +382,7 @@ export default function JourneysPage() {
                 {journeys.map(j => (
                   <tr key={j.id}>
                     <td>
-                      <span style={{ fontFamily: 'Oswald', fontWeight: 600, color: 'var(--navy-brand)' }}>
+                      <span style={{ fontWeight: 600, color: 'var(--navy-brand)' }}>
                         {j.departure?.timetable?.route?.service_code ?? '—'}
                       </span>
                     </td>
@@ -391,7 +391,7 @@ export default function JourneysPage() {
                         ? <span className="badge badge-blue">
                             {j.departure.timetable?.name} {j.departure.timetable?.direction}
                             {' @ '}
-                            <span style={{ fontFamily: 'Oswald', fontWeight: 700 }}>{j.departure.departure_time?.slice(0, 5)}</span>
+                            <span style={{ fontWeight: 700 }}>{j.departure.departure_time?.slice(0, 5)}</span>
                           </span>
                         : '—'}
                     </td>
@@ -520,7 +520,7 @@ export default function JourneysPage() {
                     {reportStops.map((s, i) => {
                       const v      = s.variance_seconds
                       const varStr = v == null ? '—' : v === 0 ? 'On time' : `${v < 0 ? '-' : '+'}${Math.floor(Math.abs(v) / 60)}m ${Math.abs(v) % 60}s`
-                      const varColour = v == null ? 'var(--text-muted)' : v < 0 ? '#fb8c00' : v > 30 ? '#e53935' : '#4db848'
+                      const varColour = v == null ? 'var(--text-muted)' : v < 0 ? '#F59E0B' : v > 30 ? '#EF4444' : '#10B981'
                       return (
                         <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                           <td style={{ padding: '5px 6px', color: 'var(--text-muted)', fontSize: 11 }}>{s.timetable_stop?.sequence ?? ''}</td>

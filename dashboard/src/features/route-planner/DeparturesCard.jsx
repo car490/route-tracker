@@ -77,7 +77,7 @@ export default function DeparturesCard({ timetableId, timetables, departures, se
 
       {departures.map(dep => (
         <div key={dep.id} style={{ background: 'var(--bg)', borderRadius: 5, padding: '5px 7px', marginBottom: 5, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 14, color: 'var(--navy-brand)', minWidth: 42 }}>
+          <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy-brand)', minWidth: 42 }}>
             {dep.departure_time.slice(0, 5)}
           </span>
           <span style={{ fontSize: 11, color: 'var(--text-muted)', flex: 1 }}>

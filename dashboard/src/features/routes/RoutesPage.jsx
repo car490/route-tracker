@@ -144,7 +144,7 @@ export default function RoutesPage() {
                     onClick={() => setSelected(selected === r.id ? null : r.id)}
                   >
                     <td>
-                      <span style={{ fontFamily: 'Oswald', fontWeight: 600, fontSize: 15, color: 'var(--navy-brand)' }}>
+                      <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--navy-brand)' }}>
                         {r.service_code}
                       </span>
                     </td>

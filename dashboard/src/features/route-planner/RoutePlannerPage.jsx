@@ -16,7 +16,7 @@ function SegChip({ seg, scheduledMin }) {
   return (
     <div style={{
       paddingLeft: 22, marginBottom: 2,
-      fontSize: 11, fontFamily: 'Oswald', fontWeight: 700,
+      fontSize: 11, fontWeight: 700,
       color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 5,
     }}>
       <span>↓</span>
@@ -590,9 +590,9 @@ export default function RoutePlannerPage() {
               <div style={{ background: 'var(--bg)', borderRadius: 6, padding: 8, marginBottom: 6, border: '1px solid var(--border)' }}>
                 {newRouteCollapsed ? (
                   <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 12, color: 'var(--navy-brand)', flexShrink: 0 }}>{newCode}</span>
+                    <span style={{ fontWeight: 700, fontSize: 12, color: 'var(--navy-brand)', flexShrink: 0 }}>{newCode}</span>
                     {newJourneyTypes.map(jt => (
-                      <span key={jt} style={{ fontSize: 10, fontFamily: 'Oswald', fontWeight: 700, background: 'var(--navy-brand)', color: '#fff', borderRadius: 8, padding: '1px 6px', letterSpacing: '0.04em', textTransform: 'uppercase', flexShrink: 0 }}>{jt}</span>
+                      <span key={jt} style={{ fontSize: 10, fontWeight: 700, background: 'var(--navy-brand)', color: '#fff', borderRadius: 8, padding: '1px 6px', letterSpacing: '0.04em', textTransform: 'uppercase', flexShrink: 0 }}>{jt}</span>
                     ))}
                     {newName && <span style={{ fontSize: 12, color: 'var(--text)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{newName}</span>}
                     <button type="button" onClick={() => setNewRouteCollapsed(false)}
@@ -758,10 +758,10 @@ export default function RoutePlannerPage() {
                 <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 8px', marginBottom: 10, fontSize: 12 }}>
                   {code && (
                     <div style={{ display: 'flex', gap: 5, alignItems: 'baseline', flexWrap: 'wrap', marginBottom: 3 }}>
-                      <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 13, color: 'var(--navy-brand)', flexShrink: 0 }}>{code}</span>
+                      <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy-brand)', flexShrink: 0 }}>{code}</span>
                       {name && <span style={{ color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{name}</span>}
                       {jtypes.map(jt => (
-                        <span key={jt} style={{ fontSize: 10, fontFamily: 'Oswald', fontWeight: 700, background: 'var(--navy-brand)', color: '#fff', borderRadius: 8, padding: '1px 6px', letterSpacing: '0.04em', textTransform: 'uppercase', flexShrink: 0 }}>{jt}</span>
+                        <span key={jt} style={{ fontSize: 10, fontWeight: 700, background: 'var(--navy-brand)', color: '#fff', borderRadius: 8, padding: '1px 6px', letterSpacing: '0.04em', textTransform: 'uppercase', flexShrink: 0 }}>{jt}</span>
                       ))}
                       <button type="button"
                         onClick={() => { setShowSetup(true); setNewRouteCollapsed(false); setNewTtCollapsed(false) }}
@@ -791,7 +791,7 @@ export default function RoutePlannerPage() {
                 <Fragment key={s._id}>
                   <div style={{ borderLeft: `3px solid ${color}`, paddingLeft: 8, marginBottom: 2 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginBottom: 3 }}>
-                      <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 10, color, width: 14, flexShrink: 0, textAlign: 'right' }}>
+                      <span style={{ fontWeight: 700, fontSize: 10, color, width: 14, flexShrink: 0, textAlign: 'right' }}>
                         {i + 1}
                       </span>
                       {isEditing ? (
@@ -856,7 +856,7 @@ export default function RoutePlannerPage() {
                   borderRadius: 6, padding: 8, marginBottom: 8,
                 }}>
                   <div style={{
-                    fontSize: 10, fontFamily: 'Oswald', fontWeight: 700,
+                    fontSize: 10, fontWeight: 700,
                     color: 'var(--navy-brand)', textTransform: 'uppercase',
                     letterSpacing: '0.06em', marginBottom: 4,
                   }}>
@@ -939,7 +939,7 @@ export default function RoutePlannerPage() {
                       display: 'flex', alignItems: 'center', gap: 6,
                       background: 'var(--bg)', marginBottom: 2,
                     }}>
-                      <span style={{ fontSize: 10, fontFamily: 'Oswald', fontWeight: 700, color: r.source === 'stop' ? 'var(--green)' : 'var(--navy-brand)', textTransform: 'uppercase', minWidth: 28 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: r.source === 'stop' ? 'var(--green)' : 'var(--navy-brand)', textTransform: 'uppercase', minWidth: 28 }}>
                         {r.source === 'stop' ? 'Stop' : 'Addr'}
                       </span>
                       <span style={{ flex: 1, lineHeight: 1.3 }}>{r.name}</span>
@@ -955,7 +955,7 @@ export default function RoutePlannerPage() {
             {/* Route totals */}
             {routeResult && !routeResult.error && (
               <div style={{ borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 10 }}>
-                <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 16, color: 'var(--navy-brand)' }}>
+                <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy-brand)' }}>
                   {fmtDist(routeResult.distance)}
                 </span>
                 <span style={{ fontSize: 13, color: 'var(--text-muted)', marginLeft: 10 }}>

@@ -1,17 +1,23 @@
-@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 :root {
-  --bg:           #07111f;
-  --surface:      #0d1e36;
+  /* CoachMate core brand */
+  --cm-cyan:      #00B4D8;
+  --cm-charcoal:  #242F35;
+  --cm-font:      'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* Dark surface tokens */
+  --bg:           #1B2428;
+  --surface:      var(--cm-charcoal);
   --text:         #ffffff;
-  --text-muted:   #7a9cbf;
-  --on-time:      #4db848;
-  --late:         #e53935;
-  --early:        #fb8c00;
-  --border:       #1a3357;
-  --progress-bg:  #1a3357;
-  --brand-navy:   #1e3d72;
-  --brand-green:  #4db848;
+  --text-muted:   #8BA4B0;
+  --on-time:      #10B981;
+  --late:         #EF4444;
+  --early:        #F59E0B;
+  --border:       rgba(255, 255, 255, 0.09);
+  --progress-bg:  rgba(255, 255, 255, 0.08);
+  --brand-cyan:   var(--cm-cyan);
+  --brand-charcoal: var(--cm-charcoal);
 }
 
 *,
@@ -36,7 +42,7 @@ html {
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--cm-font);
   font-size: 1rem;
   line-height: 1.4;
   padding: 1rem;
@@ -54,9 +60,9 @@ body {
   color: #fff;
   padding: 0.6rem 1rem;
   text-align: center;
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 0.85rem;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.02em;
   border-radius: 6px;
 }
 
@@ -67,19 +73,19 @@ body {
   color: #000;
   text-align: center;
   padding: 0.9rem 1rem;
-  border-radius: 8px;
+  border-radius: 10px;
   animation: ewb-flash 1s ease-in-out infinite;
 }
 
 .ewb-title {
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 1.5rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.05em;
 }
 
 .ewb-msg {
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 1rem;
   font-weight: 400;
   margin-top: 0.2rem;
@@ -97,7 +103,7 @@ body {
   align-items: flex-start;
   gap: 0.75rem;
   padding: 0.5rem 0.25rem;
-  border-bottom: 2px solid var(--brand-green);
+  border-bottom: 2px solid var(--brand-cyan);
 }
 
 #header-service {
@@ -105,7 +111,7 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 0.15rem;
-  background: var(--brand-navy);
+  background: var(--surface);
   padding: 0.25rem 0.7rem;
   border-radius: 4px;
   flex-shrink: 0;
@@ -113,20 +119,20 @@ body {
 
 #header-service-code {
   color: #ffffff;
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 1rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
   white-space: nowrap;
 }
 
 #header-service-period {
   color: rgba(255, 255, 255, 0.75);
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 0.72rem;
   font-weight: 400;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -139,7 +145,7 @@ body {
 }
 
 #header-line1 {
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--text);
@@ -147,7 +153,7 @@ body {
 }
 
 #header-line2 {
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--text);
@@ -176,12 +182,12 @@ body {
 }
 
 .ndc-brand {
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 1.3rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: var(--brand-green);
+  color: var(--brand-cyan);
 }
 
 .ndc-icon {
@@ -190,7 +196,7 @@ body {
 }
 
 .ndc-title {
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 1.6rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -216,21 +222,21 @@ body {
 }
 
 .picker-brand {
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 2rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--brand-green);
+  color: var(--brand-cyan);
   text-align: center;
   line-height: 1.1;
 }
 
 .picker-subtitle {
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 1rem;
   font-weight: 400;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--text-muted);
   text-align: center;
@@ -244,10 +250,10 @@ body {
 }
 
 .picker-field label {
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--text-muted);
 }
@@ -283,19 +289,19 @@ body {
 
 .picker-field select:focus {
   outline: none;
-  border-color: var(--brand-green);
+  border-color: var(--brand-cyan);
 }
 
 #start-btn {
-  background: var(--brand-green);
+  background: var(--brand-cyan);
   color: #fff;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 1rem;
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 1.2rem;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   width: 100%;
   cursor: pointer;
@@ -311,7 +317,7 @@ body {
 #status-card {
   background: var(--surface);
   border: 2px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 1.25rem 1.5rem;
   display: flex;
   flex-direction: column;
@@ -321,13 +327,13 @@ body {
 .status-on-time { border-color: var(--on-time); }
 .status-late    { border-color: var(--late); }
 .status-early   { border-color: var(--early); }
-.status-at-stop { border-color: var(--brand-navy); }
+.status-at-stop { border-color: var(--surface); }
 
 #status-label {
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 0.8rem;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--text-muted);
 }
@@ -335,7 +341,7 @@ body {
 .status-on-time #status-label { color: var(--on-time); }
 .status-late    #status-label { color: var(--late); }
 .status-early   #status-label { color: var(--early); }
-.status-at-stop #status-label { color: var(--brand-navy); }
+.status-at-stop #status-label { color: var(--surface); }
 
 #next-stop {
   font-size: 1.5rem;
@@ -360,10 +366,10 @@ body {
 }
 
 .time-label {
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 0.65rem;
   font-weight: 400;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-muted);
 }
@@ -385,7 +391,7 @@ body {
 .status-on-time #delta { color: var(--on-time); }
 .status-late    #delta { color: var(--late); }
 .status-early   #delta { color: var(--early); }
-.status-at-stop #delta { color: var(--brand-navy); }
+.status-at-stop #delta { color: var(--surface); }
 
 /* ── Metrics row ──────────────────────────────── */
 
@@ -401,10 +407,10 @@ body {
 }
 
 .metric-label {
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 0.65rem;
   font-weight: 400;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-muted);
 }
@@ -420,7 +426,7 @@ body {
 .progress-section {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 1rem 1.5rem;
   display: flex;
   flex-direction: column;
@@ -435,8 +441,8 @@ body {
 
 .stop-label-prefix {
   font-size: 0.7rem;
-  font-family: 'Oswald', sans-serif;
-  letter-spacing: 0.1em;
+  font-family: var(--cm-font);
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-muted);
 }
@@ -461,7 +467,7 @@ body {
 #progress-fill {
   height: 100%;
   width: 0%;
-  background: var(--brand-green);
+  background: var(--brand-cyan);
   border-radius: 4px;
   transition: width 1s linear;
 }
@@ -480,18 +486,18 @@ body {
   color: var(--text-muted);
   border: 1px solid var(--border);
   border-radius: 6px;
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 0.85rem;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   cursor: pointer;
 }
 
 .toggle-btn.toggle-active {
-  background: var(--brand-navy);
+  background: var(--surface);
   color: var(--text);
-  border-color: var(--brand-navy);
+  border-color: var(--surface);
 }
 
 /* ── Map view ─────────────────────────────────── */
@@ -499,7 +505,7 @@ body {
 #map-view {
   height: 40vh;
   min-height: 240px;
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
   border: 1px solid var(--border);
 }
@@ -510,7 +516,7 @@ body {
   position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   overflow-y: auto;
   max-height: 40vh;
 }
@@ -562,7 +568,7 @@ body {
 }
 
 .stop-current {
-  background: var(--brand-navy);
+  background: var(--surface);
   font-weight: 700;
 }
 
@@ -582,8 +588,8 @@ body {
 }
 
 .sl-jump:active {
-  color: var(--brand-green);
-  border-color: var(--brand-green);
+  color: var(--brand-cyan);
+  border-color: var(--brand-cyan);
 }
 
 /* ── Directions view ──────────────────────────── */
@@ -591,7 +597,7 @@ body {
 #directions-view {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   overflow-y: auto;
   max-height: 40vh;
 }
@@ -608,10 +614,10 @@ body {
 }
 
 .dir-select-label {
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 0.7rem;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-muted);
   flex-shrink: 0;
@@ -631,15 +637,15 @@ body {
 
 .dir-from-select:focus {
   outline: none;
-  border-color: var(--brand-green);
+  border-color: var(--brand-cyan);
 }
 
 .dir-destination {
   padding: 0.75rem 1rem;
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 0.8rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--text-muted);
   border-bottom: 1px solid var(--border);
@@ -674,7 +680,7 @@ body {
 .dir-icon {
   font-size: 1.15rem;
   text-align: center;
-  color: var(--brand-green);
+  color: var(--brand-cyan);
 }
 
 .dir-road {
@@ -704,7 +710,7 @@ body {
 #log-view {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   overflow-y: auto;
   max-height: 40vh;
   font-family: monospace;
@@ -751,11 +757,11 @@ body {
 .dc-header {
   text-align: center;
   padding-bottom: 1rem;
-  border-bottom: 2px solid var(--brand-green);
+  border-bottom: 2px solid var(--brand-cyan);
 }
 
 .dc-greeting {
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 1.1rem;
   color: var(--text-muted);
   margin-top: 0.5rem;
@@ -781,7 +787,7 @@ body {
 .dc-route-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 1rem 1.25rem;
   display: flex;
   flex-direction: column;
@@ -789,7 +795,7 @@ body {
 }
 
 .dc-route-in_progress {
-  border-color: var(--brand-green);
+  border-color: var(--brand-cyan);
 }
 
 .dc-route-completed {
@@ -803,12 +809,12 @@ body {
 }
 
 .dc-service-badge {
-  background: var(--brand-navy);
+  background: var(--surface);
   color: #fff;
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 0.85rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
   padding: 0.2rem 0.6rem;
   border-radius: 4px;
@@ -817,7 +823,7 @@ body {
 }
 
 .dc-route-label {
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--text);
@@ -844,20 +850,20 @@ body {
   margin-top: 8px;
   padding: 6px 10px;
   background: rgba(255, 255, 255, 0.05);
-  border-left: 3px solid var(--brand-green);
+  border-left: 3px solid var(--brand-cyan);
   border-radius: 0 4px 4px 0;
 }
 
 .dc-action-btn {
-  background: var(--brand-green);
+  background: var(--brand-cyan);
   color: #fff;
   border: none;
   border-radius: 6px;
   padding: 0.7rem 1rem;
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 1rem;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   cursor: pointer;
   width: 100%;
@@ -866,14 +872,14 @@ body {
 
 .dc-action-btn:active { background: #3da038; }
 
-.dc-resume-btn { background: var(--brand-navy); }
+.dc-resume-btn { background: var(--surface); }
 .dc-resume-btn:active { background: #162d55; }
 
 .dc-done-badge {
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--brand-green);
+  color: var(--brand-cyan);
   text-align: center;
   padding: 0.4rem;
 }
@@ -888,10 +894,10 @@ body {
   color: var(--early);
   border: 1.5px solid var(--early);
   border-radius: 6px;
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 0.95rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
   cursor: pointer;
 }
@@ -923,10 +929,10 @@ body {
 }
 
 .incident-title {
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 1.1rem;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--early);
   padding: 1rem 1.25rem 0.75rem;
@@ -941,10 +947,10 @@ body {
 }
 
 .incident-label {
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 0.7rem;
   font-weight: 600;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--text-muted);
 }
@@ -993,10 +999,10 @@ body {
   flex: 1;
   padding: 0.8rem;
   border-radius: 6px;
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 1rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
   cursor: pointer;
   border: none;
@@ -1027,10 +1033,10 @@ body {
   border: 1px solid var(--border);
   border-radius: 6px;
   color: var(--text-muted);
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--cm-font);
   font-size: 0.85rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.02em;
   padding: 0.5rem 0.75rem;
   cursor: pointer;
   align-self: flex-start;

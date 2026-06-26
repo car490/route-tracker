@@ -63,7 +63,7 @@ export default function PlannerMap({ stops, routeGeometry, pinDropMode, onMapCli
 
       const addBtn = document.createElement('button')
       addBtn.textContent = 'Add Stop'
-      addBtn.style.cssText = 'padding:3px 10px;font-size:12px;background:#1e3d72;color:#fff;border:none;border-radius:4px;cursor:pointer;font-family:inherit'
+      addBtn.style.cssText = 'padding:3px 10px;font-size:12px;background:var(--operator-accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-family:inherit'
 
       btnRow.appendChild(cancelBtn)
       btnRow.appendChild(addBtn)
@@ -123,7 +123,7 @@ export default function PlannerMap({ stops, routeGeometry, pinDropMode, onMapCli
 
     if (routeGeometry) {
       lineRef.current = L.geoJSON(routeGeometry, {
-        style: { color: '#1e3d72', weight: 4, opacity: 0.85 },
+        style: { color: 'var(--operator-accent)', weight: 4, opacity: 0.85 },
       }).addTo(map)
     }
 
@@ -137,7 +137,7 @@ export default function PlannerMap({ stops, routeGeometry, pinDropMode, onMapCli
           background:${color};border:2px solid #fff;
           box-shadow:0 1px 4px rgba(0,0,0,0.4);
           display:flex;align-items:center;justify-content:center;
-          font-family:Oswald,sans-serif;font-size:11px;font-weight:700;color:#fff;
+          font-size:11px;font-weight:700;color:#fff;
         ">${i + 1}</div>`,
         iconSize: [24, 24],
         iconAnchor: [12, 12],

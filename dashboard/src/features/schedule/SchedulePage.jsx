@@ -48,7 +48,7 @@ const EMPTY_DUTY = { date: todayStr(), driver_id: '', vehicle_id: '', notes: '',
 
 function CellBtn({ journey, onClick }) {
   if (!journey) {
-    return <button onClick={onClick} style={cellStyle('#e53935', 'rgba(229,57,53,0.12)', 'rgba(229,57,53,0.35)')}>Not scheduled</button>
+    return <button onClick={onClick} style={cellStyle('#EF4444', 'rgba(229,57,53,0.12)', 'rgba(229,57,53,0.35)')}>Not scheduled</button>
   }
   if (!journey.driver_id) {
     return <button onClick={onClick} style={cellStyle('#a05a10', 'rgba(251,140,0,0.12)', 'rgba(251,140,0,0.35)')}>No driver</button>
@@ -60,7 +60,7 @@ function cellStyle(color, bg, border) {
   return {
     background: bg, color, border: `1px solid ${border}`, borderRadius: 4,
     padding: '5px 8px', fontSize: 12, cursor: 'pointer', width: '100%',
-    fontFamily: 'Oswald, sans-serif', letterSpacing: '0.03em', fontWeight: 500,
+    letterSpacing: '0.03em', fontWeight: 500,
     lineHeight: 1.3, textAlign: 'center',
   }
 }
@@ -255,7 +255,7 @@ export default function SchedulePage() {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         <button className="btn btn-ghost btn-sm" onClick={() => shiftWeek(-1)}>← Prev</button>
-        <span style={{ fontFamily: 'Oswald, sans-serif', fontSize: '1.05rem', color: 'var(--text)', minWidth: 200, textAlign: 'center' }}>
+        <span style={{ fontSize: '1.05rem', color: 'var(--text)', minWidth: 200, textAlign: 'center' }}>
           {fmtWeek(weekStart)}
         </span>
         <button className="btn btn-ghost btn-sm" onClick={() => shiftWeek(1)}>Next →</button>
@@ -288,7 +288,7 @@ export default function SchedulePage() {
       <div style={{ display: 'flex', gap: 20, marginBottom: 18, fontSize: 12, color: 'var(--text-muted)' }}>
         <span><span style={{ color: '#2d7a28', fontWeight: 700 }}>●</span> Assigned</span>
         <span><span style={{ color: '#a05a10', fontWeight: 700 }}>●</span> No driver</span>
-        <span><span style={{ color: '#e53935', fontWeight: 700 }}>●</span> Not scheduled</span>
+        <span><span style={{ color: '#EF4444', fontWeight: 700 }}>●</span> Not scheduled</span>
         <span><span style={{ color: 'var(--text-muted)', fontWeight: 700 }}>●</span> Does not operate</span>
       </div>
 
@@ -313,7 +313,7 @@ export default function SchedulePage() {
               {sortedDepartures.map(dep => (
                 <tr key={dep.id}>
                   <td style={{ padding: '10px 16px' }}>
-                    <div style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 600, fontSize: 14 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>
                       {dep.timetable?.route?.service_code}
                       <span style={{ marginLeft: 8, color: 'var(--navy-brand)' }}>{dep.departure_time.slice(0, 5)}</span>
                     </div>
@@ -356,7 +356,7 @@ export default function SchedulePage() {
                 className="btn btn-primary"
                 onClick={saveCellAssignment}
                 disabled={saving}
-                style={cancelJourney ? { background: '#e53935', borderColor: '#e53935' } : {}}
+                style={cancelJourney ? { background: '#EF4444', borderColor: '#EF4444' } : {}}
               >
                 {saving ? 'Saving…' : cancelJourney ? 'Confirm Cancel' : 'Save'}
               </button>
@@ -388,14 +388,14 @@ export default function SchedulePage() {
             </>
           )}
           {cancelJourney && (
-            <p style={{ color: '#e53935', fontSize: 13, margin: '8px 0 16px' }}>
+            <p style={{ color: '#EF4444', fontSize: 13, margin: '8px 0 16px' }}>
               This journey will be marked as cancelled.
             </p>
           )}
           <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
             <button
               className="btn btn-ghost btn-sm"
-              style={{ color: cancelJourney ? '#4db848' : '#e53935', borderColor: cancelJourney ? '#4db848' : '#e53935' }}
+              style={{ color: cancelJourney ? '#10B981' : '#EF4444', borderColor: cancelJourney ? '#10B981' : '#EF4444' }}
               onClick={() => { setCancelJourney(c => !c); setError('') }}
             >
               {cancelJourney ? 'Keep Journey' : 'Cancel Journey'}
@@ -478,7 +478,7 @@ export default function SchedulePage() {
                   >
                     <input type="checkbox" name="departure_id" checked={checked} onChange={() => toggleDeparture(dep.id)} style={{ flexShrink: 0 }} />
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 600, fontSize: 14 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>
                         {dep.timetable?.route?.service_code}
                         <span style={{ fontFamily: 'inherit', fontWeight: 700, marginLeft: 8 }}>{dep.departure_time.slice(0, 5)}</span>
                       </div>

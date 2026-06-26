@@ -40,21 +40,21 @@ export default function ReviewModal({
     >
       <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius)', boxShadow: '0 8px 40px rgba(0,0,0,0.25)', width: '100%', maxWidth: 540, maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column', padding: 24 }}>
 
-        <h2 style={{ fontFamily: 'Oswald', fontSize: 20, fontWeight: 700, color: 'var(--navy-brand)', margin: '0 0 16px', flexShrink: 0 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--navy-brand)', margin: '0 0 16px', flexShrink: 0 }}>
           Review Route
         </h2>
 
         <div style={{ marginBottom: 16, flexShrink: 0 }}>
           <div style={{ ...S.sectionLabel, marginBottom: 6 }}>Route</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            {confirmCode && <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 18, color: 'var(--navy-brand)', flexShrink: 0 }}>{confirmCode}</span>}
+            {confirmCode && <span style={{ fontWeight: 700, fontSize: 18, color: 'var(--navy-brand)', flexShrink: 0 }}>{confirmCode}</span>}
             {isNewTimetable
               ? <input type="text" className="form-input" style={{ fontSize: 14, flex: 1, minWidth: 0 }}
                   value={newTtName} onChange={e => setNewTtName(e.target.value)} />
               : confirmName && <span style={{ fontSize: 14, color: 'var(--text)' }}>{confirmName}</span>
             }
             {confirmJTypes.map(jt => (
-              <span key={jt} style={{ fontSize: 10, fontFamily: 'Oswald', fontWeight: 700, background: 'var(--navy-brand)', color: '#fff', borderRadius: 8, padding: '1px 7px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{jt}</span>
+              <span key={jt} style={{ fontSize: 10, fontWeight: 700, background: 'var(--navy-brand)', color: '#fff', borderRadius: 8, padding: '1px 7px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{jt}</span>
             ))}
           </div>
           {confirmTt && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>{confirmTt}</div>}
@@ -79,7 +79,7 @@ export default function ReviewModal({
               return (
                 <Fragment key={s._id}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
-                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Oswald', fontWeight: 700, fontSize: 10, flexShrink: 0, marginTop: 1 }}>
+                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 10, flexShrink: 0, marginTop: 1 }}>
                       {i + 1}
                     </div>
                     <div style={{ flex: 1 }}>
@@ -95,12 +95,12 @@ export default function ReviewModal({
                           />
                         </div>
                       ) : (
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'Oswald', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>via</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>via</div>
                       )}
                     </div>
                   </div>
                   {i < modalStops.length - 1 && segAfter && !segAfter.error && (
-                    <div style={{ paddingLeft: 30, fontSize: 11, fontFamily: 'Oswald', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', gap: 5, marginBottom: 6 }}>
+                    <div style={{ paddingLeft: 30, fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', display: 'flex', gap: 5, marginBottom: 6 }}>
                       <span>↓</span>
                       <span>{scheduledMin != null ? `${scheduledMin} min` : fmtDur(segAfter.duration)}</span>
                       <span style={{ fontWeight: 400, fontSize: 10 }}>·</span>
@@ -115,7 +115,7 @@ export default function ReviewModal({
 
         {routeResult && !routeResult.error && (
           <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--bg)', borderRadius: 6, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
-            <span style={{ fontFamily: 'Oswald', fontWeight: 700, fontSize: 20, color: 'var(--navy-brand)' }}>
+            <span style={{ fontWeight: 700, fontSize: 20, color: 'var(--navy-brand)' }}>
               {fmtDist(routeResult.distance)}
             </span>
             <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>

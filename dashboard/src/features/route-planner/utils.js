@@ -11,9 +11,9 @@ export function fmtDur(s) {
 }
 
 export function stopColor(i, total) {
-  if (i === 0) return '#4db848'
-  if (i === total - 1) return '#e53935'
-  return '#1e3d72'
+  if (i === 0) return '#10B981'
+  if (i === total - 1) return '#EF4444'
+  return 'var(--operator-accent)'
 }
 
 export function timeToMinutes(t) {

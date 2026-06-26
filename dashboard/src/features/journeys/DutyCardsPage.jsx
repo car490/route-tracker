@@ -421,7 +421,7 @@ export default function DutyCardsPage() {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         <button className="btn btn-ghost btn-sm" onClick={() => shiftWeek(-1)}>← Prev</button>
-        <span style={{ fontFamily: 'Oswald, sans-serif', fontSize: '1.05rem', color: 'var(--text)', minWidth: 200, textAlign: 'center' }}>
+        <span style={{ fontSize: '1.05rem', color: 'var(--text)', minWidth: 200, textAlign: 'center' }}>
           {fmtWeek(weekStart)}
         </span>
         <button className="btn btn-ghost btn-sm" onClick={() => shiftWeek(1)}>Next →</button>
@@ -518,7 +518,7 @@ export default function DutyCardsPage() {
               <div className="card" style={{ padding: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
                   <div>
-                    <div style={{ fontFamily: 'Oswald, sans-serif', fontSize: 20, fontWeight: 600, color: 'var(--navy-mid)' }}>
+                    <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--navy-mid)' }}>
                       {driver.name}
                     </div>
                     <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{fmtLongDate(date)}</div>
@@ -532,12 +532,12 @@ export default function DutyCardsPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
                   {sortedJourneys.map(j => (
                     <div key={j.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', background: 'var(--bg)', borderRadius: 6 }}>
-                      <span style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 600, fontSize: 14, color: 'var(--navy-brand)', minWidth: 60 }}>
+                      <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--navy-brand)', minWidth: 60 }}>
                         {j.departure?.timetable?.route?.service_code ?? '—'}
                       </span>
                       <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                         {j.departure?.timetable?.name} · {j.departure?.timetable?.direction}
-                        {j.departure?.departure_time && <span style={{ marginLeft: 6, fontFamily: 'Oswald', fontWeight: 600 }}>@ {j.departure.departure_time.slice(0, 5)}</span>}
+                        {j.departure?.departure_time && <span style={{ marginLeft: 6, fontWeight: 600 }}>@ {j.departure.departure_time.slice(0, 5)}</span>}
                       </span>
                       <span style={{ marginLeft: 'auto' }}>
                         {j.status === 'completed'   && <span className="badge badge-green">Completed</span>}
@@ -552,9 +552,9 @@ export default function DutyCardsPage() {
                   {tokenLoading
                     ? <span style={{ color: 'var(--text-muted)' }}>Preparing duty card…</span>
                     : tokenReady
-                      ? <span style={{ color: '#4db848' }}>✓ Duty card ready to send</span>
+                      ? <span style={{ color: '#10B981' }}>✓ Duty card ready to send</span>
                       : tokenError
-                        ? <span style={{ color: '#e53935' }}>✗ {tokenError}</span>
+                        ? <span style={{ color: '#EF4444' }}>✗ {tokenError}</span>
                         : null}
                 </div>
 
@@ -564,18 +564,18 @@ export default function DutyCardsPage() {
                   </button>
                   {tokenError && (
                     <button className="btn btn-ghost btn-sm" onClick={() => generateToken(driver, journeys)}
-                      style={{ color: '#e53935', borderColor: '#e53935' }}>
+                      style={{ color: '#EF4444', borderColor: '#EF4444' }}>
                       Retry Signing
                     </button>
                   )}
                   <button className="btn btn-ghost btn-sm" onClick={sendEmail}
                     disabled={!hasEmail || !tokenReady || emailSending}
                     title={hasEmail ? `Send to ${getContact(contacts, 'email')?.value}` : 'No email on file'}
-                    style={emailSent ? { color: '#4db848', borderColor: '#4db848' } : emailError ? { color: '#e53935', borderColor: '#e53935' } : {}}>
+                    style={emailSent ? { color: '#10B981', borderColor: '#10B981' } : emailError ? { color: '#EF4444', borderColor: '#EF4444' } : {}}>
                     {emailSending ? 'Sending…' : emailSent ? '✓ Email sent' : 'Send Email'}
                   </button>
                   {emailError && (
-                    <span style={{ fontSize: 11, color: '#e53935', alignSelf: 'center' }}>{emailError}</span>
+                    <span style={{ fontSize: 11, color: '#EF4444', alignSelf: 'center' }}>{emailError}</span>
                   )}
                   <button className="btn btn-ghost btn-sm" onClick={openWhatsApp}
                     disabled={!hasPhone || !tokenReady}
@@ -605,7 +605,7 @@ export default function DutyCardsPage() {
               <button
                 className="btn btn-ghost btn-sm"
                 onClick={deleteDuty}
-                style={{ marginRight: 'auto', color: '#e53935', borderColor: '#e53935' }}
+                style={{ marginRight: 'auto', color: '#EF4444', borderColor: '#EF4444' }}
               >
                 Delete Duty
               </button>
@@ -632,7 +632,7 @@ export default function DutyCardsPage() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: r._cancel ? 0 : 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span className="dm-pill">{r.departure?.timetable?.route?.service_code ?? '?'}</span>
-                    <span style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 600, fontSize: 14 }}>
+                    <span style={{ fontWeight: 600, fontSize: 14 }}>
                       {r.departure?.departure_time?.slice(0, 5)}
                     </span>
                     <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
@@ -641,7 +641,7 @@ export default function DutyCardsPage() {
                   </div>
                   <button
                     className="btn btn-ghost btn-sm"
-                    style={{ fontSize: 11, color: r._cancel ? '#4db848' : '#e53935', borderColor: r._cancel ? '#4db848' : '#e53935' }}
+                    style={{ fontSize: 11, color: r._cancel ? '#10B981' : '#EF4444', borderColor: r._cancel ? '#10B981' : '#EF4444' }}
                     onClick={() => setEditJourneys(rows => rows.map((x, j) => j === i ? { ...x, _cancel: !x._cancel } : x))}
                   >
                     {r._cancel ? 'Restore' : 'Cancel Journey'}
@@ -691,7 +691,7 @@ export default function DutyCardsPage() {
             if (avail.length === 0) return null
             return (
               <div>
-                <div style={{ fontFamily: 'Oswald, sans-serif', fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
                   Add Journeys
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
@@ -711,7 +711,7 @@ export default function DutyCardsPage() {
                           setEditNewDeps(ids => ids.includes(dep.id) ? ids.filter(x => x !== dep.id) : [...ids, dep.id])
                         } style={{ flexShrink: 0 }} />
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 600, fontSize: 14 }}>
+                          <div style={{ fontWeight: 600, fontSize: 14 }}>
                             {dep.timetable?.route?.service_code}
                             <span style={{ marginLeft: 8 }}>{dep.departure_time.slice(0, 5)}</span>
                           </div>
@@ -812,7 +812,7 @@ export default function DutyCardsPage() {
                   >
                     <input type="checkbox" name="departure_id" checked={checked} onChange={() => toggleDeparture(dep.id)} style={{ flexShrink: 0 }} />
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 600, fontSize: 14 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>
                         {dep.timetable?.route?.service_code}
                         <span style={{ fontFamily: 'inherit', fontWeight: 700, marginLeft: 8 }}>{dep.departure_time.slice(0, 5)}</span>
                       </div>

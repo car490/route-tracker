@@ -13,7 +13,7 @@ export const DEP_EMPTY  = { departure_time: '', days_of_week: [1,2,3,4,5], timin
 
 export const S = {
   sectionLabel: {
-    fontFamily: 'Oswald', fontWeight: 700, fontSize: 10,
+    fontWeight: 700, fontSize: 10,
     textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)',
   },
 }
