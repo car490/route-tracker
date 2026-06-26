@@ -13,6 +13,7 @@ import SchedulePage from './features/schedule/SchedulePage'
 import DutyCardsPage from './features/journeys/DutyCardsPage'
 import LiveTracking from './features/tracking/LiveTracking'
 import RoutePlannerPage from './features/route-planner/RoutePlannerPage'
+import BrandingPage from './features/settings/BrandingPage'
 
 function Protected({ session, children }) {
   if (!session) return <Navigate to="/login" replace />
@@ -85,6 +86,7 @@ export default function App() {
         <Route path="duty-cards" element={<DutyCardsPage />} />
         <Route path="route-planner" element={<RoutePlannerPage />} />
         <Route path="live" element={<LiveTracking />} />
+        <Route path="settings/branding" element={<BrandingPage session={session} />} />
       </Route>
     </Routes>
   )

@@ -39,11 +39,18 @@ create table companies (
   email                     text,
   -- BODS: National Operator Code assigned by Traveline/DfT (mandatory for BODS publishing)
   noc_code                  char(4)     unique,
-  -- Logo stored in Supabase Storage bucket 'company-logos' at path {company_id}/logo.*
+  -- Logo stored in Supabase Storage bucket 'operator-assets' at path {company_id}/logo.*
   logo_path                 text,
   -- County names used to build the NAPTAN import bounding box via OpenCage.
   -- Multiple counties supported for operators whose routes cross county lines.
   service_counties          text[]      not null default '{}',
+  -- Multi-tenant branding ("The Wrap")
+  -- slug: URL-safe identifier used in future public tracking pages (e.g. 'phil-haines-coaches')
+  slug                      text        unique,
+  -- Sidebar/header colour — defaults to CoachMate Tarmac Charcoal
+  primary_color             text        not null default '#242F35',
+  -- Button/highlight colour — defaults to CoachMate Signal Cyan
+  accent_color              text        not null default '#00B4D8',
   created_at                timestamptz not null default now()
 );
 
@@ -1197,9 +1204,8 @@ grant select on schedule_view to authenticated;
 
 
 -- ── Storage ───────────────────────────────────────────────────────────────────
--- Public bucket: logos are served without auth (displayed in the sidebar).
--- Upload/replace/delete is restricted to authenticated users of the owning company.
--- Path convention: {company_id}/logo.{ext}
+-- Bucket: company-logos (legacy — kept for backwards compatibility)
+-- New uploads should use operator-assets instead.
 
 insert into storage.buckets (id, name, public)
 values ('company-logos', 'company-logos', true)
@@ -1233,6 +1239,49 @@ create policy "logo_company_delete" on storage.objects
   for delete to authenticated
   using (
     bucket_id = 'company-logos'
+    and (storage.foldername(name))[1] = current_company_id()::text
+    and current_employee_role() in ('super_user', 'ops_manager')
+  );
+
+-- Bucket: system-assets — CoachMate core icons, SVGs, "Powered by" badges (public read-only)
+insert into storage.buckets (id, name, public)
+values ('system-assets', 'system-assets', true)
+on conflict (id) do nothing;
+
+create policy "system_assets_public_read" on storage.objects
+  for select
+  using (bucket_id = 'system-assets');
+
+-- Bucket: operator-assets — company-uploaded logos (replaces company-logos for new uploads)
+-- Path convention: {company_id}/logo.{ext}
+insert into storage.buckets (id, name, public)
+values ('operator-assets', 'operator-assets', true)
+on conflict (id) do nothing;
+
+create policy "operator_assets_public_read" on storage.objects
+  for select
+  using (bucket_id = 'operator-assets');
+
+create policy "operator_assets_insert" on storage.objects
+  for insert to authenticated
+  with check (
+    bucket_id = 'operator-assets'
+    and (storage.foldername(name))[1] = current_company_id()::text
+    and current_employee_role() in ('super_user', 'ops_manager')
+  );
+
+create policy "operator_assets_update" on storage.objects
+  for update to authenticated
+  using (
+    bucket_id = 'operator-assets'
+    and (storage.foldername(name))[1] = current_company_id()::text
+    and current_employee_role() in ('super_user', 'ops_manager')
+  );
+
+create policy "operator_assets_delete" on storage.objects
+  for delete to authenticated
+  using (
+    bucket_id = 'operator-assets'
     and (storage.foldername(name))[1] = current_company_id()::text
     and current_employee_role() in ('super_user', 'ops_manager')
   );
