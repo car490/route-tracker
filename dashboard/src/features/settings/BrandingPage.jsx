@@ -6,10 +6,15 @@ const BUCKET = 'operator-assets'
 const CM_PRIMARY = '#242F35'
 const CM_ACCENT  = '#00B4D8'
 
-/** Only allow safe URL schemes for image src attributes. */
+/** Only allow https: and blob: URL schemes for image src attributes to prevent javascript: injection. */
 function safeSrc(url) {
   if (!url) return null
-  if (url.startsWith('https://') || url.startsWith('blob:')) return url
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol === 'https:' || parsed.protocol === 'blob:') return parsed.href
+  } catch {
+    // Not a valid URL — reject
+  }
   return null
 }
 
