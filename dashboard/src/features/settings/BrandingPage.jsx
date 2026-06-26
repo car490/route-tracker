@@ -6,6 +6,13 @@ const BUCKET = 'operator-assets'
 const CM_PRIMARY = '#242F35'
 const CM_ACCENT  = '#00B4D8'
 
+/** Only allow safe URL schemes for image src attributes. */
+function safeSrc(url) {
+  if (!url) return null
+  if (url.startsWith('https://') || url.startsWith('blob:')) return url
+  return null
+}
+
 function slugify(name) {
   return name
     .toLowerCase()
@@ -97,8 +104,10 @@ export default function BrandingPage({ session }) {
       })
   }, [employee?.company_id])
 
-  const logoUrl = logoPreview
-    ?? (logoPath ? supabase.storage.from(BUCKET).getPublicUrl(logoPath).data.publicUrl : null)
+  const logoUrl = safeSrc(
+    logoPreview
+      ?? (logoPath ? supabase.storage.from(BUCKET).getPublicUrl(logoPath).data.publicUrl : null)
+  )
 
   function handleLogoChange(e) {
     const f = e.target.files[0]
