@@ -5,3 +5,8 @@ graphhopper/*.osm.pbf
 graphhopper/*.osm.pbf.gz
 graphhopper/gh-graph-cache/
 graphhopper/graphhopper-*.jar
+
+# SSH keypairs — never commit private keys
+id_*
+*.pem
+sshcoachmate*
