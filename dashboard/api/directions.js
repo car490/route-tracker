@@ -33,16 +33,32 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'At least 2 coordinates required' })
   }
 
+  const ghRequestInit = {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(buildGHBody(coordinates, vehicle, GH_PROFILE)),
+    signal: AbortSignal.timeout(15000),
+  }
+
   let upstream
   try {
-    upstream = await fetch(`${GH_BASE}/route`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(buildGHBody(coordinates, vehicle, GH_PROFILE)),
-      signal: AbortSignal.timeout(15000),
+    upstream = await fetch(`${GH_BASE}/route`, ghRequestInit)
+  } catch (firstErr) {
+    console.error('GraphHopper fetch failed, retrying once', {
+      message: firstErr.message,
+      cause: firstErr.cause ? String(firstErr.cause) : undefined,
     })
-  } catch (err) {
-    return res.status(502).json({ error: `GraphHopper unreachable: ${err.message}` })
+    try {
+      upstream = await fetch(`${GH_BASE}/route`, ghRequestInit)
+    } catch (err) {
+      console.error('GraphHopper fetch failed on retry', {
+        message: err.message,
+        cause: err.cause ? String(err.cause) : undefined,
+      })
+      return res.status(502).json({
+        error: `GraphHopper unreachable: ${err.message}${err.cause ? ` (${err.cause})` : ''}`,
+      })
+    }
   }
 
   const text = await upstream.text()
