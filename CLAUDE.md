@@ -76,6 +76,13 @@ Always follow GRANTs with the appropriate RLS policy.
 - **PWA**: `src/main.js` detects `localhost`/`127.0.0.1` at runtime and switches Supabase project.
   No build step needed.
 
+### Starting Dev (Local)
+`node scripts/dev-all.mjs` starts all three local services in one terminal:
+driver PWA (`server.js`, :8080), dashboard dev server (`dashboard/`, :5173), and
+local GraphHopper (`graphhopper/`, :8989). It kills anything already bound to
+those ports first, so it's always safe to re-run after a crashed process —
+no manual cleanup needed. Ctrl-C stops all three together.
+
 ### Committing
 - Commit at logical checkpoints — when a feature or fix is complete and working.
 - Always commit before applying a DB migration.

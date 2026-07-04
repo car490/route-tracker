@@ -312,6 +312,7 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['pwa-192x192.png', 'pwa-512x512.png'],
+        devOptions: { enabled: true, type: 'module' },
         manifest: {
           name: 'CoachMate Ops Dashboard',
           short_name: 'CoachMate',
