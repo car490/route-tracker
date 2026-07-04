@@ -194,11 +194,14 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
     }
 
     // Geocode the HQ address so the route planner map can centre on it.
-    // Leaves lat/lon untouched if the address is blank or the lookup fails,
-    // rather than wiping out a previously-good location.
+    // Postcode alone is far more reliably matched than DVSA's raw free-text
+    // address strings (e.g. "FRAMPTON WEST RALPHS LANE" returns no results,
+    // but the postcode on its own does) — prefer it, falling back to the
+    // full address only if there's no postcode. Leaves lat/lon untouched if
+    // nothing geocodes, rather than wiping out a previously-good location.
     let hqCoords = {}
-    const addressForGeocode = [fields.address_line_1, fields.city, fields.postcode]
-      .map(s => s.trim()).filter(Boolean).join(', ')
+    const addressForGeocode = fields.postcode.trim()
+      || [fields.address_line_1, fields.city].map(s => s.trim()).filter(Boolean).join(', ')
     if (addressForGeocode) {
       const [match] = await searchPlaces(addressForGeocode)
       if (match) hqCoords = { lat: match.lat, lon: match.lon }
