@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../shared/supabase'
+import { searchPlaces } from '../../shared/api/osPlaces'
 
 const BUCKET = 'company-logos'
 
@@ -191,6 +192,17 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
       if (removeErr) { setError(removeErr.message); setSaving(false); return }
     }
 
+    // Geocode the HQ address so the route planner map can centre on it.
+    // Leaves lat/lon untouched if the address is blank or the lookup fails,
+    // rather than wiping out a previously-good location.
+    let hqCoords = {}
+    const addressForGeocode = [fields.address_line_1, fields.city, fields.postcode]
+      .map(s => s.trim()).filter(Boolean).join(', ')
+    if (addressForGeocode) {
+      const [match] = await searchPlaces(addressForGeocode)
+      if (match) hqCoords = { lat: match.lat, lon: match.lon }
+    }
+
     const { error: updateErr } = await supabase
       .from('companies')
       .update({
@@ -201,6 +213,7 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
         address_line_2:          fields.address_line_2.trim()          || null,
         vehicles_authorised:     fields.vehicles_authorised !== '' ? Number(fields.vehicles_authorised) : null,
         logo_path: newLogoPath,
+        ...hqCoords,
       })
       .eq('id', companyId)
 

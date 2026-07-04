@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../shared/supabase'
-import { getCompanyId } from '../../shared/company'
+import { getCompanyId, getCompanyLocation } from '../../shared/company'
 import { searchPlaces } from '../../shared/api/osPlaces'
 import { useJourneyTypes } from '../../shared/hooks/useJourneyTypes'
 import { TYPE_DEFAULTS, DIRECTIONS, SINGLE_JOURNEY_DIRECTIONS, S } from './constants'
@@ -61,6 +61,7 @@ export default function RoutePlannerPage() {
   const [routing,     setRouting]     = useState(false)
   const [routeResult, setRouteResult] = useState(null)
   const [pinDropMode, setPinDropMode] = useState(false)
+  const [hqLocation,  setHqLocation]  = useState(null)
 
   const [showSearch,    setShowSearch]    = useState(false)
   const [searchQuery,   setSearchQuery]   = useState('')
@@ -92,6 +93,10 @@ export default function RoutePlannerPage() {
     const { data } = await supabase.from('routes').select('*').order('service_code')
     setRoutes(data ?? [])
   }
+
+  useEffect(() => {
+    getCompanyLocation().then(setHqLocation)
+  }, [])
 
   useEffect(() => {
     loadRoutes()
@@ -1011,6 +1016,7 @@ export default function RoutePlannerPage() {
             onMapClick={handleMapPinDrop}
             onRemoveStop={removeStopById}
             fitKey={fitKey}
+            hqLocation={hqLocation}
           />
         </div>
       </div>

@@ -3,7 +3,11 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { stopColor } from './utils'
 
-export default function PlannerMap({ stops, routeGeometry, pinDropMode, onMapClick, onRemoveStop, fitKey }) {
+const DEFAULT_CENTER = [52.97, -0.02]
+const DEFAULT_ZOOM   = 9
+const HQ_ZOOM         = 14
+
+export default function PlannerMap({ stops, routeGeometry, pinDropMode, onMapClick, onRemoveStop, fitKey, hqLocation }) {
   const divRef        = useRef(null)
   const mapRef        = useRef(null)
   const markersRef    = useRef([])
@@ -13,7 +17,9 @@ export default function PlannerMap({ stops, routeGeometry, pinDropMode, onMapCli
 
   useEffect(() => {
     if (!divRef.current || mapRef.current) return
-    const map = L.map(divRef.current).setView([52.97, -0.02], 9)
+    const initialView = hqLocation ? [hqLocation.lat, hqLocation.lon] : DEFAULT_CENTER
+    const initialZoom = hqLocation ? HQ_ZOOM : DEFAULT_ZOOM
+    const map = L.map(divRef.current).setView(initialView, initialZoom)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 18,
@@ -21,6 +27,15 @@ export default function PlannerMap({ stops, routeGeometry, pinDropMode, onMapCli
     mapRef.current = map
     return () => { map.remove(); mapRef.current = null }
   }, [])
+
+  // HQ location loads asynchronously and can resolve after the map already
+  // mounted with the generic default view — recenter once it arrives, but
+  // only if the user hasn't started placing stops yet.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !hqLocation || stops.length > 0) return
+    map.setView([hqLocation.lat, hqLocation.lon], HQ_ZOOM)
+  }, [hqLocation]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const map = mapRef.current
