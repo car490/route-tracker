@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import { VitePWA } from 'vite-plugin-pwa'
 import { createHmac } from 'crypto'
 import { readFileSync } from 'fs'
 import { buildGHBody, normaliseGHResponse } from './api/_graphhopper.js'
@@ -308,6 +309,24 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       react(),
+      VitePWA({
+        registerType: 'autoUpdate',
+        includeAssets: ['pwa-192x192.png', 'pwa-512x512.png'],
+        manifest: {
+          name: 'CoachMate Ops Dashboard',
+          short_name: 'CoachMate',
+          description: 'Ops back-office dashboard for CoachMate',
+          start_url: '/',
+          scope: '/',
+          display: 'standalone',
+          theme_color: '#242F35',
+          background_color: '#242F35',
+          icons: [
+            { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+            { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+          ],
+        },
+      }),
       localDirectionsApi(ghBase, ghProfile),
       localDirectionsDiagnosticsApi(env),
       localSignTokenApi(env.SUPABASE_JWT_SECRET),
