@@ -96,6 +96,9 @@ export default function RoutePlannerPage() {
 
   useEffect(() => {
     getCompanyLocation().then(setHqLocation)
+    const onCompanyUpdated = () => getCompanyLocation().then(setHqLocation)
+    window.addEventListener('company:updated', onCompanyUpdated)
+    return () => window.removeEventListener('company:updated', onCompanyUpdated)
   }, [])
 
   useEffect(() => {

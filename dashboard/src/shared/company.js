@@ -12,6 +12,10 @@ async function getCompany() {
 export async function getCompanyId()   { return (await getCompany())?.id   ?? null }
 export async function getCompanyName() { return (await getCompany())?.name ?? null }
 
+// Call after any write to companies (e.g. Company Settings save) so the next
+// read picks up fresh data instead of the cached row from this session.
+export function invalidateCompanyCache() { _company = null }
+
 // HQ coordinates (companies.lat/lon), for centering the route planner map. Null if unset.
 export async function getCompanyLocation() {
   const company = await getCompany()

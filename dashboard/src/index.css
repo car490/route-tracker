@@ -485,7 +485,8 @@ tr:hover td { background: #F5F7FA; }
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  /* Leaflet's own panes/controls go up to z-index 1000 — must clear that. */
+  z-index: 2000;
 }
 
 .modal-card {

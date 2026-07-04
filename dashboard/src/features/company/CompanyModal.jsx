@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../shared/supabase'
 import { searchPlaces } from '../../shared/api/osPlaces'
+import { invalidateCompanyCache } from '../../shared/company'
 
 const BUCKET = 'company-logos'
 
@@ -219,6 +220,8 @@ export default function CompanyModal({ companyId, currentLogoPath, onClose, onSa
 
     if (updateErr) { setError(updateErr.message); setSaving(false); return }
     setSaving(false)
+    invalidateCompanyCache()
+    window.dispatchEvent(new CustomEvent('company:updated'))
     onSaved(newLogoPath)
   }
 
