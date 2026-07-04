@@ -3,10 +3,8 @@ import { updateUi, renderLog, setOnStopJump } from './ui.js';
 import { initMap, updateMapPosition, invalidateSize } from './map.js';
 import { log, getEntries } from './logger.js';
 import { initDirections, syncCurrentStop, updateDirections } from './directions.js';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
 
-const _DEV          = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const SUPABASE_URL  = _DEV ? 'https://cgcbfgceputvdvhzrgio.supabase.co'         : 'https://nwhayupsvcelyiwltdqo.supabase.co';
-const SUPABASE_KEY  = _DEV ? 'sb_publishable_LZVX8fASyDG8UtMp3eeRJQ_SBxpCa54' : 'sb_publishable_gij_rPjr2EJrcv0W9sU-Ow_C3nNqGcn';
 const DRIVER_TOKEN  = new URLSearchParams(window.location.search).get('token');
 const DEPOT         = { name: 'Phil Haines Coaches Depot', lat: 52.950412, lon: -0.050110 };
 const DEBUG         = new URLSearchParams(window.location.search).has('debug');
