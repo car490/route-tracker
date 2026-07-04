@@ -93,6 +93,23 @@ Always follow GRANTs with the appropriate RLS policy.
 - Keep migration files in `supabase/` for audit trail.
 - Update `supabase/schema.sql` so a fresh reset only needs `schema.sql + seed.sql`.
 
+### Release / versioning
+One version number covers the whole solution (PWA + dashboard) — they release
+together on the `develop` → `master` merge. Source of truth is the root
+`VERSION` file.
+- When merging `develop` → `master`, run `node scripts/release.mjs <major|minor|patch>`.
+  This bumps `VERSION`, `dashboard/package.json`, the `service-worker.js`
+  `CACHE_NAME`, and the version footer in `index.html`, and stamps a new
+  `CHANGELOG.md` entry from the commits since the last tag.
+- Review/tidy the auto-generated `CHANGELOG.md` entry, then commit, `git tag vX.Y.Z`,
+  and push (`git push && git push --tags`).
+- The dashboard reads `VERSION` at build time via Vite `define` (`__APP_VERSION__`
+  in `vite.config.js`) and shows it in the sidebar footer. The PWA version is a
+  plain string in `index.html`'s footer `<p>`, kept in sync by the release script.
+- To check what's actually deployed where without guessing: `git tag --sort=-creatordate`
+  for release history, and `git log origin/master..origin/develop` to see what's
+  pending release.
+
 ---
 
 ## Architecture

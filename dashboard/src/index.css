@@ -281,6 +281,12 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
   color: var(--operator-accent);
 }
 
+.sidebar-version {
+  margin-top: 4px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
 /* ── Main Area ─────────────────────────────────────────────── */
 .main {
   flex: 1;

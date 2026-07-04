@@ -199,6 +199,7 @@ export default function Layout({ session }) {
           <div className="sidebar-coachmate">
             <span className="cm-coach">COACH</span><span className="cm-mate">Mate</span>
           </div>
+          <div className="sidebar-version">v{__APP_VERSION__}</div>
         </div>
       </nav>
 

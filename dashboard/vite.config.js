@@ -1,7 +1,13 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { createHmac } from 'crypto'
+import { readFileSync } from 'fs'
 import { buildGHBody, normaliseGHResponse } from './api/_graphhopper.js'
+
+const APP_VERSION = readFileSync(
+  new URL('../VERSION', import.meta.url),
+  'utf8',
+).trim()
 
 function firstNonEmpty(...values) {
   return values.find(v => typeof v === 'string' && v.trim().length > 0)
@@ -297,6 +303,9 @@ export default defineConfig(({ mode }) => {
     env.VITE_GH_PROFILE,
   ) ?? 'pcv'
   return {
+    define: {
+      __APP_VERSION__: JSON.stringify(APP_VERSION),
+    },
     plugins: [
       react(),
       localDirectionsApi(ghBase, ghProfile),
