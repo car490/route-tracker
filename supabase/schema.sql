@@ -312,7 +312,7 @@ create table routes (
   id              uuid        primary key default gen_random_uuid(),
   company_id      uuid        not null references companies(id) on delete cascade,
   service_code    text        not null,
-  name            text        not null,
+  name            text,
   journey_type    text[]      not null
                     check (array_length(journey_type, 1) > 0),
   single_journey  boolean     not null default false,
