@@ -220,7 +220,7 @@ export default function RoutePlannerPage() {
     if (stopsToSave.length < 2) return
     setSaving(true); setSaveError(''); setSaveSuccess(false)
 
-    const { error } = await saveRouteTimetableStops({
+    const { routeId: savedRouteId, timetableId: savedTimetableId, error } = await saveRouteTimetableStops({
       routeId, timetableId,
       newRouteFields: {
         code: newCode, name: newName, journeyTypes: newJourneyTypes,
@@ -242,6 +242,14 @@ export default function RoutePlannerPage() {
       setRouteId(''); setTimetableId(''); setStops([])
     } else {
       setStops(stopsToSave)
+      // A brand-new timetable on an existing route (e.g. the "Return" invert flow) must
+      // move off '__new__' once saved — otherwise a second save creates a duplicate
+      // timetable with the same stops instead of updating the one just created.
+      if (timetableId === '__new__') {
+        const { data } = await supabase.from('timetables').select('*').eq('route_id', savedRouteId).order('name')
+        setTimetables(data ?? [])
+        setTimetableId(savedTimetableId)
+      }
     }
     setSaving(false)
     setShowConfirm(false)
