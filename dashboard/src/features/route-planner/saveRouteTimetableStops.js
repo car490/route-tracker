@@ -17,6 +17,13 @@ export async function saveRouteTimetableStops({
   stopsToSave,
   departures = [],
 }) {
+  // Every timing point needs a time to derive offset_standard from — timetable_stops'
+  // check constraint rejects a null offset on anything but a routing_point. Catch it here,
+  // before any inserts, rather than partway through (e.g. after an invert-from leaves every
+  // time blank and the user saves without filling them back in).
+  const missingTime = stopsToSave.find(s => s.stop_type === 'timing_point' && !s.time_std)
+  if (missingTime) return { error: `"${missingTime.name}" is a timing point but has no time set.` }
+
   let resolvedRouteId     = routeId
   let resolvedTimetableId = timetableId
 
