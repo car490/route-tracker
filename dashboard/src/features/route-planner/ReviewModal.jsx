@@ -73,7 +73,7 @@ export default function ReviewModal({
 
           <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
             {modalStops.map((s, i) => {
-              const color       = stopColor(i, modalStops.length)
+              const color       = stopColor(i, modalStops.length, s.stop_type)
               const segAfter    = segAfterStop[s._id]
               const scheduledMin = getScheduledMin(s, modalStops[i + 1])
               return (
