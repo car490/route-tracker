@@ -23,9 +23,7 @@ function maneuverIcon(type, modifier) {
 }
 
 function formatDist(metres) {
-  return metres >= 1000
-    ? `${(metres / 1000).toFixed(1)} km`
-    : `${Math.round(metres)} m`;
+  return `${Math.round(metres)} m`;
 }
 
 async function fetchSteps(fromLat, fromLon, toLat, toLon) {

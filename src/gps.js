@@ -79,7 +79,7 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
       }
 
       if (fixCount % 5 === 1) {
-        log('gps', `Fix #${fixCount} — ${latitude.toFixed(5)}, ${longitude.toFixed(5)} — ${(speedMps * 3.6).toFixed(1)} km/h`);
+        log('gps', `Fix #${fixCount} — ${latitude.toFixed(5)}, ${longitude.toFixed(5)} — ${(speedMps * 2.236936).toFixed(1)} mph`);
       }
 
       let distanceToNextM = haversine(latitude, longitude, schedule[nextStopIndex].lat, schedule[nextStopIndex].lon);
