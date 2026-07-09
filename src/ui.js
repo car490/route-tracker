@@ -11,10 +11,9 @@ const fmtDelta = (m) => {
   return `${sign}${Math.abs(m).toFixed(0)}m`;
 };
 
-const fmtDistance = (m) =>
-  m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`;
+const fmtDistance = (m) => `${Math.round(m)} m`;
 
-const fmtSpeed = (mps) => `${(mps * 3.6).toFixed(1)} km/h`;
+const fmtSpeed = (mps) => `${(mps * 2.236936).toFixed(1)} mph`;
 
 let _onStopJump = null;
 export function setOnStopJump(fn) { _onStopJump = fn; }
@@ -39,7 +38,7 @@ function updateStopList({ schedule, arrivals, nextStopIndex }) {
     const state = i < nextStopIndex ? 'past' : i === nextStopIndex ? 'current' : 'future';
     row.className = `stop-row stop-${state}`;
     const arrived = arrivals[i] instanceof Date;
-    const missed = arrivals[i] === 'missed';
+    const missed = arrivals[i] === 'missed' || (arrivals[i] !== null && typeof arrivals[i] === 'object' && !arrived);
     const actualText = arrived ? fmtTime(arrivals[i]) : missed ? '--:--' : '—';
     const actualClass = arrived ? arrivalStatusClass(stop, arrivals[i]) : missed ? 'sl-missed' : '';
 

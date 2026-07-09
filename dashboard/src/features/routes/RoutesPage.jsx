@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../shared/supabase'
-import { getCompanyId } from '../../shared/company'
 import Modal from '../../shared/components/Modal'
 import { useJourneyTypes } from '../../shared/hooks/useJourneyTypes'
+import RouteWizard from '../route-planner/RouteWizard'
 
 const ROUTE_EMPTY = { service_code: '', name: '', journey_type: [] }
-const DIRECTIONS  = ['Outbound', 'Inbound', 'Circular']
-const TT_EMPTY    = { name: '', direction: 'Outbound' }
 
 function TimetableStopCount({ timetableId }) {
   const [count, setCount] = useState('…')
@@ -31,8 +29,7 @@ export default function RoutesPage() {
 
   const [routeModal, setRouteModal] = useState(null)
   const [routeForm, setRouteForm] = useState(ROUTE_EMPTY)
-  const [ttModal, setTtModal] = useState(null)
-  const [ttForm, setTtForm] = useState(TT_EMPTY)
+  const [wizard, setWizard] = useState(null) // 'new' | a route row (add timetable to it) | null
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -64,11 +61,9 @@ export default function RoutesPage() {
   async function saveRoute(e) {
     e.preventDefault()
     setSaving(true); setError('')
-    const company_id = await getCompanyId()
-    const payload = { ...routeForm, company_id }
-    const { error: err } = routeModal === 'add'
-      ? await supabase.from('routes').insert(payload)
-      : await supabase.from('routes').update({ service_code: routeForm.service_code, name: routeForm.name || null, journey_type: routeForm.journey_type }).eq('id', routeModal.id)
+    const { error: err } = await supabase.from('routes')
+      .update({ service_code: routeForm.service_code, name: routeForm.name || null, journey_type: routeForm.journey_type })
+      .eq('id', routeModal.id)
     setSaving(false)
     if (err) { setError(err.message); return }
     setRouteModal(null); load()
@@ -79,25 +74,6 @@ export default function RoutesPage() {
     await supabase.from('routes').delete().eq('id', id)
     if (selected === id) setSelected(null)
     load()
-  }
-
-  async function saveTimetable(e) {
-    e.preventDefault()
-    setSaving(true); setError('')
-    const payload = {
-      route_id:  selected,
-      name:      ttForm.name,
-      direction: ttForm.direction,
-    }
-    const { error: err } = ttModal === 'add'
-      ? await supabase.from('timetables').insert(payload)
-      : await supabase.from('timetables').update({
-          name:      ttForm.name,
-          direction: ttForm.direction,
-        }).eq('id', ttModal.id)
-    setSaving(false)
-    if (err) { setError(err.message); return }
-    setTtModal(null); load()
   }
 
   async function deleteTimetable(id) {
@@ -114,7 +90,7 @@ export default function RoutesPage() {
         <h1 className="page-title">Routes & Timetables</h1>
         <button
           className="btn btn-primary"
-          onClick={() => { setRouteForm(ROUTE_EMPTY); setError(''); setRouteModal('add') }}
+          onClick={() => setWizard('new')}
         >
           + Add Route
         </button>
@@ -182,7 +158,7 @@ export default function RoutesPage() {
             <span>{selectedRoute.service_code} — Timetables</span>
             <button
               className="btn btn-primary btn-sm"
-              onClick={() => { setTtForm(TT_EMPTY); setError(''); setTtModal('add') }}
+              onClick={() => setWizard(selectedRoute)}
             >
               + Add Timetable
             </button>
@@ -227,15 +203,6 @@ export default function RoutesPage() {
                           >
                             ↕ Return
                           </button>
-                          <button
-                            className="btn btn-ghost btn-sm"
-                            onClick={() => {
-                              setTtForm({ name: t.name, direction: t.direction ?? 'Outbound' })
-                              setError(''); setTtModal(t)
-                            }}
-                          >
-                            Edit
-                          </button>
                           <button className="btn btn-danger btn-sm" onClick={() => deleteTimetable(t.id)}>Delete</button>
                         </div>
                       </td>
@@ -250,7 +217,7 @@ export default function RoutesPage() {
 
       {routeModal !== null && (
         <Modal
-          title={routeModal === 'add' ? 'Add Route' : 'Edit Route'}
+          title="Edit Route"
           onClose={() => setRouteModal(null)}
           footer={
             <>
@@ -295,10 +262,7 @@ export default function RoutesPage() {
                   const on = routeForm.journey_type.includes(jt)
                   return (
                     <button key={jt} type="button"
-                      onClick={() => setRouteForm(f => ({
-                        ...f,
-                        journey_type: on ? f.journey_type.filter(x => x !== jt) : [...f.journey_type, jt],
-                      }))}
+                      onClick={() => setRouteForm(f => ({ ...f, journey_type: on ? [] : [jt] }))}
                       style={{
                         padding: '4px 11px', fontSize: 12, borderRadius: 12, cursor: 'pointer',
                         fontFamily: 'inherit', lineHeight: 1.5,
@@ -315,46 +279,12 @@ export default function RoutesPage() {
         </Modal>
       )}
 
-      {ttModal !== null && (
-        <Modal
-          title={ttModal === 'add' ? 'Add Timetable' : 'Edit Timetable'}
-          onClose={() => setTtModal(null)}
-          footer={
-            <>
-              <button className="btn btn-ghost" onClick={() => setTtModal(null)}>Cancel</button>
-              <button className="btn btn-primary" onClick={saveTimetable} disabled={saving}>
-                {saving ? 'Saving…' : 'Save'}
-              </button>
-            </>
-          }
-        >
-          {error && <div className="error-msg">{error}</div>}
-          <form onSubmit={saveTimetable}>
-            <div className="form-group">
-              <label className="form-label">Name</label>
-              <input
-                name="name"
-                className="form-input"
-                value={ttForm.name}
-                onChange={e => setTtForm(f => ({ ...f, name: e.target.value }))}
-                required
-                autoFocus
-                placeholder="e.g. Standard Outbound"
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Direction</label>
-              <select
-                name="direction"
-                className="form-select"
-                value={ttForm.direction}
-                onChange={e => setTtForm(f => ({ ...f, direction: e.target.value }))}
-              >
-                {DIRECTIONS.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
-            </div>
-          </form>
-        </Modal>
+      {wizard && (
+        <RouteWizard
+          existingRoute={wizard === 'new' ? undefined : wizard}
+          onCancel={() => setWizard(null)}
+          onFinish={() => { setWizard(null); load() }}
+        />
       )}
     </>
   )

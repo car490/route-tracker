@@ -306,13 +306,43 @@ create policy "auth_all" on public.journey_types
   for all to authenticated using (true) with check (true);
 
 
+-- ── Term dates ────────────────────────────────────────────────────────────────
+-- Reference data for auto-filling school-contract departure date ranges in the
+-- dashboard (Route Wizard / Departures card). Seeded from Lincolnshire County
+-- Council's published term dates — there is no machine-readable government
+-- source for this, so update it by hand each year as new dates are published:
+-- https://www.lincolnshire.gov.uk/school-attendance/school-term-times
+
+create table term_dates (
+  id            uuid        primary key default gen_random_uuid(),
+  academic_year text        not null,          -- e.g. '2025-26'
+  term_name     text        not null,          -- e.g. 'Term 1'
+  start_date    date        not null,
+  end_date      date        not null,
+  created_at    timestamptz not null default now(),
+  check (end_date >= start_date),
+  unique (academic_year, term_name)
+);
+
+grant select on public.term_dates to anon;
+grant all    on public.term_dates to authenticated;
+
+alter table public.term_dates enable row level security;
+
+create policy "anon_read" on public.term_dates
+  for select to anon using (true);
+
+create policy "auth_all" on public.term_dates
+  for all to authenticated using (true) with check (true);
+
+
 -- ── Routes ────────────────────────────────────────────────────────────────────
 
 create table routes (
   id              uuid        primary key default gen_random_uuid(),
   company_id      uuid        not null references companies(id) on delete cascade,
   service_code    text        not null,
-  name            text        not null,
+  name            text,
   journey_type    text[]      not null
                     check (array_length(journey_type, 1) > 0),
   single_journey  boolean     not null default false,
@@ -500,11 +530,18 @@ create table journey_events (
 -- Batch-uploaded at trip end by the driver app. One row per stop per journey.
 -- Covers both timing points and routing points on timetabled and ad-hoc journeys.
 --
--- arrived_at  : when the vehicle reached the stop.
--- departed_at : set only when the vehicle waited at a stop before leaving.
+-- arrived_at    : when the vehicle reached the stop. Null for a skipped stop
+--                 (visit_status = 'skipped_signal'/'skipped_detour') — the driver
+--                 app never got a real geofence entry for it, only inferred it was
+--                 bypassed when a later stop's geofence matched instead.
+-- departed_at   : set only when the vehicle waited at a stop before leaving.
+-- visit_status  : 'visited' (normal geofence entry), 'skipped_signal' (1 or fewer
+--                 timing points bypassed — likely a brief GPS gap), 'skipped_detour'
+--                 (2+ timing points bypassed — likely a genuine route detour),
+--                 'pending' (reserved; the app never uploads a not-yet-reached stop).
 --
 -- variance_seconds and is_early flags are computed on insert by trigger:
---   negative variance = early, positive = late, null = routing point (no scheduled time).
+--   negative variance = early, positive = late, null = routing point or skipped stop.
 --
 -- Ops review workflow: ops dashboard filters where is_early_arrival or is_early_departure
 -- and reviewed_at is null. Reviewing sets reviewed_by + reviewed_at; review_notes optional.
@@ -515,10 +552,12 @@ create table journey_stop_times (
   timetable_stop_id           uuid        references timetable_stops(id),
   journey_waypoint_id         uuid        references journey_waypoints(id),
 
-  arrived_at                  timestamptz not null,
+  arrived_at                  timestamptz,
   departed_at                 timestamptz,
+  visit_status                text        not null default 'visited'
+                                 check (visit_status in ('visited', 'skipped_signal', 'skipped_detour', 'pending')),
 
-  arrival_variance_seconds    int,                            -- null for routing points
+  arrival_variance_seconds    int,                            -- null for routing points or skipped stops
   departure_variance_seconds  int,                            -- null when departed_at is null or routing point
 
   is_early_arrival            boolean     not null default false,
@@ -541,23 +580,6 @@ create unique index journey_stop_times_timetable_unique
 create unique index journey_stop_times_waypoint_unique
   on journey_stop_times (journey_id, journey_waypoint_id)
   where journey_waypoint_id is not null;
-
-
--- ── Excursion passengers ──────────────────────────────────────────────────────
--- Optional passenger list per excursion journey. Not used for timetabled journeys.
-
-create table excursion_passengers (
-  id          uuid        primary key default gen_random_uuid(),
-  journey_id  uuid        not null references journeys(id) on delete cascade,
-  name        text        not null,
-  phone       text,
-  notes       text,
-  created_at  timestamptz not null default now()
-);
-
-grant select on public.excursion_passengers to anon;
-grant all    on public.excursion_passengers to authenticated;
--- RLS enable + policy added after helper functions below
 
 
 -- ── Triggers ──────────────────────────────────────────────────────────────────
@@ -608,6 +630,7 @@ create trigger trg_protect_vehicle_status
 --   The effective timing profile is journey.timing_profile (if set) else departure.timing_profile.
 -- For ad-hoc waypoints: scheduled datetime = journey_waypoints.scheduled_at.
 -- Routing points have no scheduled time — variance columns remain null, flags remain false.
+-- Skipped stops (arrived_at null) also get null variance columns — nothing to compare against.
 create or replace function compute_stop_time_variance()
 returns trigger
 language plpgsql
@@ -643,7 +666,7 @@ begin
     where  jw.id = new.journey_waypoint_id;
   end if;
 
-  if v_stop_type = 'timing_point' and v_scheduled_at is not null then
+  if new.arrived_at is not null and v_stop_type = 'timing_point' and v_scheduled_at is not null then
     new.arrival_variance_seconds :=
       extract(epoch from (new.arrived_at - v_scheduled_at))::int;
     new.is_early_arrival := new.arrival_variance_seconds < 0;
@@ -718,6 +741,72 @@ as $$
 $$;
 
 grant execute on function is_journey_in_progress(uuid) to anon;
+
+-- Signs a driver duty-card JWT directly in Postgres via pgcrypto, rather than
+-- relying on a separately-deployed Edge Function. Output is structurally
+-- identical to the old Edge Function's JWT and is read by is_jwt_journey_allowed().
+create extension if not exists pgcrypto;
+
+create or replace function public.generate_duty_token(
+  p_journey_ids  uuid[],
+  p_driver_name  text,
+  p_driver_id    uuid
+) returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  -- HS256 JWT header is a fixed constant
+  v_header      text := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9';
+  v_payload     jsonb;
+  v_payload_b64 text;
+  v_input       text;
+  v_sig         text;
+  v_now         bigint;
+  v_secret      text;
+begin
+  if auth.role() is distinct from 'authenticated' then
+    raise exception 'Unauthorized';
+  end if;
+
+  v_now    := extract(epoch from clock_timestamp())::bigint;
+  v_secret := current_setting('app.settings.jwt_secret', true);
+
+  if v_secret is null or v_secret = '' then
+    raise exception 'JWT secret unavailable';
+  end if;
+
+  v_payload := jsonb_build_object(
+    'iss',         'supabase',
+    'role',        'anon',
+    'driver_name', coalesce(p_driver_name, 'Driver'),
+    'driver_id',   p_driver_id,
+    'journey_ids', coalesce(
+                     (select jsonb_agg(elem::text) from unnest(p_journey_ids) as elem),
+                     '[]'::jsonb
+                   ),
+    'iat',         v_now,
+    'exp',         v_now + 86400
+  );
+
+  -- base64url-encode payload (remove newlines pgcrypto adds, swap +/ → -_)
+  v_payload_b64 := replace(replace(replace(
+    replace(encode(convert_to(v_payload::text, 'UTF8'), 'base64'), chr(10), ''),
+    '+', '-'), '/', '_'), '=', '');
+
+  v_input := v_header || '.' || v_payload_b64;
+
+  -- HMAC-SHA256, then base64url-encode the signature
+  v_sig := replace(replace(replace(
+    replace(encode(hmac(convert_to(v_input, 'UTF8'), convert_to(v_secret, 'UTF8'), 'sha256'), 'base64'), chr(10), ''),
+    '+', '-'), '/', '_'), '=', '');
+
+  return v_input || '.' || v_sig;
+end;
+$$;
+
+grant execute on function public.generate_duty_token(uuid[], text, uuid) to authenticated;
 
 -- Returns true when the current JWT either carries no journey_ids claim (legacy anon key)
 -- or when j_id appears in the claim. Scopes driver tokens to their own journeys only.
@@ -1166,17 +1255,6 @@ create policy "company_all" on public.service_exceptions
     )
   );
 
--- excursion_passengers: scoped via journey → company
-alter table public.excursion_passengers enable row level security;
-
-create policy "company_all" on public.excursion_passengers
-  for all to authenticated
-  using (
-    journey_id in (select id from journeys where company_id = current_company_id())
-  )
-  with check (
-    journey_id in (select id from journeys where company_id = current_company_id())
-  );
 
 
 -- ── Grants ────────────────────────────────────────────────────────────────────

@@ -1,14 +1,16 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../shared/supabase'
-import { getCompanyId, getCompanyLocation } from '../../shared/company'
-import { searchPlaces } from '../../shared/api/osPlaces'
+import { getCompanyLocation } from '../../shared/company'
 import { useJourneyTypes } from '../../shared/hooks/useJourneyTypes'
-import { TYPE_DEFAULTS, DIRECTIONS, SINGLE_JOURNEY_DIRECTIONS, S } from './constants'
-import { fmtDist, fmtDur, stopColor, timeToMinutes, minutesToTime, fetchSegments, combineGeometries, buildSegAfterMap, getScheduledMin, totalScheduledDuration } from './utils'
+import { TYPE_DEFAULTS, SCHOOL_TYPE_RE, S } from './constants'
+import { fmtDist, fmtDur, stopColor, getScheduledMin, timeToMinutes, minutesToTime } from './utils'
+import { useStopsBuilder } from './useStopsBuilder'
+import { saveRouteTimetableStops } from './saveRouteTimetableStops'
 import PlannerMap from './PlannerMap'
 import ReviewModal from './ReviewModal'
 import DeparturesCard from './DeparturesCard'
+import RouteDetailsForm from './RouteDetailsForm'
 
 function SegChip({ seg, scheduledMin }) {
   if (!seg || seg.error) return null
@@ -57,30 +59,25 @@ export default function RoutePlannerPage() {
 
   const [departures, setDepartures] = useState([])
 
-  const [stops,       setStops]       = useState([])
-  const [routing,     setRouting]     = useState(false)
-  const [routeResult, setRouteResult] = useState(null)
-  const [pinDropMode, setPinDropMode] = useState(false)
-  const [hqLocation,  setHqLocation]  = useState(null)
+  const {
+    stops, setStops,
+    routing, routeResult, vehicle, warnings, segAfterStop, totalDurationSec,
+    pinDropMode, setPinDropMode,
+    showSearch, setShowSearch, searchQuery, setSearchQuery, searchResults, searching,
+    naptanPending, setNaptanPending, checkingNaptan,
+    editStopId, editStopName, setEditStopName,
+    fitKey, setFitKey,
+    commitStop, handleAddStop, handleMapPinDrop, closeSearch,
+    moveStop, removeStop, removeStopById, updateStop,
+    startEditName, commitEditName,
+  } = useStopsBuilder(vehicleType)
 
-  const [showSearch,    setShowSearch]    = useState(false)
-  const [searchQuery,   setSearchQuery]   = useState('')
-  const [searchResults, setSearchResults] = useState([])
-  const [searching,     setSearching]     = useState(false)
-
-  // NAPTAN proximity suggestion — set when a pin drop or address result lands within 5m of a known bus stop
-  const [naptanPending,    setNaptanPending]    = useState(null)   // { original, naptan }
-  const [checkingNaptan,   setCheckingNaptan]   = useState(false)
-
-  // Stop name inline editing
-  const [editStopId,   setEditStopId]   = useState(null)
-  const [editStopName, setEditStopName] = useState('')
+  const [hqLocation, setHqLocation] = useState(null)
 
   // Confirmation / review modal
   const [showConfirm, setShowConfirm] = useState(false)
   const [modalStops,  setModalStops]  = useState([])
 
-  const [fitKey,        setFitKey]        = useState(null)
   const [singleJourney, setSingleJourney] = useState(false)
   const [saving,        setSaving]        = useState(false)
   const [saveError,   setSaveError]   = useState('')
@@ -188,143 +185,6 @@ export default function RoutePlannerPage() {
     }
   }, [routeId, newRouteCollapsed, newJourneyTypes])
 
-  // ── Auto-routing (N-1 parallel segment calls) ─────────────────────────────────
-
-  useEffect(() => {
-    const pts = stops.filter(s => s.lat != null && s.lon != null)
-    if (pts.length < 2) { setRouteResult(null); return }
-
-    const vehicle = resolvedVehicle()
-    let cancelled = false
-    setRouting(true)
-
-    fetchSegments(pts, vehicle).then(segs => {
-      if (cancelled) return
-      const valid = segs.filter(s => s && !s.error)
-      setRouteResult({
-        segments: segs,
-        geometry: combineGeometries(valid),
-        distance: valid.reduce((sum, s) => sum + s.distance, 0),
-        duration: valid.reduce((sum, s) => sum + s.duration, 0),
-        warnings: valid.flatMap(s => s.warnings ?? []),
-        error:    valid.length === 0 ? (segs.find(s => s?.error)?.error ?? 'Could not find a route') : null,
-      })
-      setRouting(false)
-    })
-    return () => { cancelled = true }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stops, vehicleType])
-
-  // Catch-up fill: routing resolved after the user already typed a time
-  useEffect(() => {
-    if (!routeResult?.segments) return
-    setStops(prev => {
-      const firstSetIdx = prev.findIndex(s => s.stop_type === 'timing_point' && s.time_std)
-      if (firstSetIdx === -1) return prev
-      const hasEmptyAfter = prev.slice(firstSetIdx + 1).some(s => s.stop_type === 'timing_point' && !s.time_std)
-      if (!hasEmptyAfter) return prev
-      const segsMap = buildSegAfterMap(prev, routeResult.segments)
-      const baseMins = timeToMinutes(prev[firstSetIdx].time_std)
-      let cumSecs = 0
-      const updated = [...prev]
-      for (let i = firstSetIdx; i < prev.length - 1; i++) {
-        const seg = segsMap[prev[i]._id]
-        if (seg && !seg.error) cumSecs += seg.duration
-        const next = prev[i + 1]
-        if (next.stop_type === 'timing_point' && !next.time_std) {
-          updated[i + 1] = { ...next, time_std: minutesToTime(baseMins + Math.round(cumSecs / 60)) }
-        }
-      }
-      return updated
-    })
-  }, [routeResult]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  function resolvedVehicle() {
-    if (!vehicleType.length) return null
-    const dims = vehicleType.map(vt => TYPE_DEFAULTS[vt]).filter(Boolean)
-    if (!dims.length) return null
-    return {
-      height_metres: Math.max(...dims.map(d => d.height_metres)),
-      width_metres:  Math.max(...dims.map(d => d.width_metres)),
-      length_metres: Math.max(...dims.map(d => d.length_metres)),
-    }
-  }
-
-  // ── Stop search ──────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (!searchQuery.trim()) { setSearchResults([]); return }
-    let cancelled = false
-    const timer = setTimeout(async () => {
-      setSearching(true)
-      const { data: dbStops } = await supabase
-        .from('stops').select('id, name, lat, lon').ilike('name', `%${searchQuery}%`).limit(6)
-      if (cancelled) return
-      const dbResults = (dbStops ?? []).map(s => ({
-        source: 'stop', stop_id: s.id, name: s.name, lat: s.lat, lon: s.lon,
-      }))
-      setSearchResults(dbResults)
-
-      const places = await searchPlaces(searchQuery).catch(() => [])
-      if (cancelled) return
-      const combined = [...dbResults]
-      for (const p of places ?? []) {
-        if (!combined.find(r => r.name === p.address)) {
-          combined.push({ source: 'addr', name: p.address, lat: p.lat, lon: p.lon })
-        }
-      }
-      setSearchResults(combined)
-      setSearching(false)
-    }, 350)
-    return () => { cancelled = true; clearTimeout(timer) }
-  }, [searchQuery])
-
-  function commitStop(name, lat, lon, stopId = null, naptanCode = null) {
-    setStops(prev => [...prev, {
-      _id: crypto.randomUUID(),
-      stop_id:     stopId,
-      naptan_code: naptanCode,
-      name, lat, lon,
-      stop_type: 'timing_point', time_std: '',
-    }])
-  }
-
-  async function checkNaptanThenCommit(name, lat, lon) {
-    setCheckingNaptan(true)
-    try {
-      const { data } = await supabase.rpc('naptan_near_point', { p_lat: lat, p_lon: lon, p_radius_m: 25 })
-      const nearest = data?.[0] ?? null
-      if (nearest) {
-        setNaptanPending({ original: { name, lat, lon }, naptan: nearest })
-      } else {
-        commitStop(name, lat, lon)
-      }
-    } catch {
-      commitStop(name, lat, lon)
-    } finally {
-      setCheckingNaptan(false)
-    }
-  }
-
-  function handleAddStop(result) {
-    setShowSearch(false); setSearchQuery(''); setSearchResults([])
-    if (result.stop_id) {
-      // Already a known DB stop — skip NAPTAN check
-      commitStop(result.name, result.lat, result.lon, result.stop_id)
-    } else {
-      // Address result — check for a nearby NAPTAN bus stop
-      checkNaptanThenCommit(result.name, result.lat, result.lon)
-    }
-  }
-
-  function handleMapPinDrop({ name, lat, lon }) {
-    checkNaptanThenCommit(name, lat, lon)
-  }
-
-  function closeSearch() {
-    setShowSearch(false); setSearchQuery(''); setSearchResults([])
-  }
-
   const FLIP_DIRECTION = { Outbound: 'Inbound', Inbound: 'Outbound', Morning: 'Afternoon', Afternoon: 'Morning' }
 
   async function handleInvertFrom(sourceTtId, fromDir) {
@@ -346,54 +206,6 @@ export default function RoutePlannerPage() {
     if (fromDir) setNewDirection(FLIP_DIRECTION[fromDir] ?? 'Outbound')
   }
 
-  // ── Stop mutations ────────────────────────────────────────────────────────────
-
-  function moveStop(i, dir) {
-    setStops(prev => {
-      const arr = [...prev]
-      const j = i + dir
-      if (j < 0 || j >= arr.length) return arr
-      ;[arr[i], arr[j]] = [arr[j], arr[i]]
-      return arr
-    })
-  }
-
-  function removeStop(i) { setStops(prev => prev.filter((_, idx) => idx !== i)) }
-  function removeStopById(id) { setStops(prev => prev.filter(s => s._id !== id)) }
-
-  function autoFillNextTiming(stopsArr, changedIdx, newTime) {
-    const baseMins = timeToMinutes(newTime)
-    if (baseMins == null) return stopsArr
-    const segsMap = buildSegAfterMap(stopsArr, routeResult?.segments)
-    let cumSecs = 0
-    const updated = [...stopsArr]
-    for (let i = changedIdx; i < stopsArr.length - 1; i++) {
-      const seg = segsMap[stopsArr[i]._id]
-      if (seg && !seg.error) cumSecs += seg.duration
-      const next = stopsArr[i + 1]
-      if (next.stop_type === 'timing_point') {
-        updated[i + 1] = { ...next, time_std: minutesToTime(baseMins + Math.round(cumSecs / 60)) }
-      }
-    }
-    return updated
-  }
-
-  function updateStop(i, field, value) {
-    const updated = stops.map((s, idx) => idx === i ? { ...s, [field]: value } : s)
-    if (field === 'time_std' && stops[i]?.stop_type === 'timing_point' && value) {
-      setStops(autoFillNextTiming(updated, i, value))
-    } else {
-      setStops(updated)
-    }
-  }
-
-  function startEditName(stop) { setEditStopId(stop._id); setEditStopName(stop.name) }
-  function commitEditName(i) {
-    const name = editStopName.trim()
-    if (name) updateStop(i, 'name', name)
-    setEditStopId(null)
-  }
-
   // ── Save ─────────────────────────────────────────────────────────────────────
 
   function openModal() {
@@ -408,92 +220,18 @@ export default function RoutePlannerPage() {
     if (stopsToSave.length < 2) return
     setSaving(true); setSaveError(''); setSaveSuccess(false)
 
-    let resolvedRouteId     = routeId
-    let resolvedTimetableId = timetableId
-
-    if (routeId === '__new__') {
-      const company_id = await getCompanyId()
-      if (!company_id) { setSaveError('Could not determine company — please reload and try again.'); setSaving(false); return }
-      const code = newCode.toUpperCase()
-      const { data: existing } = await supabase.from('routes')
-        .select('id').eq('company_id', company_id).eq('service_code', code).maybeSingle()
-      if (existing) {
-        resolvedRouteId = existing.id
-      } else {
-        const { data, error } = await supabase.from('routes')
-          .insert({
-            company_id,
-            service_code:   code,
-            name:           newName || null,
-            journey_type:   newJourneyTypes,
-            single_journey: singleJourney,
-            ...(isBodsRoute && {
-              origin:                      newOrigin.trim()      || null,
-              destination:                 newDestination.trim() || null,
-              service_registration_number: newServiceReg.trim()  || null,
-            }),
-          })
-          .select('id').single()
-        if (error) { setSaveError(error.message); setSaving(false); return }
-        resolvedRouteId = data.id
-      }
-    }
-
-    if (timetableId === '__new__') {
-      const { data, error } = await supabase.from('timetables')
-        .insert({ route_id: resolvedRouteId, name: newTtName, direction: newDirection })
-        .select('id').single()
-      if (error) { setSaveError(error.message); setSaving(false); return }
-      resolvedTimetableId = data.id
-    }
-
-    const { error: delErr } = await supabase
-      .from('timetable_stops').delete().eq('timetable_id', resolvedTimetableId)
-    if (delErr) { setSaveError(delErr.message); setSaving(false); return }
-
-    // Must match the anchor used when loading stops (line ~146): offsets are relative to the
-    // timetable's first departure, not to whatever the first stop's time happened to show here —
-    // otherwise edits to that stop's time silently collapse to offset 0 and revert on reload.
-    const baseStr = departures[0]?.departure_time ?? '07:00:00'
-    const base    = timeToMinutes(baseStr.slice(0, 5))
-
-    const stopRows = []
-    for (let i = 0; i < stopsToSave.length; i++) {
-      const s = stopsToSave[i]
-      let stopId = s.stop_id
-      if (!stopId) {
-        if (s.naptan_code) {
-          // Reuse existing stops row if this NAPTAN stop was already created
-          const { data: existing } = await supabase
-            .from('stops').select('id').eq('naptan_code', s.naptan_code).maybeSingle()
-          if (existing) {
-            stopId = existing.id
-          } else {
-            const { data, error } = await supabase
-              .from('stops').insert({ name: s.name, lat: s.lat, lon: s.lon, naptan_code: s.naptan_code })
-              .select('id').single()
-            if (error) { setSaveError(`Stop "${s.name}": ${error.message}`); setSaving(false); return }
-            stopId = data.id
-          }
-        } else {
-          const { data, error } = await supabase
-            .from('stops').insert({ name: s.name, lat: s.lat, lon: s.lon }).select('id').single()
-          if (error) { setSaveError(`Stop "${s.name}": ${error.message}`); setSaving(false); return }
-          stopId = data.id
-        }
-      }
-      const isTiming = s.stop_type === 'timing_point'
-      stopRows.push({
-        timetable_id:    resolvedTimetableId,
-        stop_id:         stopId,
-        sequence:        i + 1,
-        stop_type:       s.stop_type,
-        offset_standard: isTiming && s.time_std && base != null ? timeToMinutes(s.time_std) - base : null,
-      })
-    }
-
-    const { error: insErr } = await supabase.from('timetable_stops').insert(stopRows)
-    if (insErr) { setSaveError(insErr.message); setSaving(false); return }
+    const { routeId: savedRouteId, timetableId: savedTimetableId, error } = await saveRouteTimetableStops({
+      routeId, timetableId,
+      newRouteFields: {
+        code: newCode, name: newName, journeyTypes: newJourneyTypes,
+        singleJourney, isBodsRoute,
+        origin: newOrigin, destination: newDestination, serviceReg: newServiceReg,
+      },
+      newTtName, newDirection,
+      stopsToSave,
+      departures,
+    })
+    if (error) { setSaveError(error); setSaving(false); return }
 
     const wasNew = routeId === '__new__'
     await loadRoutes()
@@ -504,6 +242,14 @@ export default function RoutePlannerPage() {
       setRouteId(''); setTimetableId(''); setStops([])
     } else {
       setStops(stopsToSave)
+      // A brand-new timetable on an existing route (e.g. the "Return" invert flow) must
+      // move off '__new__' once saved — otherwise a second save creates a duplicate
+      // timetable with the same stops instead of updating the one just created.
+      if (timetableId === '__new__') {
+        const { data } = await supabase.from('timetables').select('*').eq('route_id', savedRouteId).order('name')
+        setTimetables(data ?? [])
+        setTimetableId(savedTimetableId)
+      }
     }
     setSaving(false)
     setShowConfirm(false)
@@ -513,14 +259,12 @@ export default function RoutePlannerPage() {
 
   // ── Derived ───────────────────────────────────────────────────────────────────
 
-  const vehicle  = resolvedVehicle()
-  const warnings = routeResult?.warnings ?? []
-
   const selRoute = routeId && routeId !== '__new__' ? routes.find(r => r.id === routeId) : null
   const selTt    = timetableId && timetableId !== '__new__' ? timetables.find(t => t.id === timetableId) : null
 
   const activeJTypes  = routeId === '__new__' ? newJourneyTypes : (selRoute?.journey_type ?? [])
   const isBodsRoute   = activeJTypes.some(jt => bodsTypes.has(jt))
+  const isSchoolRoute = activeJTypes.some(jt => SCHOOL_TYPE_RE.test(jt))
 
   const routeConfirmed = routeId === '__new__' ? newRouteCollapsed : !!routeId
   const routeReady = routeId === '__new__' ? newCode.trim().length > 0 && newJourneyTypes.length > 0 : !!routeId
@@ -532,9 +276,6 @@ export default function RoutePlannerPage() {
   const confirmTt     = timetableId === '__new__'
     ? ''
     : selTt ? `${selTt.name} · ${selTt.direction}` : ''
-
-  const segAfterStop = buildSegAfterMap(stops, routeResult?.segments)
-  const totalDurationSec = totalScheduledDuration(stops, segAfterStop)
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
@@ -576,7 +317,7 @@ export default function RoutePlannerPage() {
                   const val = e.target.value
                   setRouteId(val)
                   if (val === '__new__') {
-                    setNewRouteCollapsed(false); setNewTtCollapsed(false)
+                    setNewRouteCollapsed(false)
                     setSingleJourney(false)
                   } else {
                     setSingleJourney(routes.find(r => r.id === val)?.single_journey ?? false)
@@ -609,83 +350,18 @@ export default function RoutePlannerPage() {
                   </div>
                 ) : (
                   <>
-                    <div style={{ marginBottom: 6 }}>
-                      <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Code</div>
-                      <input name="service_code" className="form-input" style={{ textTransform: 'uppercase', fontSize: 12 }}
-                        placeholder="S125S" autoFocus value={newCode}
-                        onChange={e => setNewCode(e.target.value.toUpperCase())} />
-                    </div>
-                    <div style={{ marginBottom: 6 }}>
-                      <div style={{ ...S.sectionLabel, marginBottom: 4 }}>Journey Types</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                        {journeyTypes.map(jt => {
-                          const on = newJourneyTypes.includes(jt)
-                          return (
-                            <button key={jt} type="button" onClick={() => setNewJourneyTypes(on ? [] : [jt])}
-                              style={{
-                                padding: '3px 9px', fontSize: 11, borderRadius: 10, cursor: 'pointer',
-                                fontFamily: 'inherit', lineHeight: 1.5,
-                                border: `1px solid ${on ? 'var(--navy-brand)' : 'var(--border)'}`,
-                                background: on ? 'var(--navy-brand)' : 'transparent',
-                                color: on ? '#fff' : 'var(--text-muted)',
-                              }}
-                            >{jt}</button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                    <div style={{ marginBottom: 6 }}>
-                      <div style={{ ...S.sectionLabel, marginBottom: 4 }}>Vehicle Type</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                        {Object.keys(TYPE_DEFAULTS).map(vt => {
-                          const on = vehicleType.includes(vt)
-                          return (
-                            <button key={vt} type="button"
-                              onClick={() => setVehicleType(prev => on ? prev.filter(x => x !== vt) : [...prev, vt])}
-                              style={{
-                                padding: '3px 9px', fontSize: 11, borderRadius: 10, cursor: 'pointer',
-                                fontFamily: 'inherit', lineHeight: 1.5,
-                                border: `1px solid ${on ? 'var(--navy-brand)' : 'var(--border)'}`,
-                                background: on ? 'var(--navy-brand)' : 'transparent',
-                                color: on ? '#fff' : 'var(--text-muted)',
-                              }}
-                            >{vt}</button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                    <div style={{ marginBottom: 6 }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}>
-                        <input type="checkbox" checked={singleJourney} onChange={e => setSingleJourney(e.target.checked)} />
-                        <span style={{ fontSize: 12, color: 'var(--text)' }}>One journey each way</span>
-                      </label>
-                    </div>
-                    <div style={{ marginBottom: 6 }}>
-                      <div style={{ ...S.sectionLabel, marginBottom: 3 }}>
-                        Name <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
-                      </div>
-                      <input name="route_name" className="form-input" style={{ fontSize: 12 }} placeholder="e.g. Sleaford – Cranwell"
-                        value={newName} onChange={e => setNewName(e.target.value)} />
-                    </div>
-                    {isBodsRoute && (<>
-                      <div style={{ marginBottom: 6 }}>
-                        <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Origin</div>
-                        <input className="form-input" style={{ fontSize: 12 }} placeholder="e.g. Spalding"
-                          value={newOrigin} onChange={e => setNewOrigin(e.target.value)} />
-                      </div>
-                      <div style={{ marginBottom: 6 }}>
-                        <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Destination</div>
-                        <input className="form-input" style={{ fontSize: 12 }} placeholder="e.g. Boston"
-                          value={newDestination} onChange={e => setNewDestination(e.target.value)} />
-                      </div>
-                      <div style={{ marginBottom: 6 }}>
-                        <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Registration No.
-                          <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, marginLeft: 4 }}>(optional)</span>
-                        </div>
-                        <input className="form-input" style={{ fontSize: 12 }} placeholder="e.g. PC0006014:1"
-                          value={newServiceReg} onChange={e => setNewServiceReg(e.target.value)} />
-                      </div>
-                    </>)}
+                    <RouteDetailsForm
+                      journeyTypes={journeyTypes}
+                      isBodsRoute={isBodsRoute}
+                      newCode={newCode} setNewCode={setNewCode}
+                      newJourneyTypes={newJourneyTypes} setNewJourneyTypes={setNewJourneyTypes}
+                      vehicleType={vehicleType} setVehicleType={setVehicleType}
+                      singleJourney={singleJourney} setSingleJourney={setSingleJourney}
+                      newName={newName} setNewName={setNewName}
+                      newOrigin={newOrigin} setNewOrigin={setNewOrigin}
+                      newDestination={newDestination} setNewDestination={setNewDestination}
+                      newServiceReg={newServiceReg} setNewServiceReg={setNewServiceReg}
+                    />
                     <div ref={confirmRouteRef} style={{ display: 'flex', justifyContent: 'flex-end', scrollMarginBottom: 24 }}>
                       <button type="button" className="btn btn-primary btn-sm"
                         disabled={!newCode.trim() || newJourneyTypes.length === 0}
@@ -772,7 +448,7 @@ export default function RoutePlannerPage() {
                         <span key={jt} style={{ fontSize: 10, fontWeight: 700, background: 'var(--navy-brand)', color: '#fff', borderRadius: 8, padding: '1px 6px', letterSpacing: '0.04em', textTransform: 'uppercase', flexShrink: 0 }}>{jt}</span>
                       ))}
                       <button type="button"
-                        onClick={() => { setShowSetup(true); setNewRouteCollapsed(false); setNewTtCollapsed(false) }}
+                        onClick={() => { setShowSetup(true); setNewRouteCollapsed(false) }}
                         style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--navy-brand)', cursor: 'pointer', fontSize: 11, padding: 0, flexShrink: 0, textDecoration: 'underline', fontFamily: 'inherit' }}
                       >Edit</button>
                     </div>
@@ -999,7 +675,7 @@ export default function RoutePlannerPage() {
               timetables={timetables}
               departures={departures}
               setDepartures={setDepartures}
-              isBodsRoute={isBodsRoute}
+              isSchoolRoute={isSchoolRoute}
             />
           )}
 

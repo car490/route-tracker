@@ -144,7 +144,7 @@ export default function PlannerMap({ stops, routeGeometry, pinDropMode, onMapCli
 
     const validStops = stops.filter(s => s.lat != null && s.lon != null)
     validStops.forEach((s, i) => {
-      const color = stopColor(i, validStops.length)
+      const color = stopColor(i, validStops.length, s.stop_type)
       const icon = L.divIcon({
         className: '',
         html: `<div style="

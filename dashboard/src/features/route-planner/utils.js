@@ -10,9 +10,10 @@ export function fmtDur(s) {
   return h > 0 ? `${h}h ${m}m` : `${m} min`
 }
 
-export function stopColor(i, total) {
+export function stopColor(i, total, stopType) {
   if (i === 0) return '#10B981'
   if (i === total - 1) return '#EF4444'
+  if (stopType === 'routing_point') return '#94A3B8'
   return 'var(--operator-accent)'
 }
 

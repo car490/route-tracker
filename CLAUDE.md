@@ -2,7 +2,8 @@
 
 ## Project overview
 Real-time bus route timing PWA for Phil Haines Coaches drivers, plus an ops back-office dashboard.
-- **Driver PWA**: `route-tracker/public/` (vanilla JS, deployed to GitHub Pages)
+- **Driver PWA**: `route-tracker/src/` (vanilla JS, no build step, deployed to GitHub Pages
+  directly from the repo root — `index.html` loads `src/main.js`)
 - **Ops dashboard**: `route-tracker/dashboard/` (React + Vite, deployed to Vercel)
 - **Supabase backend**: schema at `route-tracker/supabase/schema.sql`
 
@@ -128,3 +129,13 @@ together on the `develop` → `master` merge. Source of truth is the root
 - `staff.name` is a **single field** — never `first_name`/`last_name`.
 - `stops` are **global** (no `company_id`); `stop_type` lives on `timetable_stops`.
 - OSRM directions must use **scheduled stop coordinates**, never live GPS position.
+
+### Public client config (PWA)
+The PWA has no build step, so there's no env-var injection like Vite's — all
+dev/prod Supabase URLs and keys live in `src/config.js`, never inline in
+`main.js` or elsewhere. Only ever put **anon/publishable** keys there — they
+carry no privileges on their own (RLS policies are what actually gate access),
+so they're safe to commit and ship to every browser regardless of where they
+live in source. A `service_role` key or `SUPABASE_JWT_SECRET` must **never**
+appear here — those are read from `process.env` on a server only (see
+`dashboard/api/*.js` for that pattern on the dashboard side).

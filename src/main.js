@@ -3,10 +3,8 @@ import { updateUi, renderLog, setOnStopJump } from './ui.js';
 import { initMap, updateMapPosition, invalidateSize } from './map.js';
 import { log, getEntries } from './logger.js';
 import { initDirections, syncCurrentStop, updateDirections } from './directions.js';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
 
-const _DEV          = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const SUPABASE_URL  = _DEV ? 'https://cgcbfgceputvdvhzrgio.supabase.co'         : 'https://nwhayupsvcelyiwltdqo.supabase.co';
-const SUPABASE_KEY  = _DEV ? 'sb_publishable_LZVX8fASyDG8UtMp3eeRJQ_SBxpCa54' : 'sb_publishable_gij_rPjr2EJrcv0W9sU-Ow_C3nNqGcn';
 const DRIVER_TOKEN  = new URLSearchParams(window.location.search).get('token');
 const DEPOT         = { name: 'Phil Haines Coaches Depot', lat: 52.950412, lon: -0.050110 };
 const DEBUG         = new URLSearchParams(window.location.search).has('debug');
@@ -94,11 +92,14 @@ async function uploadStopTimes(jId, arrivals, stops) {
   const rows = [];
   for (let i = 1; i < stops.length - 1; i++) {
     const stop = stops[i];
-    if (!stop.timetable_stop_id || !arrivals[i] || arrivals[i] === 'missed') continue;
+    const a = arrivals[i];
+    if (!stop.timetable_stop_id || !a || a === 'missed') continue;
+    const isDate = a instanceof Date;
     rows.push({
       journey_id: jId,
       timetable_stop_id: stop.timetable_stop_id,
-      arrived_at: arrivals[i].toISOString(),
+      arrived_at: isDate ? a.toISOString() : null,
+      visit_status: isDate ? 'visited' : a.status,
     });
   }
   log('info', `Upload payload (${rows.length} rows): ${JSON.stringify(rows)}`);

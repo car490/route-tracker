@@ -24,6 +24,35 @@ on conflict (name) do update
       requires_bods = excluded.requires_bods;
 
 
+-- ── Term dates ────────────────────────────────────────────────────────────────
+-- Lincolnshire County Council published term dates, six-term model (each term
+-- already excludes half-term breaks). Source:
+-- https://www.lincolnshire.gov.uk/school-attendance/school-term-times
+
+insert into public.term_dates (academic_year, term_name, start_date, end_date) values
+  ('2025-26', 'Term 1', '2025-09-04', '2025-10-23'),
+  ('2025-26', 'Term 2', '2025-11-03', '2025-12-19'),
+  ('2025-26', 'Term 3', '2026-01-06', '2026-02-13'),
+  ('2025-26', 'Term 4', '2026-02-23', '2026-04-02'),
+  ('2025-26', 'Term 5', '2026-04-21', '2026-05-22'),
+  ('2025-26', 'Term 6', '2026-06-01', '2026-07-22'),
+  ('2026-27', 'Term 1', '2026-09-03', '2026-10-23'),
+  ('2026-27', 'Term 2', '2026-11-02', '2026-12-18'),
+  ('2026-27', 'Term 3', '2027-01-05', '2027-02-12'),
+  ('2026-27', 'Term 4', '2027-02-22', '2027-03-25'),
+  ('2026-27', 'Term 5', '2027-04-14', '2027-05-28'),
+  ('2026-27', 'Term 6', '2027-06-07', '2027-07-21'),
+  ('2027-28', 'Term 1', '2027-09-06', '2027-10-22'),
+  ('2027-28', 'Term 2', '2027-11-01', '2027-12-17'),
+  ('2027-28', 'Term 3', '2028-01-05', '2028-02-11'),
+  ('2027-28', 'Term 4', '2028-02-21', '2028-03-31'),
+  ('2027-28', 'Term 5', '2028-04-19', '2028-05-26'),
+  ('2027-28', 'Term 6', '2028-06-05', '2028-07-21')
+on conflict (academic_year, term_name) do update
+  set start_date = excluded.start_date,
+      end_date   = excluded.end_date;
+
+
 -- ── Drivers hours rules ───────────────────────────────────────────────────────
 
 insert into public.drivers_hours_rules (

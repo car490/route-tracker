@@ -1,12 +1,18 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../../shared/supabase'
 import { S, DAYS, DEP_EMPTY } from './constants'
 
-export default function DeparturesCard({ timetableId, timetables, departures, setDepartures, isBodsRoute }) {
+export default function DeparturesCard({ timetableId, timetables, departures, setDepartures, isSchoolRoute }) {
   const [depModal,  setDepModal]  = useState(null)
   const [depForm,   setDepForm]   = useState(DEP_EMPTY)
   const [depSaving, setDepSaving] = useState(false)
   const [depError,  setDepError]  = useState('')
+  const [termDates, setTermDates] = useState([])
+
+  useEffect(() => {
+    if (!isSchoolRoute) return
+    supabase.from('term_dates').select('*').order('start_date').then(({ data }) => setTermDates(data ?? []))
+  }, [isSchoolRoute])
 
   async function loadDepartures(ttId) {
     const { data } = await supabase
@@ -120,27 +126,40 @@ export default function DeparturesCard({ timetableId, timetables, departures, se
                 })}
               </div>
             </div>
-            <div style={{ marginBottom: isBodsRoute ? 6 : 8 }}>
+            <div style={{ marginBottom: 6 }}>
               <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Journey Code (VJC)</div>
               <input className="form-input" value={depForm.vehicle_journey_code}
                 onChange={e => setDepForm(f => ({ ...f, vehicle_journey_code: e.target.value }))} required />
             </div>
-            {isBodsRoute && (
-              <div style={{ marginBottom: 8 }}>
-                <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Service Validity</div>
-                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                  <input type="date" className="form-input" style={{ flex: 1, fontSize: 11 }}
-                    value={depForm.valid_from}
-                    onChange={e => setDepForm(f => ({ ...f, valid_from: e.target.value }))}
-                    required={isBodsRoute} />
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>to</span>
-                  <input type="date" className="form-input" style={{ flex: 1, fontSize: 11 }}
-                    value={depForm.valid_to}
-                    onChange={e => setDepForm(f => ({ ...f, valid_to: e.target.value }))}
-                    required={isBodsRoute} />
-                </div>
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Service Validity</div>
+              {isSchoolRoute && termDates.length > 0 && (
+                <select className="form-select" style={{ fontSize: 11, marginBottom: 4, width: '100%' }}
+                  value=""
+                  onChange={e => {
+                    const term = termDates.find(t => t.id === e.target.value)
+                    if (term) setDepForm(f => ({ ...f, valid_from: term.start_date, valid_to: term.end_date }))
+                  }}
+                >
+                  <option value="" disabled>Fill from term dates…</option>
+                  {termDates.map(t => (
+                    <option key={t.id} value={t.id}>{t.academic_year} — {t.term_name} ({t.start_date} to {t.end_date})</option>
+                  ))}
+                </select>
+              )}
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                <input type="date" className="form-input" style={{ flex: 1, fontSize: 11 }}
+                  value={depForm.valid_from}
+                  onChange={e => setDepForm(f => ({ ...f, valid_from: e.target.value }))}
+                  required />
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  to <span style={{ opacity: 0.7 }}>(optional)</span>
+                </span>
+                <input type="date" className="form-input" style={{ flex: 1, fontSize: 11 }}
+                  value={depForm.valid_to}
+                  onChange={e => setDepForm(f => ({ ...f, valid_to: e.target.value }))} />
               </div>
-            )}
+            </div>
             <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDepModal(null)}>Cancel</button>
               <button type="submit" className="btn btn-primary btn-sm" disabled={depSaving}>{depSaving ? 'Saving…' : 'Save'}</button>

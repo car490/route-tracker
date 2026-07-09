@@ -93,10 +93,12 @@ export function updateMapPosition(lat, lon, nextStopIndex, arrivals) {
   if (!_map) return;
   _posMarker.setLatLng([lat, lon]);
   _stopMarkers.forEach((m, i) => {
-    if      (arrivals[i] === 'missed')    m.setStyle(stopStyle('missed'));
-    else if (arrivals[i] instanceof Date) m.setStyle(stopStyle('past'));
-    else if (i === nextStopIndex)         m.setStyle(stopStyle('current'));
-    else                                  m.setStyle(stopStyle('future'));
+    const arrived = arrivals[i] instanceof Date;
+    const missed  = arrivals[i] === 'missed' || (arrivals[i] !== null && typeof arrivals[i] === 'object' && !arrived);
+    if      (missed)               m.setStyle(stopStyle('missed'));
+    else if (arrived)              m.setStyle(stopStyle('past'));
+    else if (i === nextStopIndex)  m.setStyle(stopStyle('current'));
+    else                           m.setStyle(stopStyle('future'));
   });
 }
 
