@@ -6,6 +6,10 @@ export const TYPE_DEFAULTS = {
   'Double Decker':     { height_metres: 4.35, width_metres: 2.55, length_metres: 11.00 },
 }
 
+// Matches journey types like 'Open Door Schools', 'Contract Schools', or any
+// future 'College'/'University' type — these get term-time date auto-fill.
+export const SCHOOL_TYPE_RE = /school|college|university/i
+
 export const DIRECTIONS                = ['Outbound', 'Inbound', 'Circular']
 export const SINGLE_JOURNEY_DIRECTIONS = ['Morning', 'Afternoon']
 export const DAYS       = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']

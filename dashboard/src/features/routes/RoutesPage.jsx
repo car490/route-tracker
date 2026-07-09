@@ -262,10 +262,7 @@ export default function RoutesPage() {
                   const on = routeForm.journey_type.includes(jt)
                   return (
                     <button key={jt} type="button"
-                      onClick={() => setRouteForm(f => ({
-                        ...f,
-                        journey_type: on ? f.journey_type.filter(x => x !== jt) : [...f.journey_type, jt],
-                      }))}
+                      onClick={() => setRouteForm(f => ({ ...f, journey_type: on ? [] : [jt] }))}
                       style={{
                         padding: '4px 11px', fontSize: 12, borderRadius: 12, cursor: 'pointer',
                         fontFamily: 'inherit', lineHeight: 1.5,

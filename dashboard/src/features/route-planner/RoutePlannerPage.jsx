@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../shared/supabase'
 import { getCompanyLocation } from '../../shared/company'
 import { useJourneyTypes } from '../../shared/hooks/useJourneyTypes'
-import { TYPE_DEFAULTS, S } from './constants'
+import { TYPE_DEFAULTS, SCHOOL_TYPE_RE, S } from './constants'
 import { fmtDist, fmtDur, stopColor, getScheduledMin, timeToMinutes, minutesToTime } from './utils'
 import { useStopsBuilder } from './useStopsBuilder'
 import { saveRouteTimetableStops } from './saveRouteTimetableStops'
@@ -264,6 +264,7 @@ export default function RoutePlannerPage() {
 
   const activeJTypes  = routeId === '__new__' ? newJourneyTypes : (selRoute?.journey_type ?? [])
   const isBodsRoute   = activeJTypes.some(jt => bodsTypes.has(jt))
+  const isSchoolRoute = activeJTypes.some(jt => SCHOOL_TYPE_RE.test(jt))
 
   const routeConfirmed = routeId === '__new__' ? newRouteCollapsed : !!routeId
   const routeReady = routeId === '__new__' ? newCode.trim().length > 0 && newJourneyTypes.length > 0 : !!routeId
@@ -674,7 +675,7 @@ export default function RoutePlannerPage() {
               timetables={timetables}
               departures={departures}
               setDepartures={setDepartures}
-              isBodsRoute={isBodsRoute}
+              isSchoolRoute={isSchoolRoute}
             />
           )}
 

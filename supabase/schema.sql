@@ -306,6 +306,36 @@ create policy "auth_all" on public.journey_types
   for all to authenticated using (true) with check (true);
 
 
+-- ── Term dates ────────────────────────────────────────────────────────────────
+-- Reference data for auto-filling school-contract departure date ranges in the
+-- dashboard (Route Wizard / Departures card). Seeded from Lincolnshire County
+-- Council's published term dates — there is no machine-readable government
+-- source for this, so update it by hand each year as new dates are published:
+-- https://www.lincolnshire.gov.uk/school-attendance/school-term-times
+
+create table term_dates (
+  id            uuid        primary key default gen_random_uuid(),
+  academic_year text        not null,          -- e.g. '2025-26'
+  term_name     text        not null,          -- e.g. 'Term 1'
+  start_date    date        not null,
+  end_date      date        not null,
+  created_at    timestamptz not null default now(),
+  check (end_date >= start_date),
+  unique (academic_year, term_name)
+);
+
+grant select on public.term_dates to anon;
+grant all    on public.term_dates to authenticated;
+
+alter table public.term_dates enable row level security;
+
+create policy "anon_read" on public.term_dates
+  for select to anon using (true);
+
+create policy "auth_all" on public.term_dates
+  for all to authenticated using (true) with check (true);
+
+
 -- ── Routes ────────────────────────────────────────────────────────────────────
 
 create table routes (

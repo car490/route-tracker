@@ -2,7 +2,7 @@ import { Fragment, useEffect, useState } from 'react'
 import { supabase } from '../../shared/supabase'
 import { getCompanyId, getCompanyLocation } from '../../shared/company'
 import { useJourneyTypes } from '../../shared/hooks/useJourneyTypes'
-import { DIRECTIONS, SINGLE_JOURNEY_DIRECTIONS, S } from './constants'
+import { DIRECTIONS, SINGLE_JOURNEY_DIRECTIONS, SCHOOL_TYPE_RE, S } from './constants'
 import { fmtDist, fmtDur, stopColor, getScheduledMin } from './utils'
 import { useStopsBuilder } from './useStopsBuilder'
 import { saveRouteTimetableStops } from './saveRouteTimetableStops'
@@ -34,9 +34,11 @@ export default function RouteWizard({ existingRoute, onFinish, onCancel }) {
   const [newDestination,  setNewDestination]  = useState('')
   const [newServiceReg,   setNewServiceReg]   = useState('')
 
-  const activeJTypes = existingRoute ? (existingRoute.journey_type ?? []) : newJourneyTypes
-  const isBodsRoute  = activeJTypes.some(jt => bodsTypes.has(jt))
-  const routeReady   = newCode.trim().length > 0 && newJourneyTypes.length > 0
+  const activeJTypes    = existingRoute ? (existingRoute.journey_type ?? []) : newJourneyTypes
+  const isBodsRoute     = activeJTypes.some(jt => bodsTypes.has(jt))
+  const isSchoolRoute   = activeJTypes.some(jt => SCHOOL_TYPE_RE.test(jt))
+  const isExcursionRoute = activeJTypes.includes('Excursion')
+  const routeReady      = newCode.trim().length > 0 && newJourneyTypes.length > 0
 
   // ── Step 2: Stops ───────────────────────────────────────────────────────────────
   const {
@@ -67,7 +69,7 @@ export default function RouteWizard({ existingRoute, onFinish, onCancel }) {
   }, [step]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Step 4: Departures ──────────────────────────────────────────────────────────
-  const [depMode,       setDepMode]       = useState('recurring')
+  const [depMode,       setDepMode]       = useState(isExcursionRoute ? 'oneoff' : 'recurring')
   const [departures,    setDepartures]    = useState([])
   const [siblingTts,    setSiblingTts]    = useState([])
   const [drivers,       setDrivers]       = useState([])
@@ -415,12 +417,14 @@ export default function RouteWizard({ existingRoute, onFinish, onCancel }) {
         </button>
       </>}
     >
-      <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-        <button className={`btn btn-sm ${depMode === 'recurring' ? 'btn-primary' : 'btn-ghost'}`} style={{ flex: 1 }}
-          onClick={() => setDepMode('recurring')}>Recurring service</button>
-        <button className={`btn btn-sm ${depMode === 'oneoff' ? 'btn-primary' : 'btn-ghost'}`} style={{ flex: 1 }}
-          onClick={() => setDepMode('oneoff')}>One-off / excursion</button>
-      </div>
+      {!isExcursionRoute && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+          <button className={`btn btn-sm ${depMode === 'recurring' ? 'btn-primary' : 'btn-ghost'}`} style={{ flex: 1 }}
+            onClick={() => setDepMode('recurring')}>Recurring service</button>
+          <button className={`btn btn-sm ${depMode === 'oneoff' ? 'btn-primary' : 'btn-ghost'}`} style={{ flex: 1 }}
+            onClick={() => setDepMode('oneoff')}>One-off / excursion</button>
+        </div>
+      )}
 
       {depMode === 'recurring' ? (
         resolvedTimetableId && (
@@ -429,7 +433,7 @@ export default function RouteWizard({ existingRoute, onFinish, onCancel }) {
             timetables={siblingTts}
             departures={departures}
             setDepartures={setDepartures}
-            isBodsRoute={isBodsRoute}
+            isSchoolRoute={isSchoolRoute}
           />
         )
       ) : (
