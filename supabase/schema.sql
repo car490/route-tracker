@@ -500,11 +500,18 @@ create table journey_events (
 -- Batch-uploaded at trip end by the driver app. One row per stop per journey.
 -- Covers both timing points and routing points on timetabled and ad-hoc journeys.
 --
--- arrived_at  : when the vehicle reached the stop.
--- departed_at : set only when the vehicle waited at a stop before leaving.
+-- arrived_at    : when the vehicle reached the stop. Null for a skipped stop
+--                 (visit_status = 'skipped_signal'/'skipped_detour') — the driver
+--                 app never got a real geofence entry for it, only inferred it was
+--                 bypassed when a later stop's geofence matched instead.
+-- departed_at   : set only when the vehicle waited at a stop before leaving.
+-- visit_status  : 'visited' (normal geofence entry), 'skipped_signal' (1 or fewer
+--                 timing points bypassed — likely a brief GPS gap), 'skipped_detour'
+--                 (2+ timing points bypassed — likely a genuine route detour),
+--                 'pending' (reserved; the app never uploads a not-yet-reached stop).
 --
 -- variance_seconds and is_early flags are computed on insert by trigger:
---   negative variance = early, positive = late, null = routing point (no scheduled time).
+--   negative variance = early, positive = late, null = routing point or skipped stop.
 --
 -- Ops review workflow: ops dashboard filters where is_early_arrival or is_early_departure
 -- and reviewed_at is null. Reviewing sets reviewed_by + reviewed_at; review_notes optional.
@@ -515,10 +522,12 @@ create table journey_stop_times (
   timetable_stop_id           uuid        references timetable_stops(id),
   journey_waypoint_id         uuid        references journey_waypoints(id),
 
-  arrived_at                  timestamptz not null,
+  arrived_at                  timestamptz,
   departed_at                 timestamptz,
+  visit_status                text        not null default 'visited'
+                                 check (visit_status in ('visited', 'skipped_signal', 'skipped_detour', 'pending')),
 
-  arrival_variance_seconds    int,                            -- null for routing points
+  arrival_variance_seconds    int,                            -- null for routing points or skipped stops
   departure_variance_seconds  int,                            -- null when departed_at is null or routing point
 
   is_early_arrival            boolean     not null default false,
@@ -608,6 +617,7 @@ create trigger trg_protect_vehicle_status
 --   The effective timing profile is journey.timing_profile (if set) else departure.timing_profile.
 -- For ad-hoc waypoints: scheduled datetime = journey_waypoints.scheduled_at.
 -- Routing points have no scheduled time — variance columns remain null, flags remain false.
+-- Skipped stops (arrived_at null) also get null variance columns — nothing to compare against.
 create or replace function compute_stop_time_variance()
 returns trigger
 language plpgsql
@@ -643,7 +653,7 @@ begin
     where  jw.id = new.journey_waypoint_id;
   end if;
 
-  if v_stop_type = 'timing_point' and v_scheduled_at is not null then
+  if new.arrived_at is not null and v_stop_type = 'timing_point' and v_scheduled_at is not null then
     new.arrival_variance_seconds :=
       extract(epoch from (new.arrived_at - v_scheduled_at))::int;
     new.is_early_arrival := new.arrival_variance_seconds < 0;

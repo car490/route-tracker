@@ -1,5 +1,6 @@
 import { haversine } from './geo.js';
 import { computeTiming } from './engine.js';
+import { findForwardMatch } from './geofence.js';
 import { log } from './logger.js';
 
 export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIndex = 0, onUpdate, onGpsFix }) {
@@ -13,6 +14,7 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
   let gpsLostAt = null;
   let fixCount = 0;
   let atStop = null; // { stopIndex } while vehicle is within the stop geo-fence
+  let pendingMatch = null; // { index, count } — forward geofence match awaiting a second confirming ping
   let lastGpsUploadMs = 0; // throttle GPS fix uploads to every 30 s
 
   for (let i = 0; i < initialStopIndex; i++) {
@@ -21,27 +23,6 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
 
   if (initialStopIndex > 0) {
     log('info', `Starting from stop ${initialStopIndex}: ${schedule[initialStopIndex].name}`);
-  }
-
-  function recoverFromGpsLoss(now) {
-    const lostForSec = Math.round((now - gpsLostAt) / 1000);
-    let resumeIdx = nextStopIndex;
-    for (let i = nextStopIndex; i < schedule.length; i++) {
-      const [h, m] = schedule[i].time.split(':').map(Number);
-      const scheduled = new Date(now);
-      scheduled.setHours(h, m, 0, 0);
-      if ((now - scheduled) / 60000 < 5) { resumeIdx = i; break; }
-      resumeIdx = i + 1;
-    }
-    resumeIdx = Math.min(resumeIdx, schedule.length - 1);
-    const missedCount = resumeIdx - nextStopIndex;
-    for (let i = nextStopIndex; i < resumeIdx; i++) arrivals[i] = 'missed';
-    if (missedCount > 0) {
-      log('miss', `GPS back after ${lostForSec}s — ${missedCount} stop(s) missed`);
-    } else {
-      log('gps', `GPS recovered after ${lostForSec}s`);
-    }
-    nextStopIndex = resumeIdx;
   }
 
   // Derive earlyWait from atStop state on every fix.
@@ -69,12 +50,7 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
       fixCount++;
 
       if (gpsLostAt !== null) {
-        const lostForMs = now.getTime() - gpsLostAt;
-        if (lostForMs > 30000) {
-          recoverFromGpsLoss(now);
-        } else {
-          log('gps', `GPS glitch cleared (${Math.round(lostForMs / 1000)}s)`);
-        }
+        log('gps', `GPS recovered after ${Math.round((now.getTime() - gpsLostAt) / 1000)}s`);
         gpsLostAt = null;
       }
 
@@ -98,6 +74,7 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
         arrivals[nextStopIndex] = arrivalTime;
         log('arrive', `Arrived: ${schedule[nextStopIndex].name} (${distanceToNextM.toFixed(0)} m)`);
         atStop = { stopIndex: nextStopIndex };
+        pendingMatch = null;
 
         // Log early arrival once on entry
         const [h, m] = schedule[nextStopIndex].time.split(':').map(Number);
@@ -106,6 +83,25 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
         if (arrivalTime < scheduledDepart) {
           const minEarly = Math.round((scheduledDepart - arrivalTime) / 60000);
           log('info', `Running ${minEarly} min early — wait until ${scheduledDepart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+        }
+      } else if (nextStopIndex < schedule.length - 1) {
+        // Off-route: normal next-stop geofence missed — search forward for a later
+        // stop the vehicle has actually reached (road closure / detour / GPS gap).
+        const match = findForwardMatch({ schedule, nextStopIndex, lat: latitude, lon: longitude, pendingMatch });
+        pendingMatch = match.pendingMatch;
+
+        if (match.matchedIndex !== null) {
+          for (let k = nextStopIndex; k < match.matchedIndex; k++) {
+            arrivals[k] = { status: match.status };
+          }
+          log('miss', `${match.status}: rejoined at ${schedule[match.matchedIndex].name} (skipped stop ${nextStopIndex}-${match.matchedIndex - 1})`);
+          nextStopIndex = match.matchedIndex;
+
+          const arrivalTime = new Date();
+          arrivals[nextStopIndex] = arrivalTime;
+          log('arrive', `Arrived: ${schedule[nextStopIndex].name} (rejoin)`);
+          atStop = { stopIndex: nextStopIndex };
+          distanceToNextM = haversine(latitude, longitude, schedule[nextStopIndex].lat, schedule[nextStopIndex].lon);
         }
       }
 
@@ -149,6 +145,7 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
     jumpToStop: (idx) => {
       if (idx < 0 || idx >= schedule.length) return;
       atStop = null;
+      pendingMatch = null;
       log('info', `Jumped to: ${schedule[idx].name}`);
       nextStopIndex = idx;
     },

@@ -92,11 +92,14 @@ async function uploadStopTimes(jId, arrivals, stops) {
   const rows = [];
   for (let i = 1; i < stops.length - 1; i++) {
     const stop = stops[i];
-    if (!stop.timetable_stop_id || !arrivals[i] || arrivals[i] === 'missed') continue;
+    const a = arrivals[i];
+    if (!stop.timetable_stop_id || !a || a === 'missed') continue;
+    const isDate = a instanceof Date;
     rows.push({
       journey_id: jId,
       timetable_stop_id: stop.timetable_stop_id,
-      arrived_at: arrivals[i].toISOString(),
+      arrived_at: isDate ? a.toISOString() : null,
+      visit_status: isDate ? 'visited' : a.status,
     });
   }
   log('info', `Upload payload (${rows.length} rows): ${JSON.stringify(rows)}`);

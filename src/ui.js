@@ -38,7 +38,7 @@ function updateStopList({ schedule, arrivals, nextStopIndex }) {
     const state = i < nextStopIndex ? 'past' : i === nextStopIndex ? 'current' : 'future';
     row.className = `stop-row stop-${state}`;
     const arrived = arrivals[i] instanceof Date;
-    const missed = arrivals[i] === 'missed';
+    const missed = arrivals[i] === 'missed' || (arrivals[i] !== null && typeof arrivals[i] === 'object' && !arrived);
     const actualText = arrived ? fmtTime(arrivals[i]) : missed ? '--:--' : '—';
     const actualClass = arrived ? arrivalStatusClass(stop, arrivals[i]) : missed ? 'sl-missed' : '';
 
