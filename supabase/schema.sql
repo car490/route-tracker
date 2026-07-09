@@ -552,23 +552,6 @@ create unique index journey_stop_times_waypoint_unique
   where journey_waypoint_id is not null;
 
 
--- ── Excursion passengers ──────────────────────────────────────────────────────
--- Optional passenger list per excursion journey. Not used for timetabled journeys.
-
-create table excursion_passengers (
-  id          uuid        primary key default gen_random_uuid(),
-  journey_id  uuid        not null references journeys(id) on delete cascade,
-  name        text        not null,
-  phone       text,
-  notes       text,
-  created_at  timestamptz not null default now()
-);
-
-grant select on public.excursion_passengers to anon;
-grant all    on public.excursion_passengers to authenticated;
--- RLS enable + policy added after helper functions below
-
-
 -- ── Triggers ──────────────────────────────────────────────────────────────────
 
 -- Prevent deletion or demotion of the last super_user at a company.
@@ -728,6 +711,72 @@ as $$
 $$;
 
 grant execute on function is_journey_in_progress(uuid) to anon;
+
+-- Signs a driver duty-card JWT directly in Postgres via pgcrypto, rather than
+-- relying on a separately-deployed Edge Function. Output is structurally
+-- identical to the old Edge Function's JWT and is read by is_jwt_journey_allowed().
+create extension if not exists pgcrypto;
+
+create or replace function public.generate_duty_token(
+  p_journey_ids  uuid[],
+  p_driver_name  text,
+  p_driver_id    uuid
+) returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  -- HS256 JWT header is a fixed constant
+  v_header      text := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9';
+  v_payload     jsonb;
+  v_payload_b64 text;
+  v_input       text;
+  v_sig         text;
+  v_now         bigint;
+  v_secret      text;
+begin
+  if auth.role() is distinct from 'authenticated' then
+    raise exception 'Unauthorized';
+  end if;
+
+  v_now    := extract(epoch from clock_timestamp())::bigint;
+  v_secret := current_setting('app.settings.jwt_secret', true);
+
+  if v_secret is null or v_secret = '' then
+    raise exception 'JWT secret unavailable';
+  end if;
+
+  v_payload := jsonb_build_object(
+    'iss',         'supabase',
+    'role',        'anon',
+    'driver_name', coalesce(p_driver_name, 'Driver'),
+    'driver_id',   p_driver_id,
+    'journey_ids', coalesce(
+                     (select jsonb_agg(elem::text) from unnest(p_journey_ids) as elem),
+                     '[]'::jsonb
+                   ),
+    'iat',         v_now,
+    'exp',         v_now + 86400
+  );
+
+  -- base64url-encode payload (remove newlines pgcrypto adds, swap +/ → -_)
+  v_payload_b64 := replace(replace(replace(
+    replace(encode(convert_to(v_payload::text, 'UTF8'), 'base64'), chr(10), ''),
+    '+', '-'), '/', '_'), '=', '');
+
+  v_input := v_header || '.' || v_payload_b64;
+
+  -- HMAC-SHA256, then base64url-encode the signature
+  v_sig := replace(replace(replace(
+    replace(encode(hmac(convert_to(v_input, 'UTF8'), convert_to(v_secret, 'UTF8'), 'sha256'), 'base64'), chr(10), ''),
+    '+', '-'), '/', '_'), '=', '');
+
+  return v_input || '.' || v_sig;
+end;
+$$;
+
+grant execute on function public.generate_duty_token(uuid[], text, uuid) to authenticated;
 
 -- Returns true when the current JWT either carries no journey_ids claim (legacy anon key)
 -- or when j_id appears in the claim. Scopes driver tokens to their own journeys only.
@@ -1176,17 +1225,6 @@ create policy "company_all" on public.service_exceptions
     )
   );
 
--- excursion_passengers: scoped via journey → company
-alter table public.excursion_passengers enable row level security;
-
-create policy "company_all" on public.excursion_passengers
-  for all to authenticated
-  using (
-    journey_id in (select id from journeys where company_id = current_company_id())
-  )
-  with check (
-    journey_id in (select id from journeys where company_id = current_company_id())
-  );
 
 
 -- ── Grants ────────────────────────────────────────────────────────────────────
