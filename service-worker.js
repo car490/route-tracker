@@ -11,6 +11,7 @@ const STATIC_ASSETS = [
   './lib/leaflet.min.js',
   './lib/leaflet.min.css',
   './src/main.js',
+  './src/announcements.js',
   './src/directions.js',
   './src/engine.js',
   './src/geo.js',

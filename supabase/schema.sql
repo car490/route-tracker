@@ -990,7 +990,13 @@ create or replace view schedule_view with (security_invoker = true) as
     r.service_code,
     r.name               as route_name,
     r.journey_type,
-    display_name(s.*)    as display_name
+    display_name(s.*)    as display_name,
+    -- PSVAIR 2026: true when journey_type includes a requires_bods journey type
+    -- (registered local bus services) — drives the PWA's announcement engine.
+    exists (
+      select 1 from journey_types jt
+      where jt.name = any(r.journey_type) and jt.requires_bods
+    )                    as psvair_in_scope
   from timetable_stops     ts
   join stops               s  on s.id  = ts.stop_id
   join timetables          t  on t.id  = ts.timetable_id
