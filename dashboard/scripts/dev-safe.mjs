@@ -89,7 +89,7 @@ function runAndWait(commandLine) {
       if (code === 0) {
         resolve()
       } else {
-        reject(new Error(`${command} exited with code ${code}`))
+        reject(new Error(`${commandLine} exited with code ${code}`))
       }
     })
   })

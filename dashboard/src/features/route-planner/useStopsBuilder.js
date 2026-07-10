@@ -88,7 +88,7 @@ export function useStopsBuilder(vehicleType) {
       }
       return updated
     })
-  }, [routeResult]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [routeResult])  
 
   // ── Stop search ──────────────────────────────────────────────────────────────
 
@@ -224,7 +224,7 @@ export function useStopsBuilder(vehicleType) {
     pinDropMode, setPinDropMode,
     showSearch, setShowSearch, searchQuery, setSearchQuery, searchResults, searching,
     naptanPending, setNaptanPending, checkingNaptan,
-    editStopId, editStopName, setEditStopName,
+    editStopId, setEditStopId, editStopName, setEditStopName,
     fitKey, setFitKey,
     commitStop, checkNaptanThenCommit, handleAddStop, handleMapPinDrop, closeSearch,
     moveStop, removeStop, removeStopById, updateStop,
