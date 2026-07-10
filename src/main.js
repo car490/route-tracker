@@ -60,40 +60,6 @@ async function fetchStopsForDeparture(departureId) {
   };
 }
 
-async function fetchAllSchedules() {
-  try {
-    const res = await sbFetch(
-      `/rest/v1/schedule_view` +
-      `?select=timetable_stop_id,stop_type,scheduled_time,display_name,lat,lon,service_code,timetable_name,direction,departure_id,departure_time,sequence,psvair_in_scope` +
-      `&order=service_code,departure_time,sequence`
-    );
-    if (!res.ok) throw new Error(res.status);
-    const rows = await res.json();
-    const schedule = {};
-    for (const { service_code, timetable_name, direction, departure_id, departure_time, display_name, lat, lon, scheduled_time, stop_type, timetable_stop_id, psvair_in_scope } of rows) {
-      if (!schedule[service_code]) schedule[service_code] = {};
-      if (!schedule[service_code][departure_id]) {
-        const deptStr = departure_time ? departure_time.substring(0, 5) : '';
-        schedule[service_code][departure_id] = {
-          service: service_code,
-          label: `${timetable_name} ${direction} ${deptStr}`,
-          departure_time: deptStr,
-          psvairInScope: psvair_in_scope,
-          stops: [],
-        };
-      }
-      schedule[service_code][departure_id].stops.push({
-        name: display_name, lat, lon, time: scheduled_time.substring(0, 5), stop_type, timetable_stop_id,
-      });
-    }
-    return schedule;
-  } catch (err) {
-    console.warn('Supabase unavailable, using schedule.json fallback', err);
-    const res = await fetch('./src/schedule.json');
-    return res.json();
-  }
-}
-
 // ── Stop time upload ──────────────────────────────────────────────────────────
 
 async function uploadStopTimes(jId, arrivals, stops) {
@@ -465,8 +431,6 @@ async function launchDutyRoute(duties, idx, journeyIds) {
 
   document.getElementById('duty-card').hidden             = true;
   document.getElementById('picker').hidden                = false;
-  document.getElementById('picker-service-field').hidden  = true;
-  document.getElementById('picker-run-field').hidden      = true;
   document.getElementById('picker-back-btn').hidden       = false;
 
   const stopSelect = document.getElementById('stop-select');
@@ -479,10 +443,8 @@ async function launchDutyRoute(duties, idx, journeyIds) {
   });
 
   document.getElementById('picker-back-btn').onclick = () => {
-    document.getElementById('picker').hidden               = true;
-    document.getElementById('picker-service-field').hidden = false;
-    document.getElementById('picker-run-field').hidden     = false;
-    document.getElementById('picker-back-btn').hidden      = true;
+    document.getElementById('picker').hidden          = true;
+    document.getElementById('picker-back-btn').hidden = true;
     renderDutyCard(duties, journeyIds);
   };
 
@@ -498,9 +460,7 @@ async function launchDutyRoute(duties, idx, journeyIds) {
       }
     }
 
-    document.getElementById('picker-service-field').hidden = false;
-    document.getElementById('picker-run-field').hidden     = false;
-    document.getElementById('picker-back-btn').hidden      = true;
+    document.getElementById('picker-back-btn').hidden = true;
 
     await acquireWakeLock();
 
@@ -514,88 +474,6 @@ async function launchDutyRoute(duties, idx, journeyIds) {
       onComplete: () => {
         journey.status = 'completed';
         renderDutyCard(duties, journeyIds);
-      },
-    });
-  };
-}
-
-// ── Standalone picker mode ────────────────────────────────────────────────────
-
-async function initPickerMode() {
-  const schedule = await fetchAllSchedules();
-
-  document.getElementById('duty-card').hidden             = true;
-  document.getElementById('picker').hidden                = false;
-  document.getElementById('picker-service-field').hidden  = false;
-  document.getElementById('picker-run-field').hidden      = false;
-  document.getElementById('picker-back-btn').hidden       = true;
-
-  const serviceSelect = document.getElementById('service-select');
-  const runSelect     = document.getElementById('run-select');
-  const stopSelect    = document.getElementById('stop-select');
-
-  Object.keys(schedule).forEach(key => {
-    const opt = document.createElement('option');
-    opt.value = key; opt.textContent = key;
-    serviceSelect.appendChild(opt);
-  });
-
-  function updateRunPicker() {
-    const svcSchedule = schedule[serviceSelect.value] ?? {};
-    const runs = Object.keys(svcSchedule);
-    runSelect.innerHTML = '';
-    runs.forEach(key => {
-      const run = svcSchedule[key];
-      const opt = document.createElement('option');
-      opt.value = key;
-      opt.textContent = run.label ?? key;
-      runSelect.appendChild(opt);
-    });
-    // Auto-select first departure on or after current time
-    const now = new Date();
-    const nowStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-    const preferred = runs.find(k => (svcSchedule[k].departure_time ?? '') >= nowStr);
-    runSelect.value = preferred ?? runs[0] ?? '';
-  }
-
-  function buildAllStops() {
-    const { stops } = schedule[serviceSelect.value][runSelect.value];
-    return withDepotStops(stops);
-  }
-
-  function updateStopPicker() {
-    const allStops = buildAllStops();
-    stopSelect.innerHTML = '';
-    allStops.forEach((stop, i) => {
-      const opt = document.createElement('option');
-      opt.value = i; opt.textContent = `${stop.time}  ${stop.name}`;
-      stopSelect.appendChild(opt);
-    });
-  }
-
-  serviceSelect.addEventListener('change', () => { updateRunPicker(); updateStopPicker(); });
-  runSelect.addEventListener('change', updateStopPicker);
-  updateRunPicker();
-  updateStopPicker();
-
-  const legacyJourneyId = new URLSearchParams(window.location.search).get('journey');
-
-  document.getElementById('start-btn').onclick = async () => {
-    const allStops         = buildAllStops();
-    const initialStopIndex = parseInt(stopSelect.value, 10) || 0;
-    const { service, label, psvairInScope } = schedule[serviceSelect.value][runSelect.value];
-
-    await acquireWakeLock();
-
-    runTracker({
-      allStops,
-      journeyId: legacyJourneyId,
-      initialStopIndex,
-      serviceCode: service,
-      servicePeriod: label,
-      psvairEnabled: psvairInScope,
-      onComplete: () => {
-        document.getElementById('picker').hidden = false;
       },
     });
   };
