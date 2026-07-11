@@ -14,3 +14,8 @@ graphhopper/graphhopper-*.jar
 id_*
 *.pem
 sshcoachmate*
+
+# pi-server's schedule cache is written at runtime (sync-schedule.mjs) —
+# per-vehicle data, not source
+pi-server/schedule-cache.json
+pi-server/schedule-cache.json.tmp

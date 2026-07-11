@@ -12,15 +12,12 @@ import {
 const DEPOT = { name: 'Phil Haines Coaches Depot', lat: 52.950412, lon: -0.050110 };
 const el = (id) => document.getElementById(id);
 
-async function fetchSchedule() {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/schedule_view` +
-    `?select=timetable_stop_id,stop_type,scheduled_time,display_name,lat,lon,service_code,timetable_name,direction,departure_id,departure_time,sequence,psvair_in_scope` +
-    `&order=service_code,departure_time,sequence`, {
-    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
-  });
-  if (!res.ok) throw new Error(`schedule_view ${res.status}`);
-  const rows = await res.json();
+// Set once fetchSchedule() resolves — true when this page is being served by
+// a Pi's local pi-server (not GitHub Pages / the plain dev server.js), so we
+// also poll its /api/position bridge instead of navigator.geolocation.
+let usingLocalApi = false;
 
+function groupScheduleRows(rows) {
   const schedule = {};
   for (const { service_code, timetable_name, direction, departure_id, departure_time, display_name, lat, lon, scheduled_time, stop_type, timetable_stop_id, psvair_in_scope } of rows) {
     if (!schedule[service_code]) schedule[service_code] = {};
@@ -38,6 +35,60 @@ async function fetchSchedule() {
     });
   }
   return schedule;
+}
+
+const SCHEDULE_QUERY =
+  '?select=timetable_stop_id,stop_type,scheduled_time,display_name,lat,lon,service_code,timetable_name,direction,departure_id,departure_time,sequence,psvair_in_scope' +
+  '&order=service_code,departure_time,sequence';
+
+async function fetchSchedule() {
+  // Try a Pi's local pi-server first (relative URL — only present when this
+  // page is actually being served by one; 404s harmlessly on GitHub Pages
+  // or the plain dev server.js, which don't have an /api/* route at all).
+  try {
+    const res = await fetch('/api/schedule');
+    if (res.ok) {
+      usingLocalApi = true;
+      return groupScheduleRows(await res.json());
+    }
+  } catch (_) { /* no local server reachable — fall through to Supabase */ }
+
+  usingLocalApi = false;
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/schedule_view${SCHEDULE_QUERY}`, {
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+  });
+  if (!res.ok) throw new Error(`schedule_view ${res.status}`);
+  return groupScheduleRows(await res.json());
+}
+
+// Polls a Pi's local GPS bridge (pi-server/server.mjs's /api/position,
+// itself fed by gpsd) instead of navigator.geolocation. Matches the
+// (onFix, onError) => {stop()} shape gps.js expects from any positionSource.
+function localPiPositionSource(onFix, onError) {
+  let stopped = false;
+  let consecutiveMisses = 0;
+
+  async function poll() {
+    if (stopped) return;
+    try {
+      const res = await fetch('/api/position');
+      if (res.ok) {
+        consecutiveMisses = 0;
+        const fix = await res.json();
+        onFix({ coords: { latitude: fix.lat, longitude: fix.lon, speed: fix.speed ?? 0, accuracy: fix.accuracy ?? null } });
+      } else if (res.status !== 503) {
+        // 503 = pi-server is up but gpsd has no fix yet (e.g. cold start) — not an error, just wait.
+        consecutiveMisses++;
+      }
+    } catch (_) {
+      consecutiveMisses++;
+    }
+    if (consecutiveMisses === 5) onError(new Error('Lost contact with onboard GPS unit'));
+    if (!stopped) setTimeout(poll, 2000);
+  }
+
+  poll();
+  return { stop: () => { stopped = true; } };
 }
 
 function shiftTime(timeStr, deltaMinutes) {
@@ -160,6 +211,7 @@ function runDisplay({ allStops, initialStopIndex, serviceCode, servicePeriod, ps
     schedule: allStops,
     lateAllowanceMin: 2,
     initialStopIndex,
+    positionSource: usingLocalApi ? localPiPositionSource : undefined,
     onUpdate: ({ timing, nextStopIndex, speedMps, distanceToNextM, arrivals, earlyWait, atStop }) => {
       // Real passenger-facing stops are indices [1, length-2]; 0 and length-1
       // are the depot padding stops and are never announced.
