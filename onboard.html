@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#242F35" />
+    <title>CoachMate Onboard Display</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+
+    <!--
+      Standalone onboard route/announcement display — deliberately silo'd
+      from the driver PWA (index.html/main.js). No duty card, no journey_id,
+      no incident reporting, no stop-time upload: this never writes to
+      Supabase, it only reads schedule_view and announces live. Meant for a
+      vehicle-mounted tablet in kiosk mode, picked by service/run instead of
+      a driver-token duty-card link.
+    -->
+
+    <div id="picker">
+      <div class="picker-title">
+        <div class="picker-brand">Phil Haines Coaches</div>
+        <div class="picker-subtitle">Onboard Display</div>
+      </div>
+      <button id="refresh-btn" style="width:100%;margin-bottom:12px;padding:10px;background:transparent;color:var(--text-muted);font-family:inherit;font-size:0.85rem;border:1px solid var(--border);border-radius:8px;cursor:pointer;">&#8635; Refresh routes</button>
+      <div class="picker-field">
+        <label for="service-select">Service</label>
+        <div class="select-wrap">
+          <select id="service-select"></select>
+        </div>
+      </div>
+      <div class="picker-field">
+        <label for="run-select">Run</label>
+        <div class="select-wrap">
+          <select id="run-select"></select>
+        </div>
+      </div>
+      <div class="picker-field">
+        <label for="stop-select">Starting stop</label>
+        <div class="select-wrap">
+          <select id="stop-select"></select>
+        </div>
+      </div>
+      <button id="start-btn">Start</button>
+    </div>
+
+    <div id="tracker" hidden>
+    <div id="psvair-banner" hidden>
+      <span id="psvair-text" aria-live="assertive"></span>
+      <button id="psvair-mute-btn" type="button" aria-label="Mute announcements">&#128266;</button>
+    </div>
+    <div id="early-wait-banner" hidden>
+      <div class="ewb-title">WAIT HERE</div>
+      <div class="ewb-msg">Running early — depart at <span id="ewb-time"></span></div>
+    </div>
+    <div id="route-header">
+      <div id="header-service">
+        <span id="header-service-code"></span>
+        <span id="header-service-period"></span>
+      </div>
+      <div id="route-lines">
+        <span id="header-line1"></span>
+        <span id="header-line2"></span>
+        <span id="header-line3"></span>
+      </div>
+    </div>
+    <div id="status-card">
+      <div id="status-label">INITIALISING</div>
+      <div id="next-stop">—</div>
+
+      <div class="time-row">
+        <div class="time-group">
+          <span class="time-label">Scheduled</span>
+          <span class="time-value" id="sched-time">--:--</span>
+        </div>
+        <div class="time-group">
+          <span class="time-label">ETA</span>
+          <span class="time-value" id="eta-time">--:--</span>
+        </div>
+        <span id="delta">—</span>
+      </div>
+
+      <div class="metrics-row">
+        <div class="metric">
+          <span class="metric-label">Distance</span>
+          <span class="metric-value" id="distance">—</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Speed</span>
+          <span class="metric-value" id="speed">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="progress-section">
+      <div class="stop-labels">
+        <span class="stop-label-prefix">Next Stop :</span>
+        <span id="next-stop-label">—</span>
+      </div>
+      <div class="progress-track">
+        <div id="progress-fill"></div>
+      </div>
+    </div>
+
+    <div id="stop-list"></div>
+    <button id="btn-end" style="width:100%;margin-top:8px;padding:14px;background:transparent;color:var(--text-muted);font-family:inherit;font-size:0.9rem;font-weight:600;border:1px solid var(--border);border-radius:8px;cursor:pointer;">End Display</button>
+    </div>
+
+    <script type="module" src="src/onboard.js"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('service-worker.js').catch(console.error);
+        });
+      }
+    </script>
+  </body>
+</html>
