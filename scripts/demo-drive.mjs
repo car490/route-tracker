@@ -16,8 +16,10 @@
 // Two windows open, both already positioned at the first stop:
 //   - LEFT:  the driver PWA duty-card link you pass in. Click through the
 //            duty card, pick the FIRST stop as the starting point, hit Start.
-//   - RIGHT: the onboard passenger display (onboard.html). Pick Service
-//            S125S, the Morning Outbound run, and the FIRST stop, hit Start.
+//   - RIGHT: the onboard passenger sign (onboard.html?journey=<id>, landscape,
+//            Fire-HD proportions). No interaction needed — it polls
+//            get_duty_card for that journey and wakes on its own within a
+//            few seconds of the driver hitting Start on the left.
 // The simulator waits for both, then drives the route in lockstep. Only the
 // left (driver PWA) window produces audio — the right window is muted via
 // localStorage before it loads, so the two don't talk over each other; its
@@ -34,7 +36,14 @@ if (!DUTY_URL) {
   process.exit(1);
 }
 
-const ONBOARD_URL = new URL('/onboard.html', DUTY_URL).toString();
+const JOURNEY_ID = new URL(DUTY_URL).searchParams.get('duties')?.split(',')[0];
+if (!JOURNEY_ID) {
+  console.error('Could not find a journey id (?duties=...) in the URL you passed.');
+  process.exit(1);
+}
+const onboardUrl = new URL('/onboard.html', DUTY_URL);
+onboardUrl.searchParams.set('journey', JOURNEY_ID);
+const ONBOARD_URL = onboardUrl.toString();
 
 // Real stops, Weston to Boston College (S125S Outbound) — pulled from
 // dev Supabase timetable_stops/stops for timetable 00000000-0000-0000-0000-000000000020.
@@ -67,13 +76,13 @@ const STOPS = [
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const lerp = (a, b, t) => a + (b - a) * t;
 
-async function openWindow({ url, windowPosition, mute }) {
+async function openWindow({ url, windowPosition, windowSize, viewport, mute }) {
   const browser = await chromium.launch({
     headless: false,
-    args: [`--window-size=430,900`, `--window-position=${windowPosition}`],
+    args: [`--window-size=${windowSize}`, `--window-position=${windowPosition}`],
   });
   const context = await browser.newContext({
-    viewport: { width: 414, height: 812 },
+    viewport,
     geolocation: { latitude: STOPS[0].lat, longitude: STOPS[0].lon },
     permissions: ['geolocation'],
   });
@@ -101,20 +110,27 @@ async function openWindow({ url, windowPosition, mute }) {
 
 (async () => {
   const [driver, onboard] = await Promise.all([
-    openWindow({ url: DUTY_URL, windowPosition: '40,60', mute: false }),
-    openWindow({ url: ONBOARD_URL, windowPosition: '490,60', mute: true }),
+    openWindow({
+      url: DUTY_URL, mute: false,
+      windowPosition: '40,60', windowSize: '430,900', viewport: { width: 414, height: 812 },
+    }),
+    openWindow({
+      url: ONBOARD_URL, mute: true,
+      // Landscape, ~16:10 — same proportions as the real Fire HD 10 target device.
+      windowPosition: '490,60', windowSize: '960,620', viewport: { width: 944, height: 560 },
+    }),
   ]);
 
   console.log('Two windows are open, side by side.');
   console.log(`LEFT  (driver PWA): click through the duty card, pick "${STOPS[0].name}"`);
   console.log('       as the starting stop, and hit Start.');
-  console.log('RIGHT (onboard display): pick Service S125S, the Morning Outbound run,');
-  console.log(`       starting stop "${STOPS[0].name}", and hit Start.`);
-  console.log('Waiting for both tracker screens…');
+  console.log('RIGHT (onboard sign): nothing to click — it polls for the journey to start');
+  console.log('       and wakes on its own within a few seconds of you hitting Start.');
+  console.log('Waiting for both to start…');
 
   await Promise.all([
     driver.page.waitForSelector('#tracker:not([hidden])', { timeout: 10 * 60 * 1000 }),
-    onboard.page.waitForSelector('#tracker:not([hidden])', { timeout: 10 * 60 * 1000 }),
+    onboard.page.waitForSelector('#onboard-sign:not([hidden])', { timeout: 10 * 60 * 1000 }),
   ]);
   console.log('Both started — driving the route now.\n');
 
