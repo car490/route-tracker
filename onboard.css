@@ -44,19 +44,45 @@ body {
 }
 
 /* ── Brand mark — always present, idle screen or active ─────────────────
-   At idle this is the ONLY thing on screen, over a blank grey background. */
+   At idle this is the ONLY thing on screen, over a blank grey background.
+   Same CoachMate wordmark as the dashboard sidebar and driver PWA
+   (COACH bold + Mate regular), but rendered in ink only, no cyan — a real
+   e-ink panel couldn't show that colour, so this is what it would look
+   like converted to greyscale rather than a plain text substitute. */
 
 #onboard-brand {
   position: fixed;
   left: 2rem;
   bottom: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  pointer-events: none;
+}
+
+.cm-powered-by {
   font-family: var(--ep-font);
-  font-size: 1.1rem;
-  font-weight: 700;
+  font-size: 1rem;
+  font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ep-ink-soft);
-  pointer-events: none;
+}
+
+.cm-wordmark {
+  font-family: var(--ep-font);
+  font-size: 1.4rem;
+  letter-spacing: -0.02em;
+}
+
+.cm-coach {
+  font-weight: 800;
+  color: var(--ep-ink);
+}
+
+.cm-mate {
+  font-weight: 400;
+  color: var(--ep-ink-soft);
 }
 
 /* ── Sign layout ──────────────────────────────────────────────────────── */
