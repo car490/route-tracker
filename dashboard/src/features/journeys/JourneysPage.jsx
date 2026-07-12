@@ -3,6 +3,8 @@ import { supabase } from '../../shared/supabase'
 import { getCompanyId } from '../../shared/company'
 import Modal from '../../shared/components/Modal'
 
+const PWA_BASE = import.meta.env.DEV ? 'http://localhost:8080' : 'https://car490.github.io/route-tracker'
+
 const STATUS_BADGE = {
   scheduled:   <span className="badge badge-gray">Scheduled</span>,
   in_progress: <span className="badge badge-amber">In Progress</span>,
@@ -323,7 +325,7 @@ export default function JourneysPage() {
   }
 
   function copyDriverLink(id) {
-    navigator.clipboard.writeText(`https://car490.github.io/route-tracker/?duties=${id}`)
+    navigator.clipboard.writeText(`${PWA_BASE}/?duties=${id}`)
     setCopiedId(id)
     setTimeout(() => setCopiedId(null), 2000)
   }
