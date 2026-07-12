@@ -112,12 +112,15 @@ async function openWindow({ url, windowPosition, windowSize, viewport, mute }) {
   const [driver, onboard] = await Promise.all([
     openWindow({
       url: DUTY_URL, mute: false,
-      windowPosition: '40,60', windowSize: '430,900', viewport: { width: 414, height: 812 },
+      // Scaled down to roughly a real 6.7" phone's on-screen footprint at
+      // standard 96 DPI, not a full desktop-sized window — window size adds
+      // ~110px for Chrome's title/tab/address bar on top of the viewport.
+      windowPosition: '40,60', windowSize: '316,730', viewport: { width: 300, height: 610 },
     }),
     openWindow({
       url: ONBOARD_URL, mute: true,
       // Landscape, ~16:10 — same proportions as the real Fire HD 10 target device.
-      windowPosition: '490,60', windowSize: '960,620', viewport: { width: 944, height: 560 },
+      windowPosition: '396,60', windowSize: '960,620', viewport: { width: 944, height: 560 },
     }),
   ]);
 

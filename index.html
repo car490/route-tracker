@@ -17,11 +17,6 @@
   </head>
   <body>
 
-    <div id="app-brand">
-      <span class="cm-powered-by">Powered by</span>
-      <span class="cm-wordmark"><span class="cm-coach">COACH</span><span class="cm-mate">Mate</span></span>
-    </div>
-
     <!-- Duty card screen (shown when ?duties= param present) -->
     <div id="duty-card" hidden>
       <div class="dc-header">
@@ -133,6 +128,15 @@
     <div id="log-view" hidden></div>
     <button id="btn-incident" hidden>&#9888; Report Incident</button>
     <button id="btn-complete" style="width:100%;margin-top:8px;padding:14px;background:#c0392b;color:#fff;font-family:inherit;font-size:1rem;font-weight:700;letter-spacing:0.02em;border:none;border-radius:8px;cursor:pointer;">Complete Trip</button>
+    </div>
+
+    <!-- Placed after #tracker so the CSS sibling selector can hide this
+         while the data-dense, scrollable tracker view is active — there's
+         no safe empty space for a fixed corner mark there. Still shown on
+         the calmer duty-card/picker/no-duty-card screens. -->
+    <div id="app-brand">
+      <span class="cm-powered-by">Powered by</span>
+      <span class="cm-wordmark"><span class="cm-coach">COACH</span><span class="cm-mate">Mate</span></span>
     </div>
 
     <!-- Incident reporting overlay -->

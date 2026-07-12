@@ -55,7 +55,14 @@ body {
 
 /* ── App brand mark ───────────────────────────── */
 /* Same CoachMate wordmark as the ops dashboard's sidebar footer
-   (dashboard/src/index.css .sidebar-coachmate) — present on every screen. */
+   (dashboard/src/index.css .sidebar-coachmate). Shown on the calmer
+   duty-card/picker/no-duty-card screens; hidden while the tracker is
+   active (below) since that view is scrollable and information-dense —
+   a fixed corner mark there would sit on top of real content instead of
+   empty space. Placed after #tracker in index.html so this sibling
+   selector can see whether it's currently visible. */
+
+#tracker:not([hidden]) ~ #app-brand { display: none; }
 
 #app-brand {
   position: fixed;
