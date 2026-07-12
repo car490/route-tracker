@@ -70,7 +70,18 @@ const lerp = (a, b, t) => a + (b - a) * t;
   });
   const page = await context.newPage();
 
-  await page.goto(DUTY_URL);
+  // The dev server's first response can race the browser's own initial
+  // request and get aborted (net::ERR_ABORTED) — harmless, just retry.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await page.goto(DUTY_URL, { waitUntil: 'domcontentloaded' });
+      break;
+    } catch (err) {
+      if (attempt >= 3) throw err;
+      console.log(`Navigation attempt ${attempt} failed (${err.message.split('\n')[0]}), retrying…`);
+      await sleep(500);
+    }
+  }
   console.log('Window ready. Click through the duty card, pick the FIRST stop');
   console.log(`("${STOPS[0].name}") as the starting point, and hit Start.`);
   console.log('Waiting for the tracker screen…');
@@ -94,4 +105,8 @@ const lerp = (a, b, t) => a + (b - a) * t;
 
   console.log('\nRoute complete — arrived at Boston College. Window stays open;');
   console.log('close it manually (or Ctrl+C this script) when the demo is done.');
-})();
+})().catch((err) => {
+  console.error('\n=== demo-drive.mjs failed ===');
+  console.error(err);
+  process.exitCode = 1;
+});
