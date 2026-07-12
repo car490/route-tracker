@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="onboard.css" />
   </head>
   <body>
 
@@ -20,14 +20,20 @@
       Supabase, it only reads schedule_view and announces live. Meant for a
       vehicle-mounted tablet in kiosk mode, picked by service/run instead of
       a driver-token duty-card link.
+
+      Styled as an e-paper passenger sign (onboard.css) rather than reusing
+      the driver PWA's dark theme (style.css) — deliberately monochrome and
+      motion-free, not just a different colour scheme.
     -->
+
+    <div id="onboard-brand">CoachMate</div>
 
     <div id="picker">
       <div class="picker-title">
         <div class="picker-brand">Phil Haines Coaches</div>
         <div class="picker-subtitle">Onboard Display</div>
       </div>
-      <button id="refresh-btn" style="width:100%;margin-bottom:12px;padding:10px;background:transparent;color:var(--text-muted);font-family:inherit;font-size:0.85rem;border:1px solid var(--border);border-radius:8px;cursor:pointer;">&#8635; Refresh routes</button>
+      <button id="refresh-btn">&#8635; Refresh routes</button>
       <div class="picker-field">
         <label for="service-select">Service</label>
         <div class="select-wrap">
@@ -108,7 +114,7 @@
     </div>
 
     <div id="stop-list"></div>
-    <button id="btn-end" style="width:100%;margin-top:8px;padding:14px;background:transparent;color:var(--text-muted);font-family:inherit;font-size:0.9rem;font-weight:600;border:1px solid var(--border);border-radius:8px;cursor:pointer;">End Display</button>
+    <button id="btn-end">End Display</button>
     </div>
 
     <script type="module" src="src/onboard.js"></script>

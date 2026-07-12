@@ -1,9 +1,11 @@
 // Live-demo GPS simulator for the PSVAIR next-stop announcements feature.
 //
-// Not part of the app — this drives a real, visible Chromium window with
-// mocked Geolocation so a presenter can show the driver PWA announcing
-// stops out loud while the ops dashboard's Live Tracking map updates in
-// parallel, without a real moving vehicle.
+// Not part of the app — this drives two real, visible Chromium windows with
+// mocked Geolocation so a presenter can show the driver PWA (with audio)
+// and the onboard passenger e-paper display (silent, text-only mirror of
+// the same announcements) updating together, while the ops dashboard's
+// Live Tracking map updates in parallel in a normal browser tab, all
+// without a real moving vehicle.
 //
 // Usage:
 //   node scripts/demo-drive.mjs <duty-url> [secondsPerStop]
@@ -11,10 +13,15 @@
 // Example:
 //   node scripts/demo-drive.mjs "http://localhost:8080/?duties=2d2f26b1-31b9-434b-a858-e614a53599b5" 7
 //
-// The window opens already positioned at the first stop. Click through the
-// duty card and "Start Route" yourself, picking the first real stop as the
-// starting point — the simulator waits for that, then drives the rest of
-// the route automatically.
+// Two windows open, both already positioned at the first stop:
+//   - LEFT:  the driver PWA duty-card link you pass in. Click through the
+//            duty card, pick the FIRST stop as the starting point, hit Start.
+//   - RIGHT: the onboard passenger display (onboard.html). Pick Service
+//            S125S, the Morning Outbound run, and the FIRST stop, hit Start.
+// The simulator waits for both, then drives the route in lockstep. Only the
+// left (driver PWA) window produces audio — the right window is muted via
+// localStorage before it loads, so the two don't talk over each other; its
+// on-screen text still updates from the same simulated GPS feed.
 
 import { chromium } from 'playwright';
 
@@ -26,6 +33,8 @@ if (!DUTY_URL) {
   console.error('Usage: node scripts/demo-drive.mjs <duty-url> [secondsPerStop]');
   process.exit(1);
 }
+
+const ONBOARD_URL = new URL('/onboard.html', DUTY_URL).toString();
 
 // Real stops, Weston to Boston College (S125S Outbound) — pulled from
 // dev Supabase timetable_stops/stops for timetable 00000000-0000-0000-0000-000000000020.
@@ -58,23 +67,28 @@ const STOPS = [
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const lerp = (a, b, t) => a + (b - a) * t;
 
-(async () => {
+async function openWindow({ url, windowPosition, mute }) {
   const browser = await chromium.launch({
     headless: false,
-    args: ['--window-size=430,900', '--window-position=100,80'],
+    args: [`--window-size=430,900`, `--window-position=${windowPosition}`],
   });
   const context = await browser.newContext({
     viewport: { width: 414, height: 812 },
     geolocation: { latitude: STOPS[0].lat, longitude: STOPS[0].lon },
     permissions: ['geolocation'],
   });
+  if (mute) {
+    // Set before first load so the mute button already reflects it and no
+    // announcement gets spoken here — this window is a silent text mirror.
+    await context.addInitScript(() => localStorage.setItem('psvair-muted', '1'));
+  }
   const page = await context.newPage();
 
   // The dev server's first response can race the browser's own initial
   // request and get aborted (net::ERR_ABORTED) — harmless, just retry.
   for (let attempt = 1; ; attempt++) {
     try {
-      await page.goto(DUTY_URL, { waitUntil: 'domcontentloaded' });
+      await page.goto(url, { waitUntil: 'domcontentloaded' });
       break;
     } catch (err) {
       if (attempt >= 3) throw err;
@@ -82,29 +96,45 @@ const lerp = (a, b, t) => a + (b - a) * t;
       await sleep(500);
     }
   }
-  console.log('Window ready. Click through the duty card, pick the FIRST stop');
-  console.log(`("${STOPS[0].name}") as the starting point, and hit Start.`);
-  console.log('Waiting for the tracker screen…');
+  return { browser, context, page };
+}
 
-  await page.waitForSelector('#tracker:not([hidden])', { timeout: 10 * 60 * 1000 });
-  console.log('Tracker started — driving the route now.\n');
+(async () => {
+  const [driver, onboard] = await Promise.all([
+    openWindow({ url: DUTY_URL, windowPosition: '40,60', mute: false }),
+    openWindow({ url: ONBOARD_URL, windowPosition: '490,60', mute: true }),
+  ]);
+
+  console.log('Two windows are open, side by side.');
+  console.log(`LEFT  (driver PWA): click through the duty card, pick "${STOPS[0].name}"`);
+  console.log('       as the starting stop, and hit Start.');
+  console.log('RIGHT (onboard display): pick Service S125S, the Morning Outbound run,');
+  console.log(`       starting stop "${STOPS[0].name}", and hit Start.`);
+  console.log('Waiting for both tracker screens…');
+
+  await Promise.all([
+    driver.page.waitForSelector('#tracker:not([hidden])', { timeout: 10 * 60 * 1000 }),
+    onboard.page.waitForSelector('#tracker:not([hidden])', { timeout: 10 * 60 * 1000 }),
+  ]);
+  console.log('Both started — driving the route now.\n');
 
   for (let i = 1; i < STOPS.length; i++) {
     const from = STOPS[i - 1];
     const to = STOPS[i];
     for (let s = 1; s <= SUB_STEPS; s++) {
       const t = s / SUB_STEPS;
-      await context.setGeolocation({
-        latitude: lerp(from.lat, to.lat, t),
-        longitude: lerp(from.lon, to.lon, t),
-      });
+      const pos = { latitude: lerp(from.lat, to.lat, t), longitude: lerp(from.lon, to.lon, t) };
+      await Promise.all([
+        driver.context.setGeolocation(pos),
+        onboard.context.setGeolocation(pos),
+      ]);
       await sleep((SECONDS_PER_STOP * 1000) / SUB_STEPS);
     }
     console.log(`→ ${to.name}`);
   }
 
-  console.log('\nRoute complete — arrived at Boston College. Window stays open;');
-  console.log('close it manually (or Ctrl+C this script) when the demo is done.');
+  console.log('\nRoute complete — arrived at Boston College. Windows stay open;');
+  console.log('close them manually (or Ctrl+C this script) when the demo is done.');
 })().catch((err) => {
   console.error('\n=== demo-drive.mjs failed ===');
   console.error(err);

@@ -5,6 +5,7 @@ const STATIC_ASSETS = [
   './index.html',
   './onboard.html',
   './style.css',
+  './onboard.css',
   './manifest.json',
   // CoachMate brand assets — always cached so the brand renders offline
   './icons/icon-192.png',
