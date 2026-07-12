@@ -65,7 +65,7 @@ export default function RoutePlannerPage() {
     pinDropMode, setPinDropMode,
     showSearch, setShowSearch, searchQuery, setSearchQuery, searchResults, searching,
     naptanPending, setNaptanPending, checkingNaptan,
-    editStopId, editStopName, setEditStopName,
+    editStopId, setEditStopId, editStopName, setEditStopName,
     fitKey, setFitKey,
     commitStop, handleAddStop, handleMapPinDrop, closeSearch,
     moveStop, removeStop, removeStopById, updateStop,

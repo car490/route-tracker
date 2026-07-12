@@ -3,12 +3,24 @@ import { computeTiming } from './engine.js';
 import { findForwardMatch } from './geofence.js';
 import { log } from './logger.js';
 
-export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIndex = 0, onUpdate, onGpsFix }) {
+// Default position source: the browser's own GPS via the Geolocation API.
+// A caller can pass a different `positionSource` (same (onFix, onError) =>
+// {stop()} shape) to feed fixes from elsewhere — e.g. onboard.js polling a
+// Raspberry Pi's local GPS bridge instead of navigator.geolocation.
+function browserGeolocationSource(onFix, onError) {
   if (!navigator.geolocation) {
-    log('error', 'Geolocation API not available');
-    return { stop: () => {}, jumpToStop: () => {} };
+    onError(new Error('Geolocation API not available'));
+    return { stop: () => {} };
   }
+  const watchId = navigator.geolocation.watchPosition(
+    onFix,
+    onError,
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+  );
+  return { stop: () => navigator.geolocation.clearWatch(watchId) };
+}
 
+export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIndex = 0, onUpdate, onGpsFix, positionSource = browserGeolocationSource }) {
   let nextStopIndex = initialStopIndex;
   const arrivals = new Array(schedule.length).fill(null);
   let gpsLostAt = null;
@@ -38,7 +50,7 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
     return { stopIndex: atStop.stopIndex, scheduledTime: scheduledDepart, stopName: stop.name };
   }
 
-  const watchId = navigator.geolocation.watchPosition(
+  const source = positionSource(
     (position) => {
       const { latitude, longitude } = position.coords;
       const rawSpeed = position.coords.speed ?? 0;
@@ -136,12 +148,11 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
         log('error', `GPS lost: ${err.message}`);
       }
       console.error('GPS error:', err.message);
-    },
-    { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+    }
   );
 
   return {
-    stop: () => navigator.geolocation.clearWatch(watchId),
+    stop: () => source.stop(),
     jumpToStop: (idx) => {
       if (idx < 0 || idx >= schedule.length) return;
       atStop = null;

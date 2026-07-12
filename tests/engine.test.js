@@ -53,7 +53,7 @@ describe('computeTiming', () => {
     expect(result.minutesDifference).toBeCloseTo(7, 1);
   });
 
-  test('early — ETA is 4 minutes before scheduled', () => {
+  test('early within 5 minutes — ETA is 4 minutes early, still on-time within allowance', () => {
     // now=07:50, speed=1 m/s, distance=360m → ETA = 07:50 + 360s = 07:56 (−4 min)
     const result = computeTiming({
       now: makeNow(7, 50),
@@ -63,7 +63,21 @@ describe('computeTiming', () => {
       lateAllowanceMin: LATE_ALLOWANCE_MIN,
     });
 
-    expect(result.status).toBe('early');
+    expect(result.status).toBe('on-time');
     expect(result.minutesDifference).toBeCloseTo(-4, 1);
+  });
+
+  test('early beyond 5 minutes — ETA is 6 minutes early', () => {
+    // now=07:50, speed=1 m/s, distance=240m → ETA = 07:50 + 240s = 07:54 (−6 min)
+    const result = computeTiming({
+      now: makeNow(7, 50),
+      currentDistanceM: 240,
+      speedMps: 1,
+      nextStop: NEXT_STOP,
+      lateAllowanceMin: LATE_ALLOWANCE_MIN,
+    });
+
+    expect(result.status).toBe('early');
+    expect(result.minutesDifference).toBeCloseTo(-6, 1);
   });
 });

@@ -1,0 +1,7 @@
+# DHCP for the wlan1 hotspot — hands the Fire HD an address so it can reach
+# the Pi at 192.168.4.1 (set as wlan1's static IP — see hostapd.conf.example).
+#
+# Install: sudo cp dnsmasq.conf.example /etc/dnsmasq.d/coachmate-ap.conf
+
+interface=wlan1
+dhcp-range=192.168.4.2,192.168.4.20,255.255.255.0,24h

@@ -4,6 +4,10 @@ import { initMap, updateMapPosition, invalidateSize } from './map.js';
 import { log, getEntries } from './logger.js';
 import { initDirections, syncCurrentStop, updateDirections } from './directions.js';
 import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
+import {
+  setAnnouncementsEnabled, onAnnouncementChange, announceJourneyStart,
+  announceNextStop, isMuted, setMuted,
+} from './announcements.js';
 
 const DRIVER_TOKEN  = new URLSearchParams(window.location.search).get('token');
 const DEPOT         = { name: 'Phil Haines Coaches Depot', lat: 52.950412, lon: -0.050110 };
@@ -38,52 +42,22 @@ async function fetchStopsForDeparture(departureId) {
   const res = await sbFetch(
     `/rest/v1/schedule_view` +
     `?departure_id=eq.${departureId}` +
-    `&select=timetable_stop_id,stop_type,scheduled_time,display_name,lat,lon,sequence` +
+    `&select=timetable_stop_id,stop_type,scheduled_time,display_name,lat,lon,sequence,psvair_in_scope` +
     `&order=sequence`
   );
   if (!res.ok) throw new Error(res.status);
   const rows = await res.json();
-  return rows.map(r => ({
-    name: r.display_name,
-    lat: r.lat,
-    lon: r.lon,
-    time: r.scheduled_time.substring(0, 5),
-    stop_type: r.stop_type,
-    timetable_stop_id: r.timetable_stop_id,
-  }));
-}
-
-async function fetchAllSchedules() {
-  try {
-    const res = await sbFetch(
-      `/rest/v1/schedule_view` +
-      `?select=timetable_stop_id,stop_type,scheduled_time,display_name,lat,lon,service_code,timetable_name,direction,departure_id,departure_time,sequence` +
-      `&order=service_code,departure_time,sequence`
-    );
-    if (!res.ok) throw new Error(res.status);
-    const rows = await res.json();
-    const schedule = {};
-    for (const { service_code, timetable_name, direction, departure_id, departure_time, display_name, lat, lon, scheduled_time, stop_type, timetable_stop_id } of rows) {
-      if (!schedule[service_code]) schedule[service_code] = {};
-      if (!schedule[service_code][departure_id]) {
-        const deptStr = departure_time ? departure_time.substring(0, 5) : '';
-        schedule[service_code][departure_id] = {
-          service: service_code,
-          label: `${timetable_name} ${direction} ${deptStr}`,
-          departure_time: deptStr,
-          stops: [],
-        };
-      }
-      schedule[service_code][departure_id].stops.push({
-        name: display_name, lat, lon, time: scheduled_time.substring(0, 5), stop_type, timetable_stop_id,
-      });
-    }
-    return schedule;
-  } catch (err) {
-    console.warn('Supabase unavailable, using schedule.json fallback', err);
-    const res = await fetch('./src/schedule.json');
-    return res.json();
-  }
+  return {
+    stops: rows.map(r => ({
+      name: r.display_name,
+      lat: r.lat,
+      lon: r.lon,
+      time: r.scheduled_time.substring(0, 5),
+      stop_type: r.stop_type,
+      timetable_stop_id: r.timetable_stop_id,
+    })),
+    psvairInScope: rows[0]?.psvair_in_scope ?? false,
+  };
 }
 
 // ── Stop time upload ──────────────────────────────────────────────────────────
@@ -164,7 +138,7 @@ function greetingPrefix() {
 
 // ── Tracker ───────────────────────────────────────────────────────────────────
 
-function runTracker({ allStops, journeyId, initialStopIndex, serviceCode, servicePeriod, onComplete }) {
+function runTracker({ allStops, journeyId, initialStopIndex, serviceCode, servicePeriod, psvairEnabled, onComplete }) {
   document.getElementById('picker').hidden  = true;
   document.getElementById('tracker').hidden = false;
   document.getElementById('route-header').scrollIntoView();
@@ -178,6 +152,29 @@ function runTracker({ allStops, journeyId, initialStopIndex, serviceCode, servic
   document.getElementById('header-line3').textContent   = `To & From ${DEPOT.name}`;
 
   log('info', `Started: ${serviceCode}${servicePeriod ? ' ' + servicePeriod : ''} from "${allStops[initialStopIndex].name}"`);
+
+  // ── PSVAIR 2026 announcements ─────────────────────────────────────────────
+  // In-scope local bus services get a live audio + on-screen announcement of
+  // the next stop / final destination, driven off the same GPS stop-advance
+  // logic already tracking arrivals below.
+  const psvairBanner = document.getElementById('psvair-banner');
+  const psvairText    = document.getElementById('psvair-text');
+  const psvairMuteBtn = document.getElementById('psvair-mute-btn');
+  setAnnouncementsEnabled(!!psvairEnabled);
+  psvairBanner.hidden = !psvairEnabled;
+  let lastAnnouncedIdx = null;
+
+  if (psvairEnabled) {
+    onAnnouncementChange(text => { psvairText.textContent = text; });
+    const setMuteBtnLabel = () => {
+      psvairMuteBtn.textContent = isMuted() ? '\u{1F507}' : '\u{1F50A}';
+      psvairMuteBtn.setAttribute('aria-label', isMuted() ? 'Unmute announcements' : 'Mute announcements');
+    };
+    setMuteBtnLabel();
+    psvairMuteBtn.onclick = () => { setMuted(!isMuted()); setMuteBtnLabel(); };
+    announceJourneyStart({ serviceCode, destination: lastStop.name });
+    lastAnnouncedIdx = initialStopIndex;
+  }
 
   let activeTab = 'list', mapReady = false, arrivalsRef = [];
   let lastLat = null, lastLon = null, lastStopIdx = initialStopIndex;
@@ -241,6 +238,17 @@ function runTracker({ allStops, journeyId, initialStopIndex, serviceCode, servic
       arrivalsRef = arrivals;
       lastStopIdx = nextStopIndex;
       if (lat !== undefined) { lastLat = lat; lastLon = lon; }
+
+      // Real passenger-facing stops are indices [1, length-2]; 0 and length-1
+      // are the depot padding stops and are never announced.
+      if (psvairEnabled && nextStopIndex !== lastAnnouncedIdx
+          && nextStopIndex > 0 && nextStopIndex < allStops.length - 1) {
+        lastAnnouncedIdx = nextStopIndex;
+        announceNextStop({
+          stopName: allStops[nextStopIndex].name,
+          isFinal: nextStopIndex === allStops.length - 2,
+        });
+      }
       updateUi({ timing, nextStopIndex, schedule: allStops, speedMps, distanceToNextM, arrivals, earlyWait, atStop });
       if (lat !== undefined) updateMapPosition(lat, lon, nextStopIndex, arrivals);
       syncCurrentStop(nextStopIndex);
@@ -294,6 +302,8 @@ function runTracker({ allStops, journeyId, initialStopIndex, serviceCode, servic
     tracker.stop();
     btnIncident.hidden = true;
     incidentOverlay.hidden = true;
+    setAnnouncementsEnabled(false);
+    psvairBanner.hidden = true;
 
     if (journeyId) {
       const uploadResult = await uploadStopTimes(journeyId, arrivalsRef, allStops);
@@ -337,9 +347,12 @@ async function initDutyCard(journeyIds) {
 
   for (const j of duties) {
     try {
-      j.stops = j.timetable_departure_id ? await fetchStopsForDeparture(j.timetable_departure_id) : [];
+      const result = j.timetable_departure_id ? await fetchStopsForDeparture(j.timetable_departure_id) : null;
+      j.stops = result?.stops ?? [];
+      j.psvairInScope = result?.psvairInScope ?? false;
     } catch (_) {
       j.stops = [];
+      j.psvairInScope = false;
     }
   }
 
@@ -418,8 +431,6 @@ async function launchDutyRoute(duties, idx, journeyIds) {
 
   document.getElementById('duty-card').hidden             = true;
   document.getElementById('picker').hidden                = false;
-  document.getElementById('picker-service-field').hidden  = true;
-  document.getElementById('picker-run-field').hidden      = true;
   document.getElementById('picker-back-btn').hidden       = false;
 
   const stopSelect = document.getElementById('stop-select');
@@ -432,10 +443,8 @@ async function launchDutyRoute(duties, idx, journeyIds) {
   });
 
   document.getElementById('picker-back-btn').onclick = () => {
-    document.getElementById('picker').hidden               = true;
-    document.getElementById('picker-service-field').hidden = false;
-    document.getElementById('picker-run-field').hidden     = false;
-    document.getElementById('picker-back-btn').hidden      = true;
+    document.getElementById('picker').hidden          = true;
+    document.getElementById('picker-back-btn').hidden = true;
     renderDutyCard(duties, journeyIds);
   };
 
@@ -451,9 +460,7 @@ async function launchDutyRoute(duties, idx, journeyIds) {
       }
     }
 
-    document.getElementById('picker-service-field').hidden = false;
-    document.getElementById('picker-run-field').hidden     = false;
-    document.getElementById('picker-back-btn').hidden      = true;
+    document.getElementById('picker-back-btn').hidden = true;
 
     await acquireWakeLock();
 
@@ -463,90 +470,10 @@ async function launchDutyRoute(duties, idx, journeyIds) {
       initialStopIndex,
       serviceCode: journey.service_code,
       servicePeriod: journey.timetable_name,
+      psvairEnabled: journey.psvairInScope,
       onComplete: () => {
         journey.status = 'completed';
         renderDutyCard(duties, journeyIds);
-      },
-    });
-  };
-}
-
-// ── Standalone picker mode ────────────────────────────────────────────────────
-
-async function initPickerMode() {
-  const schedule = await fetchAllSchedules();
-
-  document.getElementById('duty-card').hidden             = true;
-  document.getElementById('picker').hidden                = false;
-  document.getElementById('picker-service-field').hidden  = false;
-  document.getElementById('picker-run-field').hidden      = false;
-  document.getElementById('picker-back-btn').hidden       = true;
-
-  const serviceSelect = document.getElementById('service-select');
-  const runSelect     = document.getElementById('run-select');
-  const stopSelect    = document.getElementById('stop-select');
-
-  Object.keys(schedule).forEach(key => {
-    const opt = document.createElement('option');
-    opt.value = key; opt.textContent = key;
-    serviceSelect.appendChild(opt);
-  });
-
-  function updateRunPicker() {
-    const svcSchedule = schedule[serviceSelect.value] ?? {};
-    const runs = Object.keys(svcSchedule);
-    runSelect.innerHTML = '';
-    runs.forEach(key => {
-      const run = svcSchedule[key];
-      const opt = document.createElement('option');
-      opt.value = key;
-      opt.textContent = run.label ?? key;
-      runSelect.appendChild(opt);
-    });
-    // Auto-select first departure on or after current time
-    const now = new Date();
-    const nowStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-    const preferred = runs.find(k => (svcSchedule[k].departure_time ?? '') >= nowStr);
-    runSelect.value = preferred ?? runs[0] ?? '';
-  }
-
-  function buildAllStops() {
-    const { stops } = schedule[serviceSelect.value][runSelect.value];
-    return withDepotStops(stops);
-  }
-
-  function updateStopPicker() {
-    const allStops = buildAllStops();
-    stopSelect.innerHTML = '';
-    allStops.forEach((stop, i) => {
-      const opt = document.createElement('option');
-      opt.value = i; opt.textContent = `${stop.time}  ${stop.name}`;
-      stopSelect.appendChild(opt);
-    });
-  }
-
-  serviceSelect.addEventListener('change', () => { updateRunPicker(); updateStopPicker(); });
-  runSelect.addEventListener('change', updateStopPicker);
-  updateRunPicker();
-  updateStopPicker();
-
-  const legacyJourneyId = new URLSearchParams(window.location.search).get('journey');
-
-  document.getElementById('start-btn').onclick = async () => {
-    const allStops         = buildAllStops();
-    const initialStopIndex = parseInt(stopSelect.value, 10) || 0;
-    const { service, label } = schedule[serviceSelect.value][runSelect.value];
-
-    await acquireWakeLock();
-
-    runTracker({
-      allStops,
-      journeyId: legacyJourneyId,
-      initialStopIndex,
-      serviceCode: service,
-      servicePeriod: label,
-      onComplete: () => {
-        document.getElementById('picker').hidden = false;
       },
     });
   };

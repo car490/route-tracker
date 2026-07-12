@@ -45,18 +45,6 @@
         <div class="picker-subtitle">Route Timing Tracker</div>
       </div>
       <button id="picker-back-btn" hidden>&#8592; Back to Duty Card</button>
-      <div class="picker-field" id="picker-service-field">
-        <label for="service-select">Service</label>
-        <div class="select-wrap">
-          <select id="service-select"></select>
-        </div>
-      </div>
-      <div class="picker-field" id="picker-run-field">
-        <label for="run-select">Run</label>
-        <div class="select-wrap">
-          <select id="run-select"></select>
-        </div>
-      </div>
       <div class="picker-field">
         <label for="stop-select">Starting stop</label>
         <div class="select-wrap">
@@ -71,6 +59,10 @@
     </div>
 
     <div id="tracker" hidden>
+    <div id="psvair-banner" hidden>
+      <span id="psvair-text" aria-live="assertive"></span>
+      <button id="psvair-mute-btn" type="button" aria-label="Mute announcements">&#128266;</button>
+    </div>
     <div id="early-wait-banner" hidden>
       <div class="ewb-title">WAIT HERE</div>
       <div class="ewb-msg">Running early — depart at <span id="ewb-time"></span></div>
@@ -161,7 +153,7 @@
       </div>
     </div>
 
-    <p style="text-align:center;font-size:0.7rem;color:var(--text-muted);opacity:0.6;padding:16px 0 8px;margin:0;">v1.1.0</p>
+    <p style="text-align:center;font-size:0.7rem;color:var(--text-muted);opacity:0.6;padding:16px 0 8px;margin:0;">v1.2.0</p>
 
     <script src="lib/leaflet.min.js"></script>
     <script type="module" src="src/main.js"></script>

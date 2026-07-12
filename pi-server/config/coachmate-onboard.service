@@ -1,0 +1,16 @@
+[Unit]
+Description=CoachMate onboard display server
+After=coachmate-sync.service gpsd.service
+Wants=coachmate-sync.service gpsd.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/pi/route-tracker/pi-server
+ExecStart=/usr/bin/node server.mjs
+Restart=on-failure
+RestartSec=3
+User=pi
+Environment=PORT=8080
+
+[Install]
+WantedBy=multi-user.target

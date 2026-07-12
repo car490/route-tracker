@@ -5,6 +5,39 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [1.2.0] - 2026-07-09
+
+### Added
+- Guided Route Wizard — a 4-step modal (Route → Stops → Timetable & Review →
+  Departures) replacing the old disjointed multi-page route-creation flow.
+- Departures now get smarter, journey-type-aware date-range handling: a
+  mandatory start / optional end date for every service, a term-date
+  auto-fill picker for school-contract routes (seeded from Lincolnshire
+  County Council's published term dates), and excursion routes skip
+  straight to the single-date one-off form.
+- Distinct marker colour for routing point stops in the route planner map.
+
+### Fixed
+- Driver PWA's live tracker now rejoins the route after an off-route detour
+  or GPS gap instead of stalling permanently — forward-searching geofence
+  matching with 2-ping confirmation, classified as a signal gap or a genuine
+  detour for reporting.
+- A route's journey type is restricted to one everywhere (the "Edit Route"
+  modal previously allowed several, inconsistent with the New Route wizard).
+- Driver PWA now displays distance in metres and speed in mph, not km/km-h.
+- Saving a new timetable onto an existing route no longer leaves the
+  timetable pointer stuck on `'__new__'`, which could duplicate it on a
+  second save.
+- Saving a timetable now rejects it if a timing point has no time set.
+- Removed the `excursion_passengers` table, which had silently come back on
+  dev via a stale `schema.sql` after being dropped from production months
+  ago; added the previously-prod-only `generate_duty_token()` function to
+  `schema.sql` and dev so both environments match.
+
+### Changed
+- Moved the PWA's Supabase config to `src/config.js`, removing a dead
+  duplicate `main.js` at the repo root.
+
 ## [1.1.0] - 2026-07-04
 
 First release of the CoachMate rebrand to Production.

@@ -1,5 +1,9 @@
 supabase/.temp/
 
+# Test tooling deps (root PWA is otherwise zero-dependency at runtime —
+# node_modules here is dev-only, for jest/babel)
+node_modules/
+
 # GraphHopper — large binary files, not committed
 graphhopper/*.osm.pbf
 graphhopper/*.osm.pbf.gz
@@ -10,3 +14,8 @@ graphhopper/graphhopper-*.jar
 id_*
 *.pem
 sshcoachmate*
+
+# pi-server's schedule cache is written at runtime (sync-schedule.mjs) —
+# per-vehicle data, not source
+pi-server/schedule-cache.json
+pi-server/schedule-cache.json.tmp
