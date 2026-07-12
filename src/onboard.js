@@ -26,6 +26,7 @@ function groupScheduleRows(rows) {
       schedule[service_code][departure_id] = {
         service: service_code,
         label: `${timetable_name} ${direction} ${deptStr}`,
+        timetableName: timetable_name,
         psvairInScope: psvair_in_scope,
         stops: [],
       };
@@ -170,9 +171,9 @@ async function loadPicker() {
   el('start-btn').onclick = async () => {
     const allStops = buildAllStops();
     const initialStopIndex = parseInt(stopSelect.value, 10) || 0;
-    const { service, label, psvairInScope } = schedule[serviceSelect.value][runSelect.value];
+    const { service, timetableName, psvairInScope } = schedule[serviceSelect.value][runSelect.value];
     await acquireWakeLock();
-    runDisplay({ allStops, initialStopIndex, serviceCode: service, servicePeriod: label, psvairEnabled: psvairInScope });
+    runDisplay({ allStops, initialStopIndex, serviceCode: service, servicePeriod: timetableName, psvairEnabled: psvairInScope });
   };
 }
 
