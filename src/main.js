@@ -6,7 +6,7 @@ import { initDirections, syncCurrentStop, updateDirections } from './directions.
 import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
 import {
   setAnnouncementsEnabled, onAnnouncementChange, announceJourneyStart,
-  announceNextStop, isMuted, setMuted,
+  announceAtStop, isMuted, setMuted,
 } from './announcements.js';
 
 const DRIVER_TOKEN  = new URLSearchParams(window.location.search).get('token');
@@ -162,7 +162,7 @@ function runTracker({ allStops, journeyId, initialStopIndex, serviceCode, servic
   const psvairMuteBtn = document.getElementById('psvair-mute-btn');
   setAnnouncementsEnabled(!!psvairEnabled);
   psvairBanner.hidden = !psvairEnabled;
-  let lastAnnouncedIdx = null;
+  let lastAnnouncedStopIdx = null;
 
   if (psvairEnabled) {
     onAnnouncementChange(text => { psvairText.textContent = text; });
@@ -173,7 +173,6 @@ function runTracker({ allStops, journeyId, initialStopIndex, serviceCode, servic
     setMuteBtnLabel();
     psvairMuteBtn.onclick = () => { setMuted(!isMuted()); setMuteBtnLabel(); };
     announceJourneyStart({ serviceCode, destination: lastStop.name });
-    lastAnnouncedIdx = initialStopIndex;
   }
 
   let activeTab = 'list', mapReady = false, arrivalsRef = [];
@@ -240,13 +239,17 @@ function runTracker({ allStops, journeyId, initialStopIndex, serviceCode, servic
       if (lat !== undefined) { lastLat = lat; lastLon = lon; }
 
       // Real passenger-facing stops are indices [1, length-2]; 0 and length-1
-      // are the depot padding stops and are never announced.
-      if (psvairEnabled && nextStopIndex !== lastAnnouncedIdx
-          && nextStopIndex > 0 && nextStopIndex < allStops.length - 1) {
-        lastAnnouncedIdx = nextStopIndex;
-        announceNextStop({
-          stopName: allStops[nextStopIndex].name,
-          isFinal: nextStopIndex === allStops.length - 2,
+      // are the depot padding stops and are never announced. Announce on
+      // arrival (atStop set) rather than departure, so the "this stop /
+      // next stop" pairing is heard while the vehicle is actually there.
+      if (psvairEnabled && atStop && atStop.stopIndex !== lastAnnouncedStopIdx
+          && atStop.stopIndex > 0 && atStop.stopIndex < allStops.length - 1) {
+        lastAnnouncedStopIdx = atStop.stopIndex;
+        const isFinal = atStop.stopIndex === allStops.length - 2;
+        announceAtStop({
+          stopName: allStops[atStop.stopIndex].name,
+          nextStopName: isFinal ? null : allStops[atStop.stopIndex + 1].name,
+          isFinal,
         });
       }
       updateUi({ timing, nextStopIndex, schedule: allStops, speedMps, distanceToNextM, arrivals, earlyWait, atStop });

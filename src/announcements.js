@@ -43,8 +43,8 @@ export function announceJourneyStart({ serviceCode, destination }) {
   announce(`This is the ${serviceCode} service to ${destination}.`);
 }
 
-export function announceNextStop({ stopName, isFinal }) {
+export function announceAtStop({ stopName, nextStopName, isFinal }) {
   announce(isFinal
-    ? `The next stop is the final stop, ${stopName}.`
-    : `The next stop is ${stopName}.`);
+    ? `This is ${stopName}. This bus terminates here, all change please.`
+    : `This stop is ${stopName}. The next stop is ${nextStopName}.`);
 }
