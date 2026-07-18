@@ -953,6 +953,62 @@ $$;
 grant execute on function naptan_near_point(float8, float8, float8) to anon, authenticated;
 
 
+-- ── Vehicle audio config ──────────────────────────────────────────────────────
+-- Slice 1 (PSV(A)R Fixed-Volume Audio Config): one-off pre-measured ambient
+-- reading per vehicle, used to derive a fixed TTS announcement level.
+-- Append-only — a new reading is a new row, never an overwrite.
+
+create table if not exists public.vehicle_audio_config (
+  id                  uuid primary key default gen_random_uuid(),
+  vehicle_id          uuid not null references public.vehicles(id),
+  ambient_reading_db  numeric not null,
+  fixed_output_level  numeric not null,
+  measured_at         timestamptz not null,
+  measured_by         uuid not null references public.employees(id),
+  notes               text,
+  created_at          timestamptz not null default now()
+);
+
+grant select on public.vehicle_audio_config to anon;
+grant all    on public.vehicle_audio_config to authenticated;
+
+alter table public.vehicle_audio_config enable row level security;
+
+-- Any authenticated employee can view full calibration history/notes.
+-- Not granted to anon — see get_audio_config_for_vehicle() below for the
+-- Driver PWA's narrow anon-safe read path.
+create policy "vehicle_audio_config_select_authenticated"
+  on public.vehicle_audio_config
+  for select
+  to authenticated
+  using (true);
+
+create policy "vehicle_audio_config_insert"
+  on public.vehicle_audio_config
+  for insert
+  to authenticated
+  with check (current_employee_role() in ('super_user', 'ops_manager'));
+
+-- Anon-safe read for the Driver PWA: only vehicle_id/level/timestamp, never
+-- notes or measured_by. security definer so it can read past the RLS policy
+-- above, same pattern as is_journey_in_progress().
+create or replace function public.get_audio_config_for_vehicle(p_vehicle_id uuid)
+returns table (
+  vehicle_id          uuid,
+  fixed_output_level  numeric,
+  measured_at         timestamptz
+)
+language sql stable security definer
+as $$
+  select vehicle_id, fixed_output_level, measured_at
+  from public.vehicle_audio_config
+  where vehicle_id = p_vehicle_id
+  order by measured_at desc
+$$;
+
+grant execute on function public.get_audio_config_for_vehicle(uuid) to anon;
+
+
 -- ── Views ─────────────────────────────────────────────────────────────────────
 -- Returns one row per (departure × stop).
 -- scheduled_time is computed as departure_time + offset for the departure's timing_profile.
