@@ -150,7 +150,7 @@ document.addEventListener('visibilitychange', () => {
 // Shows up to 2 stops back, the current one, and up to 2 ahead — clipped
 // naturally at the ends of the route.
 
-function renderTubeTrack(allStops, centerIndex) {
+function renderTubeTrack(allStops, centerIndex, isAtStop) {
   const track = el('tube-track');
   track.innerHTML = '';
 
@@ -164,6 +164,9 @@ function renderTubeTrack(allStops, centerIndex) {
     const state = i < centerIndex ? 'past' : i === centerIndex ? 'current' : 'future';
     const node = document.createElement('div');
     node.className = `tube-node tube-${state}`;
+    // "At stop" (geofence-confirmed arrival) gets its own pulsating-green
+    // look, distinct from "current" (an estimated position between stops).
+    if (i === centerIndex && isAtStop) node.classList.add('tube-at-stop');
     node.innerHTML = `<div class="tube-dot"></div><div class="tube-label">${allStops[i].name}</div>`;
     track.appendChild(node);
   });
@@ -220,7 +223,7 @@ async function runSign(duty) {
 
       el('sign-current-stop').textContent = allStops[centerIndex].name;
       el('sign-next-stop').textContent = isFinal ? 'End of route' : allStops[centerIndex + 1].name;
-      renderTubeTrack(allStops, centerIndex);
+      renderTubeTrack(allStops, centerIndex, !!atStop);
 
       const banner = el('early-wait-banner');
       if (earlyWait) {

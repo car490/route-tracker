@@ -2,9 +2,14 @@
 
 /* ── E-paper passenger sign ───────────────────────────────────────────────
    Fixed vehicle-mounted landscape display (Fire HD 10, ~1920x1200 / 16:10).
-   Deliberately monochrome and motion-free: no gradients, no shadows, no
-   transitions/animations, hard corners. Status is carried by text and
-   border weight, not colour — a real e-paper panel has none.
+   Mostly monochrome and motion-free: no gradients, no shadows, hard
+   corners, status normally carried by text and border weight rather than
+   colour. Two deliberate exceptions to that rule: the brand mark keeps its
+   real CoachMate colours (this is an LCD tablet, not actual e-ink hardware
+   — the monochrome look is aesthetic, not a hardware limit), and the
+   tube-track dot for a stop the vehicle has actually arrived at (confirmed
+   by the geofence, not just estimated) pulses green so it reads at a
+   glance from across the vehicle.
    Sized with vw/vh so the same layout scales to the real device and to a
    browser window of a similar aspect ratio. */
 
@@ -16,6 +21,10 @@
   --ep-ink:       #1A1A18;
   --ep-ink-soft:  #5A5850;
   --ep-line:      #1A1A18;
+
+  --ep-slate:     #475569;
+  --ep-teal:      #00B4D8;
+  --ep-at-stop:   #10B981;
 }
 
 *,
@@ -46,9 +55,8 @@ body {
 /* ── Brand mark — always present, idle screen or active ─────────────────
    At idle this is the ONLY thing on screen, over a blank grey background.
    Same CoachMate wordmark as the dashboard sidebar and driver PWA
-   (COACH bold + Mate regular), but rendered in ink only, no cyan — a real
-   e-ink panel couldn't show that colour, so this is what it would look
-   like converted to greyscale rather than a plain text substitute. */
+   (COACH bold + Mate regular), in the real brand colours — slate for
+   COACH, teal for Mate — rather than converted to greyscale. */
 
 #onboard-brand {
   position: fixed;
@@ -77,12 +85,12 @@ body {
 
 .cm-coach {
   font-weight: 800;
-  color: var(--ep-ink);
+  color: var(--ep-slate);
 }
 
 .cm-mate {
   font-weight: 400;
-  color: var(--ep-ink-soft);
+  color: var(--ep-teal);
 }
 
 /* ── Sign layout ──────────────────────────────────────────────────────── */
@@ -264,4 +272,17 @@ body {
 .tube-node.tube-current .tube-label {
   font-weight: 800;
   color: var(--ep-ink);
+}
+
+/* Confirmed arrival (geofence match), not just an estimated position —
+   pulses green so it reads at a glance. Only motion on this screen. */
+.tube-node.tube-current.tube-at-stop .tube-dot {
+  background: var(--ep-at-stop);
+  border-color: var(--ep-at-stop);
+  animation: tube-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes tube-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
 }
