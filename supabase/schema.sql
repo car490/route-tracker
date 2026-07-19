@@ -1085,6 +1085,24 @@ create policy "diversion_alert_event_anon_clear_own"
   using (driver_id = (auth.jwt() ->> 'driver_id')::uuid)
   with check (driver_id = (auth.jwt() ->> 'driver_id')::uuid);
 
+-- Anon-safe status check for the passenger-facing onboard sign (onboard.js):
+-- it watches a journey via a plain ?journey=<id> URL, with no duty-token
+-- driver_id claim, so it can't use the ownership-scoped select policy above.
+-- A boolean existence check leaks nothing about who triggered it — same
+-- narrow-RPC pattern as get_audio_config_for_vehicle() and
+-- is_journey_in_progress().
+create or replace function public.is_diversion_active(p_journey_id uuid)
+returns boolean
+language sql stable security definer
+as $$
+  select exists (
+    select 1 from public.diversion_alert_event
+    where journey_id = p_journey_id and cleared_at is null
+  )
+$$;
+
+grant execute on function public.is_diversion_active(uuid) to anon;
+
 
 -- ── Views ─────────────────────────────────────────────────────────────────────
 -- Returns one row per (departure × stop).
