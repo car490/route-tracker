@@ -54,15 +54,16 @@ body {
 }
 
 /* ── App brand mark ───────────────────────────── */
-/* Same CoachMate wordmark as the ops dashboard's sidebar footer
-   (dashboard/src/index.css .sidebar-coachmate). Shown on the calmer
-   duty-card/picker/no-duty-card screens; hidden while the tracker is
-   active (below) since that view is scrollable and information-dense —
-   a fixed corner mark there would sit on top of real content instead of
-   empty space. Placed after #tracker in index.html so this sibling
-   selector can see whether it's currently visible. */
-
-#tracker:not([hidden]) ~ #app-brand { display: none; }
+/* App name (BusHub.Driver — this product, one of several under the BusHub
+   suite) over a smaller CoachMate attribution (the platform all BusHub
+   products run on; same wordmark as the ops dashboard's sidebar footer,
+   dashboard/src/index.css .sidebar-coachmate, where CoachMate alone is
+   shown with no BusHub line since the dashboard *is* CoachMate).
+   Fixed to the viewport corner so it's visible on every screen without
+   scrolling — including #duty-card, which reserves a full min-height:100vh
+   whether or not its content fills that, so an in-flow mark would land
+   off-screen there. #tracker reserves matching bottom clearance (below)
+   so this doesn't repeat the overlap bug fixed in 47b0f80. */
 
 #app-brand {
   position: fixed;
@@ -71,14 +72,38 @@ body {
   z-index: 10;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  pointer-events: none;
+}
+
+/* Clearance so #btn-complete never scrolls under the fixed mark above. */
+#tracker {
+  padding-bottom: 4.5rem;
+}
+
+.bh-wordmark {
+  font-family: var(--cm-font);
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.bh-app {
+  color: var(--late);
+}
+
+.cm-attribution {
+  display: flex;
+  flex-direction: column;
   gap: 0.1rem;
   opacity: 0.55;
-  pointer-events: none;
 }
 
 .cm-powered-by {
   font-family: var(--cm-font);
-  font-size: 0.6rem;
+  font-size: 0.5rem;
   font-weight: 400;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -87,7 +112,7 @@ body {
 
 .cm-wordmark {
   font-family: var(--cm-font);
-  font-size: 0.85rem;
+  font-size: 0.7rem;
   letter-spacing: -0.02em;
 }
 

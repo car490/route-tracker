@@ -25,6 +25,7 @@
   --ep-slate:     #475569;
   --ep-teal:      #00B4D8;
   --ep-at-stop:   #10B981;
+  --ep-late:      #EF4444;
 }
 
 *,
@@ -54,23 +55,41 @@ body {
 
 /* ── Brand mark — always present, idle screen or active ─────────────────
    At idle this is the ONLY thing on screen, over a blank grey background.
-   Same CoachMate wordmark as the dashboard sidebar and driver PWA
-   (COACH bold + Mate regular), in the real brand colours — slate for
-   COACH, teal for Mate — rather than converted to greyscale. */
+   App name (BusHub.NextStop — this product, one of several under the
+   BusHub suite) over a smaller CoachMate attribution (the platform all
+   BusHub products run on), in real brand colours rather than greyscale. */
 
 #onboard-brand {
   position: fixed;
   left: 2rem;
-  bottom: 1.75rem;
+  bottom: 1.1rem;
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.4vh;
   pointer-events: none;
+}
+
+.bh-wordmark {
+  font-family: var(--ep-font);
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--ep-ink);
+}
+
+.bh-app {
+  color: var(--ep-late);
+}
+
+.cm-attribution {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
 }
 
 .cm-powered-by {
   font-family: var(--ep-font);
-  font-size: 1rem;
+  font-size: 0.65rem;
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -79,7 +98,7 @@ body {
 
 .cm-wordmark {
   font-family: var(--ep-font);
-  font-size: 1.4rem;
+  font-size: 0.9rem;
   letter-spacing: -0.02em;
 }
 
@@ -100,7 +119,7 @@ body {
   width: 100vw;
   display: flex;
   flex-direction: column;
-  padding: 4vh 4vw 6vh;
+  padding: 4vh 4vw 11vh;
   gap: 2.5vh;
 }
 
