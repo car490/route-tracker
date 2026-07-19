@@ -57,3 +57,10 @@ export function announceAtStop({ stopName, nextStopName, isFinal }) {
     ? `This is ${stopName}. This bus terminates here, all change please.`
     : `This stop is ${stopName}. The next stop is ${nextStopName}.`);
 }
+
+// Fixed string only — takes no parameters, deliberately, so the "diversion
+// announcements can never carry dynamic/free-text content" property is
+// enforced at this TTS gateway itself, not just by callers behaving.
+export function announceDiversion() {
+  announce('This bus is on diversion');
+}

@@ -1009,6 +1009,83 @@ $$;
 grant execute on function public.get_audio_config_for_vehicle(uuid) to anon;
 
 
+-- ── Diversion alert events ─────────────────────────────────────────────────────
+-- Slice 2 (PSV(A)R Driver-Triggered Diversion Alert): append-only log of a
+-- driver pressing/clearing the on-board diversion button. No free-text path —
+-- the announcement itself is a fixed string in the app (announceDiversion()),
+-- this table only records who/when.
+--
+-- Identity: drivers have no dashboard login (see the employees comment
+-- above), so unlike vehicle_audio_config this is written by the anon-key
+-- Driver PWA using the signed duty-token's driver_id claim — the same claim
+-- get_duty_card() embeds and is_jwt_journey_allowed() already reads for
+-- journey_events/journey_stop_times.
+
+create table if not exists public.diversion_alert_event (
+  id           uuid primary key default gen_random_uuid(),
+  journey_id   uuid not null references public.journeys(id),
+  vehicle_id   uuid not null references public.vehicles(id),
+  driver_id    uuid not null references public.employees(id),
+  triggered_at timestamptz not null default now(),
+  cleared_at   timestamptz
+);
+
+create index on public.diversion_alert_event (journey_id);
+create index on public.diversion_alert_event (driver_id);
+
+grant select on public.diversion_alert_event to anon;
+grant insert on public.diversion_alert_event to anon;
+grant update on public.diversion_alert_event to anon;
+grant all    on public.diversion_alert_event to authenticated;
+
+alter table public.diversion_alert_event enable row level security;
+
+-- Read: any authenticated employee (ops/compliance visibility), scoped to
+-- their own company via journey_id — same pattern as journey_events'
+-- "company_all" policy.
+create policy "diversion_alert_event_company_select"
+  on public.diversion_alert_event
+  for select
+  to authenticated
+  using (
+    journey_id in (select id from public.journeys where company_id = current_company_id())
+  );
+
+-- Anon (driver): may see only their own alerts. Needed so the UPDATE below
+-- can locate its row (Postgres requires SELECT on columns referenced in an
+-- UPDATE's WHERE clause) — not a general read grant, RLS still confines it
+-- to rows this driver owns.
+create policy "diversion_alert_event_anon_select_own"
+  on public.diversion_alert_event
+  for select
+  to anon
+  using (driver_id = (auth.jwt() ->> 'driver_id')::uuid);
+
+-- Insert: driver can only create an alert for THEIR OWN driver_id — taken
+-- from the signed duty token's driver_id claim, never client input — and
+-- only while the journey is actually running. This ownership check is the
+-- main security property of this table: a driver cannot remotely trigger
+-- another vehicle's alert.
+create policy "diversion_alert_event_anon_insert"
+  on public.diversion_alert_event
+  for insert
+  to anon
+  with check (
+    driver_id = (auth.jwt() ->> 'driver_id')::uuid
+    and is_journey_in_progress(journey_id)
+    and is_jwt_journey_allowed(journey_id)
+  );
+
+-- Update (for cleared_at): same ownership rule — only the triggering driver
+-- can clear their own alert.
+create policy "diversion_alert_event_anon_clear_own"
+  on public.diversion_alert_event
+  for update
+  to anon
+  using (driver_id = (auth.jwt() ->> 'driver_id')::uuid)
+  with check (driver_id = (auth.jwt() ->> 'driver_id')::uuid);
+
+
 -- ── Views ─────────────────────────────────────────────────────────────────────
 -- Returns one row per (departure × stop).
 -- scheduled_time is computed as departure_time + offset for the departure's timing_profile.
