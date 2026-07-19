@@ -856,6 +856,8 @@ DROP FUNCTION IF EXISTS public.get_duty_card(uuid[]);
 CREATE OR REPLACE FUNCTION public.get_duty_card(journey_ids uuid[])
  RETURNS TABLE(
    journey_id             uuid,
+   driver_id              uuid,
+   vehicle_id             uuid,
    status                 text,
    started_at             timestamp with time zone,
    completed_at           timestamp with time zone,
@@ -875,6 +877,8 @@ CREATE OR REPLACE FUNCTION public.get_duty_card(journey_ids uuid[])
 AS $function$
   select
     j.id,
+    j.driver_id,
+    j.vehicle_id,
     j.status,
     j.started_at,
     j.completed_at,

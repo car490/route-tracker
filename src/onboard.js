@@ -12,7 +12,8 @@
 // own and starts showing/announcing stops.
 import { startGpsTracking } from './gps.js';
 import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
-import { setAnnouncementsEnabled, announceJourneyStart, announceAtStop } from './announcements.js';
+import { setAnnouncementsEnabled, announceJourneyStart, announceDiversion } from './announcements.js';
+import { announceStopEvent } from './announceStopEvent.js';
 
 const DEPOT = { name: 'Phil Haines Coaches Depot', lat: 52.950412, lon: -0.050110 };
 const WATCH_JOURNEY_ID = new URLSearchParams(window.location.search).get('journey');
@@ -185,6 +186,27 @@ async function runSign(duty) {
 
   let lastAnnouncedStopIdx = null;
 
+  // ── Diversion status polling ────────────────────────────────────────────
+  // This device has no driver identity of its own (see file header), so it
+  // can't use diversion_alert_event's ownership-scoped RLS directly — it
+  // polls the anon-safe is_diversion_active() boolean instead. Announces
+  // immediately on the false→true transition (not just suppressing the next
+  // stop call) so passengers hear it promptly rather than waiting for the
+  // next scheduled stop.
+  let diversionActive = false;
+  (async function pollDiversionStatus() {
+    for (;;) {
+      try {
+        const active = await rpc('is_diversion_active', { p_journey_id: duty.journey_id });
+        if (active && !diversionActive) announceDiversion();
+        diversionActive = active;
+      } catch (err) {
+        console.error('is_diversion_active poll failed:', err);
+      }
+      await sleep(POLL_INTERVAL_MS);
+    }
+  })();
+
   await acquireWakeLock();
 
   startGpsTracking({
@@ -215,10 +237,11 @@ async function runSign(duty) {
           && atStop.stopIndex > 0 && atStop.stopIndex < allStops.length - 1) {
         lastAnnouncedStopIdx = atStop.stopIndex;
         const stopIsFinal = atStop.stopIndex === allStops.length - 2;
-        announceAtStop({
+        announceStopEvent({
           stopName: allStops[atStop.stopIndex].name,
           nextStopName: stopIsFinal ? null : allStops[atStop.stopIndex + 1].name,
           isFinal: stopIsFinal,
+          diversionActive,
         });
       }
     },

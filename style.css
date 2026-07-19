@@ -987,6 +987,33 @@ body {
   background: rgba(251, 140, 0, 0.15);
 }
 
+/* ── Diversion alert button ───────────────────── */
+
+#btn-diversion {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px;
+  background: transparent;
+  color: var(--late);
+  border: 1.5px solid var(--late);
+  border-radius: 6px;
+  font-family: var(--cm-font);
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+#btn-diversion:active {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+#btn-diversion.active {
+  background: var(--late);
+  color: #fff;
+}
+
 /* ── Incident overlay ─────────────────────────── */
 
 #incident-overlay {
