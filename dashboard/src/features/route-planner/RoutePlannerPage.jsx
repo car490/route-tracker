@@ -141,10 +141,12 @@ export default function RoutePlannerPage() {
       }
       return
     }
+    let cancelled = false
     Promise.all([
       supabase.from('timetable_stops').select('*, stops(*)').eq('timetable_id', timetableId).order('sequence'),
       supabase.from('timetable_departures').select('*').eq('timetable_id', timetableId).order('departure_time'),
     ]).then(([{ data: tsData }, { data: depData }]) => {
+      if (cancelled) return
       const deps = depData ?? []
       setDepartures(deps)
       const baseStr = deps[0]?.departure_time ?? '07:00:00'
@@ -161,6 +163,7 @@ export default function RoutePlannerPage() {
       setStops(loaded)
       if (loaded.length > 0) setFitKey(k => (k ?? 0) + 1)
     })
+    return () => { cancelled = true }
   }, [timetableId])
 
   // ── Auto-hide setup cards ─────────────────────────────────────────────────────
