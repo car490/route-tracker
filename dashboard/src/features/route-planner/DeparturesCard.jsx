@@ -70,7 +70,7 @@ export default function DeparturesCard({ timetableId, timetables, departures, se
         <button className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: 11 }}
           onClick={async () => {
             const vjc = await nextVjc()
-            setDepForm({ ...DEP_EMPTY, vehicle_journey_code: vjc })
+            setDepForm({ ...DEP_EMPTY, vehicle_journey_code: vjc, valid_from: new Date().toISOString().slice(0, 10) })
             setDepError('')
             setDepModal('add')
           }}
@@ -150,8 +150,7 @@ export default function DeparturesCard({ timetableId, timetables, departures, se
               <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                 <input type="date" className="form-input" style={{ flex: 1, fontSize: 11 }}
                   value={depForm.valid_from}
-                  onChange={e => setDepForm(f => ({ ...f, valid_from: e.target.value }))}
-                  required />
+                  onChange={e => setDepForm(f => ({ ...f, valid_from: e.target.value }))} />
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                   to <span style={{ opacity: 0.7 }}>(optional)</span>
                 </span>
