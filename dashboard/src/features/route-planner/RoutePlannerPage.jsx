@@ -232,7 +232,6 @@ export default function RoutePlannerPage() {
       },
       newTtName, newDirection,
       stopsToSave,
-      departures,
     })
     if (error) { setSaveError(error); setSaving(false); return }
 

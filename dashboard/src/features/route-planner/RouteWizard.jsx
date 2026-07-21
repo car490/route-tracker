@@ -104,7 +104,6 @@ export default function RouteWizard({ existingRoute, onFinish, onCancel }) {
       },
       newTtName, newDirection,
       stopsToSave: stops,
-      departures: [],
     })
     setSaving(false)
     if (error) { setSaveError(error); return }
