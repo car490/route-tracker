@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../shared/supabase'
 import { getCompanyId } from '../../shared/company'
 import Modal from '../../shared/components/Modal'
@@ -14,7 +14,7 @@ const STATUS_BADGE = {
 
 function todayStr() { return new Date().toISOString().slice(0, 10) }
 
-const EMPTY_FORM = { timetable_departure_id: '', driver_id: '', vehicle_id: '', journey_date: todayStr() }
+const EMPTY_FORM = { route_id: '', timetable_id: '', timetable_departure_id: '', driver_id: '', vehicle_id: '', journey_date: todayStr() }
 
 export default function JourneysPage() {
   const [journeys,    setJourneys]    = useState([])
@@ -44,7 +44,7 @@ export default function JourneysPage() {
       .from('journeys')
       .select(`
         *,
-        departure:timetable_departures(departure_time, timetable:timetables(name, direction, route:routes(service_code))),
+        departure:timetable_departures(departure_time, timetable_id, timetable:timetables(name, direction, route:routes(id, service_code, single_journey))),
         driver:employees(name),
         vehicle:vehicles(registration)
       `)
@@ -58,7 +58,7 @@ export default function JourneysPage() {
     const [depRes, dRes, vRes] = await Promise.all([
       supabase
         .from('timetable_departures')
-        .select('id, departure_time, timetable:timetables(name, direction, route:routes(service_code))')
+        .select('id, departure_time, timetable_id, timetable:timetables(id, name, direction, route:routes(id, service_code, single_journey))')
         .order('departure_time'),
       supabase.from('employees').select('id, name').order('name'),
       supabase.from('vehicles').select('id, registration').order('registration'),
@@ -337,12 +337,49 @@ export default function JourneysPage() {
 
   function openEdit(j) {
     setForm({
-      timetable_departure_id: j.timetable_departure_id ?? '',
-      driver_id:              j.driver_id   ?? '',
-      vehicle_id:             j.vehicle_id  ?? '',
-      journey_date:           j.journey_date,
+      route_id:                j.departure?.timetable?.route?.id ?? '',
+      timetable_id:            j.departure?.timetable_id ?? '',
+      timetable_departure_id:  j.timetable_departure_id ?? '',
+      driver_id:               j.driver_id   ?? '',
+      vehicle_id:              j.vehicle_id  ?? '',
+      journey_date:            j.journey_date,
     })
     setError(''); setModal(j)
+  }
+
+  const routeOptions = useMemo(() => {
+    const seen = new Map()
+    for (const dep of departures) {
+      const r = dep.timetable?.route
+      if (r && !seen.has(r.id)) seen.set(r.id, r)
+    }
+    return [...seen.values()].sort((a, b) => (a.service_code ?? '').localeCompare(b.service_code ?? ''))
+  }, [departures])
+
+  const selectedRoute = routeOptions.find(r => r.id === form.route_id)
+
+  const timetableOptions = useMemo(() => {
+    const seen = new Map()
+    for (const dep of departures) {
+      const t = dep.timetable
+      if (t && t.route?.id === form.route_id && !seen.has(dep.timetable_id)) seen.set(dep.timetable_id, t)
+    }
+    return [...seen.values()]
+  }, [departures, form.route_id])
+
+  const timetableDeps = departures.filter(d => d.timetable_id === form.timetable_id)
+
+  function handleRouteChange(routeId) {
+    setForm(f => ({ ...f, route_id: routeId, timetable_id: '', timetable_departure_id: '' }))
+  }
+
+  function handleTimetableChange(timetableId) {
+    const deps = departures.filter(d => d.timetable_id === timetableId)
+    setForm(f => ({
+      ...f,
+      timetable_id: timetableId,
+      timetable_departure_id: selectedRoute?.single_journey ? (deps[0]?.id ?? '') : '',
+    }))
   }
 
   return (
@@ -591,15 +628,33 @@ export default function JourneysPage() {
               <input name="journey_date" className="form-input" type="date" value={form.journey_date} onChange={e => setForm(f => ({ ...f, journey_date: e.target.value }))} required />
             </div>
             <div className="form-group">
-              <label className="form-label">Departure</label>
-              <select name="timetable_departure_id" className="form-select" value={form.timetable_departure_id} onChange={e => setForm(f => ({ ...f, timetable_departure_id: e.target.value }))}>
+              <label className="form-label">Route</label>
+              <select name="route_id" className="form-select" value={form.route_id} onChange={e => handleRouteChange(e.target.value)}>
                 <option value="">— Select —</option>
-                {departures.map(dep => (
-                  <option key={dep.id} value={dep.id}>
-                    {dep.timetable?.route?.service_code} {dep.timetable?.name} {dep.timetable?.direction} @ {dep.departure_time?.slice(0, 5)}
-                  </option>
+                {routeOptions.map(r => <option key={r.id} value={r.id}>{r.service_code}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Run</label>
+              <select name="timetable_id" className="form-select" value={form.timetable_id} onChange={e => handleTimetableChange(e.target.value)} disabled={!form.route_id}>
+                <option value="">— Select —</option>
+                {timetableOptions.map(t => (
+                  <option key={t.id} value={t.id}>{t.name} {t.direction}</option>
                 ))}
               </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Departure Time</label>
+              {selectedRoute?.single_journey ? (
+                <input className="form-input" value={timetableDeps[0]?.departure_time?.slice(0, 5) ?? '—'} disabled readOnly />
+              ) : (
+                <select name="timetable_departure_id" className="form-select" value={form.timetable_departure_id} onChange={e => setForm(f => ({ ...f, timetable_departure_id: e.target.value }))} disabled={!form.timetable_id}>
+                  <option value="">— Select —</option>
+                  {timetableDeps.map(dep => (
+                    <option key={dep.id} value={dep.id}>{dep.departure_time?.slice(0, 5)}</option>
+                  ))}
+                </select>
+              )}
             </div>
             <div className="form-group">
               <label className="form-label">Driver <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
