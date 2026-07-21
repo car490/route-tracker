@@ -5,7 +5,7 @@ import Modal from '../../shared/components/Modal'
 import { useJourneyTypes } from '../../shared/hooks/useJourneyTypes'
 import RouteWizard from '../route-planner/RouteWizard'
 
-const ROUTE_EMPTY = { service_code: '', name: '', journey_type: [] }
+const ROUTE_EMPTY = { service_code: '', name: '', journey_type: [], single_journey: false }
 
 function TimetableStopCount({ timetableId }) {
   const [count, setCount] = useState('…')
@@ -62,7 +62,12 @@ export default function RoutesPage() {
     e.preventDefault()
     setSaving(true); setError('')
     const { error: err } = await supabase.from('routes')
-      .update({ service_code: routeForm.service_code, name: routeForm.name || null, journey_type: routeForm.journey_type })
+      .update({
+        service_code:   routeForm.service_code,
+        name:           routeForm.name || null,
+        journey_type:   routeForm.journey_type,
+        single_journey: routeForm.single_journey,
+      })
       .eq('id', routeModal.id)
     setSaving(false)
     if (err) { setError(err.message); return }
@@ -135,7 +140,12 @@ export default function RoutesPage() {
                         <button
                           className="btn btn-ghost btn-sm"
                           onClick={() => {
-                            setRouteForm({ service_code: r.service_code, name: r.name ?? '', journey_type: Array.isArray(r.journey_type) ? r.journey_type : [r.journey_type].filter(Boolean) })
+                            setRouteForm({
+                              service_code:   r.service_code,
+                              name:           r.name ?? '',
+                              journey_type:   Array.isArray(r.journey_type) ? r.journey_type : [r.journey_type].filter(Boolean),
+                              single_journey: r.single_journey ?? false,
+                            })
                             setError(''); setRouteModal(r)
                           }}
                         >
@@ -254,6 +264,16 @@ export default function RoutesPage() {
                 onChange={e => setRouteForm(f => ({ ...f, name: e.target.value }))}
                 placeholder="e.g. Sleaford – Cranwell"
               />
+            </div>
+            <div className="form-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={routeForm.single_journey}
+                  onChange={e => setRouteForm(f => ({ ...f, single_journey: e.target.checked }))}
+                />
+                <span style={{ fontSize: 12, color: 'var(--text)' }}>One journey each way</span>
+              </label>
             </div>
             <div className="form-group">
               <label className="form-label">Journey Types</label>
