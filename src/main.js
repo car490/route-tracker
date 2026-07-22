@@ -3,62 +3,14 @@ import { updateUi, renderLog, setOnStopJump } from './ui.js';
 import { initMap, updateMapPosition, invalidateSize } from './map.js';
 import { log, getEntries } from './logger.js';
 import { initDirections, syncCurrentStop, updateDirections } from './directions.js';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
 import {
   setAnnouncementsEnabled, onAnnouncementChange, announceJourneyStart,
   announceNextStop, isMuted, setMuted,
 } from './announcements.js';
+import { sbFetch, rpc, fetchStopsForDeparture } from './supabaseApi.js';
 
-const DRIVER_TOKEN  = new URLSearchParams(window.location.search).get('token');
-const DEPOT         = { name: 'Phil Haines Coaches Depot', lat: 52.950412, lon: -0.050110 };
-const DEBUG         = new URLSearchParams(window.location.search).has('debug');
-
-// ── Supabase helpers ──────────────────────────────────────────────────────────
-
-async function sbFetch(path, opts = {}) {
-  return fetch(`${SUPABASE_URL}${path}`, {
-    ...opts,
-    headers: {
-      'apikey':        SUPABASE_KEY,
-      'Authorization': `Bearer ${DRIVER_TOKEN || SUPABASE_KEY}`,
-      'Content-Type':  'application/json',
-      ...(opts.headers ?? {}),
-    },
-  });
-}
-
-async function rpc(fn, args) {
-  const res = await sbFetch(`/rest/v1/rpc/${fn}`, {
-    method: 'POST',
-    body: JSON.stringify(args),
-  });
-  if (!res.ok) throw new Error(`RPC ${fn}: ${res.status}`);
-  return res.json();
-}
-
-// ── Schedule fetching ─────────────────────────────────────────────────────────
-
-async function fetchStopsForDeparture(departureId) {
-  const res = await sbFetch(
-    `/rest/v1/schedule_view` +
-    `?departure_id=eq.${departureId}` +
-    `&select=timetable_stop_id,stop_type,scheduled_time,display_name,lat,lon,sequence,psvair_in_scope` +
-    `&order=sequence`
-  );
-  if (!res.ok) throw new Error(res.status);
-  const rows = await res.json();
-  return {
-    stops: rows.map(r => ({
-      name: r.display_name,
-      lat: r.lat,
-      lon: r.lon,
-      time: r.scheduled_time.substring(0, 5),
-      stop_type: r.stop_type,
-      timetable_stop_id: r.timetable_stop_id,
-    })),
-    psvairInScope: rows[0]?.psvair_in_scope ?? false,
-  };
-}
+const DEPOT = { name: 'Phil Haines Coaches Depot', lat: 52.950412, lon: -0.050110 };
+const DEBUG = new URLSearchParams(window.location.search).has('debug');
 
 // ── Stop time upload ──────────────────────────────────────────────────────────
 

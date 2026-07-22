@@ -851,6 +851,83 @@ $$;
 
 grant execute on function complete_journey(uuid) to anon;
 
+-- Called by the driver PWA (anon) for the manual service-selection fallback
+-- (no active duty card): gets or creates today's journey row for a chosen
+-- timetable_departure_id. company_id is always derived server-side from
+-- the departure -> timetable -> route chain, never client-supplied.
+-- psvair_in_scope is deliberately not computed/returned here — the caller
+-- sources that from schedule_view via fetchStopsForDeparture(), same as
+-- the duty-card path, so it's derived in exactly one place.
+create or replace function get_or_create_manual_journey(
+  p_timetable_departure_id uuid,
+  p_journey_date date default current_date
+)
+returns table (journey_id uuid)
+language plpgsql
+security definer
+as $$
+declare
+  v_company_id uuid;
+  v_valid boolean;
+  v_journey_id uuid;
+begin
+  select
+    r.company_id,
+    (
+      (
+        extract(isodow from p_journey_date)::int = any(td.days_of_week)
+        and not exists (
+          select 1 from service_exceptions se
+          where se.timetable_departure_id = td.id
+            and se.exception_date = p_journey_date
+            and se.exception_type = 'removed'
+        )
+      )
+      or exists (
+        select 1 from service_exceptions se
+        where se.timetable_departure_id = td.id
+          and se.exception_date = p_journey_date
+          and se.exception_type = 'added'
+      )
+    )
+    and (td.valid_from is null or p_journey_date >= td.valid_from)
+    and (td.valid_to is null or p_journey_date <= td.valid_to)
+  into v_company_id, v_valid
+  from timetable_departures td
+  join timetables t on t.id = td.timetable_id
+  join routes r on r.id = t.route_id
+  where td.id = p_timetable_departure_id;
+
+  if v_company_id is null then
+    raise exception 'timetable_departure_id % not found', p_timetable_departure_id;
+  end if;
+
+  if not v_valid then
+    raise exception 'service does not run on %', p_journey_date;
+  end if;
+
+  insert into journeys (company_id, timetable_departure_id, journey_date, status)
+  values (v_company_id, p_timetable_departure_id, p_journey_date, 'scheduled')
+  on conflict (timetable_departure_id, journey_date)
+    where status != 'cancelled' and timetable_departure_id is not null
+  do nothing
+  returning id into v_journey_id;
+
+  if v_journey_id is null then
+    select id into v_journey_id
+    from journeys
+    where timetable_departure_id = p_timetable_departure_id
+      and journey_date = p_journey_date
+      and status != 'cancelled'
+    limit 1;
+  end if;
+
+  return query select v_journey_id;
+end;
+$$;
+
+grant execute on function get_or_create_manual_journey(uuid, date) to anon;
+
 DROP FUNCTION IF EXISTS public.get_duty_card(uuid[]);
 
 CREATE OR REPLACE FUNCTION public.get_duty_card(journey_ids uuid[])
