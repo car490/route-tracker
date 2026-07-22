@@ -5,6 +5,39 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [1.3.0] - 2026-07-22
+
+### Added
+- PSV(A)R 2026 compliance: live audio/visual next-stop announcements (current stop +
+  next stop, proper terminus message), driver-triggered diversion alerts wired into
+  both the driver PWA and the onboard sign, and fixed-volume audio config calibration
+  per vehicle.
+- BusHub.NextStop onboard passenger sign redesigned as a fixed landscape e-paper-themed
+  display, with the CoachMate/BusHub wordmark, a Raspberry Pi + Fire HD deployment
+  backend, and a demo mode that drives it alongside the PWA.
+- Route Detail Modal — clicking a route now opens a centred modal with the route
+  summary, timetable list, and a per-timetable departures accordion, instead of a card
+  that could render off-screen for routes further down the list.
+- Sidebar background changed to slate grey.
+
+### Fixed
+- Timetable stop-time offsets now anchor to the timetable itself rather than a
+  departure record, fixing a silent time-shift bug when departures were edited.
+- Race condition that could show the wrong timetable's departures after switching.
+- Add Departure silently failing to save when Valid From was left blank.
+- A route's single_journey flag can now be edited after creation, and its departure
+  time is correctly preset/locked in the Add Journey modal for single-journey routes.
+- Several dashboard contrast issues (--text-muted, sidebar text opacity) raised to
+  meet WCAG AA; onboard/driver PWA brand mark visibility and overlap fixes.
+- NaPTAN parenthetical indicators no longer read aloud in spoken stop announcements.
+- Driver-link Copy Link used the production URL even in dev; demo-drive.mjs navigation
+  could abort silently with no visible error; onboard.html header squeezed unreadable
+  by long service-period text.
+
+### Changed
+- Test infra: CI, dashboard lint, and Vitest wired up; dead standalone-picker code path
+  removed.
+
 ## [1.2.0] - 2026-07-09
 
 ### Added
