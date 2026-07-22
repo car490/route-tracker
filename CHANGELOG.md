@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [1.4.0] - 2026-07-22
+
+- feat: manual service selection fallback for no-active-duty dead-end
+
 ## [1.3.0] - 2026-07-22
 
 ### Added
