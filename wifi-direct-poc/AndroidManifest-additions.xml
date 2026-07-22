@@ -1,0 +1,25 @@
+<!--
+  Add these lines inside <manifest>, above <application>, in the AndroidManifest.xml
+  that Android Studio generated for you. Don't replace the whole file — the
+  <application>/<activity> block the wizard already created (theme, icon, launcher
+  intent-filter) is fine as-is.
+-->
+
+<uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+<uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+<uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+<uses-permission android:name="android.permission.INTERNET" />
+
+<!-- Pre-Android 13 discovery still requires fine location, even though this app
+     never actually uses location data — that's an Android platform requirement
+     for WiFi Direct peer discovery, not a choice this app makes. -->
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="32" />
+
+<!-- Android 13+ replaces the location requirement with this narrower permission. -->
+<uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
+    android:usesPermissionFlags="neverForLocation" />
+
+<!-- required="false" is deliberate: we WANT this to install even on hardware that
+     might lack the feature, since finding out whether it works IS the test. -->
+<uses-feature android:name="android.hardware.wifi.direct" android:required="false" />
