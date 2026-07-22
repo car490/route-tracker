@@ -4,111 +4,65 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="theme-color" content="#242F35" />
+    <meta name="theme-color" content="#ECEAE2" />
     <title>CoachMate Onboard Display</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="onboard.css" />
   </head>
   <body>
 
     <!--
-      Standalone onboard route/announcement display — deliberately silo'd
-      from the driver PWA (index.html/main.js). No duty card, no journey_id,
-      no incident reporting, no stop-time upload: this never writes to
-      Supabase, it only reads schedule_view and announces live. Meant for a
-      vehicle-mounted tablet in kiosk mode, picked by service/run instead of
-      a driver-token duty-card link.
+      Fixed passenger-facing sign — vehicle-mounted landscape tablet (Fire HD
+      10, ~1920x1200), no touch interaction expected. Deliberately silo'd
+      from the driver PWA (index.html/main.js): no login, no duty card, no
+      incident reporting, no stop-time upload — reads schedule_view only.
+
+      No manual intervention: this device is configured (via ?journey=<id>
+      in the URL, or a Pi-side equivalent) to watch one specific journey.
+      It sits on a blank grey screen until that journey's status flips to
+      in_progress (i.e. the driver hits Start on their own phone), then
+      wakes on its own — see src/onboard.js's poll loop.
+
+      Styled as an e-paper sign (onboard.css): mostly monochrome and
+      motion-free, hard corners — not just a different colour scheme from
+      the driver PWA. Two deliberate exceptions: the brand mark keeps its
+      real colours, and the tube-track dot pulses green on a confirmed
+      stop arrival. See onboard.css for why.
     -->
 
-    <div id="picker">
-      <div class="picker-title">
-        <div class="picker-brand">Phil Haines Coaches</div>
-        <div class="picker-subtitle">Onboard Display</div>
-      </div>
-      <button id="refresh-btn" style="width:100%;margin-bottom:12px;padding:10px;background:transparent;color:var(--text-muted);font-family:inherit;font-size:0.85rem;border:1px solid var(--border);border-radius:8px;cursor:pointer;">&#8635; Refresh routes</button>
-      <div class="picker-field">
-        <label for="service-select">Service</label>
-        <div class="select-wrap">
-          <select id="service-select"></select>
-        </div>
-      </div>
-      <div class="picker-field">
-        <label for="run-select">Run</label>
-        <div class="select-wrap">
-          <select id="run-select"></select>
-        </div>
-      </div>
-      <div class="picker-field">
-        <label for="stop-select">Starting stop</label>
-        <div class="select-wrap">
-          <select id="stop-select"></select>
-        </div>
-      </div>
-      <button id="start-btn">Start</button>
-    </div>
-
-    <div id="tracker" hidden>
-    <div id="psvair-banner" hidden>
-      <span id="psvair-text" aria-live="assertive"></span>
-      <button id="psvair-mute-btn" type="button" aria-label="Mute announcements">&#128266;</button>
-    </div>
-    <div id="early-wait-banner" hidden>
-      <div class="ewb-title">WAIT HERE</div>
-      <div class="ewb-msg">Running early — depart at <span id="ewb-time"></span></div>
-    </div>
-    <div id="route-header">
-      <div id="header-service">
-        <span id="header-service-code"></span>
-        <span id="header-service-period"></span>
-      </div>
-      <div id="route-lines">
-        <span id="header-line1"></span>
-        <span id="header-line2"></span>
-        <span id="header-line3"></span>
-      </div>
-    </div>
-    <div id="status-card">
-      <div id="status-label">INITIALISING</div>
-      <div id="next-stop">—</div>
-
-      <div class="time-row">
-        <div class="time-group">
-          <span class="time-label">Scheduled</span>
-          <span class="time-value" id="sched-time">--:--</span>
-        </div>
-        <div class="time-group">
-          <span class="time-label">ETA</span>
-          <span class="time-value" id="eta-time">--:--</span>
-        </div>
-        <span id="delta">—</span>
-      </div>
-
-      <div class="metrics-row">
-        <div class="metric">
-          <span class="metric-label">Distance</span>
-          <span class="metric-value" id="distance">—</span>
-        </div>
-        <div class="metric">
-          <span class="metric-label">Speed</span>
-          <span class="metric-value" id="speed">—</span>
-        </div>
+    <div id="onboard-brand">
+      <div class="bh-wordmark">BUSHUB<span class="bh-app">.NextStop</span></div>
+      <div class="cm-attribution">
+        <span class="cm-powered-by">Powered by</span>
+        <span class="cm-wordmark"><span class="cm-coach">COACH</span><span class="cm-mate">Mate</span></span>
       </div>
     </div>
 
-    <div class="progress-section">
-      <div class="stop-labels">
-        <span class="stop-label-prefix">Next Stop :</span>
-        <span id="next-stop-label">—</span>
+    <div id="onboard-sign" hidden>
+      <div id="sign-topbar">
+        <span id="sign-service-code"></span>
+        <span id="sign-destination"></span>
       </div>
-      <div class="progress-track">
-        <div id="progress-fill"></div>
-      </div>
-    </div>
 
-    <div id="stop-list"></div>
-    <button id="btn-end" style="width:100%;margin-top:8px;padding:14px;background:transparent;color:var(--text-muted);font-family:inherit;font-size:0.9rem;font-weight:600;border:1px solid var(--border);border-radius:8px;cursor:pointer;">End Display</button>
+      <div id="early-wait-banner" hidden>
+        <div class="ewb-title">WAIT HERE</div>
+        <div class="ewb-msg">Running early — depart at <span id="ewb-time"></span></div>
+      </div>
+
+      <div id="sign-hero">
+        <div class="sign-hero-row">
+          <span class="sign-hero-label">This stop is</span>
+          <span id="sign-current-stop" class="sign-hero-value">&mdash;</span>
+        </div>
+        <div class="sign-hero-row">
+          <span class="sign-hero-label">The next stop will be</span>
+          <span id="sign-next-stop" class="sign-hero-value">&mdash;</span>
+        </div>
+      </div>
+
+      <div id="tube-track"></div>
     </div>
 
     <script type="module" src="src/onboard.js"></script>

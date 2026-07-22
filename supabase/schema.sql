@@ -933,6 +933,8 @@ DROP FUNCTION IF EXISTS public.get_duty_card(uuid[]);
 CREATE OR REPLACE FUNCTION public.get_duty_card(journey_ids uuid[])
  RETURNS TABLE(
    journey_id             uuid,
+   driver_id              uuid,
+   vehicle_id             uuid,
    status                 text,
    started_at             timestamp with time zone,
    completed_at           timestamp with time zone,
@@ -952,6 +954,8 @@ CREATE OR REPLACE FUNCTION public.get_duty_card(journey_ids uuid[])
 AS $function$
   select
     j.id,
+    j.driver_id,
+    j.vehicle_id,
     j.status,
     j.started_at,
     j.completed_at,
@@ -1028,6 +1032,157 @@ as $$
 $$;
 
 grant execute on function naptan_near_point(float8, float8, float8) to anon, authenticated;
+
+
+-- ── Vehicle audio config ──────────────────────────────────────────────────────
+-- Slice 1 (PSV(A)R Fixed-Volume Audio Config): one-off pre-measured ambient
+-- reading per vehicle, used to derive a fixed TTS announcement level.
+-- Append-only — a new reading is a new row, never an overwrite.
+
+create table if not exists public.vehicle_audio_config (
+  id                  uuid primary key default gen_random_uuid(),
+  vehicle_id          uuid not null references public.vehicles(id),
+  ambient_reading_db  numeric not null,
+  fixed_output_level  numeric not null,
+  measured_at         timestamptz not null,
+  measured_by         uuid not null references public.employees(id),
+  notes               text,
+  created_at          timestamptz not null default now()
+);
+
+grant select on public.vehicle_audio_config to anon;
+grant all    on public.vehicle_audio_config to authenticated;
+
+alter table public.vehicle_audio_config enable row level security;
+
+-- Any authenticated employee can view full calibration history/notes.
+-- Not granted to anon — see get_audio_config_for_vehicle() below for the
+-- Driver PWA's narrow anon-safe read path.
+create policy "vehicle_audio_config_select_authenticated"
+  on public.vehicle_audio_config
+  for select
+  to authenticated
+  using (true);
+
+create policy "vehicle_audio_config_insert"
+  on public.vehicle_audio_config
+  for insert
+  to authenticated
+  with check (current_employee_role() in ('super_user', 'ops_manager'));
+
+-- Anon-safe read for the Driver PWA: only vehicle_id/level/timestamp, never
+-- notes or measured_by. security definer so it can read past the RLS policy
+-- above, same pattern as is_journey_in_progress().
+create or replace function public.get_audio_config_for_vehicle(p_vehicle_id uuid)
+returns table (
+  vehicle_id          uuid,
+  fixed_output_level  numeric,
+  measured_at         timestamptz
+)
+language sql stable security definer
+as $$
+  select vehicle_id, fixed_output_level, measured_at
+  from public.vehicle_audio_config
+  where vehicle_id = p_vehicle_id
+  order by measured_at desc
+$$;
+
+grant execute on function public.get_audio_config_for_vehicle(uuid) to anon;
+
+
+-- ── Diversion alert events ─────────────────────────────────────────────────────
+-- Slice 2 (PSV(A)R Driver-Triggered Diversion Alert): append-only log of a
+-- driver pressing/clearing the on-board diversion button. No free-text path —
+-- the announcement itself is a fixed string in the app (announceDiversion()),
+-- this table only records who/when.
+--
+-- Identity: drivers have no dashboard login (see the employees comment
+-- above), so unlike vehicle_audio_config this is written by the anon-key
+-- Driver PWA using the signed duty-token's driver_id claim — the same claim
+-- get_duty_card() embeds and is_jwt_journey_allowed() already reads for
+-- journey_events/journey_stop_times.
+
+create table if not exists public.diversion_alert_event (
+  id           uuid primary key default gen_random_uuid(),
+  journey_id   uuid not null references public.journeys(id),
+  vehicle_id   uuid not null references public.vehicles(id),
+  driver_id    uuid not null references public.employees(id),
+  triggered_at timestamptz not null default now(),
+  cleared_at   timestamptz
+);
+
+create index on public.diversion_alert_event (journey_id);
+create index on public.diversion_alert_event (driver_id);
+
+grant select on public.diversion_alert_event to anon;
+grant insert on public.diversion_alert_event to anon;
+grant update on public.diversion_alert_event to anon;
+grant all    on public.diversion_alert_event to authenticated;
+
+alter table public.diversion_alert_event enable row level security;
+
+-- Read: any authenticated employee (ops/compliance visibility), scoped to
+-- their own company via journey_id — same pattern as journey_events'
+-- "company_all" policy.
+create policy "diversion_alert_event_company_select"
+  on public.diversion_alert_event
+  for select
+  to authenticated
+  using (
+    journey_id in (select id from public.journeys where company_id = current_company_id())
+  );
+
+-- Anon (driver): may see only their own alerts. Needed so the UPDATE below
+-- can locate its row (Postgres requires SELECT on columns referenced in an
+-- UPDATE's WHERE clause) — not a general read grant, RLS still confines it
+-- to rows this driver owns.
+create policy "diversion_alert_event_anon_select_own"
+  on public.diversion_alert_event
+  for select
+  to anon
+  using (driver_id = (auth.jwt() ->> 'driver_id')::uuid);
+
+-- Insert: driver can only create an alert for THEIR OWN driver_id — taken
+-- from the signed duty token's driver_id claim, never client input — and
+-- only while the journey is actually running. This ownership check is the
+-- main security property of this table: a driver cannot remotely trigger
+-- another vehicle's alert.
+create policy "diversion_alert_event_anon_insert"
+  on public.diversion_alert_event
+  for insert
+  to anon
+  with check (
+    driver_id = (auth.jwt() ->> 'driver_id')::uuid
+    and is_journey_in_progress(journey_id)
+    and is_jwt_journey_allowed(journey_id)
+  );
+
+-- Update (for cleared_at): same ownership rule — only the triggering driver
+-- can clear their own alert.
+create policy "diversion_alert_event_anon_clear_own"
+  on public.diversion_alert_event
+  for update
+  to anon
+  using (driver_id = (auth.jwt() ->> 'driver_id')::uuid)
+  with check (driver_id = (auth.jwt() ->> 'driver_id')::uuid);
+
+-- Anon-safe status check for the passenger-facing onboard sign (onboard.js):
+-- it watches a journey via a plain ?journey=<id> URL, with no duty-token
+-- driver_id claim, so it can't use the ownership-scoped select policy above.
+-- A boolean existence check leaks nothing about who triggered it — same
+-- narrow-RPC pattern as get_audio_config_for_vehicle() and
+-- is_journey_in_progress().
+create or replace function public.is_diversion_active(p_journey_id uuid)
+returns boolean
+language sql stable security definer
+as $$
+  select exists (
+    select 1 from public.diversion_alert_event
+    where journey_id = p_journey_id and cleared_at is null
+  )
+$$;
+
+grant execute on function public.is_diversion_active(uuid) to anon;
 
 
 -- ── Views ─────────────────────────────────────────────────────────────────────

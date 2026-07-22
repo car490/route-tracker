@@ -25,10 +25,19 @@ export function onAnnouncementChange(fn) {
   onAnnounce = fn;
 }
 
+// NaPTAN stop names carry parenthetical indicators — "(opp)", "(adj)",
+// "(o/s)", "(NW-bound)" etc. — useful for visually telling apart stops on
+// either side of a road, but read awkwardly aloud by text-to-speech. Strip
+// them for speech only; the on-screen text (onAnnounce below) keeps the
+// full name.
+function stripSpeechAnnotations(text) {
+  return text.replace(/\s*\([^)]*\)/g, '');
+}
+
 function speak(text) {
   if (isMuted() || !('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
+  const utterance = new SpeechSynthesisUtterance(stripSpeechAnnotations(text));
   utterance.lang = 'en-GB';
   window.speechSynthesis.speak(utterance);
 }
@@ -43,8 +52,15 @@ export function announceJourneyStart({ serviceCode, destination }) {
   announce(`This is the ${serviceCode} service to ${destination}.`);
 }
 
-export function announceNextStop({ stopName, isFinal }) {
+export function announceAtStop({ stopName, nextStopName, isFinal }) {
   announce(isFinal
-    ? `The next stop is the final stop, ${stopName}.`
-    : `The next stop is ${stopName}.`);
+    ? `This is ${stopName}. This bus terminates here, all change please.`
+    : `This stop is ${stopName}. The next stop is ${nextStopName}.`);
+}
+
+// Fixed string only — takes no parameters, deliberately, so the "diversion
+// announcements can never carry dynamic/free-text content" property is
+// enforced at this TTS gateway itself, not just by callers behaving.
+export function announceDiversion() {
+  announce('This bus is on diversion');
 }

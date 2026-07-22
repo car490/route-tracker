@@ -1,0 +1,307 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+/* ── E-paper passenger sign ───────────────────────────────────────────────
+   Fixed vehicle-mounted landscape display (Fire HD 10, ~1920x1200 / 16:10).
+   Mostly monochrome and motion-free: no gradients, no shadows, hard
+   corners, status normally carried by text and border weight rather than
+   colour. Two deliberate exceptions to that rule: the brand mark keeps its
+   real CoachMate colours (this is an LCD tablet, not actual e-ink hardware
+   — the monochrome look is aesthetic, not a hardware limit), and the
+   tube-track dot for a stop the vehicle has actually arrived at (confirmed
+   by the geofence, not just estimated) pulses green so it reads at a
+   glance from across the vehicle.
+   Sized with vw/vh so the same layout scales to the real device and to a
+   browser window of a similar aspect ratio. */
+
+:root {
+  --ep-font:      'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --ep-mono:      ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+
+  --ep-bg:        #ECEAE2;
+  --ep-ink:       #1A1A18;
+  --ep-ink-soft:  #5A5850;
+  --ep-line:      #1A1A18;
+
+  --ep-slate:     #475569;
+  --ep-teal:      #00B4D8;
+  --ep-at-stop:   #10B981;
+  --ep-late:      #EF4444;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+[hidden] { display: none !important; }
+
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden; /* fixed kiosk display, nothing to scroll */
+}
+
+html { background: var(--ep-bg); }
+
+body {
+  background: var(--ep-bg);
+  color: var(--ep-ink);
+  font-family: var(--ep-font);
+  position: relative;
+}
+
+/* ── Brand mark — always present, idle screen or active ─────────────────
+   At idle this is the ONLY thing on screen, over a blank grey background.
+   App name (BusHub.NextStop — this product, one of several under the
+   BusHub suite) over a smaller CoachMate attribution (the platform all
+   BusHub products run on), in real brand colours rather than greyscale. */
+
+#onboard-brand {
+  position: fixed;
+  left: 2rem;
+  bottom: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4vh;
+  pointer-events: none;
+}
+
+.bh-wordmark {
+  font-family: var(--ep-font);
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--ep-ink);
+}
+
+.bh-app {
+  color: var(--ep-late);
+}
+
+.cm-attribution {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.cm-powered-by {
+  font-family: var(--ep-font);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ep-ink-soft);
+}
+
+.cm-wordmark {
+  font-family: var(--ep-font);
+  font-size: 0.9rem;
+  letter-spacing: -0.02em;
+}
+
+.cm-coach {
+  font-weight: 800;
+  color: var(--ep-slate);
+}
+
+.cm-mate {
+  font-weight: 400;
+  color: var(--ep-teal);
+}
+
+/* ── Sign layout ──────────────────────────────────────────────────────── */
+
+#onboard-sign {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  padding: 4vh 4vw 11vh;
+  gap: 2.5vh;
+}
+
+#sign-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2vw;
+  border-bottom: 4px solid var(--ep-line);
+  padding-bottom: 2vh;
+  flex-shrink: 0;
+}
+
+#sign-service-code {
+  font-family: var(--ep-mono);
+  font-size: 5.5vh;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  border: 4px solid var(--ep-line);
+  padding: 0.5vh 1.5vw;
+  line-height: 1.1;
+  flex-shrink: 0;
+}
+
+#sign-destination {
+  font-family: var(--ep-font);
+  font-size: 3.2vh;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#sign-destination::before {
+  content: '\2192\00A0'; /* → */
+}
+
+/* ── Early wait banner — no flashing; e-paper doesn't animate ───────────── */
+
+#early-wait-banner {
+  background: transparent;
+  color: var(--ep-ink);
+  text-align: center;
+  padding: 1.5vh 1rem;
+  border: 3px dashed var(--ep-line);
+  flex-shrink: 0;
+}
+
+.ewb-title {
+  font-family: var(--ep-font);
+  font-size: 3vh;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.ewb-msg {
+  font-family: var(--ep-font);
+  font-size: 2vh;
+  font-weight: 400;
+  margin-top: 0.4vh;
+  color: var(--ep-ink-soft);
+}
+
+/* ── Hero — the dominant, glance-from-across-the-vehicle content ────────── */
+
+#sign-hero {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4vh;
+  min-height: 0;
+}
+
+.sign-hero-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8vh;
+}
+
+.sign-hero-label {
+  font-family: var(--ep-font);
+  font-size: 2.4vh;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ep-ink-soft);
+}
+
+.sign-hero-value {
+  font-family: var(--ep-font);
+  font-weight: 800;
+  line-height: 1.05;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#sign-current-stop { font-size: 8vh; }
+#sign-next-stop     { font-size: 5.5vh; color: var(--ep-ink-soft); }
+
+/* ── Tube-map style progress line ─────────────────────────────────────── */
+
+#tube-track {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  height: 15vh;
+  padding: 0 1vw;
+  flex-shrink: 0;
+}
+
+#tube-track::before {
+  content: '';
+  position: absolute;
+  left: calc(1vw + 8%);
+  right: calc(1vw + 8%);
+  top: 1.7vh;
+  height: 5px;
+  background: var(--ep-line);
+}
+
+.tube-node {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.2vh;
+  flex: 1;
+  min-width: 0;
+}
+
+.tube-dot {
+  width: 2.8vh;
+  height: 2.8vh;
+  border-radius: 50%;
+  background: var(--ep-ink);
+  border: 4px solid var(--ep-ink);
+  z-index: 1;
+}
+
+.tube-node.tube-future .tube-dot {
+  background: var(--ep-bg);
+}
+
+.tube-node.tube-current .tube-dot {
+  width: 4.2vh;
+  height: 4.2vh;
+  background: var(--ep-bg);
+  border-width: 6px;
+}
+
+.tube-label {
+  font-family: var(--ep-font);
+  font-size: 1.8vh;
+  font-weight: 600;
+  text-align: center;
+  max-width: 17vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ep-ink-soft);
+}
+
+.tube-node.tube-current .tube-label {
+  font-weight: 800;
+  color: var(--ep-ink);
+}
+
+/* Confirmed arrival (geofence match), not just an estimated position —
+   pulses green so it reads at a glance. Only motion on this screen. */
+.tube-node.tube-current.tube-at-stop .tube-dot {
+  background: var(--ep-at-stop);
+  border-color: var(--ep-at-stop);
+  animation: tube-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes tube-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}

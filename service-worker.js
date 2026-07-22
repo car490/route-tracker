@@ -1,10 +1,11 @@
-const CACHE_NAME = 'route-tracker-v1.2.0';
+const CACHE_NAME = 'route-tracker-v1.3.0';
 
 const STATIC_ASSETS = [
   './',
   './index.html',
   './onboard.html',
   './style.css',
+  './onboard.css',
   './manifest.json',
   // CoachMate brand assets — always cached so the brand renders offline
   './icons/icon-192.png',

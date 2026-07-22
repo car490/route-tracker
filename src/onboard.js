@@ -1,47 +1,61 @@
-// Standalone onboard route/announcement display. Siloed from main.js on
-// purpose: no journey_id, no duty card, no incident reporting, no writes
-// to Supabase at all — reads schedule_view, tracks GPS, announces live.
+// Fixed passenger-facing onboard sign. Deliberately siloed from main.js —
+// no login, no duty card UI, no incident reporting, no stop-time upload,
+// no writes to Supabase at all. It only reads schedule_view/get_duty_card
+// and tracks GPS live.
+//
+// No manual intervention: this device is told which single journey to
+// watch via ?journey=<id> in the URL (a Pi-side deployment would inject
+// this the same way it already injects a fixed departure into
+// sync-schedule.mjs). It sits on a blank screen, polling get_duty_card
+// for that journey_id, until status flips to in_progress — i.e. the
+// moment the driver hits Start on their own phone — then wakes on its
+// own and starts showing/announcing stops.
 import { startGpsTracking } from './gps.js';
-import { updateUi } from './ui.js';
 import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
-import {
-  setAnnouncementsEnabled, onAnnouncementChange, announceJourneyStart,
-  announceNextStop, isMuted, setMuted,
-} from './announcements.js';
+import { setAnnouncementsEnabled, announceJourneyStart, announceDiversion } from './announcements.js';
+import { announceStopEvent } from './announceStopEvent.js';
 
 const DEPOT = { name: 'Phil Haines Coaches Depot', lat: 52.950412, lon: -0.050110 };
+const WATCH_JOURNEY_ID = new URLSearchParams(window.location.search).get('journey');
+const POLL_INTERVAL_MS = 5000;
+
 const el = (id) => document.getElementById(id);
 
-// Set once fetchSchedule() resolves — true when this page is being served by
-// a Pi's local pi-server (not GitHub Pages / the plain dev server.js), so we
-// also poll its /api/position bridge instead of navigator.geolocation.
+// Set once a schedule fetch resolves — true when this page is being served
+// by a Pi's local pi-server (not GitHub Pages / the plain dev server.js),
+// so GPS is also read from its /api/position bridge instead of
+// navigator.geolocation.
 let usingLocalApi = false;
 
-function groupScheduleRows(rows) {
-  const schedule = {};
-  for (const { service_code, timetable_name, direction, departure_id, departure_time, display_name, lat, lon, scheduled_time, stop_type, timetable_stop_id, psvair_in_scope } of rows) {
-    if (!schedule[service_code]) schedule[service_code] = {};
-    if (!schedule[service_code][departure_id]) {
-      const deptStr = departure_time ? departure_time.substring(0, 5) : '';
-      schedule[service_code][departure_id] = {
-        service: service_code,
-        label: `${timetable_name} ${direction} ${deptStr}`,
-        psvairInScope: psvair_in_scope,
-        stops: [],
-      };
-    }
-    schedule[service_code][departure_id].stops.push({
-      name: display_name, lat, lon, time: scheduled_time.substring(0, 5), stop_type, timetable_stop_id,
-    });
-  }
-  return schedule;
+async function rpc(fn, args) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: 'POST',
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(args),
+  });
+  if (!res.ok) throw new Error(`RPC ${fn}: ${res.status}`);
+  return res.json();
 }
 
-const SCHEDULE_QUERY =
-  '?select=timetable_stop_id,stop_type,scheduled_time,display_name,lat,lon,service_code,timetable_name,direction,departure_id,departure_time,sequence,psvair_in_scope' +
-  '&order=service_code,departure_time,sequence';
+function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
-async function fetchSchedule() {
+// ── Wait for the driver to start this journey ──────────────────────────────
+
+async function waitForJourneyStart(journeyId) {
+  for (;;) {
+    try {
+      const [duty] = await rpc('get_duty_card', { journey_ids: [journeyId] });
+      if (duty && duty.status === 'in_progress') return duty;
+    } catch (err) {
+      console.error('get_duty_card poll failed:', err);
+    }
+    await sleep(POLL_INTERVAL_MS);
+  }
+}
+
+// ── Stops for the watched journey's departure ──────────────────────────────
+
+async function fetchStops(departureId) {
   // Try a Pi's local pi-server first (relative URL — only present when this
   // page is actually being served by one; 404s harmlessly on GitHub Pages
   // or the plain dev server.js, which don't have an /api/* route at all).
@@ -49,16 +63,27 @@ async function fetchSchedule() {
     const res = await fetch('/api/schedule');
     if (res.ok) {
       usingLocalApi = true;
-      return groupScheduleRows(await res.json());
+      const rows = (await res.json()).filter((r) => r.departure_id === departureId);
+      return rowsToStops(rows);
     }
   } catch (_) { /* no local server reachable — fall through to Supabase */ }
 
   usingLocalApi = false;
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/schedule_view${SCHEDULE_QUERY}`, {
-    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
-  });
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/schedule_view` +
+    `?departure_id=eq.${departureId}` +
+    `&select=timetable_stop_id,stop_type,scheduled_time,display_name,lat,lon,sequence` +
+    `&order=sequence`,
+    { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+  );
   if (!res.ok) throw new Error(`schedule_view ${res.status}`);
-  return groupScheduleRows(await res.json());
+  return rowsToStops(await res.json());
+}
+
+function rowsToStops(rows) {
+  return rows
+    .sort((a, b) => a.sequence - b.sequence)
+    .map((r) => ({ name: r.display_name, lat: r.lat, lon: r.lon, time: r.scheduled_time.substring(0, 5), stop_type: r.stop_type }));
 }
 
 // Polls a Pi's local GPS bridge (pi-server/server.mjs's /api/position,
@@ -121,123 +146,120 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && wakeLock === null) acquireWakeLock();
 });
 
-// ── Picker ───────────────────────────────────────────────────────────────
-async function loadPicker() {
-  const schedule = await fetchSchedule();
+// ── Tube-map style progress line ────────────────────────────────────────
+// Shows up to 2 stops back, the current one, and up to 2 ahead — clipped
+// naturally at the ends of the route.
 
-  const serviceSelect = el('service-select');
-  const runSelect      = el('run-select');
-  const stopSelect     = el('stop-select');
+function renderTubeTrack(allStops, centerIndex, isAtStop) {
+  const track = el('tube-track');
+  track.innerHTML = '';
 
-  serviceSelect.innerHTML = '';
-  Object.keys(schedule).forEach((key) => {
-    const opt = document.createElement('option');
-    opt.value = key; opt.textContent = key;
-    serviceSelect.appendChild(opt);
+  const first = 1, last = allStops.length - 2; // real stops only; 0/length-1 are depot padding
+  const indices = [];
+  for (let i = centerIndex - 2; i <= centerIndex + 2; i++) {
+    if (i >= first && i <= last) indices.push(i);
+  }
+
+  indices.forEach((i) => {
+    const state = i < centerIndex ? 'past' : i === centerIndex ? 'current' : 'future';
+    const node = document.createElement('div');
+    node.className = `tube-node tube-${state}`;
+    // "At stop" (geofence-confirmed arrival) gets its own pulsating-green
+    // look, distinct from "current" (an estimated position between stops).
+    if (i === centerIndex && isAtStop) node.classList.add('tube-at-stop');
+    node.innerHTML = `<div class="tube-dot"></div><div class="tube-label">${allStops[i].name}</div>`;
+    track.appendChild(node);
   });
-
-  function buildAllStops() {
-    const { stops } = schedule[serviceSelect.value][runSelect.value];
-    return withDepotStops(stops);
-  }
-
-  function updateRunPicker() {
-    const svcSchedule = schedule[serviceSelect.value] ?? {};
-    runSelect.innerHTML = '';
-    Object.keys(svcSchedule).forEach((key) => {
-      const opt = document.createElement('option');
-      opt.value = key;
-      opt.textContent = svcSchedule[key].label ?? key;
-      runSelect.appendChild(opt);
-    });
-  }
-
-  function updateStopPicker() {
-    const allStops = buildAllStops();
-    stopSelect.innerHTML = '';
-    allStops.forEach((stop, i) => {
-      const opt = document.createElement('option');
-      opt.value = i; opt.textContent = `${stop.time}  ${stop.name}`;
-      stopSelect.appendChild(opt);
-    });
-  }
-
-  serviceSelect.onchange = () => { updateRunPicker(); updateStopPicker(); };
-  runSelect.onchange = updateStopPicker;
-  updateRunPicker();
-  updateStopPicker();
-
-  el('start-btn').onclick = async () => {
-    const allStops = buildAllStops();
-    const initialStopIndex = parseInt(stopSelect.value, 10) || 0;
-    const { service, label, psvairInScope } = schedule[serviceSelect.value][runSelect.value];
-    await acquireWakeLock();
-    runDisplay({ allStops, initialStopIndex, serviceCode: service, servicePeriod: label, psvairEnabled: psvairInScope });
-  };
 }
 
-// ── Tracker / announcement display ─────────────────────────────────────────
-function runDisplay({ allStops, initialStopIndex, serviceCode, servicePeriod, psvairEnabled }) {
-  el('picker').hidden  = true;
-  el('tracker').hidden = false;
+// ── Sign ─────────────────────────────────────────────────────────────────
 
-  const firstStop = allStops[1];
-  const lastStop  = allStops[allStops.length - 2];
-  el('header-service-code').textContent   = serviceCode;
-  el('header-service-period').textContent = servicePeriod ?? '';
-  el('header-line1').textContent = `${firstStop.name} and`;
-  el('header-line2').textContent = lastStop.name;
-  el('header-line3').textContent = `To & From ${DEPOT.name}`;
+async function runSign(duty) {
+  const stops = await fetchStops(duty.timetable_departure_id);
+  if (!stops.length) { console.error('No stops for departure', duty.timetable_departure_id); return; }
+  const allStops = withDepotStops(stops);
+  const initialStopIndex = 1; // start of route; geofence catch-up handles wherever the vehicle actually is
 
-  const psvairBanner  = el('psvair-banner');
-  const psvairText    = el('psvair-text');
-  const psvairMuteBtn = el('psvair-mute-btn');
-  setAnnouncementsEnabled(!!psvairEnabled);
-  psvairBanner.hidden = !psvairEnabled;
-  let lastAnnouncedIdx = initialStopIndex;
+  el('sign-service-code').textContent = duty.service_code;
+  el('sign-destination').textContent = duty.last_stop_name;
+  el('onboard-sign').hidden = false;
 
-  if (psvairEnabled) {
-    onAnnouncementChange((text) => { psvairText.textContent = text; });
-    const setMuteBtnLabel = () => {
-      psvairMuteBtn.textContent = isMuted() ? '\u{1F507}' : '\u{1F50A}';
-      psvairMuteBtn.setAttribute('aria-label', isMuted() ? 'Unmute announcements' : 'Mute announcements');
-    };
-    setMuteBtnLabel();
-    psvairMuteBtn.onclick = () => { setMuted(!isMuted()); setMuteBtnLabel(); };
-    announceJourneyStart({ serviceCode, destination: lastStop.name });
-  }
+  setAnnouncementsEnabled(true);
+  announceJourneyStart({ serviceCode: duty.service_code, destination: duty.last_stop_name });
 
-  const tracker = startGpsTracking({
+  let lastAnnouncedStopIdx = null;
+
+  // ── Diversion status polling ────────────────────────────────────────────
+  // This device has no driver identity of its own (see file header), so it
+  // can't use diversion_alert_event's ownership-scoped RLS directly — it
+  // polls the anon-safe is_diversion_active() boolean instead. Announces
+  // immediately on the false→true transition (not just suppressing the next
+  // stop call) so passengers hear it promptly rather than waiting for the
+  // next scheduled stop.
+  let diversionActive = false;
+  (async function pollDiversionStatus() {
+    for (;;) {
+      try {
+        const active = await rpc('is_diversion_active', { p_journey_id: duty.journey_id });
+        if (active && !diversionActive) announceDiversion();
+        diversionActive = active;
+      } catch (err) {
+        console.error('is_diversion_active poll failed:', err);
+      }
+      await sleep(POLL_INTERVAL_MS);
+    }
+  })();
+
+  await acquireWakeLock();
+
+  startGpsTracking({
     schedule: allStops,
     lateAllowanceMin: 2,
     initialStopIndex,
     positionSource: usingLocalApi ? localPiPositionSource : undefined,
-    onUpdate: ({ timing, nextStopIndex, speedMps, distanceToNextM, arrivals, earlyWait, atStop }) => {
+    onUpdate: ({ nextStopIndex, earlyWait, atStop }) => {
+      const centerIndex = atStop ? atStop.stopIndex : Math.max(nextStopIndex - 1, initialStopIndex);
+      const isFinal = centerIndex === allStops.length - 2;
+
+      el('sign-current-stop').textContent = allStops[centerIndex].name;
+      el('sign-next-stop').textContent = isFinal ? 'End of route' : allStops[centerIndex + 1].name;
+      renderTubeTrack(allStops, centerIndex, !!atStop);
+
+      const banner = el('early-wait-banner');
+      if (earlyWait) {
+        banner.hidden = false;
+        el('ewb-time').textContent = earlyWait.scheduledTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      } else {
+        banner.hidden = true;
+      }
+
       // Real passenger-facing stops are indices [1, length-2]; 0 and length-1
-      // are the depot padding stops and are never announced.
-      if (psvairEnabled && nextStopIndex !== lastAnnouncedIdx
-          && nextStopIndex > 0 && nextStopIndex < allStops.length - 1) {
-        lastAnnouncedIdx = nextStopIndex;
-        announceNextStop({
-          stopName: allStops[nextStopIndex].name,
-          isFinal: nextStopIndex === allStops.length - 2,
+      // are the depot padding stops and are never announced. Announce on
+      // arrival (atStop set), not departure, so "this stop" is true when said.
+      if (atStop && atStop.stopIndex !== lastAnnouncedStopIdx
+          && atStop.stopIndex > 0 && atStop.stopIndex < allStops.length - 1) {
+        lastAnnouncedStopIdx = atStop.stopIndex;
+        const stopIsFinal = atStop.stopIndex === allStops.length - 2;
+        announceStopEvent({
+          stopName: allStops[atStop.stopIndex].name,
+          nextStopName: stopIsFinal ? null : allStops[atStop.stopIndex + 1].name,
+          isFinal: stopIsFinal,
+          diversionActive,
         });
       }
-      updateUi({ timing, nextStopIndex, schedule: allStops, speedMps, distanceToNextM, arrivals, earlyWait, atStop });
     },
   });
-
-  el('btn-end').onclick = () => {
-    if (!confirm('End display and return to route picker?')) return;
-    tracker.stop();
-    setAnnouncementsEnabled(false);
-    psvairBanner.hidden = true;
-    el('tracker').hidden = true;
-    el('picker').hidden  = false;
-  };
 }
 
-el('refresh-btn').onclick = () =>
-  loadPicker().catch((err) => alert(`Could not load routes: ${err.message}`));
+// ── Entry point ──────────────────────────────────────────────────────────
 
-loadPicker().catch((err) => alert(`Could not load routes: ${err.message}`));
+async function init() {
+  if (!WATCH_JOURNEY_ID) {
+    console.warn('onboard.js: no ?journey=<id> in the URL — nothing to watch, staying blank.');
+    return;
+  }
+  const duty = await waitForJourneyStart(WATCH_JOURNEY_ID);
+  await runSign(duty);
+}
+
+init().catch(console.error);

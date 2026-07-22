@@ -5,9 +5,11 @@ import { log, getEntries } from './logger.js';
 import { initDirections, syncCurrentStop, updateDirections } from './directions.js';
 import {
   setAnnouncementsEnabled, onAnnouncementChange, announceJourneyStart,
-  announceNextStop, isMuted, setMuted,
+  announceDiversion, isMuted, setMuted,
 } from './announcements.js';
 import { sbFetch, rpc, fetchStopsForDeparture } from './supabaseApi.js';
+import { announceStopEvent } from './announceStopEvent.js';
+import { triggerDiversionAlert, clearDiversionAlert } from './diversionAlert.js';
 
 const DEPOT = { name: 'Phil Haines Coaches Depot', lat: 52.950412, lon: -0.050110 };
 const DEBUG = new URLSearchParams(window.location.search).has('debug');
@@ -90,7 +92,7 @@ function greetingPrefix() {
 
 // ── Tracker ───────────────────────────────────────────────────────────────────
 
-function runTracker({ allStops, journeyId, initialStopIndex, serviceCode, servicePeriod, psvairEnabled, onComplete }) {
+function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex, serviceCode, servicePeriod, psvairEnabled, onComplete }) {
   document.getElementById('picker').hidden  = true;
   document.getElementById('tracker').hidden = false;
   document.getElementById('route-header').scrollIntoView();
@@ -114,7 +116,7 @@ function runTracker({ allStops, journeyId, initialStopIndex, serviceCode, servic
   const psvairMuteBtn = document.getElementById('psvair-mute-btn');
   setAnnouncementsEnabled(!!psvairEnabled);
   psvairBanner.hidden = !psvairEnabled;
-  let lastAnnouncedIdx = null;
+  let lastAnnouncedStopIdx = null;
 
   if (psvairEnabled) {
     onAnnouncementChange(text => { psvairText.textContent = text; });
@@ -125,8 +127,65 @@ function runTracker({ allStops, journeyId, initialStopIndex, serviceCode, servic
     setMuteBtnLabel();
     psvairMuteBtn.onclick = () => { setMuted(!isMuted()); setMuteBtnLabel(); };
     announceJourneyStart({ serviceCode, destination: lastStop.name });
-    lastAnnouncedIdx = initialStopIndex;
   }
+
+  // ── Diversion alert ────────────────────────────────────────────────────────
+  // Driver-triggered fixed alert tone + fixed announcement, suppressing the
+  // normal stop announcement while active. Only relevant on in-scope
+  // PSVAIR routes, same gating as the banner above.
+  const btnDiversion = document.getElementById('btn-diversion');
+  btnDiversion.hidden = !psvairEnabled;
+  let diversionAlertState = null;
+
+  const setDiversionBtnLabel = () => {
+    btnDiversion.textContent = diversionAlertState
+      ? '✖ Clear Diversion Alert'
+      : '↻ Start Diversion Alert';
+    btnDiversion.classList.toggle('active', !!diversionAlertState);
+  };
+  setDiversionBtnLabel();
+
+  btnDiversion.onclick = async () => {
+    if (diversionAlertState) {
+      const eventId = diversionAlertState.eventId;
+      const cleared = clearDiversionAlert(diversionAlertState);
+      diversionAlertState = cleared.diversionActive ? diversionAlertState : null;
+      setDiversionBtnLabel();
+      log('info', 'Diversion alert cleared');
+      if (eventId) {
+        sbFetch(`/rest/v1/diversion_alert_event?id=eq.${eventId}`, {
+          method: 'PATCH',
+          headers: { 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ cleared_at: new Date().toISOString() }),
+        }).catch(() => {});
+      }
+      return;
+    }
+
+    const result = triggerDiversionAlert(
+      journeyId ? { journey_id: journeyId, vehicle_id: vehicleId, driver_id: driverId } : null
+    );
+    if (result.status !== 'fired') return;
+
+    diversionAlertState = result.alertState;
+    setDiversionBtnLabel();
+    announceDiversion();
+    log('info', 'Diversion alert triggered');
+
+    if (journeyId) {
+      try {
+        const res = await sbFetch('/rest/v1/diversion_alert_event', {
+          method: 'POST',
+          headers: { 'Prefer': 'return=representation' },
+          body: JSON.stringify({ journey_id: journeyId, vehicle_id: vehicleId, driver_id: driverId }),
+        });
+        const [row] = await res.json();
+        if (row && diversionAlertState) diversionAlertState.eventId = row.id;
+      } catch (err) {
+        console.warn('Failed to persist diversion alert:', err);
+      }
+    }
+  };
 
   let activeTab = 'list', mapReady = false, arrivalsRef = [];
   let lastLat = null, lastLon = null, lastStopIdx = initialStopIndex;
@@ -192,13 +251,18 @@ function runTracker({ allStops, journeyId, initialStopIndex, serviceCode, servic
       if (lat !== undefined) { lastLat = lat; lastLon = lon; }
 
       // Real passenger-facing stops are indices [1, length-2]; 0 and length-1
-      // are the depot padding stops and are never announced.
-      if (psvairEnabled && nextStopIndex !== lastAnnouncedIdx
-          && nextStopIndex > 0 && nextStopIndex < allStops.length - 1) {
-        lastAnnouncedIdx = nextStopIndex;
-        announceNextStop({
-          stopName: allStops[nextStopIndex].name,
-          isFinal: nextStopIndex === allStops.length - 2,
+      // are the depot padding stops and are never announced. Announce on
+      // arrival (atStop set) rather than departure, so the "this stop /
+      // next stop" pairing is heard while the vehicle is actually there.
+      if (psvairEnabled && atStop && atStop.stopIndex !== lastAnnouncedStopIdx
+          && atStop.stopIndex > 0 && atStop.stopIndex < allStops.length - 1) {
+        lastAnnouncedStopIdx = atStop.stopIndex;
+        const isFinal = atStop.stopIndex === allStops.length - 2;
+        announceStopEvent({
+          stopName: allStops[atStop.stopIndex].name,
+          nextStopName: isFinal ? null : allStops[atStop.stopIndex + 1].name,
+          isFinal,
+          diversionActive: !!diversionAlertState,
         });
       }
       updateUi({ timing, nextStopIndex, schedule: allStops, speedMps, distanceToNextM, arrivals, earlyWait, atStop });
@@ -253,6 +317,7 @@ function runTracker({ allStops, journeyId, initialStopIndex, serviceCode, servic
     if (!confirm('End trip and upload stop times?')) return;
     tracker.stop();
     btnIncident.hidden = true;
+    btnDiversion.hidden = true;
     incidentOverlay.hidden = true;
     setAnnouncementsEnabled(false);
     psvairBanner.hidden = true;
@@ -419,6 +484,8 @@ async function launchDutyRoute(duties, idx, journeyIds) {
     runTracker({
       allStops,
       journeyId: journey.journey_id,
+      driverId: journey.driver_id,
+      vehicleId: journey.vehicle_id,
       initialStopIndex,
       serviceCode: journey.service_code,
       servicePeriod: journey.timetable_name,

@@ -8,14 +8,11 @@ import { timeToMinutes } from './utils'
 //
 // routeId/timetableId: an existing row id, or '__new__' to create one.
 // newRouteFields: { code, name, journeyTypes, singleJourney, isBodsRoute, origin, destination, serviceReg }
-// departures: existing timetable_departures for this timetable (used only to anchor stop-time offsets
-//   — a brand-new timetable has none, so offsets anchor to '07:00:00', matching current behaviour).
 export async function saveRouteTimetableStops({
   routeId, timetableId,
   newRouteFields = {},
   newTtName, newDirection,
   stopsToSave,
-  departures = [],
 }) {
   // Every timing point needs a time to derive offset_standard from — timetable_stops'
   // check constraint rejects a null offset on anything but a routing_point. Catch it here,
@@ -67,11 +64,12 @@ export async function saveRouteTimetableStops({
     .from('timetable_stops').delete().eq('timetable_id', resolvedTimetableId)
   if (delErr) return { error: delErr.message }
 
-  // Offsets are relative to the timetable's first departure, not to whatever the first
-  // stop's time happens to show — otherwise edits to that stop's time silently collapse
-  // to offset 0 and revert on reload.
-  const baseStr = departures[0]?.departure_time ?? '07:00:00'
-  const base    = timeToMinutes(baseStr.slice(0, 5))
+  // Offsets are relative to this timetable's own first timing point, not to whatever
+  // departure record happens to exist right now — a departure's time can be added or
+  // changed independently of the stop times, and re-anchoring to it here would silently
+  // shift every stop's displayed time the next time this timetable is loaded.
+  const firstTimingStop = stopsToSave.find(s => s.stop_type === 'timing_point')
+  const base = firstTimingStop ? timeToMinutes(firstTimingStop.time_std) : null
 
   const stopRows = []
   for (let i = 0; i < stopsToSave.length; i++) {

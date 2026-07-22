@@ -3,7 +3,7 @@ import { supabase } from '../../shared/supabase'
 import { getCompanyId, getCompanyName } from '../../shared/company'
 import Modal from '../../shared/components/Modal'
 
-const PWA_BASE = 'https://car490.github.io/route-tracker'
+const PWA_BASE = import.meta.env.DEV ? 'http://localhost:8080' : 'https://car490.github.io/route-tracker'
 
 function dateStr(d) {
   return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-')

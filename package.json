@@ -4,13 +4,17 @@
   "version": "1.2.0",
   "description": "Driver PWA — pure-function unit tests only. See dashboard/package.json for the ops dashboard.",
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "test:vitest": "vitest run",
+    "demo:drive": "node scripts/demo-drive.mjs"
   },
   "devDependencies": {
     "@babel/core": "^7.26.0",
     "@babel/preset-env": "^7.26.0",
     "babel-jest": "^30.4.1",
     "jest": "^30.4.2",
-    "jest-environment-jsdom": "^30.4.1"
+    "jest-environment-jsdom": "^30.4.1",
+    "playwright": "^1.61.1",
+    "vitest": "^3.2.7"
   }
 }

@@ -1,26 +1,13 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../shared/supabase'
 import Modal from '../../shared/components/Modal'
 import { useJourneyTypes } from '../../shared/hooks/useJourneyTypes'
 import RouteWizard from '../route-planner/RouteWizard'
+import RouteDetailModal from './RouteDetailModal'
 
-const ROUTE_EMPTY = { service_code: '', name: '', journey_type: [] }
-
-function TimetableStopCount({ timetableId }) {
-  const [count, setCount] = useState('…')
-  useEffect(() => {
-    supabase
-      .from('timetable_stops')
-      .select('id', { count: 'exact', head: true })
-      .eq('timetable_id', timetableId)
-      .then(({ count: c }) => setCount(c ?? 0))
-  }, [timetableId])
-  return <span className="badge badge-gray">{count} stops</span>
-}
+const ROUTE_EMPTY = { service_code: '', name: '', journey_type: [], single_journey: false }
 
 export default function RoutesPage() {
-  const navigate = useNavigate()
   const { journeyTypes } = useJourneyTypes()
   const [routes, setRoutes] = useState([])
   const [timetables, setTimetables] = useState({})
@@ -62,7 +49,12 @@ export default function RoutesPage() {
     e.preventDefault()
     setSaving(true); setError('')
     const { error: err } = await supabase.from('routes')
-      .update({ service_code: routeForm.service_code, name: routeForm.name || null, journey_type: routeForm.journey_type })
+      .update({
+        service_code:   routeForm.service_code,
+        name:           routeForm.name || null,
+        journey_type:   routeForm.journey_type,
+        single_journey: routeForm.single_journey,
+      })
       .eq('id', routeModal.id)
     setSaving(false)
     if (err) { setError(err.message); return }
@@ -135,7 +127,12 @@ export default function RoutesPage() {
                         <button
                           className="btn btn-ghost btn-sm"
                           onClick={() => {
-                            setRouteForm({ service_code: r.service_code, name: r.name ?? '', journey_type: Array.isArray(r.journey_type) ? r.journey_type : [r.journey_type].filter(Boolean) })
+                            setRouteForm({
+                              service_code:   r.service_code,
+                              name:           r.name ?? '',
+                              journey_type:   Array.isArray(r.journey_type) ? r.journey_type : [r.journey_type].filter(Boolean),
+                              single_journey: r.single_journey ?? false,
+                            })
                             setError(''); setRouteModal(r)
                           }}
                         >
@@ -153,66 +150,13 @@ export default function RoutesPage() {
       </div>
 
       {selected && selectedRoute && (
-        <div className="card">
-          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>{selectedRoute.service_code} — Timetables</span>
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={() => setWizard(selectedRoute)}
-            >
-              + Add Timetable
-            </button>
-          </div>
-          <div className="table-wrap">
-            {(timetables[selected] ?? []).length === 0 ? (
-              <div className="empty-state">No timetables for this route.</div>
-            ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th></th>
-                    <th></th>
-                    <th>Stops</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(timetables[selected] ?? []).map(t => (
-                    <tr key={t.id}>
-                      <td>
-                        <span className="badge badge-blue">{t.name}</span>
-                        {' '}
-                        <span className="badge badge-gray">{t.direction}</span>
-                      </td>
-                      <td></td>
-                      <td></td>
-                      <td><TimetableStopCount timetableId={t.id} /></td>
-                      <td>
-                        <div className="td-actions">
-                          <button
-                            className="btn btn-ghost btn-sm"
-                            onClick={() => navigate(`/route-planner?route=${selected}&timetable=${t.id}`)}
-                          >
-                            View
-                          </button>
-                          <button
-                            className="btn btn-ghost btn-sm"
-                            onClick={() => navigate(`/route-planner?route=${selected}&timetable=__new__&invertFrom=${t.id}&fromDir=${encodeURIComponent(t.direction)}`)}
-                            title="Open route planner with stops reversed, ready to save as a new timetable"
-                          >
-                            ↕ Return
-                          </button>
-                          <button className="btn btn-danger btn-sm" onClick={() => deleteTimetable(t.id)}>Delete</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
+        <RouteDetailModal
+          route={selectedRoute}
+          timetables={timetables[selected] ?? []}
+          onClose={() => setSelected(null)}
+          onAddTimetable={() => setWizard(selectedRoute)}
+          onDeleteTimetable={deleteTimetable}
+        />
       )}
 
       {routeModal !== null && (
@@ -254,6 +198,16 @@ export default function RoutesPage() {
                 onChange={e => setRouteForm(f => ({ ...f, name: e.target.value }))}
                 placeholder="e.g. Sleaford – Cranwell"
               />
+            </div>
+            <div className="form-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={routeForm.single_journey}
+                  onChange={e => setRouteForm(f => ({ ...f, single_journey: e.target.checked }))}
+                />
+                <span style={{ fontSize: 12, color: 'var(--text)' }}>One journey each way</span>
+              </label>
             </div>
             <div className="form-group">
               <label className="form-label">Journey Types</label>

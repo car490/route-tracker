@@ -53,6 +53,79 @@ body {
   margin: 0 auto;
 }
 
+/* ── App brand mark ───────────────────────────── */
+/* App name (BusHub.Driver — this product, one of several under the BusHub
+   suite) over a smaller CoachMate attribution (the platform all BusHub
+   products run on; same wordmark as the ops dashboard's sidebar footer,
+   dashboard/src/index.css .sidebar-coachmate, where CoachMate alone is
+   shown with no BusHub line since the dashboard *is* CoachMate).
+   Fixed to the viewport corner so it's visible on every screen without
+   scrolling — including #duty-card, which reserves a full min-height:100vh
+   whether or not its content fills that, so an in-flow mark would land
+   off-screen there. #tracker reserves matching bottom clearance (below)
+   so this doesn't repeat the overlap bug fixed in 47b0f80. */
+
+#app-brand {
+  position: fixed;
+  left: 1rem;
+  bottom: 0.75rem;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  pointer-events: none;
+}
+
+/* Clearance so #btn-complete never scrolls under the fixed mark above. */
+#tracker {
+  padding-bottom: 4.5rem;
+}
+
+.bh-wordmark {
+  font-family: var(--cm-font);
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.bh-app {
+  color: var(--late);
+}
+
+.cm-attribution {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  opacity: 0.55;
+}
+
+.cm-powered-by {
+  font-family: var(--cm-font);
+  font-size: 0.5rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.cm-wordmark {
+  font-family: var(--cm-font);
+  font-size: 0.7rem;
+  letter-spacing: -0.02em;
+}
+
+.cm-coach {
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.cm-mate {
+  font-weight: 400;
+  color: var(--brand-cyan);
+}
+
 /* ── Wake-lock warning ───────────────────────── */
 
 #wakelock-warning {
@@ -937,6 +1010,33 @@ body {
 
 #btn-incident:active {
   background: rgba(251, 140, 0, 0.15);
+}
+
+/* ── Diversion alert button ───────────────────── */
+
+#btn-diversion {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px;
+  background: transparent;
+  color: var(--late);
+  border: 1.5px solid var(--late);
+  border-radius: 6px;
+  font-family: var(--cm-font);
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+#btn-diversion:active {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+#btn-diversion.active {
+  background: var(--late);
+  color: #fff;
 }
 
 /* ── Incident overlay ─────────────────────────── */
