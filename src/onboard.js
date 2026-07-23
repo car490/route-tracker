@@ -148,19 +148,20 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ── Tube-map style progress line ────────────────────────────────────────
-// Shows up to 2 stops back, the current one, and up to 2 ahead — clipped
-// naturally at the ends of the route.
+// The wide 16:3 sign has much more horizontal room per node than the Fire
+// HD tablet, so it shows more stops either side of the current one — see
+// docs/onboard-widescreen-layout.md.
 
 function renderTubeTrack(allStops, centerIndex, isAtStop) {
   const track = el('tube-track');
   track.innerHTML = '';
 
   const first = 1, last = allStops.length - 2; // real stops only; 0/length-1 are depot padding
-  // Wide 16:3 sign shows 1 past stop instead of 2 (less vertical room per
-  // node than the horizontal strip has) — see docs/onboard-widescreen-layout.md.
-  const stopsBack = matchMedia(WIDE_LAYOUT_QUERY).matches ? 1 : 2;
+  const isWide = matchMedia(WIDE_LAYOUT_QUERY).matches;
+  const stopsBack = isWide ? 2 : 1;
+  const stopsForward = isWide ? 3 : 1;
   const indices = [];
-  for (let i = centerIndex - stopsBack; i <= centerIndex + 2; i++) {
+  for (let i = centerIndex - stopsBack; i <= centerIndex + stopsForward; i++) {
     if (i >= first && i <= last) indices.push(i);
   }
 
@@ -168,12 +169,42 @@ function renderTubeTrack(allStops, centerIndex, isAtStop) {
     const state = i < centerIndex ? 'past' : i === centerIndex ? 'current' : 'future';
     const node = document.createElement('div');
     node.className = `tube-node tube-${state}`;
-    // "At stop" (geofence-confirmed arrival) gets its own pulsating-green
-    // look, distinct from "current" (an estimated position between stops).
+    // "At stop" (geofence-confirmed arrival) gets its own pulsating look,
+    // distinct from "current" (an estimated position between stops).
     if (i === centerIndex && isAtStop) node.classList.add('tube-at-stop');
     node.innerHTML = `<div class="tube-dot"></div><div class="tube-label">${allStops[i].name}</div>`;
     track.appendChild(node);
   });
+}
+
+// ── ETA panel — next 3 stops ────────────────────────────────────────────
+// `timing` (from computeTiming via gps.js) is a live GPS-based estimate for
+// the immediate next stop only. For the 2nd/3rd stops out there's no live
+// distance/speed to project from, so the same current delay (live ETA minus
+// scheduled) is carried forward onto each stop's own scheduled time — a
+// simple, honest extrapolation rather than modelling the whole route.
+function renderEtaList(allStops, centerIndex, timing, atStop) {
+  const list = el('sign-eta-list');
+  list.innerHTML = '';
+
+  const offsetMs = !atStop ? timing.eta.getTime() - timing.scheduledTime.getTime() : 0;
+  const last = allStops.length - 2; // last real stop; 0/length-1 are depot padding
+
+  for (let k = 1; k <= 3; k++) {
+    const idx = centerIndex + k;
+    if (idx > last) break;
+    const stop = allStops[idx];
+    const [h, m] = stop.time.split(':').map(Number);
+    const scheduled = new Date();
+    scheduled.setHours(h, m, 0, 0);
+    const eta = new Date(scheduled.getTime() + offsetMs);
+
+    const row = document.createElement('div');
+    row.className = 'eta-row';
+    row.innerHTML = `<span class="eta-name">${stop.name}</span>` +
+      `<span class="eta-time">${eta.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>`;
+    list.appendChild(row);
+  }
 }
 
 // ── Sign ─────────────────────────────────────────────────────────────────
@@ -221,13 +252,15 @@ async function runSign(duty) {
     lateAllowanceMin: 2,
     initialStopIndex,
     positionSource: usingLocalApi ? localPiPositionSource : undefined,
-    onUpdate: ({ nextStopIndex, earlyWait, atStop }) => {
+    onUpdate: ({ nextStopIndex, earlyWait, atStop, timing }) => {
       const centerIndex = atStop ? atStop.stopIndex : Math.max(nextStopIndex - 1, initialStopIndex);
       const isFinal = centerIndex === allStops.length - 2;
 
-      el('sign-current-stop').textContent = allStops[centerIndex].name;
-      el('sign-next-stop').textContent = isFinal ? 'End of route' : allStops[centerIndex + 1].name;
+      el('sbl-this').hidden = !atStop;
+      el('sbl-this-name').textContent = allStops[centerIndex].name;
+      el('sbl-next-name').textContent = isFinal ? 'End of route' : allStops[centerIndex + 1].name;
       renderTubeTrack(allStops, centerIndex, !!atStop);
+      renderEtaList(allStops, centerIndex, timing, !!atStop);
 
       const banner = el('early-wait-banner');
       if (earlyWait) {

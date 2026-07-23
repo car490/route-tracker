@@ -1,15 +1,19 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 /* ── E-paper passenger sign ───────────────────────────────────────────────
-   Fixed vehicle-mounted landscape display (Fire HD 10, ~1920x1200 / 16:10).
+   One layout for every target: the mounted Fire HD 10 (~1920x1200 / 16:10)
+   and the 16:3 ultra-wide destination-board panel both use the same grid,
+   colours and elements — the only difference between them is how many
+   stops the tube-track shows either side of the current one (more room on
+   the wide panel), decided in JS via matchMedia, not CSS.
    Mostly monochrome and motion-free: no gradients, no shadows, hard
    corners, status normally carried by text and border weight rather than
-   colour. Two deliberate exceptions to that rule: the brand mark keeps its
+   colour. Deliberate exceptions to that rule: the brand mark keeps its
    real CoachMate colours (this is an LCD tablet, not actual e-ink hardware
-   — the monochrome look is aesthetic, not a hardware limit), and the
-   tube-track dot for a stop the vehicle has actually arrived at (confirmed
-   by the geofence, not just estimated) pulses green so it reads at a
-   glance from across the vehicle.
+   — the monochrome look is aesthetic, not a hardware limit); the
+   tube-track's line and dots use navy/charcoal/green rather than ink, with
+   the current-stop dot pulsing once arrival is confirmed by the geofence
+   (the only motion on this screen).
    Sized with vw/vh so the same layout scales to the real device and to a
    browser window of a similar aspect ratio. */
 
@@ -26,6 +30,10 @@
   --ep-teal:      #00B4D8;
   --ep-at-stop:   #10B981;
   --ep-late:      #EF4444;
+
+  /* Tube-track only. */
+  --ep-navy:      #1B2A4A;
+  --ep-charcoal:  #36454F;
 }
 
 *,
@@ -53,16 +61,36 @@ body {
   position: relative;
 }
 
-/* ── Brand mark — always present, idle screen or active ─────────────────
-   At idle this is the ONLY thing on screen, over a blank grey background.
-   App name (BusHub.NextStop — this product, one of several under the
-   BusHub suite) over a smaller CoachMate attribution (the platform all
-   BusHub products run on), in real brand colours rather than greyscale. */
+/* ── Sign layout — top bar / tube-track + ETA panel / bottom line ────────
+   Brand mark (BusHub.NextStop over a smaller CoachMate attribution, in
+   real brand colours rather than greyscale) lives here too — at idle it's
+   the ONLY thing on screen, over a blank grey background.
+   #onboard-brand stays a position: fixed sibling of #onboard-sign (not a
+   grid child) because it must also render on the idle screen, before
+   #onboard-sign exists in the visible DOM (see onboard.html) — it's
+   positioned here to visually sit at the top bar's left edge. */
+
+#onboard-sign {
+  height: 100vh;
+  width: 100vw;
+  display: grid;
+  /* minmax(0, …) — plain `fr` tracks have an implicit auto minimum size,
+     so long stop/destination names would blow the track wider than its
+     share instead of clipping via the child's own ellipsis rules. */
+  grid-template-columns: minmax(0, 4fr) minmax(0, 1fr);
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas:
+    "topbar topbar"
+    "track  etas"
+    "bottom bottom";
+  padding: 3vh 3vw;
+  gap: 1.5vh 1.5vw;
+}
 
 #onboard-brand {
   position: fixed;
-  left: 2vw;
-  bottom: 1.5vh;
+  top: 3vh;
+  left: 3vw;
   display: flex;
   flex-direction: column;
   gap: 0.4vh;
@@ -112,68 +140,69 @@ body {
   color: var(--ep-teal);
 }
 
-/* ── Sign layout ──────────────────────────────────────────────────────── */
-
-#onboard-sign {
-  height: 100vh;
-  width: 100vw;
-  display: flex;
-  flex-direction: column;
-  padding: 4vh 4vw 11vh;
-  gap: 2.5vh;
-}
+/* ── Top bar — logo (fixed, see above) / route line (centred) / clock ──── */
 
 #sign-topbar {
-  display: flex;
+  grid-area: topbar;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
-  gap: 2vw;
+  column-gap: 1vw;
+  padding-bottom: 1.5vh;
   border-bottom: 4px solid var(--ep-line);
-  padding-bottom: 2vh;
-  flex-shrink: 0;
+}
+
+/* Column 1 is an intentionally empty spacer — it's what makes column 2
+   (the route line) sit truly centred regardless of the clock's width. */
+#sign-route-line {
+  grid-column: 2;
+  justify-self: center;
+  display: flex;
+  align-items: baseline;
+  gap: 0.6vw;
+  white-space: nowrap;
 }
 
 #sign-service-code {
-  font-family: var(--ep-mono);
-  font-size: 5.5vh;
+  font-family: var(--ep-font);
+  font-size: 3vh;
   font-weight: 800;
-  letter-spacing: 0.02em;
-  border: 4px solid var(--ep-line);
-  padding: 0.5vh 1.5vw;
-  line-height: 1.1;
-  flex-shrink: 0;
 }
 
 #sign-destination {
   font-family: var(--ep-font);
-  font-size: 3.2vh;
+  font-size: 3vh;
   font-weight: 700;
   letter-spacing: 0.01em;
   text-transform: uppercase;
-  text-align: right;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 #sign-destination::before {
-  content: '\2192\00A0'; /* → */
+  content: 'to\00A0';
 }
 
-/* Only shown in the wide top bar (below) — no clock on the default layout. */
 #sign-clock {
-  display: none;
+  grid-column: 3;
+  justify-self: end;
+  font-family: var(--ep-mono);
+  font-size: 2.2vh;
+  font-variant-numeric: tabular-nums;
+  color: var(--ep-ink-soft);
 }
 
 /* ── Early wait banner — no flashing; e-paper doesn't animate ───────────── */
 
 #early-wait-banner {
+  grid-area: bottom;
+  align-self: center;
   background: transparent;
   color: var(--ep-ink);
   text-align: center;
   padding: 1.5vh 1rem;
   border: 3px dashed var(--ep-line);
-  flex-shrink: 0;
 }
 
 .ewb-title {
@@ -191,54 +220,19 @@ body {
   color: var(--ep-ink-soft);
 }
 
-/* ── Hero — the dominant, glance-from-across-the-vehicle content ────────── */
-
-#sign-hero {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4vh;
-  min-height: 0;
-}
-
-.sign-hero-row {
-  display: flex;
-  flex-direction: column;
-  gap: 0.8vh;
-}
-
-.sign-hero-label {
-  font-family: var(--ep-font);
-  font-size: 2.4vh;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ep-ink-soft);
-}
-
-.sign-hero-value {
-  font-family: var(--ep-font);
-  font-weight: 800;
-  line-height: 1.05;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-#sign-current-stop { font-size: 8vh; }
-#sign-next-stop     { font-size: 5.5vh; color: var(--ep-ink-soft); }
-
-/* ── Tube-map style progress line ─────────────────────────────────────── */
+/* ── Tube-map style progress line — deep navy line, charcoal dots, current
+   stop in green. Past/future read identically; only "current" and
+   "confirmed arrival" (pulsing) are visually different. JS decides how
+   many stops either side to show (matchMedia — more room on the wide
+   panel), not CSS; see renderTubeTrack in onboard.js. ─────────────────── */
 
 #tube-track {
+  grid-area: track;
   position: relative;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  height: 15vh;
-  padding: 0 1vw;
-  flex-shrink: 0;
+  padding: 1vh 0.5vw 0;
 }
 
 #tube-track::before {
@@ -246,9 +240,9 @@ body {
   position: absolute;
   left: calc(1vw + 8%);
   right: calc(1vw + 8%);
-  top: 1.7vh;
+  top: calc(1vh + 1.4vh);
   height: 5px;
-  background: var(--ep-line);
+  background: var(--ep-navy);
 }
 
 .tube-node {
@@ -265,25 +259,22 @@ body {
   width: 2.8vh;
   height: 2.8vh;
   border-radius: 50%;
-  background: var(--ep-ink);
-  border: 4px solid var(--ep-ink);
+  background: var(--ep-charcoal);
+  border: 4px solid var(--ep-charcoal);
   z-index: 1;
-}
-
-.tube-node.tube-future .tube-dot {
-  background: var(--ep-bg);
 }
 
 .tube-node.tube-current .tube-dot {
   width: 4.2vh;
   height: 4.2vh;
-  background: var(--ep-bg);
+  background: var(--ep-at-stop);
   border-width: 6px;
+  border-color: var(--ep-at-stop);
 }
 
 .tube-label {
   font-family: var(--ep-font);
-  font-size: 1.8vh;
+  font-size: 1.9vh;
   font-weight: 600;
   text-align: center;
   max-width: 17vw;
@@ -299,10 +290,8 @@ body {
 }
 
 /* Confirmed arrival (geofence match), not just an estimated position —
-   pulses green so it reads at a glance. Only motion on this screen. */
+   pulses so it reads at a glance. Only motion on this screen. */
 .tube-node.tube-current.tube-at-stop .tube-dot {
-  background: var(--ep-at-stop);
-  border-color: var(--ep-at-stop);
   animation: tube-pulse 1.4s ease-in-out infinite;
 }
 
@@ -311,151 +300,73 @@ body {
   50%      { opacity: 0.5; }
 }
 
-/* ── 16:3 ultra-wide onboard sign — top bar + zone layout ─────────────────
-   Activates only on displays this extremely short relative to their width
-   (roughly 4:1 or wider) — see docs/onboard-widescreen-layout.md. The Fire
-   HD 10 (~1.6:1) and normal browser windows never cross this threshold, so
-   the flex-column layout above stays their default, untouched.
-   #sign-hero gives up its own box (display: contents) so its two rows
-   become independent grid items with no DOM changes. #sign-topbar becomes
-   a real 3-cell row (empty spacer / route-line / clock) so the route-line
-   cell is genuinely centred regardless of the clock's width — a plain
-   flex space-between wouldn't centre it once the clock has any width.
-   #onboard-brand stays a position: fixed sibling of #onboard-sign (not a
-   grid child) because it must also render on the idle screen, before
-   #onboard-sign exists in the visible DOM (see onboard.html) — it's
-   repositioned here to visually sit at the top bar's left edge instead of
-   its default bottom-left corner. */
+/* ── ETA panel — next 3 stops ─────────────────────────────────────────── */
 
-@media (min-aspect-ratio: 4/1) {
-  #onboard-sign {
-    display: grid;
-    /* minmax(0, …) — plain `fr` tracks have an implicit auto minimum size,
-       so long stop/destination names would blow the track wider than its
-       share instead of clipping via the child's own ellipsis rules. */
-    grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
-    grid-template-rows: auto 1fr auto;
-    grid-template-areas:
-      "topbar topbar"
-      "this   track"
-      "next   track";
-    padding: 3vh 3vw;
-    gap: 0 3vw;
-  }
+#sign-eta-list {
+  grid-area: etas;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1vh;
+  border-left: 3px solid var(--ep-line);
+  padding-left: 1vw;
+}
 
-  #onboard-brand {
-    top: 3vh;
-    bottom: auto;
-    left: 3vw;
-  }
+.eta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8vw;
+}
 
-  #sign-topbar {
-    grid-area: topbar;
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    column-gap: 1vw;
-    padding-bottom: 1.5vh;
-    border-bottom: 4px solid var(--ep-line);
-  }
+.eta-name {
+  font-family: var(--ep-font);
+  font-size: 1.6vh;
+  color: var(--ep-ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
 
-  /* Column 1 is an intentionally empty spacer — it's what makes column 2
-     (the route line) sit truly centred regardless of the clock's width. */
-  #sign-route-line {
-    grid-column: 2;
-    justify-self: center;
-    display: flex;
-    align-items: baseline;
-    gap: 0.6vw;
-    white-space: nowrap;
-  }
+.eta-time {
+  font-family: var(--ep-mono);
+  font-size: 1.8vh;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
 
-  #sign-clock {
-    display: block;
-    grid-column: 3;
-    justify-self: end;
-    font-family: var(--ep-mono);
-    font-size: 2.2vh;
-    font-variant-numeric: tabular-nums;
-    color: var(--ep-ink-soft);
-  }
+/* ── Bottom line — "Next Stop <name>" while en route, "This Stop <name>
+   Next Stop <name>" once arrival is confirmed (#sbl-this unhides). ─────── */
 
-  #sign-service-code {
-    font-family: var(--ep-font);
-    font-size: 3vh;
-    font-weight: 800;
-    letter-spacing: normal;
-    border: none;
-    padding: 0;
-    line-height: 1;
-  }
+#sign-bottom-line {
+  grid-area: bottom;
+  align-self: center;
+  text-align: center;
+  font-family: var(--ep-font);
+  font-size: 4.5vh;
+  font-weight: 800;
+  padding-top: 1.2vh;
+  border-top: 4px solid var(--ep-line);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-  #sign-destination {
-    font-size: 3vh;
-    text-align: left;
-  }
+#sbl-this {
+  margin-right: 1.2em;
+}
 
-  #sign-destination::before {
-    content: ' to ';
-  }
+.sbl-label {
+  font-size: 0.4em;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ep-ink-soft);
+  margin-right: 0.3em;
+}
 
-  #sign-hero {
-    display: contents;
-  }
-
-  #sign-hero .sign-hero-row:first-child { grid-area: this; align-self: center; }
-  #sign-hero .sign-hero-row:last-child  { grid-area: next; align-self: center; }
-
-  /* Centre column reads centred, not left/right-hugging, at this ratio. */
-  .sign-hero-row     { align-items: center; }
-  .sign-hero-label,
-  .sign-hero-value   { text-align: center; }
-
-  .sign-hero-label   { font-size: 2.2vh; }
-  #sign-current-stop { font-size: 10vh; }
-  #sign-next-stop     { font-size: 6vh; }
-
-  #early-wait-banner {
-    grid-area: next;
-    align-self: center;
-  }
-
-  /* "Replaces" the next-stop strip: same grid cell, and the next-stop row
-     hides itself for as long as the banner is showing. */
-  #early-wait-banner:not([hidden]) ~ #sign-hero .sign-hero-row:last-child {
-    display: none;
-  }
-
-  #tube-track {
-    grid-area: track;
-    flex-direction: column;
-    justify-content: space-between;
-    align-items: stretch;
-    height: auto;
-    border-left: 4px solid var(--ep-line);
-    padding: 0 0 0 1.2vw;
-  }
-
-  #tube-track::before {
-    left: 1.6vh;
-    right: auto;
-    top: 1.5vh;
-    bottom: 1.5vh;
-    width: 5px;
-    height: auto;
-  }
-
-  .tube-node {
-    flex-direction: row;
-    align-items: center;
-    gap: 1vw;
-  }
-
-  .tube-label {
-    font-size: 2vh;
-    max-width: none;
-    text-align: left;
-    flex: 1;
-    min-width: 0;
-  }
+/* "Replaces" the bottom line while early-wait is active. */
+#early-wait-banner:not([hidden]) ~ #sign-bottom-line {
+  display: none;
 }

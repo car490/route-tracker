@@ -14,10 +14,12 @@
   <body>
 
     <!--
-      Fixed passenger-facing sign — vehicle-mounted landscape tablet (Fire HD
-      10, ~1920x1200), no touch interaction expected. Deliberately silo'd
-      from the driver PWA (index.html/main.js): no login, no duty card, no
-      incident reporting, no stop-time upload — reads schedule_view only.
+      Fixed passenger-facing sign — vehicle-mounted display, either the Fire
+      HD 10 tablet (~1920x1200 landscape) or a 16:3 ultra-wide destination
+      board; same layout and elements for both, see onboard.css. No touch
+      interaction expected. Deliberately silo'd from the driver PWA
+      (index.html/main.js): no login, no duty card, no incident reporting,
+      no stop-time upload — reads schedule_view only.
 
       No manual intervention: this device is configured (via ?journey=<id>
       in the URL, or a Pi-side equivalent) to watch one specific journey.
@@ -27,9 +29,9 @@
 
       Styled as an e-paper sign (onboard.css): mostly monochrome and
       motion-free, hard corners — not just a different colour scheme from
-      the driver PWA. Two deliberate exceptions: the brand mark keeps its
-      real colours, and the tube-track dot pulses green on a confirmed
-      stop arrival. See onboard.css for why.
+      the driver PWA. Deliberate exceptions: the brand mark keeps its real
+      colours, the tube-track uses navy/charcoal/green, and its current-stop
+      dot pulses on a confirmed stop arrival. See onboard.css for why.
     -->
 
     <div id="onboard-brand">
@@ -54,18 +56,14 @@
         <div class="ewb-msg">Running early — depart at <span id="ewb-time"></span></div>
       </div>
 
-      <div id="sign-hero">
-        <div class="sign-hero-row">
-          <span class="sign-hero-label">This stop is</span>
-          <span id="sign-current-stop" class="sign-hero-value">&mdash;</span>
-        </div>
-        <div class="sign-hero-row">
-          <span class="sign-hero-label">The next stop will be</span>
-          <span id="sign-next-stop" class="sign-hero-value">&mdash;</span>
-        </div>
-      </div>
-
       <div id="tube-track"></div>
+
+      <div id="sign-eta-list"></div>
+
+      <div id="sign-bottom-line">
+        <span id="sbl-this" hidden><span class="sbl-label">This Stop</span> <span id="sbl-this-name"></span></span>
+        <span id="sbl-next"><span class="sbl-label">Next Stop</span> <span id="sbl-next-name"></span></span>
+      </div>
     </div>
 
     <script type="module" src="src/onboard.js"></script>

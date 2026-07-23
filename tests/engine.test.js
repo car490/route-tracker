@@ -80,4 +80,18 @@ describe('computeTiming', () => {
     expect(result.status).toBe('early');
     expect(result.minutesDifference).toBeCloseTo(-6, 1);
   });
+
+  test('stationary (speed 0) — ETA falls back to scheduled time instead of going blank', () => {
+    const result = computeTiming({
+      now: makeNow(7, 50),
+      currentDistanceM: 600,
+      speedMps: 0,
+      nextStop: NEXT_STOP,
+      lateAllowanceMin: LATE_ALLOWANCE_MIN,
+    });
+
+    expect(result.eta).toEqual(result.scheduledTime);
+    expect(result.minutesDifference).toBe(0);
+    expect(result.status).toBe('on-time');
+  });
 });

@@ -7,7 +7,7 @@
  * @param {number} params.speedMps          - current speed in m/s
  * @param {{name: string, time: string}} params.nextStop - stop with "HH:MM" time
  * @param {number} [params.lateAllowanceMin=2]
- * @returns {{status: string, eta: Date|null, minutesDifference: number|null, scheduledTime: Date, nextStopName: string}}
+ * @returns {{status: string, eta: Date, minutesDifference: number, scheduledTime: Date, nextStopName: string}}
  */
 export function computeTiming({
   now,
@@ -20,8 +20,11 @@ export function computeTiming({
   const scheduledTime = new Date(now);
   scheduledTime.setHours(h, m, 0, 0);
 
-  let eta = null;
-  let minutesDifference = null;
+  // Stationary (traffic, red light, dwelling at a stop) gives no speed to
+  // project an ETA from — rather than leave it blank, assume on-schedule
+  // until moving again produces a real estimate.
+  let eta = scheduledTime;
+  let minutesDifference = 0;
 
   if (speedMps > 0) {
     const secondsToStop = currentDistanceM / speedMps;
