@@ -85,12 +85,17 @@ At 16:3 the height is too small for a useful map. Even a 240 px tall Leaflet map
 ### `onboard.css`
 
 - Add a `@media (min-aspect-ratio: 4/1)` block that activates the three-column grid and the vh font scales above
+- The block also needs full overrides for `#tube-track` (today's `height: 15vh` is sized for the horizontal strip — the vertical column needs to fill the right column's height) and its `::before` connector line (today's `left/right` absolute positioning draws a horizontal line — the vertical layout needs `top/bottom` instead), plus `.tube-node` flex-direction row→column. This is more than a font-size swap.
+- Carry forward the `.sign-hero-value` overflow/ellipsis handling (`overflow: hidden; text-overflow: ellipsis; white-space: nowrap`) into the wide-mode hero rules — long stop names still need to clip rather than wrap or overflow the centre column
+- `#onboard-brand` stays exactly as it is today (`position: fixed; left: 2rem; bottom: 1.1rem`, bottom-left of the viewport) — no change needed, since that fixed position already lands in the left column's footprint
 - Keep the existing vertical layout as the default (works for the Fire HD 10 and normal browser preview windows)
 - No JS detection needed — the layout switches automatically based on actual display geometry
 
 ### `onboard.js`
 
-- `renderTubeTrack` gains awareness of layout mode: in the 16:3 layout, dots render as a vertical column with labels to the right instead of a horizontal strip with labels below
+- `renderTubeTrack` checks `matchMedia('(min-aspect-ratio: 4/1)').matches` inline, fresh on every call — no cached value, no `change` listener. Updates only happen every ~10-15s (GPS poll cadence), so the check is effectively free, and checking live means resizing the browser window during manual testing (rollout step 4) flips the layout immediately with no reload needed.
+- When wide, the index window changes from today's symmetric 2-past/2-future to 1-past/2-future (per Zone Layout above) — this is an actual change to the `centerIndex - 2 … centerIndex + 2` loop bounds in `renderTubeTrack`, not just a rendering/orientation change.
+- Visual orientation itself (row vs column, connector-line direction) is CSS's job via the same breakpoint — JS doesn't need to branch on that.
 - No other logic changes — GPS, geofence, announcements, and Supabase code are untouched
 
 ---
@@ -100,5 +105,5 @@ At 16:3 the height is too small for a useful map. Even a 240 px tall Leaflet map
 1. Restructure `onboard.html` DOM into the three-column zone structure
 2. Add the `@media (min-aspect-ratio: 4/1)` CSS block in `onboard.css` with the grid layout and vh font sizes
 3. Update `renderTubeTrack` in `onboard.js` to render the vertical dot column when in wide mode
-4. Test at browser window sized to ~2560×480 (zoom out), then at the normal Fire HD 10 size to confirm the fallback layout is undisturbed
+4. Test at browser window sized to ~2560×480 (zoom out), including a long stop name (e.g. "Grantham, Wetherby Road") to confirm it clips rather than wraps or overflows; then at the normal Fire HD 10 size to confirm the fallback layout is undisturbed
 5. No changes to `src/gps.js`, `src/announcements.js`, `src/engine.js`, or any Supabase schema

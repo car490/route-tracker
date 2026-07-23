@@ -305,3 +305,97 @@ body {
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.5; }
 }
+
+/* ── 16:3 ultra-wide onboard sign — three-column zone layout ─────────────
+   Activates only on displays this extremely short relative to their width
+   (roughly 4:1 or wider) — see docs/onboard-widescreen-layout.md. The Fire
+   HD 10 (~1.6:1) and normal browser windows never cross this threshold, so
+   the flex-column layout above stays their default, untouched.
+   #sign-topbar and #sign-hero give up their own box (display: contents) so
+   their children become independent grid items with no DOM changes. */
+
+@media (min-aspect-ratio: 4/1) {
+  #onboard-sign {
+    display: grid;
+    /* minmax(0, …) — plain `fr` tracks have an implicit auto minimum size,
+       so long stop/destination names would blow the track wider than its
+       share instead of clipping via the child's own ellipsis rules. */
+    grid-template-columns: minmax(0, 18fr) minmax(0, 58fr) minmax(0, 24fr);
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas:
+      "code dest track"
+      "code this track"
+      "code next track";
+    padding: 3vh 3vw;
+    gap: 0 3vw;
+  }
+
+  #sign-topbar,
+  #sign-hero {
+    display: contents;
+  }
+
+  #sign-service-code {
+    grid-area: code;
+    align-self: center;
+    justify-self: center;
+    font-size: 14vh;
+  }
+
+  #sign-destination {
+    grid-area: dest;
+    align-self: center;
+    font-size: 2.5vh;
+  }
+
+  #sign-hero .sign-hero-row:first-child { grid-area: this; align-self: center; }
+  #sign-hero .sign-hero-row:last-child  { grid-area: next; align-self: center; }
+
+  .sign-hero-label   { font-size: 2.2vh; }
+  #sign-current-stop { font-size: 10vh; }
+  #sign-next-stop     { font-size: 6vh; }
+
+  #early-wait-banner {
+    grid-area: next;
+    align-self: center;
+  }
+
+  /* "Replaces" the next-stop strip: same grid cell, and the next-stop row
+     hides itself for as long as the banner is showing. */
+  #early-wait-banner:not([hidden]) ~ #sign-hero .sign-hero-row:last-child {
+    display: none;
+  }
+
+  #tube-track {
+    grid-area: track;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: stretch;
+    height: auto;
+    border-left: 4px solid var(--ep-line);
+    padding: 0 0 0 1.2vw;
+  }
+
+  #tube-track::before {
+    left: 1.6vh;
+    right: auto;
+    top: 1.5vh;
+    bottom: 1.5vh;
+    width: 5px;
+    height: auto;
+  }
+
+  .tube-node {
+    flex-direction: row;
+    align-items: center;
+    gap: 1vw;
+  }
+
+  .tube-label {
+    font-size: 2vh;
+    max-width: none;
+    text-align: left;
+    flex: 1;
+    min-width: 0;
+  }
+}

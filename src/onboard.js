@@ -18,6 +18,7 @@ import { announceStopEvent } from './announceStopEvent.js';
 const DEPOT = { name: 'Phil Haines Coaches Depot', lat: 52.950412, lon: -0.050110 };
 const WATCH_JOURNEY_ID = new URLSearchParams(window.location.search).get('journey');
 const POLL_INTERVAL_MS = 5000;
+const WIDE_LAYOUT_QUERY = '(min-aspect-ratio: 4/1)'; // 16:3 ultra-wide sign, see docs/onboard-widescreen-layout.md
 
 const el = (id) => document.getElementById(id);
 
@@ -155,8 +156,11 @@ function renderTubeTrack(allStops, centerIndex, isAtStop) {
   track.innerHTML = '';
 
   const first = 1, last = allStops.length - 2; // real stops only; 0/length-1 are depot padding
+  // Wide 16:3 sign shows 1 past stop instead of 2 (less vertical room per
+  // node than the horizontal strip has) — see docs/onboard-widescreen-layout.md.
+  const stopsBack = matchMedia(WIDE_LAYOUT_QUERY).matches ? 1 : 2;
   const indices = [];
-  for (let i = centerIndex - 2; i <= centerIndex + 2; i++) {
+  for (let i = centerIndex - stopsBack; i <= centerIndex + 2; i++) {
     if (i >= first && i <= last) indices.push(i);
   }
 
