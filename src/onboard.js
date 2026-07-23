@@ -191,19 +191,37 @@ function renderTubeTrack(allStops, centerIndex, isAtStop) {
   });
 }
 
-// ── ETA — next stop only, en route only ─────────────────────────────────
-// Not called while atStop (see call site) — gps.js's `timing` is a live
-// estimate for whichever stop it currently has as nextStopIndex, which
-// while dwelling at a stop is the stop we're already at, not the "next
-// stop" this computes an ETA for.
-function nextStopEta(allStops, centerIndex, timing) {
-  const next = allStops[centerIndex + 1];
-  if (!next) return null;
-  const [h, m] = next.time.split(':').map(Number);
+// ── Upcoming-stops box — wide sign only ─────────────────────────────────
+// gps.js's `timing` is a live estimate for whichever stop it currently has
+// as nextStopIndex; the offset between that stop's live ETA and its
+// scheduled time is carried forward uniformly onto later stops' scheduled
+// times too — an approximation (assumes the same running-late/early delta
+// holds all the way to each of them), but a reasonable one for a handful
+// of stops ahead.
+function etaForStop(stop, timing) {
+  const [h, m] = stop.time.split(':').map(Number);
   const scheduled = new Date();
   scheduled.setHours(h, m, 0, 0);
   const offsetMs = timing.eta.getTime() - timing.scheduledTime.getTime();
   return new Date(scheduled.getTime() + offsetMs);
+}
+
+const UPCOMING_STOP_COUNT = 4;
+
+function renderUpcoming(allStops, centerIndex, timing) {
+  const box = el('sign-upcoming');
+  if (!isWideLayout()) { box.hidden = true; return; }
+
+  const last = allStops.length - 2; // real stops only; length-1 is depot padding
+  const rows = [];
+  for (let i = centerIndex + 1; i <= Math.min(centerIndex + UPCOMING_STOP_COUNT, last); i++) rows.push(allStops[i]);
+
+  if (!rows.length) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+  box.innerHTML = rows.map((stop) => {
+    const time = etaForStop(stop, timing).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    return `<div class="upcoming-row"><span class="upcoming-name">${stop.name}</span><span class="upcoming-time">${time}</span></div>`;
+  }).join('');
 }
 
 // ── Sign ─────────────────────────────────────────────────────────────────
@@ -218,6 +236,9 @@ async function runSign(duty) {
   el('sign-service-code').textContent = duty.service_code;
   el('sign-destination').textContent = destination;
   el('onboard-sign').hidden = false;
+  // Brand mark is idle-screen-only (see onboard.html/css) — now that the
+  // route line is left-aligned it would otherwise sit right under it.
+  el('onboard-brand').hidden = true;
 
   setAnnouncementsEnabled(true);
   announceJourneyStart({ serviceCode: duty.service_code, destination });
@@ -267,13 +288,7 @@ async function runSign(duty) {
           ? 'End of route'
           : `The next stop is ${allStops[centerIndex + 1].name}`;
       renderTubeTrack(allStops, centerIndex, !!atStop);
-
-      // ETA isn't PSVAIR-regulated, and there's no room for it on the Fire
-      // HD at all — wide sign only, and hidden while atStop/isFinal same
-      // as before.
-      const eta = (isWideLayout() && !isFinal && !atStop) ? nextStopEta(allStops, centerIndex, timing) : null;
-      el('sbl-eta').hidden = !eta;
-      if (eta) el('sbl-eta-time').textContent = eta.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+      renderUpcoming(allStops, centerIndex, timing);
 
       const banner = el('early-wait-banner');
       if (earlyWait) {

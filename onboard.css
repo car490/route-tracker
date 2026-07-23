@@ -156,14 +156,13 @@ body {
 #sign-topbar {
   grid-area: topbar;
   display: grid;
-  /* Column 3 (clock) is `auto`, not `1fr` — it must never shrink below its
-     own content or it clips off the edge of the screen. Column 2's
-     minmax(0, 55vw) caps the route line as a genuine track constraint —
-     a max-width on the child alone isn't reliably honoured by `auto`
-     track sizing. Column 1 is an empty spacer that absorbs the leftover
-     space, keeping the route line roughly centred without risking the
-     clock. */
-  grid-template-columns: 1fr minmax(0, 55vw) auto;
+  /* Column 1 (route line) is a genuine track constraint via minmax(0, …) —
+     a max-width on the child alone isn't reliably honoured by `auto` track
+     sizing. Column 2 is an empty spacer that absorbs the leftover space,
+     keeping the route line left-aligned without risking column 3 (clock),
+     which is `auto` so it never shrinks below its own content or clips off
+     the edge of the screen. */
+  grid-template-columns: minmax(0, 60vw) 1fr auto;
   align-items: center;
   column-gap: 2vw;
   padding: 2vh 3vw;
@@ -172,13 +171,13 @@ body {
 }
 
 #sign-route-line {
-  grid-column: 2;
-  justify-self: center;
+  grid-column: 1;
+  justify-self: start;
   display: flex;
   align-items: baseline;
   gap: 1.5vw;
   min-width: 0;
-  max-width: 55vw;
+  max-width: 60vw;
   overflow: hidden;
 }
 
@@ -244,13 +243,25 @@ body {
    many stops either side to show (matchMedia — more room on the wide
    panel), not CSS; see renderTubeTrack in onboard.js. ─────────────────── */
 
-#tube-track {
+/* Wraps the tube-track and, on the wide sign only, the upcoming-stops box
+   to its right — see #sign-upcoming below. On the Fire HD, #sign-upcoming
+   stays hidden (onboard.js) and #tube-track's flex:1 fills the row alone. */
+#sign-main {
   grid-area: track;
+  display: flex;
+  align-items: stretch;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#tube-track {
   position: relative;
+  flex: 1;
+  min-width: 0;
   display: flex;
   justify-content: space-around;
-  align-items: flex-start;
-  padding: 4vh 4vw 0;
+  align-items: center;
+  padding: 0 4vw;
 }
 
 #tube-track::before {
@@ -258,7 +269,8 @@ body {
   position: absolute;
   left: 8%;
   right: 8%;
-  top: calc(4vh + 3.5vh);
+  top: 50%;
+  transform: translateY(-50%);
   height: 8px;
   background: var(--ep-purple);
 }
@@ -322,22 +334,61 @@ body {
   50%      { opacity: 0.5; }
 }
 
+/* ── Upcoming-stops box — wide sign only. Sits right of the tube-track,
+   listing the next 3-4 real stops with name + live-adjusted time. Not
+   PSVAIR-regulated, so sized independently of --min-text like the
+   tube-track labels. Hidden entirely on the Fire HD (onboard.js — no
+   room for it there) and once there are no more real stops ahead. ────── */
+
+#sign-upcoming {
+  width: 24vw;
+  flex-shrink: 0;
+  border-left: 4px solid var(--ep-purple);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1.8vh;
+  padding: 2vh 2vw;
+}
+
+.upcoming-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1vw;
+  font-family: var(--ep-font);
+  color: var(--ep-purple);
+}
+
+.upcoming-name {
+  font-size: 3.2vh;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.upcoming-time {
+  font-size: 3.2vh;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
 /* ── Bottom bar — dark purple, white lettering. A single line of text that
    changes wording rather than adding/stacking a second line, matching the
    audio announcements exactly: "This stop is <name>" while dwelling at a
    stop, "The next stop is <name>" while en route. Always one line, so the
    bar's height (and the tube-track row above it) never jumps between
-   states — see onboard.js's onUpdate. ETA is a separate, optional item,
-   wide-sign only (see onboard.js). ─────────────────────────────────────── */
+   states — see onboard.js's onUpdate. ETAs live in the upcoming-stops box
+   above, not here. ────────────────────────────────────────────────────── */
 
 #sign-bottom-line {
   grid-area: bottom;
   align-self: center;
   display: flex;
-  flex-direction: row;
   justify-content: center;
-  align-items: baseline;
-  gap: 3vw;
   padding: 2vh 3vw;
   background: var(--ep-purple);
   color: var(--ep-paper);
@@ -347,31 +398,11 @@ body {
   overflow: hidden;
 }
 
-#sbl-status,
-#sbl-eta {
+#sbl-status {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  /* Flex items default to a content-based min-width, which would let these
-     force the row wider than the screen instead of ellipsizing on their own. */
   min-width: 0;
-}
-
-/* ETA isn't PSVAIR-regulated (the status line is, at --min-text) — sized
-   well down so it never competes with it for space, and never shrinks/
-   truncates itself; the regulated status line absorbs any squeeze. */
-#sbl-eta {
-  font-size: 7vh;
-  flex-shrink: 0;
-}
-
-.sbl-label {
-  font-size: 0.35em;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ep-purple-soft);
-  margin-right: 0.3em;
 }
 
 /* "Replaces" the bottom line while early-wait is active. */
