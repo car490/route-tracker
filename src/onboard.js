@@ -21,6 +21,7 @@ const POLL_INTERVAL_MS = 5000;
 const WIDE_LAYOUT_QUERY = '(min-aspect-ratio: 4/1)'; // 16:3 ultra-wide sign, see docs/onboard-widescreen-layout.md
 
 const el = (id) => document.getElementById(id);
+const isWideLayout = () => matchMedia(WIDE_LAYOUT_QUERY).matches;
 
 // Set once a schedule fetch resolves — true when this page is being served
 // by a Pi's local pi-server (not GitHub Pages / the plain dev server.js),
@@ -170,7 +171,7 @@ function renderTubeTrack(allStops, centerIndex, isAtStop) {
   // Labels must stay readable from the back of an 11m bus (~22mm min text,
   // see --min-text in onboard.css), which leaves room for very few stops
   // either side regardless of the extra width the wide sign has.
-  const isWide = matchMedia(WIDE_LAYOUT_QUERY).matches;
+  const isWide = isWideLayout();
   const stopsBack = 1;
   const stopsForward = isWide ? 2 : 1;
   const indices = [];
@@ -255,22 +256,29 @@ async function runSign(duty) {
       const centerIndex = atStop ? atStop.stopIndex : Math.max(nextStopIndex - 1, initialStopIndex);
       const isFinal = centerIndex === allStops.length - 2;
 
-      el('sbl-this').hidden = !atStop;
-      el('sbl-this-name').textContent = allStops[centerIndex].name;
-      el('sbl-next-name').textContent = isFinal ? 'End of route' : allStops[centerIndex + 1].name;
+      // One line of text that changes wording rather than a second line
+      // appearing/disappearing — matches the audio announcements exactly
+      // ("This stop is X" / "The next stop is Y", see announcements.js) and
+      // keeps the bottom bar's height constant so the tube-track above it
+      // never jumps.
+      el('sbl-status').textContent = atStop
+        ? `This stop is ${allStops[centerIndex].name}`
+        : isFinal
+          ? 'End of route'
+          : `The next stop is ${allStops[centerIndex + 1].name}`;
       renderTubeTrack(allStops, centerIndex, !!atStop);
 
-      // ETA isn't PSVAIR-regulated (This Stop/Next Stop are) — hidden while
-      // atStop so those two get the full row's width to themselves instead
-      // of a third, unregulated item squeezing them down to nothing.
-      const eta = (isFinal || atStop) ? null : nextStopEta(allStops, centerIndex, timing);
+      // ETA isn't PSVAIR-regulated, and there's no room for it on the Fire
+      // HD at all — wide sign only, and hidden while atStop/isFinal same
+      // as before.
+      const eta = (isWideLayout() && !isFinal && !atStop) ? nextStopEta(allStops, centerIndex, timing) : null;
       el('sbl-eta').hidden = !eta;
-      if (eta) el('sbl-eta-time').textContent = eta.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      if (eta) el('sbl-eta-time').textContent = eta.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 
       const banner = el('early-wait-banner');
       if (earlyWait) {
         banner.hidden = false;
-        el('ewb-time').textContent = earlyWait.scheduledTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        el('ewb-time').textContent = earlyWait.scheduledTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
       } else {
         banner.hidden = true;
       }
@@ -300,7 +308,7 @@ async function runSign(duty) {
 function startClock() {
   const clock = el('sign-clock');
   const tick = () => {
-    clock.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    clock.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
   };
   tick();
   setInterval(tick, 1000);

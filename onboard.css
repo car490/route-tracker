@@ -3,17 +3,18 @@
 /* ── E-paper passenger sign ───────────────────────────────────────────────
    One layout for every target: the mounted Fire HD 10 (~1920x1200 / 16:10)
    and the 16:3 ultra-wide destination-board panel both use the same grid,
-   colours and elements — the only difference between them is how many
-   stops the tube-track shows either side of the current one (more room on
-   the wide panel), decided in JS via matchMedia, not CSS.
+   colours and elements — the differences between them are decided in JS
+   via matchMedia, not CSS: how many stops the tube-track shows either side
+   of the current one (more room on the wide panel), and the ETA (wide
+   panel only — no room for it on the Fire HD).
    Mostly monochrome and motion-free: no gradients, no shadows, hard
    corners, status normally carried by text and border weight rather than
    colour. Deliberate exceptions to that rule: the brand mark keeps its
    real CoachMate colours (this is an LCD tablet, not actual e-ink hardware
    — the monochrome look is aesthetic, not a hardware limit); the
-   tube-track's line and dots use navy/charcoal/green rather than ink, with
-   the current-stop dot pulsing once arrival is confirmed by the geofence
-   (the only motion on this screen).
+   tube-track's line, dots and labels use the brand dark purple rather than
+   ink, with the current stop in green and its dot pulsing once arrival is
+   confirmed by the geofence (the only motion on this screen).
    Sized with vw/vh so the same layout scales to the real device and to a
    browser window of a similar aspect ratio. */
 
@@ -31,15 +32,12 @@
   --ep-at-stop:   #10B981;
   --ep-late:      #EF4444;
 
-  /* Tube-track only. */
-  --ep-navy:      #1B2A4A;
-  --ep-charcoal:  #36454F;
-
-  /* Top/bottom bars (paper-white everywhere else) — see the ~22mm minimum
-     text-size note below. */
-  --ep-paper:     #FFFFFF;
-  --ep-blue:      #2563A8;
-  --ep-blue-soft: rgba(255, 255, 255, 0.72);
+  /* Brand accent, shared by the top/bottom bars and the tube-track (line,
+     dots, labels) — the only colour besides white and the current-stop
+     green anywhere on the sign. */
+  --ep-paper:       #FFFFFF;
+  --ep-purple:      #2E1065;
+  --ep-purple-soft: rgba(255, 255, 255, 0.72);
 
   /* ~22mm minimum text size on both real target devices — Fire HD 10
      (1920x1200 @ 10.1", ~8.82px/mm) and the 16:3 wide panel (2560x480 @
@@ -169,7 +167,7 @@ body {
   align-items: center;
   column-gap: 2vw;
   padding: 2vh 3vw;
-  background: var(--ep-blue);
+  background: var(--ep-purple);
   color: var(--ep-paper);
 }
 
@@ -209,7 +207,7 @@ body {
   font-family: var(--ep-mono);
   font-size: var(--min-text);
   font-variant-numeric: tabular-nums;
-  color: var(--ep-blue-soft);
+  color: var(--ep-purple-soft);
   white-space: nowrap;
 }
 
@@ -220,7 +218,7 @@ body {
   align-self: center;
   text-align: center;
   padding: 2vh 3vw;
-  background: var(--ep-blue);
+  background: var(--ep-purple);
   color: var(--ep-paper);
 }
 
@@ -236,11 +234,11 @@ body {
   font-size: 4vh;
   font-weight: 400;
   margin-top: 0.6vh;
-  color: var(--ep-blue-soft);
+  color: var(--ep-purple-soft);
 }
 
-/* ── Tube-map style progress line — paper-white background, deep navy
-   line, charcoal dots, current stop in green. Sized to read from the back
+/* ── Tube-map style progress line — paper-white background, dark purple
+   line/dots/labels, current stop in green. Sized to read from the back
    of an 11m bus. Past/future read identically; only "current" and
    "confirmed arrival" (pulsing) are visually different. JS decides how
    many stops either side to show (matchMedia — more room on the wide
@@ -262,7 +260,7 @@ body {
   right: 8%;
   top: calc(4vh + 3.5vh);
   height: 8px;
-  background: var(--ep-navy);
+  background: var(--ep-purple);
 }
 
 .tube-node {
@@ -279,8 +277,8 @@ body {
   width: 7vh;
   height: 7vh;
   border-radius: 50%;
-  background: var(--ep-charcoal);
-  border: 5px solid var(--ep-charcoal);
+  background: var(--ep-purple);
+  border: 5px solid var(--ep-purple);
   z-index: 1;
 }
 
@@ -306,12 +304,11 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--ep-ink-soft);
+  color: var(--ep-purple);
 }
 
 .tube-node.tube-current .tube-label {
   font-weight: 800;
-  color: var(--ep-ink);
 }
 
 /* Confirmed arrival (geofence match), not just an estimated position —
@@ -325,9 +322,13 @@ body {
   50%      { opacity: 0.5; }
 }
 
-/* ── Bottom bar — mid-blue, white lettering. "Next Stop <name>" plus its
-   ETA while en route; "This Stop <name>" also appears (#sbl-this unhides)
-   once arrival is confirmed. ─────────────────────────────────────────── */
+/* ── Bottom bar — dark purple, white lettering. A single line of text that
+   changes wording rather than adding/stacking a second line, matching the
+   audio announcements exactly: "This stop is <name>" while dwelling at a
+   stop, "The next stop is <name>" while en route. Always one line, so the
+   bar's height (and the tube-track row above it) never jumps between
+   states — see onboard.js's onUpdate. ETA is a separate, optional item,
+   wide-sign only (see onboard.js). ─────────────────────────────────────── */
 
 #sign-bottom-line {
   grid-area: bottom;
@@ -338,7 +339,7 @@ body {
   align-items: baseline;
   gap: 3vw;
   padding: 2vh 3vw;
-  background: var(--ep-blue);
+  background: var(--ep-purple);
   color: var(--ep-paper);
   font-family: var(--ep-font);
   font-size: var(--min-text);
@@ -346,42 +347,19 @@ body {
   overflow: hidden;
 }
 
-/* This Stop + Next Stop side by side don't fit at 22mm with real stop
-   names on the narrower Fire HD — stack them full-width instead whenever
-   #sbl-this is showing (i.e. atStop; ETA is hidden in that state, see
-   onboard.js, so it's just these two). */
-#sign-bottom-line:has(#sbl-this:not([hidden])) {
-  flex-direction: column;
-  align-items: center;
-  gap: 0.8vh;
-}
-
-/* align-items: center (column cross-axis) sizes items to their own content
-   by default, which bypasses width-based ellipsis entirely — an
-   exceptionally long single stop name would otherwise overflow the screen
-   edges raw instead of truncating. Pin each line to the container's width
-   so text-overflow: ellipsis (above) has something to actually clip against. */
-#sign-bottom-line:has(#sbl-this:not([hidden])) #sbl-this,
-#sign-bottom-line:has(#sbl-this:not([hidden])) #sbl-next {
-  width: 100%;
-  text-align: center;
-}
-
-#sbl-this,
-#sbl-next,
+#sbl-status,
 #sbl-eta {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  /* Flex items default to a content-based min-width, which would let the
-     three of these force the row wider than the screen instead of each
-     ellipsizing on its own. */
+  /* Flex items default to a content-based min-width, which would let these
+     force the row wider than the screen instead of ellipsizing on their own. */
   min-width: 0;
 }
 
-/* ETA isn't PSVAIR-regulated (This Stop/Next Stop are, at --min-text) —
-   sized well down so it never competes with them for space, and never
-   shrinks/truncates itself; the two regulated names absorb any squeeze. */
+/* ETA isn't PSVAIR-regulated (the status line is, at --min-text) — sized
+   well down so it never competes with it for space, and never shrinks/
+   truncates itself; the regulated status line absorbs any squeeze. */
 #sbl-eta {
   font-size: 7vh;
   flex-shrink: 0;
@@ -392,7 +370,7 @@ body {
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ep-blue-soft);
+  color: var(--ep-purple-soft);
   margin-right: 0.3em;
 }
 
