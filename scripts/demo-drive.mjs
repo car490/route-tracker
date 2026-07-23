@@ -1,11 +1,12 @@
 // Live-demo GPS simulator for the PSVAIR next-stop announcements feature.
 //
-// Not part of the app — this drives two real, visible Chromium windows with
-// mocked Geolocation so a presenter can show the driver PWA (with audio)
-// and the onboard passenger e-paper display (silent, text-only mirror of
-// the same announcements) updating together, while the ops dashboard's
-// Live Tracking map updates in parallel in a normal browser tab, all
-// without a real moving vehicle.
+// Not part of the app — this drives three real, visible Chromium windows
+// with mocked Geolocation so a presenter can show the driver PWA (with
+// audio), the Fire HD 10 onboard passenger sign, and the 16:3 ultra-wide
+// onboard sign (both silent, text-only mirrors of the same announcements)
+// all updating together, while the ops dashboard's Live Tracking map
+// updates in parallel in a normal browser tab, all without a real moving
+// vehicle.
 //
 // Usage:
 //   node scripts/demo-drive.mjs <duty-url> [secondsPerStop]
@@ -13,19 +14,28 @@
 // Example:
 //   node scripts/demo-drive.mjs "http://localhost:8080/?duties=2d2f26b1-31b9-434b-a858-e614a53599b5" 7
 //
-// Two windows open, both already positioned at the first stop:
-//   - LEFT:  the driver PWA duty-card link you pass in. Click through the
-//            duty card, pick the FIRST stop as the starting point, hit Start.
-//   - RIGHT: the onboard passenger sign (onboard.html?journey=<id>, landscape,
-//            Fire-HD proportions). No interaction needed — it polls
-//            get_duty_card for that journey and wakes on its own within a
-//            few seconds of the driver hitting Start on the left.
-// The simulator waits for both, then drives the route in lockstep. Only the
-// left (driver PWA) window produces audio — the right window is muted via
-// localStorage before it loads, so the two don't talk over each other; its
-// on-screen text still updates from the same simulated GPS feed.
+// Three windows open, all already positioned at the first stop:
+//   - TOP LEFT:  the driver PWA duty-card link you pass in. Click through
+//                the duty card, pick the FIRST stop as the starting point,
+//                hit Start.
+//   - TOP RIGHT: the onboard passenger sign (onboard.html?journey=<id>),
+//                Fire HD 10 landscape proportions (~16:10).
+//   - BOTTOM:    the same onboard sign in a 16:3 ultra-wide window spanning
+//                underneath both, so its CSS media-query breakpoint flips
+//                it into the three-column zone layout — see
+//                docs/onboard-widescreen-layout.md.
+// Neither onboard window needs interaction — both poll get_duty_card for
+// that journey and wake on their own within a few seconds of the driver
+// hitting Start on the left. The simulator waits for all three, then
+// drives the route in lockstep. Only the driver PWA window produces
+// audio — both onboard windows are muted via localStorage before they
+// load, so they don't talk over each other or the driver; their on-screen
+// text still updates from the same simulated GPS feed.
 
 import { chromium } from 'playwright';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const DUTY_URL = process.argv[2];
 const SECONDS_PER_STOP = Number(process.argv[3] ?? 7);
@@ -76,66 +86,105 @@ const STOPS = [
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const lerp = (a, b, t) => a + (b - a) * t;
 
-async function openWindow({ url, windowPosition, windowSize, viewport, mute }) {
-  const browser = await chromium.launch({
+// context.pages()[0] can race the --app= window's real navigation and grab
+// a transient about:blank page instead — when that happens the actual app
+// window is left undiscovered/uncontrolled by this script (and shows up on
+// screen still wearing normal Chrome UI, since Playwright never applied
+// permissions/geolocation/mute to it). Poll for a page whose origin
+// actually matches instead of trusting whichever page shows up first.
+async function waitForRealPage(context, expectedUrl) {
+  const targetOrigin = new URL(expectedUrl).origin;
+  for (let i = 0; i < 30; i++) {
+    const found = context.pages().find((p) => {
+      try { return new URL(p.url()).origin === targetOrigin; } catch { return false; }
+    });
+    if (found) return found;
+    await sleep(100);
+  }
+  return context.pages()[0] ?? await context.waitForEvent('page');
+}
+
+async function openWindow({ url, windowPosition, windowSize, mute }) {
+  // launchPersistentContext + --app=<url> gives a bare window: no tabs, no
+  // address bar, just the page content and a thin native title bar. Plain
+  // chromium.launch()+newContext() (the old approach) always shows full
+  // browser chrome in headed mode and also emulates a *virtual* viewport
+  // on top of the real window — under Windows display scaling those two
+  // sizes can diverge, which is why content rendered at the wrong size
+  // before. viewport: null here means "no emulation, use the real window."
+  const userDataDir = mkdtempSync(join(tmpdir(), 'demo-drive-'));
+  const context = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
-    args: [`--window-size=${windowSize}`, `--window-position=${windowPosition}`],
-  });
-  const context = await browser.newContext({
-    viewport,
+    viewport: null,
+    args: [`--window-size=${windowSize}`, `--window-position=${windowPosition}`, `--app=${url}`],
     geolocation: { latitude: STOPS[0].lat, longitude: STOPS[0].lon },
     permissions: ['geolocation'],
   });
+  const page = await waitForRealPage(context, url);
+  await page.waitForLoadState('domcontentloaded').catch(() => {});
   if (mute) {
-    // Set before first load so the mute button already reflects it and no
-    // announcement gets spoken here — this window is a silent text mirror.
-    await context.addInitScript(() => localStorage.setItem('psvair-muted', '1'));
+    // Silent text mirror — set before the sign starts polling so no
+    // announcement gets spoken here.
+    await page.evaluate(() => localStorage.setItem('psvair-muted', '1')).catch(() => {});
   }
-  const page = await context.newPage();
-
-  // The dev server's first response can race the browser's own initial
-  // request and get aborted (net::ERR_ABORTED) — harmless, just retry.
-  for (let attempt = 1; ; attempt++) {
-    try {
-      await page.goto(url, { waitUntil: 'domcontentloaded' });
-      break;
-    } catch (err) {
-      if (attempt >= 3) throw err;
-      console.log(`Navigation attempt ${attempt} failed (${err.message.split('\n')[0]}), retrying…`);
-      await sleep(500);
-    }
-  }
-  return { browser, context, page };
+  // --app=<url> starts navigating the instant Chromium's process starts,
+  // racing ahead of the geolocation permission grant and (if set) the mute
+  // flag above. Reload so this window's real first paint happens after
+  // both are already in place.
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  return { context, page };
 }
 
 (async () => {
-  const [driver, onboard] = await Promise.all([
+  const [driver, onboardTablet, onboardWide] = await Promise.all([
     openWindow({
       url: DUTY_URL, mute: false,
-      // Scaled down to roughly a real 6.7" phone's on-screen footprint at
-      // standard 96 DPI, not a full desktop-sized window — window size adds
-      // ~110px for Chrome's title/tab/address bar on top of the viewport.
-      windowPosition: '40,60', windowSize: '316,730', viewport: { width: 300, height: 610 },
+      // --window-size/-position are in the same logical coordinate space as
+      // window.screen (confirmed empirically — NOT physical pixels; a
+      // 1920x1080 panel at 150% Windows scaling reports as 1280x720 here).
+      // Adjust these three windows if your primary display's logical
+      // resolution differs — check with (Get-CimInstance
+      // Win32_VideoController) vs a quick Playwright window.screen probe.
+      // Left, full-height, real phone proportions (~326x613 viewport) —
+      // the driver PWA's fixed-size #app-brand mark (style.css) is
+      // deliberately NOT viewport-scaled, since it's meant to look
+      // consistent across real phones of any size, not one fixed kiosk
+      // resolution like the onboard sign. It needs real phone-scale room
+      // to sit clear of duty-card content without overlapping.
+      windowPosition: '20,20', windowSize: '340,650',
     }),
     openWindow({
       url: ONBOARD_URL, mute: true,
-      // Landscape, ~16:10 — same proportions as the real Fire HD 10 target device.
-      windowPosition: '396,60', windowSize: '960,620', viewport: { width: 944, height: 560 },
+      // Top-right, landscape — same proportions as the Fire HD 10 target device.
+      windowPosition: '380,20', windowSize: '880,340',
+    }),
+    openWindow({
+      url: ONBOARD_URL, mute: true,
+      // Bottom-right, under the Fire HD window only (not under the taller
+      // driver column) — ~4.3:1 clears the onboard.css
+      // `min-aspect-ratio: 4/1` breakpoint so this window shows the
+      // ultra-wide three-column layout instead of the default vertical one
+      // above it. Narrower than an ideal destination-board strip since it's
+      // sharing the screen with a realistically-sized driver phone.
+      windowPosition: '380,380', windowSize: '880,237',
     }),
   ]);
 
-  console.log('Two windows are open, side by side.');
-  console.log(`LEFT  (driver PWA): click through the duty card, pick "${STOPS[0].name}"`);
-  console.log('       as the starting stop, and hit Start.');
-  console.log('RIGHT (onboard sign): nothing to click — it polls for the journey to start');
-  console.log('       and wakes on its own within a few seconds of you hitting Start.');
-  console.log('Waiting for both to start…');
+  console.log('Three windows are open.');
+  console.log(`TOP LEFT  (driver PWA):     click through the duty card, pick "${STOPS[0].name}"`);
+  console.log('           as the starting stop, and hit Start.');
+  console.log('TOP RIGHT (Fire HD sign):   nothing to click.');
+  console.log('BOTTOM    (16:3 wide sign): nothing to click.');
+  console.log('Both onboard windows poll for the journey to start and wake on their own');
+  console.log('within a few seconds of you hitting Start.');
+  console.log('Waiting for all three to start…');
 
   await Promise.all([
     driver.page.waitForSelector('#tracker:not([hidden])', { timeout: 10 * 60 * 1000 }),
-    onboard.page.waitForSelector('#onboard-sign:not([hidden])', { timeout: 10 * 60 * 1000 }),
+    onboardTablet.page.waitForSelector('#onboard-sign:not([hidden])', { timeout: 10 * 60 * 1000 }),
+    onboardWide.page.waitForSelector('#onboard-sign:not([hidden])', { timeout: 10 * 60 * 1000 }),
   ]);
-  console.log('Both started — driving the route now.\n');
+  console.log('All three started — driving the route now.\n');
 
   for (let i = 1; i < STOPS.length; i++) {
     const from = STOPS[i - 1];
@@ -145,7 +194,8 @@ async function openWindow({ url, windowPosition, windowSize, viewport, mute }) {
       const pos = { latitude: lerp(from.lat, to.lat, t), longitude: lerp(from.lon, to.lon, t) };
       await Promise.all([
         driver.context.setGeolocation(pos),
-        onboard.context.setGeolocation(pos),
+        onboardTablet.context.setGeolocation(pos),
+        onboardWide.context.setGeolocation(pos),
       ]);
       await sleep((SECONDS_PER_STOP * 1000) / SUB_STEPS);
     }

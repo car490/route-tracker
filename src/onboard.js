@@ -255,9 +255,23 @@ async function runSign(duty) {
   });
 }
 
+// ── Clock — wide-layout top bar only, but harmless to keep updating while
+// the sign is hidden/in the default layout since #sign-clock just sits
+// unused there. ──────────────────────────────────────────────────────────
+
+function startClock() {
+  const clock = el('sign-clock');
+  const tick = () => {
+    clock.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+  tick();
+  setInterval(tick, 1000);
+}
+
 // ── Entry point ──────────────────────────────────────────────────────────
 
 async function init() {
+  startClock();
   if (!WATCH_JOURNEY_ID) {
     console.warn('onboard.js: no ?journey=<id> in the URL — nothing to watch, staying blank.');
     return;
