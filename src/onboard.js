@@ -81,10 +81,20 @@ async function fetchStops(departureId) {
   return rowsToStops(await res.json());
 }
 
+// display_name() (schema.sql) appends a NaPTAN indicator in parentheses —
+// "Weston, The Chequers PH (adj)", "Grantham, Bus Station (Stand 5)" — for
+// route-planning precision (which pole/bay/side of the road). Passengers
+// don't need that, and every character counts against the 22mm text
+// minimum, so it's stripped here for this passenger-facing display only —
+// the driver PWA and dashboard still get the full name with indicator.
+function stripIndicator(name) {
+  return name.replace(/\s*\([^)]*\)\s*$/, '');
+}
+
 function rowsToStops(rows) {
   return rows
     .sort((a, b) => a.sequence - b.sequence)
-    .map((r) => ({ name: r.display_name, lat: r.lat, lon: r.lon, time: r.scheduled_time.substring(0, 5), stop_type: r.stop_type }));
+    .map((r) => ({ name: stripIndicator(r.display_name), lat: r.lat, lon: r.lon, time: r.scheduled_time.substring(0, 5), stop_type: r.stop_type }));
 }
 
 // Polls a Pi's local GPS bridge (pi-server/server.mjs's /api/position,
@@ -157,9 +167,12 @@ function renderTubeTrack(allStops, centerIndex, isAtStop) {
   track.innerHTML = '';
 
   const first = 1, last = allStops.length - 2; // real stops only; 0/length-1 are depot padding
+  // Labels must stay readable from the back of an 11m bus (~22mm min text,
+  // see --min-text in onboard.css), which leaves room for very few stops
+  // either side regardless of the extra width the wide sign has.
   const isWide = matchMedia(WIDE_LAYOUT_QUERY).matches;
-  const stopsBack = isWide ? 2 : 1;
-  const stopsForward = isWide ? 3 : 1;
+  const stopsBack = 1;
+  const stopsForward = isWide ? 2 : 1;
   const indices = [];
   for (let i = centerIndex - stopsBack; i <= centerIndex + stopsForward; i++) {
     if (i >= first && i <= last) indices.push(i);
@@ -177,34 +190,19 @@ function renderTubeTrack(allStops, centerIndex, isAtStop) {
   });
 }
 
-// ── ETA panel — next 3 stops ────────────────────────────────────────────
-// `timing` (from computeTiming via gps.js) is a live GPS-based estimate for
-// the immediate next stop only. For the 2nd/3rd stops out there's no live
-// distance/speed to project from, so the same current delay (live ETA minus
-// scheduled) is carried forward onto each stop's own scheduled time — a
-// simple, honest extrapolation rather than modelling the whole route.
-function renderEtaList(allStops, centerIndex, timing, atStop) {
-  const list = el('sign-eta-list');
-  list.innerHTML = '';
-
-  const offsetMs = !atStop ? timing.eta.getTime() - timing.scheduledTime.getTime() : 0;
-  const last = allStops.length - 2; // last real stop; 0/length-1 are depot padding
-
-  for (let k = 1; k <= 3; k++) {
-    const idx = centerIndex + k;
-    if (idx > last) break;
-    const stop = allStops[idx];
-    const [h, m] = stop.time.split(':').map(Number);
-    const scheduled = new Date();
-    scheduled.setHours(h, m, 0, 0);
-    const eta = new Date(scheduled.getTime() + offsetMs);
-
-    const row = document.createElement('div');
-    row.className = 'eta-row';
-    row.innerHTML = `<span class="eta-name">${stop.name}</span>` +
-      `<span class="eta-time">${eta.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>`;
-    list.appendChild(row);
-  }
+// ── ETA — next stop only, en route only ─────────────────────────────────
+// Not called while atStop (see call site) — gps.js's `timing` is a live
+// estimate for whichever stop it currently has as nextStopIndex, which
+// while dwelling at a stop is the stop we're already at, not the "next
+// stop" this computes an ETA for.
+function nextStopEta(allStops, centerIndex, timing) {
+  const next = allStops[centerIndex + 1];
+  if (!next) return null;
+  const [h, m] = next.time.split(':').map(Number);
+  const scheduled = new Date();
+  scheduled.setHours(h, m, 0, 0);
+  const offsetMs = timing.eta.getTime() - timing.scheduledTime.getTime();
+  return new Date(scheduled.getTime() + offsetMs);
 }
 
 // ── Sign ─────────────────────────────────────────────────────────────────
@@ -215,12 +213,13 @@ async function runSign(duty) {
   const allStops = withDepotStops(stops);
   const initialStopIndex = 1; // start of route; geofence catch-up handles wherever the vehicle actually is
 
+  const destination = stripIndicator(duty.last_stop_name);
   el('sign-service-code').textContent = duty.service_code;
-  el('sign-destination').textContent = duty.last_stop_name;
+  el('sign-destination').textContent = destination;
   el('onboard-sign').hidden = false;
 
   setAnnouncementsEnabled(true);
-  announceJourneyStart({ serviceCode: duty.service_code, destination: duty.last_stop_name });
+  announceJourneyStart({ serviceCode: duty.service_code, destination });
 
   let lastAnnouncedStopIdx = null;
 
@@ -260,7 +259,13 @@ async function runSign(duty) {
       el('sbl-this-name').textContent = allStops[centerIndex].name;
       el('sbl-next-name').textContent = isFinal ? 'End of route' : allStops[centerIndex + 1].name;
       renderTubeTrack(allStops, centerIndex, !!atStop);
-      renderEtaList(allStops, centerIndex, timing, !!atStop);
+
+      // ETA isn't PSVAIR-regulated (This Stop/Next Stop are) — hidden while
+      // atStop so those two get the full row's width to themselves instead
+      // of a third, unregulated item squeezing them down to nothing.
+      const eta = (isFinal || atStop) ? null : nextStopEta(allStops, centerIndex, timing);
+      el('sbl-eta').hidden = !eta;
+      if (eta) el('sbl-eta-time').textContent = eta.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       const banner = el('early-wait-banner');
       if (earlyWait) {

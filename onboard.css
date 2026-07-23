@@ -34,6 +34,19 @@
   /* Tube-track only. */
   --ep-navy:      #1B2A4A;
   --ep-charcoal:  #36454F;
+
+  /* Top/bottom bars (paper-white everywhere else) — see the ~22mm minimum
+     text-size note below. */
+  --ep-paper:     #FFFFFF;
+  --ep-blue:      #2563A8;
+  --ep-blue-soft: rgba(255, 255, 255, 0.72);
+
+  /* ~22mm minimum text size on both real target devices — Fire HD 10
+     (1920x1200 @ 10.1", ~8.82px/mm) and the 16:3 wide panel (2560x480 @
+     28", ~3.66px/mm) — happen to land within half a vh of each other
+     (16.2vh / 16.8vh), so one shared minimum works for both. Bump this
+     value first if either device's real physical size changes. */
+  --min-text:     17vh;
 }
 
 *,
@@ -74,17 +87,16 @@ body {
   height: 100vh;
   width: 100vw;
   display: grid;
-  /* minmax(0, …) — plain `fr` tracks have an implicit auto minimum size,
-     so long stop/destination names would blow the track wider than its
-     share instead of clipping via the child's own ellipsis rules. */
-  grid-template-columns: minmax(0, 4fr) minmax(0, 1fr);
+  /* Explicit, even though there's only one column — leaving this implicit
+     let #sign-topbar's own nested `1fr` track balloon based on content
+     instead of resolving against a definite 100vw parent width. */
+  grid-template-columns: 100vw;
   grid-template-rows: auto 1fr auto;
   grid-template-areas:
-    "topbar topbar"
-    "track  etas"
-    "bottom bottom";
-  padding: 3vh 3vw;
-  gap: 1.5vh 1.5vw;
+    "topbar"
+    "track"
+    "bottom";
+  background: var(--ep-paper);
 }
 
 #onboard-brand {
@@ -140,44 +152,52 @@ body {
   color: var(--ep-teal);
 }
 
-/* ── Top bar — logo (fixed, see above) / route line (centred) / clock ──── */
+/* ── Top bar — mid-blue, white lettering (logo keeps its own brand colours,
+   see #onboard-brand above). Logo (fixed) / route line (centred) / clock. */
 
 #sign-topbar {
   grid-area: topbar;
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  /* Column 3 (clock) is `auto`, not `1fr` — it must never shrink below its
+     own content or it clips off the edge of the screen. Column 2's
+     minmax(0, 55vw) caps the route line as a genuine track constraint —
+     a max-width on the child alone isn't reliably honoured by `auto`
+     track sizing. Column 1 is an empty spacer that absorbs the leftover
+     space, keeping the route line roughly centred without risking the
+     clock. */
+  grid-template-columns: 1fr minmax(0, 55vw) auto;
   align-items: center;
-  column-gap: 1vw;
-  padding-bottom: 1.5vh;
-  border-bottom: 4px solid var(--ep-line);
+  column-gap: 2vw;
+  padding: 2vh 3vw;
+  background: var(--ep-blue);
+  color: var(--ep-paper);
 }
 
-/* Column 1 is an intentionally empty spacer — it's what makes column 2
-   (the route line) sit truly centred regardless of the clock's width. */
 #sign-route-line {
   grid-column: 2;
   justify-self: center;
   display: flex;
   align-items: baseline;
-  gap: 0.6vw;
-  white-space: nowrap;
+  gap: 1.5vw;
+  min-width: 0;
+  max-width: 55vw;
+  overflow: hidden;
 }
 
-#sign-service-code {
+#sign-service-code,
+#sign-destination {
   font-family: var(--ep-font);
-  font-size: 3vh;
+  font-size: var(--min-text);
   font-weight: 800;
 }
 
 #sign-destination {
-  font-family: var(--ep-font);
-  font-size: 3vh;
-  font-weight: 700;
   letter-spacing: 0.01em;
   text-transform: uppercase;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 
 #sign-destination::before {
@@ -186,42 +206,42 @@ body {
 
 #sign-clock {
   grid-column: 3;
-  justify-self: end;
   font-family: var(--ep-mono);
-  font-size: 2.2vh;
+  font-size: var(--min-text);
   font-variant-numeric: tabular-nums;
-  color: var(--ep-ink-soft);
+  color: var(--ep-blue-soft);
+  white-space: nowrap;
 }
 
-/* ── Early wait banner — no flashing; e-paper doesn't animate ───────────── */
+/* ── Early wait banner — replaces the bottom bar, same treatment ────────── */
 
 #early-wait-banner {
   grid-area: bottom;
   align-self: center;
-  background: transparent;
-  color: var(--ep-ink);
   text-align: center;
-  padding: 1.5vh 1rem;
-  border: 3px dashed var(--ep-line);
+  padding: 2vh 3vw;
+  background: var(--ep-blue);
+  color: var(--ep-paper);
 }
 
 .ewb-title {
   font-family: var(--ep-font);
-  font-size: 3vh;
+  font-size: var(--min-text);
   font-weight: 800;
   letter-spacing: 0.08em;
 }
 
 .ewb-msg {
   font-family: var(--ep-font);
-  font-size: 2vh;
+  font-size: 4vh;
   font-weight: 400;
-  margin-top: 0.4vh;
-  color: var(--ep-ink-soft);
+  margin-top: 0.6vh;
+  color: var(--ep-blue-soft);
 }
 
-/* ── Tube-map style progress line — deep navy line, charcoal dots, current
-   stop in green. Past/future read identically; only "current" and
+/* ── Tube-map style progress line — paper-white background, deep navy
+   line, charcoal dots, current stop in green. Sized to read from the back
+   of an 11m bus. Past/future read identically; only "current" and
    "confirmed arrival" (pulsing) are visually different. JS decides how
    many stops either side to show (matchMedia — more room on the wide
    panel), not CSS; see renderTubeTrack in onboard.js. ─────────────────── */
@@ -230,18 +250,18 @@ body {
   grid-area: track;
   position: relative;
   display: flex;
-  justify-content: space-between;
+  justify-content: space-around;
   align-items: flex-start;
-  padding: 1vh 0.5vw 0;
+  padding: 4vh 4vw 0;
 }
 
 #tube-track::before {
   content: '';
   position: absolute;
-  left: calc(1vw + 8%);
-  right: calc(1vw + 8%);
-  top: calc(1vh + 1.4vh);
-  height: 5px;
+  left: 8%;
+  right: 8%;
+  top: calc(4vh + 3.5vh);
+  height: 8px;
   background: var(--ep-navy);
 }
 
@@ -250,34 +270,39 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.2vh;
+  gap: 1.5vh;
   flex: 1;
   min-width: 0;
 }
 
 .tube-dot {
-  width: 2.8vh;
-  height: 2.8vh;
+  width: 7vh;
+  height: 7vh;
   border-radius: 50%;
   background: var(--ep-charcoal);
-  border: 4px solid var(--ep-charcoal);
+  border: 5px solid var(--ep-charcoal);
   z-index: 1;
 }
 
 .tube-node.tube-current .tube-dot {
-  width: 4.2vh;
-  height: 4.2vh;
+  width: 9vh;
+  height: 9vh;
   background: var(--ep-at-stop);
-  border-width: 6px;
+  border-width: 7px;
   border-color: var(--ep-at-stop);
 }
 
 .tube-label {
   font-family: var(--ep-font);
-  font-size: 1.9vh;
+  /* Not PSVAIR-regulated (only route number/destination/this stop/next
+     stop are) — kept well short of --min-text so full-ish stop names fit
+     without every one of them reducing to 3-4 characters. */
+  font-size: 3.5vh;
   font-weight: 600;
   text-align: center;
-  max-width: 17vw;
+  /* 100% of its own .tube-node, not a fixed vw guess — a fixed width let
+     adjacent labels overflow their node and overlap their neighbours. */
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -300,69 +325,74 @@ body {
   50%      { opacity: 0.5; }
 }
 
-/* ── ETA panel — next 3 stops ─────────────────────────────────────────── */
-
-#sign-eta-list {
-  grid-area: etas;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 1vh;
-  border-left: 3px solid var(--ep-line);
-  padding-left: 1vw;
-}
-
-.eta-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.8vw;
-}
-
-.eta-name {
-  font-family: var(--ep-font);
-  font-size: 1.6vh;
-  color: var(--ep-ink-soft);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-
-.eta-time {
-  font-family: var(--ep-mono);
-  font-size: 1.8vh;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
-}
-
-/* ── Bottom line — "Next Stop <name>" while en route, "This Stop <name>
-   Next Stop <name>" once arrival is confirmed (#sbl-this unhides). ─────── */
+/* ── Bottom bar — mid-blue, white lettering. "Next Stop <name>" plus its
+   ETA while en route; "This Stop <name>" also appears (#sbl-this unhides)
+   once arrival is confirmed. ─────────────────────────────────────────── */
 
 #sign-bottom-line {
   grid-area: bottom;
   align-self: center;
-  text-align: center;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: baseline;
+  gap: 3vw;
+  padding: 2vh 3vw;
+  background: var(--ep-blue);
+  color: var(--ep-paper);
   font-family: var(--ep-font);
-  font-size: 4.5vh;
+  font-size: var(--min-text);
   font-weight: 800;
-  padding-top: 1.2vh;
-  border-top: 4px solid var(--ep-line);
+  overflow: hidden;
+}
+
+/* This Stop + Next Stop side by side don't fit at 22mm with real stop
+   names on the narrower Fire HD — stack them full-width instead whenever
+   #sbl-this is showing (i.e. atStop; ETA is hidden in that state, see
+   onboard.js, so it's just these two). */
+#sign-bottom-line:has(#sbl-this:not([hidden])) {
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8vh;
+}
+
+/* align-items: center (column cross-axis) sizes items to their own content
+   by default, which bypasses width-based ellipsis entirely — an
+   exceptionally long single stop name would otherwise overflow the screen
+   edges raw instead of truncating. Pin each line to the container's width
+   so text-overflow: ellipsis (above) has something to actually clip against. */
+#sign-bottom-line:has(#sbl-this:not([hidden])) #sbl-this,
+#sign-bottom-line:has(#sbl-this:not([hidden])) #sbl-next {
+  width: 100%;
+  text-align: center;
+}
+
+#sbl-this,
+#sbl-next,
+#sbl-eta {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* Flex items default to a content-based min-width, which would let the
+     three of these force the row wider than the screen instead of each
+     ellipsizing on its own. */
+  min-width: 0;
 }
 
-#sbl-this {
-  margin-right: 1.2em;
+/* ETA isn't PSVAIR-regulated (This Stop/Next Stop are, at --min-text) —
+   sized well down so it never competes with them for space, and never
+   shrinks/truncates itself; the two regulated names absorb any squeeze. */
+#sbl-eta {
+  font-size: 7vh;
+  flex-shrink: 0;
 }
 
 .sbl-label {
-  font-size: 0.4em;
+  font-size: 0.35em;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ep-ink-soft);
+  color: var(--ep-blue-soft);
   margin-right: 0.3em;
 }
 
