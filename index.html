@@ -36,6 +36,29 @@
       <div class="ndc-icon">&#128204;</div>
       <div class="ndc-title">No duty assigned</div>
       <div class="ndc-body">Ask your ops manager to share today's driver link with you before the route starts.</div>
+      <button id="ndc-manual-btn" class="ndc-secondary-btn">Select a service manually</button>
+    </div>
+
+    <!-- Manual service selection screen (fallback when no duty card is assigned) -->
+    <div id="manual-picker" hidden>
+      <div class="picker-title">
+        <div class="picker-brand">Phil Haines Coaches</div>
+        <div class="picker-subtitle">Select Service</div>
+      </div>
+      <button id="manual-back-btn">&#8592; Back</button>
+      <div class="picker-field">
+        <label for="manual-service-select">Service</label>
+        <div class="select-wrap">
+          <select id="manual-service-select"></select>
+        </div>
+      </div>
+      <div class="picker-field">
+        <label for="manual-period-select">Period</label>
+        <div class="select-wrap">
+          <select id="manual-period-select"></select>
+        </div>
+      </div>
+      <button id="manual-start-btn">Start</button>
     </div>
 
     <!-- Picker screen -->
@@ -61,7 +84,14 @@
     <div id="tracker" hidden>
     <div id="psvair-banner" hidden>
       <span id="psvair-text" aria-live="assertive"></span>
+      <button id="psvair-voice-btn" type="button" aria-label="Announcement voice settings">&#9881;</button>
       <button id="psvair-mute-btn" type="button" aria-label="Mute announcements">&#128266;</button>
+    </div>
+    <div id="psvair-voice-panel" hidden>
+      <div class="select-wrap">
+        <select id="psvair-voice-select" aria-label="Announcement voice"></select>
+      </div>
+      <button id="psvair-voice-test-btn" type="button">Test</button>
     </div>
     <div id="early-wait-banner" hidden>
       <div class="ewb-title">WAIT HERE</div>
@@ -131,15 +161,13 @@
     <button id="btn-complete" style="width:100%;margin-top:8px;padding:14px;background:#c0392b;color:#fff;font-family:inherit;font-size:1rem;font-weight:700;letter-spacing:0.02em;border:none;border-radius:8px;cursor:pointer;">Complete Trip</button>
     </div>
 
-    <!-- In normal document flow (not fixed) so it always lands after
-         whichever screen is currently visible, on every screen including
-         the tall/scrollable tracker view, with no risk of overlapping
-         real content — see style.css for why that matters here. -->
+    <!-- Fixed to the viewport corner (see style.css) so it's visible on
+         every screen without scrolling, including #duty-card. -->
     <div id="app-brand">
-      <div class="bh-wordmark">BUSHUB<span class="bh-app">.Driver</span></div>
+      <div class="bh-wordmark">BusHub<span class="bh-app">.Driver</span></div>
       <div class="cm-attribution">
         <span class="cm-powered-by">Powered by</span>
-        <span class="cm-wordmark"><span class="cm-coach">COACH</span><span class="cm-mate">Mate</span></span>
+        <span class="cm-wordmark"><span class="cm-coach">Coach</span><span class="cm-mate">Mate</span></span>
       </div>
     </div>
 

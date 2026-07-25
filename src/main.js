@@ -6,10 +6,13 @@ import { initDirections, syncCurrentStop, updateDirections } from './directions.
 import {
   setAnnouncementsEnabled, onAnnouncementChange, announceJourneyStart,
   announceDiversion, isMuted, setMuted,
+  listVoices, getSelectedVoiceURI, setSelectedVoiceURI, previewVoice,
 } from './announcements.js';
 import { sbFetch, rpc, fetchStopsForDeparture } from './supabaseApi.js';
 import { announceStopEvent } from './announceStopEvent.js';
 import { triggerDiversionAlert, clearDiversionAlert } from './diversionAlert.js';
+import { selectServiceManually } from './manualSelection.js';
+import { routeData } from './routeData.js';
 
 const DEPOT = { name: 'Phil Haines Coaches Depot', lat: 52.950412, lon: -0.050110 };
 const DEBUG = new URLSearchParams(window.location.search).has('debug');
@@ -111,9 +114,13 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   // In-scope local bus services get a live audio + on-screen announcement of
   // the next stop / final destination, driven off the same GPS stop-advance
   // logic already tracking arrivals below.
-  const psvairBanner = document.getElementById('psvair-banner');
-  const psvairText    = document.getElementById('psvair-text');
-  const psvairMuteBtn = document.getElementById('psvair-mute-btn');
+  const psvairBanner     = document.getElementById('psvair-banner');
+  const psvairText       = document.getElementById('psvair-text');
+  const psvairMuteBtn    = document.getElementById('psvair-mute-btn');
+  const psvairVoiceBtn   = document.getElementById('psvair-voice-btn');
+  const psvairVoicePanel = document.getElementById('psvair-voice-panel');
+  const psvairVoiceSelect  = document.getElementById('psvair-voice-select');
+  const psvairVoiceTestBtn = document.getElementById('psvair-voice-test-btn');
   setAnnouncementsEnabled(!!psvairEnabled);
   psvairBanner.hidden = !psvairEnabled;
   let lastAnnouncedStopIdx = null;
@@ -126,6 +133,34 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
     };
     setMuteBtnLabel();
     psvairMuteBtn.onclick = () => { setMuted(!isMuted()); setMuteBtnLabel(); };
+
+    // Voice list only becomes available once 'voiceschanged' fires on some
+    // browsers (notably Chrome) — repopulate whenever it does, keeping the
+    // driver's saved choice selected if it's in the refreshed list.
+    const populateVoiceSelect = () => {
+      const voices = listVoices();
+      if (!voices.length) return;
+      const current = psvairVoiceSelect.value || getSelectedVoiceURI();
+      psvairVoiceSelect.innerHTML = '';
+      voices.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.voiceURI;
+        opt.textContent = `${v.name} (${v.lang})`;
+        psvairVoiceSelect.appendChild(opt);
+      });
+      if (current && voices.some(v => v.voiceURI === current)) {
+        psvairVoiceSelect.value = current;
+      }
+    };
+    populateVoiceSelect();
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.addEventListener('voiceschanged', populateVoiceSelect);
+    }
+
+    psvairVoiceBtn.onclick = () => { psvairVoicePanel.hidden = !psvairVoicePanel.hidden; };
+    psvairVoiceSelect.onchange = () => setSelectedVoiceURI(psvairVoiceSelect.value);
+    psvairVoiceTestBtn.onclick = () => previewVoice(psvairVoiceSelect.value);
+
     announceJourneyStart({ serviceCode, destination: lastStop.name });
   }
 
@@ -501,15 +536,74 @@ async function launchDutyRoute(duties, idx, journeyIds) {
 // ── No duty card screen ───────────────────────────────────────────────────────
 
 function showNoDutyCard() {
-  document.getElementById('no-duty-card').hidden = false;
-  document.getElementById('duty-card').hidden    = true;
-  document.getElementById('picker').hidden       = true;
-  document.getElementById('tracker').hidden      = true;
+  document.getElementById('no-duty-card').hidden  = false;
+  document.getElementById('duty-card').hidden     = true;
+  document.getElementById('picker').hidden        = true;
+  document.getElementById('manual-picker').hidden = true;
+  document.getElementById('tracker').hidden       = true;
+}
+
+// ── Manual service selection (fallback when no duty card is assigned) ─────────
+
+function initManualSelection() {
+  const serviceSelect = document.getElementById('manual-service-select');
+  const periodSelect  = document.getElementById('manual-period-select');
+  const startBtn      = document.getElementById('manual-start-btn');
+
+  Object.keys(routeData).forEach(code => {
+    const opt = document.createElement('option');
+    opt.value = code;
+    opt.textContent = code;
+    serviceSelect.appendChild(opt);
+  });
+
+  const populatePeriods = () => {
+    periodSelect.innerHTML = '';
+    Object.keys(routeData[serviceSelect.value] ?? {}).forEach(period => {
+      const opt = document.createElement('option');
+      opt.value = period;
+      opt.textContent = period;
+      periodSelect.appendChild(opt);
+    });
+  };
+  serviceSelect.onchange = populatePeriods;
+  populatePeriods();
+
+  document.getElementById('ndc-manual-btn').onclick = () => {
+    document.getElementById('no-duty-card').hidden  = true;
+    document.getElementById('manual-picker').hidden = false;
+  };
+
+  document.getElementById('manual-back-btn').onclick = () => {
+    document.getElementById('manual-picker').hidden = true;
+    showNoDutyCard();
+  };
+
+  startBtn.onclick = async () => {
+    startBtn.disabled = true;
+    try {
+      const result = await selectServiceManually(serviceSelect.value, periodSelect.value, {
+        onComplete: showNoDutyCard,
+      });
+
+      document.getElementById('manual-picker').hidden = true;
+      await acquireWakeLock();
+
+      runTracker({ ...result, allStops: withDepotStops(result.allStops) });
+    } catch (err) {
+      console.error('Manual service selection failed:', err);
+      alert(`Couldn't start this service:\n${err.message}`);
+    } finally {
+      startBtn.disabled = false;
+    }
+  };
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 async function init() {
+  initManualSelection();
+
   const dutiesParam = new URLSearchParams(window.location.search).get('duties');
   if (dutiesParam) {
     const journeyIds = dutiesParam.split(',').map(s => s.trim()).filter(Boolean);
