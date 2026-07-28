@@ -305,7 +305,7 @@ body {
      order without needing to reorder the dot/label markup in onboard.js. */
   flex-direction: column-reverse;
   align-items: center;
-  gap: 2.5vh;
+  gap: 5vh;
   flex: 1;
   min-width: 0;
 }
