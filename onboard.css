@@ -246,9 +246,11 @@ body {
   color: var(--ep-purple-soft);
 }
 
-/* ── Tube-map style progress line — paper-white background, brand accent
-   line/dots/labels, current stop in green. Sized to read from the back
-   of an 11m bus. Past/future read identically; only "current" and
+/* ── Tube-map style progress line — paper-white background, slate
+   line/dots/labels (a second, cooler accent from the same brand mark's
+   two-tone wordmark — see #onboard-brand's .cm-coach — deliberately
+   distinct from the purple top/bottom bars), current stop in green.
+   Sized to read from the back of an 11m bus. Past/future read identically; only "current" and
    "confirmed arrival" (pulsing) are visually different. JS decides how
    many stops either side to show (matchMedia — more room on the wide
    panel), not CSS; see renderTubeTrack in onboard.js. ─────────────────── */
@@ -282,7 +284,7 @@ body {
   top: 50%;
   transform: translateY(-50%);
   height: 8px;
-  background: var(--operator-accent, var(--ep-purple));
+  background: var(--operator-accent, var(--ep-slate));
 }
 
 .tube-node {
@@ -299,8 +301,8 @@ body {
   width: 7vh;
   height: 7vh;
   border-radius: 50%;
-  background: var(--operator-accent, var(--ep-purple));
-  border: 5px solid var(--operator-accent, var(--ep-purple));
+  background: var(--operator-accent, var(--ep-slate));
+  border: 5px solid var(--operator-accent, var(--ep-slate));
   z-index: 1;
 }
 
@@ -326,7 +328,7 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--operator-accent, var(--ep-purple));
+  color: var(--operator-accent, var(--ep-slate));
 }
 
 .tube-node.tube-current .tube-label {
@@ -353,7 +355,9 @@ body {
 #sign-upcoming {
   width: 24vw;
   flex-shrink: 0;
-  border-left: 4px solid var(--operator-accent, var(--ep-purple));
+  /* Slate, matching the tube-track — a shared secondary palette for the
+     "informational" half of the sign, kept distinct from the purple bars. */
+  border-left: 4px solid var(--operator-accent, var(--ep-slate));
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -367,7 +371,7 @@ body {
   align-items: baseline;
   gap: 1vw;
   font-family: var(--ep-font);
-  color: var(--operator-accent, var(--ep-purple));
+  color: var(--operator-accent, var(--ep-slate));
 }
 
 .upcoming-name {
