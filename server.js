@@ -13,6 +13,7 @@ const MIME = {
   '.png':  'image/png',
   '.ico':  'image/x-icon',
   '.webmanifest': 'application/manifest+json',
+  '.mp3':  'audio/mpeg',
 };
 
 http.createServer((req, res) => {
