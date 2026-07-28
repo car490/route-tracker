@@ -31,14 +31,17 @@
 //   node scripts/demo-2up.mjs duty   [secondsPerStop]
 //   node scripts/demo-2up.mjs manual [secondsPerStop]
 //
-// Requires the local dev server running first (node server.js, or
-// node scripts/dev-all.mjs) — this only opens browser windows against
-// http://localhost:8080, it doesn't start anything itself.
+// Starts the local dev server (server.js, :8080) itself if nothing is
+// already answering there — see ensureServerRunning() — and stops it again
+// on exit, but only if this script was the one that started it (a server
+// you already had running, e.g. via dev-all.mjs, is left alone).
 
 import { chromium } from 'playwright';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawn, execSync } from 'node:child_process';
 
 const MODE = process.argv[2];
 const SECONDS_PER_STOP = Number(process.argv[3] ?? 7);
@@ -50,6 +53,51 @@ if (MODE !== 'duty' && MODE !== 'manual') {
 }
 
 const BASE_URL = 'http://localhost:8080';
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const IS_WIN = process.platform === 'win32';
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function isServerUp() {
+  try {
+    const res = await fetch(BASE_URL, { signal: AbortSignal.timeout(1000) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// Starts server.js only if nothing is already answering on :8080 — reusing
+// an already-running server (e.g. from dev-all.mjs, or a previous demo run
+// you left open) rather than fighting over the port. Returns the child
+// process if this call is the one that started it, so the caller knows
+// whether it's responsible for stopping it again — null means "leave it
+// alone, it wasn't ours."
+async function ensureServerRunning() {
+  if (await isServerUp()) {
+    console.log('Dev server already running on :8080 — reusing it.');
+    return null;
+  }
+  console.log('Starting local dev server (node server.js)…');
+  const child = spawn('node', ['server.js'], { cwd: ROOT, shell: IS_WIN });
+  child.stdout.on('data', (d) => process.stdout.write(`[server] ${d}`));
+  child.stderr.on('data', (d) => process.stderr.write(`[server] ${d}`));
+  for (let i = 0; i < 30; i++) {
+    if (await isServerUp()) return child;
+    await sleep(200);
+  }
+  throw new Error('server.js did not come up on :8080 within 6s');
+}
+
+function stopServer(child) {
+  if (!child) return; // wasn't ours to stop
+  console.log('Stopping the dev server this script started…');
+  if (IS_WIN) {
+    try { execSync(`taskkill /PID ${child.pid} /T /F`, { stdio: 'ignore' }); } catch {}
+  } else {
+    child.kill('SIGTERM');
+  }
+}
 
 // PSVAIR demo journey (see memory: must be reset — journey_events deleted,
 // status back to 'scheduled' — before re-running duty mode the same day,
@@ -96,7 +144,6 @@ const STOPS = [
   { name: "Boston College (adj)",                 lat: 52.972156,    lon: -0.018524 },
 ];
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const lerp = (a, b, t) => a + (b - a) * t;
 
 // Resolves (creating if needed) today's journey row for the manual-mode
@@ -179,7 +226,17 @@ const NS_W = SCREEN_W - NS_X - MARGIN; // fills remaining width
 const NS_H = 200; // 880x200 = 4.4:1, safely past onboard.js's 4:1 wide-layout breakpoint
 const NS_Y = Math.round((SCREEN_H - NS_H) / 2); // vertically centred, right of the PWA
 
+let serverChild = null;
+function shutdown() {
+  stopServer(serverChild);
+  process.exit(0);
+}
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+
 (async () => {
+  serverChild = await ensureServerRunning();
+
   let pwaUrl, journeyId;
 
   if (MODE === 'duty') {
@@ -247,5 +304,6 @@ const NS_Y = Math.round((SCREEN_H - NS_H) / 2); // vertically centred, right of 
 })().catch((err) => {
   console.error('\n=== demo-2up.mjs failed ===');
   console.error(err);
+  stopServer(serverChild);
   process.exitCode = 1;
 });
