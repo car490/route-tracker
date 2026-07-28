@@ -317,9 +317,11 @@ body {
 .tube-label {
   font-family: var(--ep-font);
   /* Not PSVAIR-regulated (only route number/destination/this stop/next
-     stop are) — kept well short of --min-text so full-ish stop names fit
-     without every one of them reducing to 3-4 characters. */
-  font-size: 3.5vh;
+     stop are), so deliberately short of --min-text (17vh) — but 3.5vh
+     was too small to read comfortably in practice. 9vh is a middle
+     ground: clearly readable, still leaves room for full-ish stop names
+     before ellipsis kicks in, and stays well under the regulated size. */
+  font-size: 9vh;
   font-weight: 600;
   text-align: center;
   /* 100% of its own .tube-node, not a fixed vw guess — a fixed width let
