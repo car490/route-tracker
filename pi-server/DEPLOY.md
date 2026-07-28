@@ -5,6 +5,29 @@ hardware and a self-contained WiFi hotspot; the passenger display (or Fire HD
 tablet) just runs a browser against it. See `onboard.html`/`src/onboard.js` for the
 web app itself — this file is Pi-side setup only.
 
+## Operator branding (colours)
+
+The passenger sign picks up `primary_color` and `accent_color` from the
+company's Branding settings in the dashboard and applies them as CSS variables
+at the moment the driver starts the journey.
+
+**WCAG accessibility requirement for `accent_color`:** the accent colour is
+used against the e-paper background (`#ECEAE2`) for the service-code box
+border, the topbar separator line, and the at-stop pulse dot. It must achieve
+a contrast ratio of **≥ 3:1** against `#ECEAE2` to meet WCAG AA for UI
+components. If the colour fails this check it is rejected at runtime (a
+console warning is logged) and the display falls back to the default dark ink
+(`#1A1A18`).
+
+The default CoachMate Signal Cyan (`#00B4D8`) has a contrast ratio of ~2.1:1
+against the e-paper background and will fall back — by design, operators are
+expected to set a brand colour that meets the threshold. Tools such as
+[WebAIM Contrast Checker](https://webaim.org/resources/contrastchecker/) or
+the browser DevTools colour picker can verify a colour before it is saved.
+
+`primary_color` (the sidebar/header colour) is applied to the display for
+future use but is not currently consumed by any visible element on the sign.
+
 ## Hardware
 - **Raspberry Pi 5** (4GB) — preferred; see [Storage](#storage) below for why
 - NVMe HAT (e.g. Pimoroni NVMe Base or Waveshare PCIe HAT) + M.2 NVMe SSD

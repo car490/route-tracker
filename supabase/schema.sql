@@ -947,7 +947,9 @@ CREATE OR REPLACE FUNCTION public.get_duty_card(journey_ids uuid[])
    timetable_departure_id uuid,
    first_stop_time        text,
    last_stop_name         text,
-   notes                  text
+   notes                  text,
+   primary_color          text,
+   accent_color           text
  )
  LANGUAGE sql
  STABLE SECURITY DEFINER
@@ -970,13 +972,16 @@ AS $function$
     (select display_name(st.*) from timetable_stops ts3
      join stops st on st.id = ts3.stop_id
      where ts3.timetable_id = t.id order by ts3.sequence desc limit 1) as last_stop_name,
-    j.notes
+    j.notes,
+    coalesce(c.primary_color, '#242F35')                     as primary_color,
+    coalesce(c.accent_color,  '#00B4D8')                     as accent_color
   from journeys j
   left join employees           e  on e.id  = j.driver_id
   left join vehicles            v  on v.id  = j.vehicle_id
   left join timetable_departures td on td.id = j.timetable_departure_id
   left join timetables          t  on t.id  = td.timetable_id
   left join routes              r  on r.id  = t.route_id
+  left join companies           c  on c.id  = j.company_id
   where j.id = any(journey_ids)
   order by array_position(journey_ids, j.id)
 $function$;

@@ -26,6 +26,17 @@
   --ep-teal:      #00B4D8;
   --ep-at-stop:   #10B981;
   --ep-late:      #EF4444;
+
+  /* Operator branding — injected at runtime by onboard.js from
+     companies.primary_color / accent_color via the get_duty_card RPC.
+     --operator-accent is only set when the colour passes WCAG AA for UI
+     components (≥ 3:1 contrast against --ep-bg / #ECEAE2). Operators
+     setting accent_color in dashboard Branding must meet this threshold;
+     colours that fail are silently rejected and the fallback (#1A1A18) applies.
+     --operator-primary is set for consistency / future use but not
+     consumed here — the e-paper sign has no dark sidebar zone. */
+  --operator-primary: ;
+  --operator-accent:  ;
 }
 
 *,
@@ -128,7 +139,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 2vw;
-  border-bottom: 4px solid var(--ep-line);
+  border-bottom: 4px solid var(--operator-accent, #1A1A18);
   padding-bottom: 2vh;
   flex-shrink: 0;
 }
@@ -138,7 +149,7 @@ body {
   font-size: 5.5vh;
   font-weight: 800;
   letter-spacing: 0.02em;
-  border: 4px solid var(--ep-line);
+  border: 4px solid var(--operator-accent, #1A1A18);
   padding: 0.5vh 1.5vw;
   line-height: 1.1;
   flex-shrink: 0;
@@ -296,8 +307,8 @@ body {
 /* Confirmed arrival (geofence match), not just an estimated position —
    pulses green so it reads at a glance. Only motion on this screen. */
 .tube-node.tube-current.tube-at-stop .tube-dot {
-  background: var(--ep-at-stop);
-  border-color: var(--ep-at-stop);
+  background: var(--operator-accent, #1A1A18);
+  border-color: var(--operator-accent, #1A1A18);
   animation: tube-pulse 1.4s ease-in-out infinite;
 }
 

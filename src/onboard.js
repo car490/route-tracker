@@ -251,6 +251,60 @@ async function runSign(duty) {
   });
 }
 
+// ── Operator branding ─────────────────────────────────────────────────────
+// Mirrors the ThemeProvider pattern used in the dashboard: inject
+// --operator-primary and --operator-accent as CSS vars on <html>.
+// --operator-accent is used against the e-paper background (#ECEAE2) for
+// visible UI chrome (service-code border, topbar separator, at-stop dot).
+// Any operator colour that fails the WCAG AA "large text / UI component"
+// threshold (≥ 3:1 against #ECEAE2) is rejected and the CSS fallback
+// (#1A1A18) applies instead.
+
+function _sRGBToLinear(c) {
+  const v = c / 255;
+  return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+}
+
+function _relativeLuminance(hex) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return 0.2126 * _sRGBToLinear(r) + 0.7152 * _sRGBToLinear(g) + 0.0722 * _sRGBToLinear(b);
+}
+
+function wcagContrastRatio(hex1, hex2) {
+  const l1 = _relativeLuminance(hex1);
+  const l2 = _relativeLuminance(hex2);
+  const lighter = Math.max(l1, l2);
+  const darker  = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+const EP_BG = '#ECEAE2'; // e-paper background — accent is tested against this
+
+function applyOperatorBranding(duty) {
+  const primary = duty.primary_color;
+  const accent  = duty.accent_color;
+
+  // --operator-primary is set unconditionally for consistency / future use
+  // (the dark sidebar concept doesn't apply to a passenger sign, but operators
+  // may use it for future display zones).
+  if (primary) document.documentElement.style.setProperty('--operator-primary', primary);
+
+  if (accent) {
+    const ratio = wcagContrastRatio(accent, EP_BG);
+    if (ratio >= 3) {
+      document.documentElement.style.setProperty('--operator-accent', accent);
+    } else {
+      console.warn(
+        `onboard: operator accent colour ${accent} rejected — contrast ratio ${ratio.toFixed(2)}:1 ` +
+        `against ${EP_BG} is below the required 3:1 (WCAG AA UI component). ` +
+        `Falling back to default. Update accent_color in the dashboard Branding settings.`
+      );
+    }
+  }
+}
+
 // ── Entry point ──────────────────────────────────────────────────────────
 
 async function init() {
@@ -259,6 +313,7 @@ async function init() {
     return;
   }
   const duty = await waitForJourneyStart(WATCH_JOURNEY_ID);
+  applyOperatorBranding(duty);
   await runSign(duty);
 }
 
