@@ -117,7 +117,7 @@ body {
 #onboard-brand {
   position: fixed;
   bottom: 27vh;
-  left: 3vw;
+  left: 1vw;
   display: flex;
   flex-direction: column;
   gap: 0.4vh;
@@ -328,11 +328,10 @@ body {
 .tube-label {
   font-family: var(--ep-font);
   /* Not PSVAIR-regulated (only route number/destination/this stop/next
-     stop are), so deliberately short of --min-text (17vh) — but 3.5vh
-     was too small to read comfortably in practice. 9vh is a middle
-     ground: clearly readable, still leaves room for full-ish stop names
-     before ellipsis kicks in, and stays well under the regulated size. */
-  font-size: 9vh;
+     stop are), so deliberately short of --min-text (17vh). 3.5vh was too
+     small; 9vh (tried first) was too big and crowded the track — 6vh is
+     the middle ground. */
+  font-size: 6vh;
   font-weight: 600;
   text-align: center;
   /* 100% of its own .tube-node, not a fixed vw guess — a fixed width let
