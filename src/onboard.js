@@ -243,7 +243,10 @@ async function runSign(duty) {
   setAnnouncementsEnabled(true);
   announceJourneyStart({ serviceCode: duty.service_code, destination });
 
-  let lastAnnouncedStopIdx = null;
+  // See main.js's runTracker for why this starts at initialStopIndex, not
+  // null — otherwise a vehicle already at the starting stop when NextStop
+  // wakes gets that arrival (re-)announced on top of announceJourneyStart.
+  let lastAnnouncedStopIdx = initialStopIndex;
 
   // ── Diversion status polling ────────────────────────────────────────────
   // This device has no driver identity of its own (see file header), so it

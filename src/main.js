@@ -123,7 +123,12 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   const psvairVoiceTestBtn = document.getElementById('psvair-voice-test-btn');
   setAnnouncementsEnabled(!!psvairEnabled);
   psvairBanner.hidden = !psvairEnabled;
-  let lastAnnouncedStopIdx = null;
+  // Starts at initialStopIndex, not null: if tracking begins already sitting
+  // at/near the starting stop (a normal case, not just a demo artifact — the
+  // very first GPS fix can satisfy that stop's geofence instantly, see
+  // gps.js), that arrival would otherwise be (re-)announced on top of
+  // announceJourneyStart above, which already covers the starting context.
+  let lastAnnouncedStopIdx = initialStopIndex;
 
   if (psvairEnabled) {
     onAnnouncementChange(text => { psvairText.textContent = text; });
