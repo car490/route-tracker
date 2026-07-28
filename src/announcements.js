@@ -109,8 +109,14 @@ function playClip(key) {
     const audio = new Audio(`${AUDIO_BASE}${key}.mp3`);
     currentAudio = audio;
     audio.onended = () => resolve(true);
-    audio.onerror = () => resolve(false);
-    audio.play().catch(() => resolve(false));
+    audio.onerror = () => {
+      console.warn(`[announcements] clip failed to load: ${key}.mp3`, audio.error);
+      resolve(false);
+    };
+    audio.play().catch((err) => {
+      console.warn(`[announcements] clip failed to play: ${key}.mp3`, err);
+      resolve(false);
+    });
   });
 }
 
