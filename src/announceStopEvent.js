@@ -6,10 +6,10 @@
 
 import { announceAtStop, announceDiversion } from './announcements.js';
 
-export function announceStopEvent({ stopName, nextStopName, isFinal, diversionActive }) {
+export function announceStopEvent({ stopId, stopName, nextStopId, nextStopName, isFinal, diversionActive }) {
   if (diversionActive) {
     announceDiversion();
     return;
   }
-  announceAtStop({ stopName, nextStopName, isFinal });
+  announceAtStop({ stopId, stopName, nextStopId, nextStopName, isFinal });
 }

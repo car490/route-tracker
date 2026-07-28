@@ -1,10 +1,18 @@
 // PSVAIR 2026 (Public Service Vehicles Accessible Information Regulations 2023)
 // Live audio + on-screen visual announcements of next stop / final destination
-// for in-scope local bus services. Audio uses the Web Speech API — no
-// dependency, works offline once the OS voice is installed.
+// for in-scope local bus services.
+//
+// Primary audio path: pre-rendered Azure Neural TTS clips (see
+// scripts/generate-announcement-audio.mjs), keyed by stop_id/service+
+// destination exactly as built there — natural recorded voice instead of
+// whatever Web Speech API voice happens to be installed on a given
+// tablet. Falls back to live Web Speech API synthesis whenever a clip is
+// missing (new stop not yet regenerated, offline before first cache, etc.)
+// so announcements never silently stop working.
 
 const MUTE_KEY = 'psvair-muted';
 const VOICE_KEY = 'psvair-voice-uri';
+const AUDIO_BASE = './audio/announcements/';
 
 // Known-good warmer-sounding voices, checked in order, across the platforms
 // drivers actually use (Android Chrome, iOS Safari, Windows Edge/Chrome).
@@ -21,6 +29,7 @@ const PREFERRED_VOICE_NAMES = [
 
 let enabled = false;
 let onAnnounce = null; // (text) => void, wired to the on-screen banner
+let currentAudio = null; // in-flight pre-rendered clip, so mute can stop it mid-playback
 
 export function setAnnouncementsEnabled(v) {
   enabled = v;
@@ -32,7 +41,10 @@ export function isMuted() {
 
 export function setMuted(v) {
   localStorage.setItem(MUTE_KEY, v ? '1' : '0');
-  if (v && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+  if (v) {
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  }
 }
 
 // speechSynthesis.getVoices() only returns the full list once the
@@ -82,14 +94,56 @@ function stripSpeechAnnotations(text) {
   return text.replace(/\s*\([^)]*\)/g, '');
 }
 
-function speak(text) {
-  if (isMuted() || !('speechSynthesis' in window)) return;
+// Same slug rule scripts/generate-announcement-audio.mjs uses to name
+// per-service clips — must stay identical, since this is how the runtime
+// finds the file the generator wrote for a given (serviceCode, destination).
+function slug(text) {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+// Plays one pre-rendered clip. Resolves false (never rejects) on any
+// failure — missing file, offline with nothing cached, decode error —
+// so callers can fall back to live synthesis without a try/catch.
+function playClip(key) {
+  return new Promise((resolve) => {
+    const audio = new Audio(`${AUDIO_BASE}${key}.mp3`);
+    currentAudio = audio;
+    audio.onended = () => resolve(true);
+    audio.onerror = () => resolve(false);
+    audio.play().catch(() => resolve(false));
+  });
+}
+
+// All-or-nothing: if any clip in the sequence is missing, fall back to a
+// single full-sentence speechSynthesis utterance rather than mixing a
+// natural clip with a robotic one mid-announcement.
+async function playSequence(keys) {
+  for (const key of keys) {
+    if (!(await playClip(key))) return false;
+  }
+  return true;
+}
+
+function speakSynthesis(text) {
+  if (!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(stripSpeechAnnotations(text));
   utterance.lang = 'en-GB';
   const voice = pickVoice();
   if (voice) utterance.voice = voice;
   window.speechSynthesis.speak(utterance);
+}
+
+// audioKeys: ordered list of pre-rendered clip keys (no .mp3/base path) to
+// try first — omit/leave empty to go straight to live synthesis (used for
+// previewVoice, and anywhere the caller has no stop/service id to key on).
+function speak(text, audioKeys) {
+  if (isMuted()) return;
+  if (audioKeys && audioKeys.length) {
+    playSequence(audioKeys).then((ok) => { if (!ok) speakSynthesis(text); });
+    return;
+  }
+  speakSynthesis(text);
 }
 
 // Lets the voice picker play a sample regardless of the mute toggle — the
@@ -105,25 +159,39 @@ export function previewVoice(voiceURI) {
   window.speechSynthesis.speak(utterance);
 }
 
-function announce(text) {
+function announce(text, audioKeys) {
   if (!enabled) return;
-  speak(text);
+  speak(text, audioKeys);
   if (onAnnounce) onAnnounce(text);
 }
 
+// destination is the last stop's (display) name, exactly as passed by
+// main.js/onboard.js — must match what the generator stripped/slugged for
+// the same route, or the clip lookup misses and falls back to synthesis
+// (not a bug, just a wasted clip until names line up again).
 export function announceJourneyStart({ serviceCode, destination }) {
-  announce(`This is the ${serviceCode} service to ${destination}.`);
+  const clean = stripSpeechAnnotations(destination);
+  const key = `service/${slug(serviceCode)}__${slug(clean)}`;
+  announce(`This is the ${serviceCode} service to ${clean}.`, [key]);
 }
 
-export function announceAtStop({ stopName, nextStopName, isFinal }) {
-  announce(isFinal
-    ? `This is ${stopName}. This bus terminates here, all change please.`
-    : `This stop is ${stopName}. The next stop is ${nextStopName}.`);
+export function announceAtStop({ stopId, stopName, nextStopId, nextStopName, isFinal }) {
+  if (isFinal) {
+    announce(
+      `This is ${stopName}. This bus terminates here, all change please.`,
+      stopId ? [`arrive/${stopId}`, 'terminus-tail'] : null
+    );
+  } else {
+    announce(
+      `This stop is ${stopName}. The next stop is ${nextStopName}.`,
+      stopId && nextStopId ? [`stop/${stopId}`, `next/${nextStopId}`] : null
+    );
+  }
 }
 
 // Fixed string only — takes no parameters, deliberately, so the "diversion
 // announcements can never carry dynamic/free-text content" property is
 // enforced at this TTS gateway itself, not just by callers behaving.
 export function announceDiversion() {
-  announce('This bus is on diversion');
+  announce('This bus is on diversion', ['diversion']);
 }

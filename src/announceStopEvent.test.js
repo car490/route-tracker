@@ -31,14 +31,18 @@ describe('announceStopEvent', () => {
 
   it('calls announceAtStop with the stop details when no diversion is active', () => {
     announceStopEvent({
+      stopId: 'stop-1',
       stopName: 'High Street',
+      nextStopId: 'stop-2',
       nextStopName: 'Church Road',
       isFinal: false,
       diversionActive: false,
     });
 
     expect(announcements.announceAtStop).toHaveBeenCalledWith({
+      stopId: 'stop-1',
       stopName: 'High Street',
+      nextStopId: 'stop-2',
       nextStopName: 'Church Road',
       isFinal: false,
     });
@@ -47,7 +51,9 @@ describe('announceStopEvent', () => {
 
   it('calls announceDiversion instead, and suppresses announceAtStop, when diversion is active', () => {
     announceStopEvent({
+      stopId: 'stop-1',
       stopName: 'High Street',
+      nextStopId: 'stop-2',
       nextStopName: 'Church Road',
       isFinal: false,
       diversionActive: true,
@@ -59,7 +65,9 @@ describe('announceStopEvent', () => {
 
   it('does not pass stop details through to announceDiversion — no dynamic content path', () => {
     announceStopEvent({
+      stopId: 'stop-1',
       stopName: 'High Street',
+      nextStopId: 'stop-2',
       nextStopName: 'Church Road',
       isFinal: false,
       diversionActive: true,
@@ -70,14 +78,18 @@ describe('announceStopEvent', () => {
 
   it('still announces final-stop correctly when diversion is not active', () => {
     announceStopEvent({
+      stopId: 'stop-9',
       stopName: 'Bus Station',
+      nextStopId: null,
       nextStopName: null,
       isFinal: true,
       diversionActive: false,
     });
 
     expect(announcements.announceAtStop).toHaveBeenCalledWith({
+      stopId: 'stop-9',
       stopName: 'Bus Station',
+      nextStopId: null,
       nextStopName: null,
       isFinal: true,
     });

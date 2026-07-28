@@ -294,7 +294,9 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
         lastAnnouncedStopIdx = atStop.stopIndex;
         const isFinal = atStop.stopIndex === allStops.length - 2;
         announceStopEvent({
+          stopId: allStops[atStop.stopIndex].stop_id,
           stopName: allStops[atStop.stopIndex].name,
+          nextStopId: isFinal ? null : allStops[atStop.stopIndex + 1].stop_id,
           nextStopName: isFinal ? null : allStops[atStop.stopIndex + 1].name,
           isFinal,
           diversionActive: !!diversionAlertState,

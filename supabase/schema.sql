@@ -1233,7 +1233,8 @@ create or replace view schedule_view with (security_invoker = true) as
     exists (
       select 1 from journey_types jt
       where jt.name = any(r.journey_type) and jt.requires_bods
-    )                    as psvair_in_scope
+    )                    as psvair_in_scope,
+    s.id                 as stop_id
   from timetable_stops     ts
   join stops               s  on s.id  = ts.stop_id
   join timetables          t  on t.id  = ts.timetable_id

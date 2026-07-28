@@ -306,7 +306,9 @@ async function runSign(duty) {
         lastAnnouncedStopIdx = atStop.stopIndex;
         const stopIsFinal = atStop.stopIndex === allStops.length - 2;
         announceStopEvent({
+          stopId: allStops[atStop.stopIndex].stop_id,
           stopName: allStops[atStop.stopIndex].name,
+          nextStopId: stopIsFinal ? null : allStops[atStop.stopIndex + 1].stop_id,
           nextStopName: stopIsFinal ? null : allStops[atStop.stopIndex + 1].name,
           isFinal: stopIsFinal,
           diversionActive,
