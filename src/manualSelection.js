@@ -20,6 +20,15 @@ export async function selectServiceManually(serviceCode, servicePeriod, { onComp
     p_timetable_departure_id: departureId,
   });
 
+  // Mirrors the duty-card path's start_journey call (main.js's
+  // launchDutyRoute) — without this, journeys.status never leaves
+  // 'scheduled', so the NextStop onboard display (which waits for
+  // get_duty_card to report in_progress) never wakes, and complete_journey
+  // silently no-ops at the end since it requires status = 'in_progress'.
+  // No-ops harmlessly (returns false, doesn't throw) if already in_progress
+  // from an earlier manual start today.
+  await rpc('start_journey', { p_journey_id: journeyId });
+
   // Stops (and PSVAIR scope) come from schedule_view, same single source
   // of truth the duty-card path uses — never duplicated here.
   const { stops, psvairInScope } = await fetchStopsForDeparture(departureId);
