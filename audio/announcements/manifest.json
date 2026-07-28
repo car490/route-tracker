@@ -1,0 +1,1982 @@
+{
+  "service/6326__antons-gowt-junction-with-meer-booth-road": {
+    "path": "service/6326__antons-gowt-junction-with-meer-booth-road.mp3",
+    "hash": "d3f442c76a9d5d14",
+    "text": "This is the 6326 service to Antons Gowt, Junction with Meer Booth Road."
+  },
+  "service/20617__stickney-william-lovell-school": {
+    "path": "service/20617__stickney-william-lovell-school.mp3",
+    "hash": "d7a83d37eac34e39",
+    "text": "This is the 20617 service to Stickney, William Lovell School."
+  },
+  "service/20617__kirton-war-memorial": {
+    "path": "service/20617__kirton-war-memorial.mp3",
+    "hash": "5f28eedbf7000905",
+    "text": "This is the 20617 service to Kirton, War Memorial."
+  },
+  "service/butterwick-swim__swimming-pool-boston": {
+    "path": "service/butterwick-swim__swimming-pool-boston.mp3",
+    "hash": "6b3ea028d9fc8b58",
+    "text": "This is the BUTTERWICK SWIM service to Swimming Pool, Boston."
+  },
+  "service/butterwick-swim__primary-school-butterwick": {
+    "path": "service/butterwick-swim__primary-school-butterwick.mp3",
+    "hash": "cd273b8c656ccb06",
+    "text": "This is the BUTTERWICK SWIM service to Primary School, Butterwick."
+  },
+  "service/hawthorn-swim__swimming-pool-boston": {
+    "path": "service/hawthorn-swim__swimming-pool-boston.mp3",
+    "hash": "edf4997b8d8226c4",
+    "text": "This is the HAWTHORN SWIM service to Swimming Pool, Boston."
+  },
+  "service/hawthorn-swim__hawthorn-primary-fishtoft": {
+    "path": "service/hawthorn-swim__hawthorn-primary-fishtoft.mp3",
+    "hash": "af36e840e41b4842",
+    "text": "This is the HAWTHORN SWIM service to Hawthorn Primary, Fishtoft."
+  },
+  "service/s116s__donington-cowley-secondary-school": {
+    "path": "service/s116s__donington-cowley-secondary-school.mp3",
+    "hash": "c07f504144571cbb",
+    "text": "This is the S116S service to Donington, Cowley Secondary School."
+  },
+  "service/s116s__boston-bus-station": {
+    "path": "service/s116s__boston-bus-station.mp3",
+    "hash": "ea929cf595292541",
+    "text": "This is the S116S service to Boston, Bus Station."
+  },
+  "service/s125s__boston-boston-college": {
+    "path": "service/s125s__boston-boston-college.mp3",
+    "hash": "cd05614ff6d28946",
+    "text": "This is the S125S service to Boston, Boston College."
+  },
+  "service/s125s__weston-the-chequers-ph": {
+    "path": "service/s125s__weston-the-chequers-ph.mp3",
+    "hash": "8361300e67563402",
+    "text": "This is the S125S service to Weston, The Chequers PH."
+  },
+  "service/tma1__kirton-middlecott-school": {
+    "path": "service/tma1__kirton-middlecott-school.mp3",
+    "hash": "21e3ad043804cc04",
+    "text": "This is the TMA1 service to Kirton, Middlecott School."
+  },
+  "service/tma1__donington-primary-school": {
+    "path": "service/tma1__donington-primary-school.mp3",
+    "hash": "42f82302a6980733",
+    "text": "This is the TMA1 service to Donington, Primary School."
+  },
+  "stop/43849a31-d4b9-471c-a034-2b07a7ed9c20": {
+    "path": "stop/43849a31-d4b9-471c-a034-2b07a7ed9c20.mp3",
+    "hash": "564c52ac62f2d87f",
+    "text": "This stop is Stickney, William Lovell School."
+  },
+  "next/43849a31-d4b9-471c-a034-2b07a7ed9c20": {
+    "path": "next/43849a31-d4b9-471c-a034-2b07a7ed9c20.mp3",
+    "hash": "fc86a08e3eec057a",
+    "text": "The next stop is Stickney, William Lovell School."
+  },
+  "arrive/43849a31-d4b9-471c-a034-2b07a7ed9c20": {
+    "path": "arrive/43849a31-d4b9-471c-a034-2b07a7ed9c20.mp3",
+    "hash": "e6e0f7239a3739cd",
+    "text": "This is Stickney, William Lovell School."
+  },
+  "stop/8bcc7ee1-0fd8-44e4-84d7-14fb331cefa7": {
+    "path": "stop/8bcc7ee1-0fd8-44e4-84d7-14fb331cefa7.mp3",
+    "hash": "d6bc703da1ec1eba",
+    "text": "This stop is Stickney, Primary School."
+  },
+  "next/8bcc7ee1-0fd8-44e4-84d7-14fb331cefa7": {
+    "path": "next/8bcc7ee1-0fd8-44e4-84d7-14fb331cefa7.mp3",
+    "hash": "cd7864e033bc9652",
+    "text": "The next stop is Stickney, Primary School."
+  },
+  "arrive/8bcc7ee1-0fd8-44e4-84d7-14fb331cefa7": {
+    "path": "arrive/8bcc7ee1-0fd8-44e4-84d7-14fb331cefa7.mp3",
+    "hash": "8b850c6ba6a19ccf",
+    "text": "This is Stickney, Primary School."
+  },
+  "stop/f3db9b4c-6b46-4b52-acc8-23efd97b4f13": {
+    "path": "stop/f3db9b4c-6b46-4b52-acc8-23efd97b4f13.mp3",
+    "hash": "191b38b951210ed7",
+    "text": "This stop is Stickney, Pinfold Lane."
+  },
+  "next/f3db9b4c-6b46-4b52-acc8-23efd97b4f13": {
+    "path": "next/f3db9b4c-6b46-4b52-acc8-23efd97b4f13.mp3",
+    "hash": "4e5ceab6d5057582",
+    "text": "The next stop is Stickney, Pinfold Lane."
+  },
+  "arrive/f3db9b4c-6b46-4b52-acc8-23efd97b4f13": {
+    "path": "arrive/f3db9b4c-6b46-4b52-acc8-23efd97b4f13.mp3",
+    "hash": "cfc917d70e6d6b82",
+    "text": "This is Stickney, Pinfold Lane."
+  },
+  "stop/8880428d-7826-40ec-8ba5-076e2460491a": {
+    "path": "stop/8880428d-7826-40ec-8ba5-076e2460491a.mp3",
+    "hash": "518dce9339123e18",
+    "text": "This stop is Keal Cotes, The Coach House PH."
+  },
+  "next/8880428d-7826-40ec-8ba5-076e2460491a": {
+    "path": "next/8880428d-7826-40ec-8ba5-076e2460491a.mp3",
+    "hash": "c9c4d1277ca8932d",
+    "text": "The next stop is Keal Cotes, The Coach House PH."
+  },
+  "arrive/8880428d-7826-40ec-8ba5-076e2460491a": {
+    "path": "arrive/8880428d-7826-40ec-8ba5-076e2460491a.mp3",
+    "hash": "7c74edce461ae14b",
+    "text": "This is Keal Cotes, The Coach House PH."
+  },
+  "stop/ac754a09-81cd-4073-9fe3-53949672e6f1": {
+    "path": "stop/ac754a09-81cd-4073-9fe3-53949672e6f1.mp3",
+    "hash": "2e90f283ed58d50e",
+    "text": "This stop is Stickford, Church Road."
+  },
+  "next/ac754a09-81cd-4073-9fe3-53949672e6f1": {
+    "path": "next/ac754a09-81cd-4073-9fe3-53949672e6f1.mp3",
+    "hash": "7695b417576de693",
+    "text": "The next stop is Stickford, Church Road."
+  },
+  "arrive/ac754a09-81cd-4073-9fe3-53949672e6f1": {
+    "path": "arrive/ac754a09-81cd-4073-9fe3-53949672e6f1.mp3",
+    "hash": "5a53c48b140e1e90",
+    "text": "This is Stickford, Church Road."
+  },
+  "stop/1c434d89-34ec-42e6-b5e9-4ec385bb6d76": {
+    "path": "stop/1c434d89-34ec-42e6-b5e9-4ec385bb6d76.mp3",
+    "hash": "8ebe90239a8bfe8f",
+    "text": "This stop is East Kirkby, War Memorial."
+  },
+  "next/1c434d89-34ec-42e6-b5e9-4ec385bb6d76": {
+    "path": "next/1c434d89-34ec-42e6-b5e9-4ec385bb6d76.mp3",
+    "hash": "f06256128d86d9ef",
+    "text": "The next stop is East Kirkby, War Memorial."
+  },
+  "arrive/1c434d89-34ec-42e6-b5e9-4ec385bb6d76": {
+    "path": "arrive/1c434d89-34ec-42e6-b5e9-4ec385bb6d76.mp3",
+    "hash": "6af7bc49e5f71745",
+    "text": "This is East Kirkby, War Memorial."
+  },
+  "stop/6d4ea3d2-f9e4-4e8c-a98a-009fe0261db2": {
+    "path": "stop/6d4ea3d2-f9e4-4e8c-a98a-009fe0261db2.mp3",
+    "hash": "04a2f9c28234513f",
+    "text": "This stop is New Bolingbroke, Occupation Lane."
+  },
+  "next/6d4ea3d2-f9e4-4e8c-a98a-009fe0261db2": {
+    "path": "next/6d4ea3d2-f9e4-4e8c-a98a-009fe0261db2.mp3",
+    "hash": "476598ff93ca092f",
+    "text": "The next stop is New Bolingbroke, Occupation Lane."
+  },
+  "arrive/6d4ea3d2-f9e4-4e8c-a98a-009fe0261db2": {
+    "path": "arrive/6d4ea3d2-f9e4-4e8c-a98a-009fe0261db2.mp3",
+    "hash": "b5f8fbd26a520430",
+    "text": "This is New Bolingbroke, Occupation Lane."
+  },
+  "stop/6b1b3c0e-d622-4481-8285-9addbef41db0": {
+    "path": "stop/6b1b3c0e-d622-4481-8285-9addbef41db0.mp3",
+    "hash": "7d98cdfcdb8712c7",
+    "text": "This stop is New Bolingbroke, Royal Oak Inn."
+  },
+  "next/6b1b3c0e-d622-4481-8285-9addbef41db0": {
+    "path": "next/6b1b3c0e-d622-4481-8285-9addbef41db0.mp3",
+    "hash": "bf3e48b5dc932910",
+    "text": "The next stop is New Bolingbroke, Royal Oak Inn."
+  },
+  "arrive/6b1b3c0e-d622-4481-8285-9addbef41db0": {
+    "path": "arrive/6b1b3c0e-d622-4481-8285-9addbef41db0.mp3",
+    "hash": "96c093ecd3e5c6d3",
+    "text": "This is New Bolingbroke, Royal Oak Inn."
+  },
+  "stop/01299dea-ffcb-49ba-8be2-186c55eeb839": {
+    "path": "stop/01299dea-ffcb-49ba-8be2-186c55eeb839.mp3",
+    "hash": "16dae778c577b756",
+    "text": "This stop is Sandy Bank, Willow Farm."
+  },
+  "next/01299dea-ffcb-49ba-8be2-186c55eeb839": {
+    "path": "next/01299dea-ffcb-49ba-8be2-186c55eeb839.mp3",
+    "hash": "24a455b5983a49d6",
+    "text": "The next stop is Sandy Bank, Willow Farm."
+  },
+  "arrive/01299dea-ffcb-49ba-8be2-186c55eeb839": {
+    "path": "arrive/01299dea-ffcb-49ba-8be2-186c55eeb839.mp3",
+    "hash": "a7a57ad5bab1fdd1",
+    "text": "This is Sandy Bank, Willow Farm."
+  },
+  "stop/580ef07d-6bbf-4c05-b857-e13f8d2c7bf9": {
+    "path": "stop/580ef07d-6bbf-4c05-b857-e13f8d2c7bf9.mp3",
+    "hash": "e220404c562cde74",
+    "text": "This stop is Bunkers Hill, Hundlehouse Lane."
+  },
+  "next/580ef07d-6bbf-4c05-b857-e13f8d2c7bf9": {
+    "path": "next/580ef07d-6bbf-4c05-b857-e13f8d2c7bf9.mp3",
+    "hash": "05659303b74b4f4e",
+    "text": "The next stop is Bunkers Hill, Hundlehouse Lane."
+  },
+  "arrive/580ef07d-6bbf-4c05-b857-e13f8d2c7bf9": {
+    "path": "arrive/580ef07d-6bbf-4c05-b857-e13f8d2c7bf9.mp3",
+    "hash": "8a0dfc9985ebcd27",
+    "text": "This is Bunkers Hill, Hundlehouse Lane."
+  },
+  "stop/c35eb9ed-852e-4a0d-b193-648e47a4860b": {
+    "path": "stop/c35eb9ed-852e-4a0d-b193-648e47a4860b.mp3",
+    "hash": "f6f8c4262aff73ac",
+    "text": "This stop is Gipsey Bridge, Castlegate."
+  },
+  "next/c35eb9ed-852e-4a0d-b193-648e47a4860b": {
+    "path": "next/c35eb9ed-852e-4a0d-b193-648e47a4860b.mp3",
+    "hash": "9dec7493efbaf2f1",
+    "text": "The next stop is Gipsey Bridge, Castlegate."
+  },
+  "arrive/c35eb9ed-852e-4a0d-b193-648e47a4860b": {
+    "path": "arrive/c35eb9ed-852e-4a0d-b193-648e47a4860b.mp3",
+    "hash": "fe7eba69296e99e3",
+    "text": "This is Gipsey Bridge, Castlegate."
+  },
+  "stop/fc678e8a-64d5-4c1b-9356-53ffeba17912": {
+    "path": "stop/fc678e8a-64d5-4c1b-9356-53ffeba17912.mp3",
+    "hash": "fbfa6d8cb37de97e",
+    "text": "This stop is Langrick, Ivydene House."
+  },
+  "next/fc678e8a-64d5-4c1b-9356-53ffeba17912": {
+    "path": "next/fc678e8a-64d5-4c1b-9356-53ffeba17912.mp3",
+    "hash": "33f37d77d56b4910",
+    "text": "The next stop is Langrick, Ivydene House."
+  },
+  "arrive/fc678e8a-64d5-4c1b-9356-53ffeba17912": {
+    "path": "arrive/fc678e8a-64d5-4c1b-9356-53ffeba17912.mp3",
+    "hash": "60bf8b9139479e7d",
+    "text": "This is Langrick, Ivydene House."
+  },
+  "stop/fb05d5bb-723b-4fe2-ad95-48909659a4ec": {
+    "path": "stop/fb05d5bb-723b-4fe2-ad95-48909659a4ec.mp3",
+    "hash": "52875748d891b681",
+    "text": "This stop is Antons Gowt, Junction with Meer Booth Road."
+  },
+  "next/fb05d5bb-723b-4fe2-ad95-48909659a4ec": {
+    "path": "next/fb05d5bb-723b-4fe2-ad95-48909659a4ec.mp3",
+    "hash": "198beb2a80b3dea0",
+    "text": "The next stop is Antons Gowt, Junction with Meer Booth Road."
+  },
+  "arrive/fb05d5bb-723b-4fe2-ad95-48909659a4ec": {
+    "path": "arrive/fb05d5bb-723b-4fe2-ad95-48909659a4ec.mp3",
+    "hash": "eee00ff39d170d58",
+    "text": "This is Antons Gowt, Junction with Meer Booth Road."
+  },
+  "stop/a5a43dae-b3cf-47da-86b3-2fddb4c74b81": {
+    "path": "stop/a5a43dae-b3cf-47da-86b3-2fddb4c74b81.mp3",
+    "hash": "c79a991722e11521",
+    "text": "This stop is Kirton, War Memorial."
+  },
+  "next/a5a43dae-b3cf-47da-86b3-2fddb4c74b81": {
+    "path": "next/a5a43dae-b3cf-47da-86b3-2fddb4c74b81.mp3",
+    "hash": "721bba951ded71a0",
+    "text": "The next stop is Kirton, War Memorial."
+  },
+  "arrive/a5a43dae-b3cf-47da-86b3-2fddb4c74b81": {
+    "path": "arrive/a5a43dae-b3cf-47da-86b3-2fddb4c74b81.mp3",
+    "hash": "29ce787d14fc5a95",
+    "text": "This is Kirton, War Memorial."
+  },
+  "stop/f307468c-0d2e-4df4-9daa-a63f90604f6b": {
+    "path": "stop/f307468c-0d2e-4df4-9daa-a63f90604f6b.mp3",
+    "hash": "5dfef6e1e8542c8d",
+    "text": "This stop is Wyberton, Pincushion Inn."
+  },
+  "next/f307468c-0d2e-4df4-9daa-a63f90604f6b": {
+    "path": "next/f307468c-0d2e-4df4-9daa-a63f90604f6b.mp3",
+    "hash": "1398ac78776df157",
+    "text": "The next stop is Wyberton, Pincushion Inn."
+  },
+  "arrive/f307468c-0d2e-4df4-9daa-a63f90604f6b": {
+    "path": "arrive/f307468c-0d2e-4df4-9daa-a63f90604f6b.mp3",
+    "hash": "5b4d5bf375c7a269",
+    "text": "This is Wyberton, Pincushion Inn."
+  },
+  "stop/49b7159a-8ded-43ec-82b1-bf5a7b29e132": {
+    "path": "stop/49b7159a-8ded-43ec-82b1-bf5a7b29e132.mp3",
+    "hash": "1d4a3e6d2f57a7de",
+    "text": "This stop is Wyberton, Tytton Lane East."
+  },
+  "next/49b7159a-8ded-43ec-82b1-bf5a7b29e132": {
+    "path": "next/49b7159a-8ded-43ec-82b1-bf5a7b29e132.mp3",
+    "hash": "dbee4a767172d7ae",
+    "text": "The next stop is Wyberton, Tytton Lane East."
+  },
+  "arrive/49b7159a-8ded-43ec-82b1-bf5a7b29e132": {
+    "path": "arrive/49b7159a-8ded-43ec-82b1-bf5a7b29e132.mp3",
+    "hash": "7cf0f9d530d57af9",
+    "text": "This is Wyberton, Tytton Lane East."
+  },
+  "stop/b963f833-ad7c-4702-8f80-7b4774e56d8e": {
+    "path": "stop/b963f833-ad7c-4702-8f80-7b4774e56d8e.mp3",
+    "hash": "22afe37ff8778ada",
+    "text": "This stop is Boston, Bus Station."
+  },
+  "next/b963f833-ad7c-4702-8f80-7b4774e56d8e": {
+    "path": "next/b963f833-ad7c-4702-8f80-7b4774e56d8e.mp3",
+    "hash": "dde45441705ead1a",
+    "text": "The next stop is Boston, Bus Station."
+  },
+  "arrive/b963f833-ad7c-4702-8f80-7b4774e56d8e": {
+    "path": "arrive/b963f833-ad7c-4702-8f80-7b4774e56d8e.mp3",
+    "hash": "99f44395014b1dc9",
+    "text": "This is Boston, Bus Station."
+  },
+  "stop/7911622b-83ac-41a4-9c16-3761de1e73c7": {
+    "path": "stop/7911622b-83ac-41a4-9c16-3761de1e73c7.mp3",
+    "hash": "b819c383de76c0ba",
+    "text": "This stop is Primary School, Butterwick."
+  },
+  "next/7911622b-83ac-41a4-9c16-3761de1e73c7": {
+    "path": "next/7911622b-83ac-41a4-9c16-3761de1e73c7.mp3",
+    "hash": "91a30bd0e39a1d99",
+    "text": "The next stop is Primary School, Butterwick."
+  },
+  "arrive/7911622b-83ac-41a4-9c16-3761de1e73c7": {
+    "path": "arrive/7911622b-83ac-41a4-9c16-3761de1e73c7.mp3",
+    "hash": "f3e8719b68fa14b1",
+    "text": "This is Primary School, Butterwick."
+  },
+  "stop/1a436352-0f81-4e5e-9904-d2508ceecb7d": {
+    "path": "stop/1a436352-0f81-4e5e-9904-d2508ceecb7d.mp3",
+    "hash": "549088b4be8c53d6",
+    "text": "This stop is Swimming Pool, Boston."
+  },
+  "next/1a436352-0f81-4e5e-9904-d2508ceecb7d": {
+    "path": "next/1a436352-0f81-4e5e-9904-d2508ceecb7d.mp3",
+    "hash": "b1e635a71ad031f2",
+    "text": "The next stop is Swimming Pool, Boston."
+  },
+  "arrive/1a436352-0f81-4e5e-9904-d2508ceecb7d": {
+    "path": "arrive/1a436352-0f81-4e5e-9904-d2508ceecb7d.mp3",
+    "hash": "ad693ea4d1022a97",
+    "text": "This is Swimming Pool, Boston."
+  },
+  "stop/7b115a50-bc21-4d73-b6dd-aeafbe968e9b": {
+    "path": "stop/7b115a50-bc21-4d73-b6dd-aeafbe968e9b.mp3",
+    "hash": "509c3879a41d5413",
+    "text": "This stop is Hawthorn Primary, Fishtoft."
+  },
+  "next/7b115a50-bc21-4d73-b6dd-aeafbe968e9b": {
+    "path": "next/7b115a50-bc21-4d73-b6dd-aeafbe968e9b.mp3",
+    "hash": "243a8cbdea0ffd9c",
+    "text": "The next stop is Hawthorn Primary, Fishtoft."
+  },
+  "arrive/7b115a50-bc21-4d73-b6dd-aeafbe968e9b": {
+    "path": "arrive/7b115a50-bc21-4d73-b6dd-aeafbe968e9b.mp3",
+    "hash": "0c531ecc7dd33034",
+    "text": "This is Hawthorn Primary, Fishtoft."
+  },
+  "stop/d6b093d8-e207-4c8c-8bd6-381e9fb8f2d3": {
+    "path": "stop/d6b093d8-e207-4c8c-8bd6-381e9fb8f2d3.mp3",
+    "hash": "549088b4be8c53d6",
+    "text": "This stop is Swimming Pool, Boston."
+  },
+  "next/d6b093d8-e207-4c8c-8bd6-381e9fb8f2d3": {
+    "path": "next/d6b093d8-e207-4c8c-8bd6-381e9fb8f2d3.mp3",
+    "hash": "b1e635a71ad031f2",
+    "text": "The next stop is Swimming Pool, Boston."
+  },
+  "arrive/d6b093d8-e207-4c8c-8bd6-381e9fb8f2d3": {
+    "path": "arrive/d6b093d8-e207-4c8c-8bd6-381e9fb8f2d3.mp3",
+    "hash": "ad693ea4d1022a97",
+    "text": "This is Swimming Pool, Boston."
+  },
+  "stop/00000000-0000-0000-0004-000000000001": {
+    "path": "stop/00000000-0000-0000-0004-000000000001.mp3",
+    "hash": "22afe37ff8778ada",
+    "text": "This stop is Boston, Bus Station."
+  },
+  "next/00000000-0000-0000-0004-000000000001": {
+    "path": "next/00000000-0000-0000-0004-000000000001.mp3",
+    "hash": "dde45441705ead1a",
+    "text": "The next stop is Boston, Bus Station."
+  },
+  "arrive/00000000-0000-0000-0004-000000000001": {
+    "path": "arrive/00000000-0000-0000-0004-000000000001.mp3",
+    "hash": "99f44395014b1dc9",
+    "text": "This is Boston, Bus Station."
+  },
+  "stop/bbb6e60b-18a4-4b8a-ab29-5ea40b4c8f76": {
+    "path": "stop/bbb6e60b-18a4-4b8a-ab29-5ea40b4c8f76.mp3",
+    "hash": "664dfecf3e4aff4d",
+    "text": "This stop is Boston, The Minstrels."
+  },
+  "next/bbb6e60b-18a4-4b8a-ab29-5ea40b4c8f76": {
+    "path": "next/bbb6e60b-18a4-4b8a-ab29-5ea40b4c8f76.mp3",
+    "hash": "5fe8b413e44c0ccd",
+    "text": "The next stop is Boston, The Minstrels."
+  },
+  "arrive/bbb6e60b-18a4-4b8a-ab29-5ea40b4c8f76": {
+    "path": "arrive/bbb6e60b-18a4-4b8a-ab29-5ea40b4c8f76.mp3",
+    "hash": "b1acae89b36863bf",
+    "text": "This is Boston, The Minstrels."
+  },
+  "stop/00000000-0000-0000-0004-000000000003": {
+    "path": "stop/00000000-0000-0000-0004-000000000003.mp3",
+    "hash": "433fcfe4c1da4893",
+    "text": "This stop is Boston, Rosebery Avenue."
+  },
+  "next/00000000-0000-0000-0004-000000000003": {
+    "path": "next/00000000-0000-0000-0004-000000000003.mp3",
+    "hash": "bd72d594961749b7",
+    "text": "The next stop is Boston, Rosebery Avenue."
+  },
+  "arrive/00000000-0000-0000-0004-000000000003": {
+    "path": "arrive/00000000-0000-0000-0004-000000000003.mp3",
+    "hash": "b9a5ce66075a334a",
+    "text": "This is Boston, Rosebery Avenue."
+  },
+  "stop/00000000-0000-0000-0004-000000000004": {
+    "path": "stop/00000000-0000-0000-0004-000000000004.mp3",
+    "hash": "0ed566de1acf7a34",
+    "text": "This stop is Boston, Footpath to Arundel Crescent."
+  },
+  "next/00000000-0000-0000-0004-000000000004": {
+    "path": "next/00000000-0000-0000-0004-000000000004.mp3",
+    "hash": "fd4897d01adceff1",
+    "text": "The next stop is Boston, Footpath to Arundel Crescent."
+  },
+  "arrive/00000000-0000-0000-0004-000000000004": {
+    "path": "arrive/00000000-0000-0000-0004-000000000004.mp3",
+    "hash": "263c3f16c962dd23",
+    "text": "This is Boston, Footpath to Arundel Crescent."
+  },
+  "stop/00000000-0000-0000-0004-000000000005": {
+    "path": "stop/00000000-0000-0000-0004-000000000005.mp3",
+    "hash": "2e23901cb712002d",
+    "text": "This stop is Boston, Wyberton High Bridge."
+  },
+  "next/00000000-0000-0000-0004-000000000005": {
+    "path": "next/00000000-0000-0000-0004-000000000005.mp3",
+    "hash": "84a120b7518ec624",
+    "text": "The next stop is Boston, Wyberton High Bridge."
+  },
+  "arrive/00000000-0000-0000-0004-000000000005": {
+    "path": "arrive/00000000-0000-0000-0004-000000000005.mp3",
+    "hash": "3b33679b26e7af15",
+    "text": "This is Boston, Wyberton High Bridge."
+  },
+  "stop/00000000-0000-0000-0004-000000000006": {
+    "path": "stop/00000000-0000-0000-0004-000000000006.mp3",
+    "hash": "396cea506e7a6c8f",
+    "text": "This stop is Boston, Oldrids."
+  },
+  "next/00000000-0000-0000-0004-000000000006": {
+    "path": "next/00000000-0000-0000-0004-000000000006.mp3",
+    "hash": "79691b2f198e4d1b",
+    "text": "The next stop is Boston, Oldrids."
+  },
+  "arrive/00000000-0000-0000-0004-000000000006": {
+    "path": "arrive/00000000-0000-0000-0004-000000000006.mp3",
+    "hash": "29b8b6fd1f5111cd",
+    "text": "This is Boston, Oldrids."
+  },
+  "stop/00000000-0000-0000-0004-000000000007": {
+    "path": "stop/00000000-0000-0000-0004-000000000007.mp3",
+    "hash": "5dfef6e1e8542c8d",
+    "text": "This stop is Wyberton, Pincushion Inn."
+  },
+  "next/00000000-0000-0000-0004-000000000007": {
+    "path": "next/00000000-0000-0000-0004-000000000007.mp3",
+    "hash": "1398ac78776df157",
+    "text": "The next stop is Wyberton, Pincushion Inn."
+  },
+  "arrive/00000000-0000-0000-0004-000000000007": {
+    "path": "arrive/00000000-0000-0000-0004-000000000007.mp3",
+    "hash": "5b4d5bf375c7a269",
+    "text": "This is Wyberton, Pincushion Inn."
+  },
+  "stop/00000000-0000-0000-0004-000000000008": {
+    "path": "stop/00000000-0000-0000-0004-000000000008.mp3",
+    "hash": "b0a8decde4fc3f5e",
+    "text": "This stop is Wyberton, Ralphs Lane."
+  },
+  "next/00000000-0000-0000-0004-000000000008": {
+    "path": "next/00000000-0000-0000-0004-000000000008.mp3",
+    "hash": "8943368bc918f650",
+    "text": "The next stop is Wyberton, Ralphs Lane."
+  },
+  "arrive/00000000-0000-0000-0004-000000000008": {
+    "path": "arrive/00000000-0000-0000-0004-000000000008.mp3",
+    "hash": "8b5721060c42a030",
+    "text": "This is Wyberton, Ralphs Lane."
+  },
+  "stop/00000000-0000-0000-0004-000000000009": {
+    "path": "stop/00000000-0000-0000-0004-000000000009.mp3",
+    "hash": "c4a14781485c622c",
+    "text": "This stop is Frampton, Millfield Lane West."
+  },
+  "next/00000000-0000-0000-0004-000000000009": {
+    "path": "next/00000000-0000-0000-0004-000000000009.mp3",
+    "hash": "76a107cdc4e4f834",
+    "text": "The next stop is Frampton, Millfield Lane West."
+  },
+  "arrive/00000000-0000-0000-0004-000000000009": {
+    "path": "arrive/00000000-0000-0000-0004-000000000009.mp3",
+    "hash": "acd89d04297bf406",
+    "text": "This is Frampton, Millfield Lane West."
+  },
+  "stop/00000000-0000-0000-0004-000000000010": {
+    "path": "stop/00000000-0000-0000-0004-000000000010.mp3",
+    "hash": "8c9b5722c5eeb48a",
+    "text": "This stop is Frampton, Middlegate Road."
+  },
+  "next/00000000-0000-0000-0004-000000000010": {
+    "path": "next/00000000-0000-0000-0004-000000000010.mp3",
+    "hash": "fc15567ba719c662",
+    "text": "The next stop is Frampton, Middlegate Road."
+  },
+  "arrive/00000000-0000-0000-0004-000000000010": {
+    "path": "arrive/00000000-0000-0000-0004-000000000010.mp3",
+    "hash": "cd110d2f96a2897d",
+    "text": "This is Frampton, Middlegate Road."
+  },
+  "stop/c2a13592-2b75-4574-ae6f-8894fda2935d": {
+    "path": "stop/c2a13592-2b75-4574-ae6f-8894fda2935d.mp3",
+    "hash": "5b991e958c4f82ff",
+    "text": "This stop is Kirton, Woodlands Court."
+  },
+  "next/c2a13592-2b75-4574-ae6f-8894fda2935d": {
+    "path": "next/c2a13592-2b75-4574-ae6f-8894fda2935d.mp3",
+    "hash": "51543a30574af513",
+    "text": "The next stop is Kirton, Woodlands Court."
+  },
+  "arrive/c2a13592-2b75-4574-ae6f-8894fda2935d": {
+    "path": "arrive/c2a13592-2b75-4574-ae6f-8894fda2935d.mp3",
+    "hash": "512323622226b206",
+    "text": "This is Kirton, Woodlands Court."
+  },
+  "stop/00000000-0000-0000-0004-000000000012": {
+    "path": "stop/00000000-0000-0000-0004-000000000012.mp3",
+    "hash": "c79a991722e11521",
+    "text": "This stop is Kirton, War Memorial."
+  },
+  "next/00000000-0000-0000-0004-000000000012": {
+    "path": "next/00000000-0000-0000-0004-000000000012.mp3",
+    "hash": "721bba951ded71a0",
+    "text": "The next stop is Kirton, War Memorial."
+  },
+  "arrive/00000000-0000-0000-0004-000000000012": {
+    "path": "arrive/00000000-0000-0000-0004-000000000012.mp3",
+    "hash": "29ce787d14fc5a95",
+    "text": "This is Kirton, War Memorial."
+  },
+  "stop/00000000-0000-0000-0004-000000000013": {
+    "path": "stop/00000000-0000-0000-0004-000000000013.mp3",
+    "hash": "e748599c732e4d46",
+    "text": "This stop is Kirton End, Post Office."
+  },
+  "next/00000000-0000-0000-0004-000000000013": {
+    "path": "next/00000000-0000-0000-0004-000000000013.mp3",
+    "hash": "092547d97fc47965",
+    "text": "The next stop is Kirton End, Post Office."
+  },
+  "arrive/00000000-0000-0000-0004-000000000013": {
+    "path": "arrive/00000000-0000-0000-0004-000000000013.mp3",
+    "hash": "976d74f5a6d30138",
+    "text": "This is Kirton End, Post Office."
+  },
+  "stop/00000000-0000-0000-0004-000000000014": {
+    "path": "stop/00000000-0000-0000-0004-000000000014.mp3",
+    "hash": "3c89cc2ea0b0debc",
+    "text": "This stop is Blackjack, Crossroads."
+  },
+  "next/00000000-0000-0000-0004-000000000014": {
+    "path": "next/00000000-0000-0000-0004-000000000014.mp3",
+    "hash": "14a387caba5af1f0",
+    "text": "The next stop is Blackjack, Crossroads."
+  },
+  "arrive/00000000-0000-0000-0004-000000000014": {
+    "path": "arrive/00000000-0000-0000-0004-000000000014.mp3",
+    "hash": "f5e4b740c2af8727",
+    "text": "This is Blackjack, Crossroads."
+  },
+  "stop/00000000-0000-0000-0004-000000000015": {
+    "path": "stop/00000000-0000-0000-0004-000000000015.mp3",
+    "hash": "d7bdf0d7305d8af6",
+    "text": "This stop is Swineshead, Fenhouses Lane."
+  },
+  "next/00000000-0000-0000-0004-000000000015": {
+    "path": "next/00000000-0000-0000-0004-000000000015.mp3",
+    "hash": "340c246ce556289a",
+    "text": "The next stop is Swineshead, Fenhouses Lane."
+  },
+  "arrive/00000000-0000-0000-0004-000000000015": {
+    "path": "arrive/00000000-0000-0000-0004-000000000015.mp3",
+    "hash": "1300704ba545336a",
+    "text": "This is Swineshead, Fenhouses Lane."
+  },
+  "stop/00000000-0000-0000-0004-000000000016": {
+    "path": "stop/00000000-0000-0000-0004-000000000016.mp3",
+    "hash": "f20bf1cecb0ef148",
+    "text": "This stop is Kirton Holme, Fenhouses Drove."
+  },
+  "next/00000000-0000-0000-0004-000000000016": {
+    "path": "next/00000000-0000-0000-0004-000000000016.mp3",
+    "hash": "c73407d5ef2e59c5",
+    "text": "The next stop is Kirton Holme, Fenhouses Drove."
+  },
+  "arrive/00000000-0000-0000-0004-000000000016": {
+    "path": "arrive/00000000-0000-0000-0004-000000000016.mp3",
+    "hash": "5d19c5f4de35635c",
+    "text": "This is Kirton Holme, Fenhouses Drove."
+  },
+  "stop/00000000-0000-0000-0004-000000000017": {
+    "path": "stop/00000000-0000-0000-0004-000000000017.mp3",
+    "hash": "c07cbc1edefd8a99",
+    "text": "This stop is Baythorpe, Hardwick Plot Lane."
+  },
+  "next/00000000-0000-0000-0004-000000000017": {
+    "path": "next/00000000-0000-0000-0004-000000000017.mp3",
+    "hash": "e9a1ae802be0b953",
+    "text": "The next stop is Baythorpe, Hardwick Plot Lane."
+  },
+  "arrive/00000000-0000-0000-0004-000000000017": {
+    "path": "arrive/00000000-0000-0000-0004-000000000017.mp3",
+    "hash": "9260d279dfa7848b",
+    "text": "This is Baythorpe, Hardwick Plot Lane."
+  },
+  "stop/00000000-0000-0000-0004-000000000018": {
+    "path": "stop/00000000-0000-0000-0004-000000000018.mp3",
+    "hash": "1bad613c5dc5e763",
+    "text": "This stop is Swineshead, Golden Cross PH."
+  },
+  "next/00000000-0000-0000-0004-000000000018": {
+    "path": "next/00000000-0000-0000-0004-000000000018.mp3",
+    "hash": "54d8555566fd75ec",
+    "text": "The next stop is Swineshead, Golden Cross PH."
+  },
+  "arrive/00000000-0000-0000-0004-000000000018": {
+    "path": "arrive/00000000-0000-0000-0004-000000000018.mp3",
+    "hash": "2e999684d5880312",
+    "text": "This is Swineshead, Golden Cross PH."
+  },
+  "stop/00000000-0000-0000-0004-000000000019": {
+    "path": "stop/00000000-0000-0000-0004-000000000019.mp3",
+    "hash": "bc637dedf718dc81",
+    "text": "This stop is Swineshead, Tarry Hill."
+  },
+  "next/00000000-0000-0000-0004-000000000019": {
+    "path": "next/00000000-0000-0000-0004-000000000019.mp3",
+    "hash": "6c5e4bef2cf6fdaf",
+    "text": "The next stop is Swineshead, Tarry Hill."
+  },
+  "arrive/00000000-0000-0000-0004-000000000019": {
+    "path": "arrive/00000000-0000-0000-0004-000000000019.mp3",
+    "hash": "db870003dfa0e77d",
+    "text": "This is Swineshead, Tarry Hill."
+  },
+  "stop/00000000-0000-0000-0004-000000000020": {
+    "path": "stop/00000000-0000-0000-0004-000000000020.mp3",
+    "hash": "bb6c9ca7a48308d4",
+    "text": "This stop is Swineshead, Cole's Lane."
+  },
+  "next/00000000-0000-0000-0004-000000000020": {
+    "path": "next/00000000-0000-0000-0004-000000000020.mp3",
+    "hash": "c05d0a6a8b0bb732",
+    "text": "The next stop is Swineshead, Cole's Lane."
+  },
+  "arrive/00000000-0000-0000-0004-000000000020": {
+    "path": "arrive/00000000-0000-0000-0004-000000000020.mp3",
+    "hash": "1bc6ec1e90bd50ce",
+    "text": "This is Swineshead, Cole's Lane."
+  },
+  "stop/00000000-0000-0000-0004-000000000021": {
+    "path": "stop/00000000-0000-0000-0004-000000000021.mp3",
+    "hash": "1f867ab2e4e78994",
+    "text": "This stop is Swineshead, King John's Road."
+  },
+  "next/00000000-0000-0000-0004-000000000021": {
+    "path": "next/00000000-0000-0000-0004-000000000021.mp3",
+    "hash": "7da88743178fe538",
+    "text": "The next stop is Swineshead, King John's Road."
+  },
+  "arrive/00000000-0000-0000-0004-000000000021": {
+    "path": "arrive/00000000-0000-0000-0004-000000000021.mp3",
+    "hash": "462cb2955c404272",
+    "text": "This is Swineshead, King John's Road."
+  },
+  "stop/00000000-0000-0000-0004-000000000022": {
+    "path": "stop/00000000-0000-0000-0004-000000000022.mp3",
+    "hash": "d06b87f9e151831d",
+    "text": "This stop is Swineshead, St Mary's Church."
+  },
+  "next/00000000-0000-0000-0004-000000000022": {
+    "path": "next/00000000-0000-0000-0004-000000000022.mp3",
+    "hash": "72d2b05a7bf4494a",
+    "text": "The next stop is Swineshead, St Mary's Church."
+  },
+  "arrive/00000000-0000-0000-0004-000000000022": {
+    "path": "arrive/00000000-0000-0000-0004-000000000022.mp3",
+    "hash": "c3cf0e05bd526bac",
+    "text": "This is Swineshead, St Mary's Church."
+  },
+  "stop/00000000-0000-0000-0004-000000000023": {
+    "path": "stop/00000000-0000-0000-0004-000000000023.mp3",
+    "hash": "4597db9e7608e978",
+    "text": "This stop is Swineshead, Bullens Lane."
+  },
+  "next/00000000-0000-0000-0004-000000000023": {
+    "path": "next/00000000-0000-0000-0004-000000000023.mp3",
+    "hash": "638f1f8056b45c86",
+    "text": "The next stop is Swineshead, Bullens Lane."
+  },
+  "arrive/00000000-0000-0000-0004-000000000023": {
+    "path": "arrive/00000000-0000-0000-0004-000000000023.mp3",
+    "hash": "5eab04fb6b530a22",
+    "text": "This is Swineshead, Bullens Lane."
+  },
+  "stop/00000000-0000-0000-0004-000000000024": {
+    "path": "stop/00000000-0000-0000-0004-000000000024.mp3",
+    "hash": "86d6ff84fef6d6ce",
+    "text": "This stop is Swineshead, High Green."
+  },
+  "next/00000000-0000-0000-0004-000000000024": {
+    "path": "next/00000000-0000-0000-0004-000000000024.mp3",
+    "hash": "db0fb91eb84a0a43",
+    "text": "The next stop is Swineshead, High Green."
+  },
+  "arrive/00000000-0000-0000-0004-000000000024": {
+    "path": "arrive/00000000-0000-0000-0004-000000000024.mp3",
+    "hash": "1ca3414e34df572b",
+    "text": "This is Swineshead, High Green."
+  },
+  "stop/00000000-0000-0000-0004-000000000025": {
+    "path": "stop/00000000-0000-0000-0004-000000000025.mp3",
+    "hash": "c3778becc4a62796",
+    "text": "This stop is Swineshead, Bentley's Garage."
+  },
+  "next/00000000-0000-0000-0004-000000000025": {
+    "path": "next/00000000-0000-0000-0004-000000000025.mp3",
+    "hash": "ba069c83fa620cff",
+    "text": "The next stop is Swineshead, Bentley's Garage."
+  },
+  "arrive/00000000-0000-0000-0004-000000000025": {
+    "path": "arrive/00000000-0000-0000-0004-000000000025.mp3",
+    "hash": "ee9b60e2116943dd",
+    "text": "This is Swineshead, Bentley's Garage."
+  },
+  "stop/00000000-0000-0000-0004-000000000026": {
+    "path": "stop/00000000-0000-0000-0004-000000000026.mp3",
+    "hash": "1b2a9d6f953bbc11",
+    "text": "This stop is Bicker Bar, Bicker Bar Hotel."
+  },
+  "next/00000000-0000-0000-0004-000000000026": {
+    "path": "next/00000000-0000-0000-0004-000000000026.mp3",
+    "hash": "2800dd464f9b4933",
+    "text": "The next stop is Bicker Bar, Bicker Bar Hotel."
+  },
+  "arrive/00000000-0000-0000-0004-000000000026": {
+    "path": "arrive/00000000-0000-0000-0004-000000000026.mp3",
+    "hash": "7eefa47bacb311df",
+    "text": "This is Bicker Bar, Bicker Bar Hotel."
+  },
+  "stop/00000000-0000-0000-0004-000000000027": {
+    "path": "stop/00000000-0000-0000-0004-000000000027.mp3",
+    "hash": "7f854557dedc5d4e",
+    "text": "This stop is Northorpe, Browntoft Lane."
+  },
+  "next/00000000-0000-0000-0004-000000000027": {
+    "path": "next/00000000-0000-0000-0004-000000000027.mp3",
+    "hash": "4c473471210b30d2",
+    "text": "The next stop is Northorpe, Browntoft Lane."
+  },
+  "arrive/00000000-0000-0000-0004-000000000027": {
+    "path": "arrive/00000000-0000-0000-0004-000000000027.mp3",
+    "hash": "f5530fa4d897c40f",
+    "text": "This is Northorpe, Browntoft Lane."
+  },
+  "stop/00000000-0000-0000-0004-000000000028": {
+    "path": "stop/00000000-0000-0000-0004-000000000028.mp3",
+    "hash": "6cf52966a0b6a404",
+    "text": "This stop is Northorpe, Church Street."
+  },
+  "next/00000000-0000-0000-0004-000000000028": {
+    "path": "next/00000000-0000-0000-0004-000000000028.mp3",
+    "hash": "5e78f408f813bdf6",
+    "text": "The next stop is Northorpe, Church Street."
+  },
+  "arrive/00000000-0000-0000-0004-000000000028": {
+    "path": "arrive/00000000-0000-0000-0004-000000000028.mp3",
+    "hash": "ea96bae66e125f6e",
+    "text": "This is Northorpe, Church Street."
+  },
+  "stop/00000000-0000-0000-0004-000000000029": {
+    "path": "stop/00000000-0000-0000-0004-000000000029.mp3",
+    "hash": "c686101b658e67d2",
+    "text": "This stop is Donington, Market Place."
+  },
+  "next/00000000-0000-0000-0004-000000000029": {
+    "path": "next/00000000-0000-0000-0004-000000000029.mp3",
+    "hash": "e3d64ae15d07cfa6",
+    "text": "The next stop is Donington, Market Place."
+  },
+  "arrive/00000000-0000-0000-0004-000000000029": {
+    "path": "arrive/00000000-0000-0000-0004-000000000029.mp3",
+    "hash": "e5154b6c0b1a6c9a",
+    "text": "This is Donington, Market Place."
+  },
+  "stop/00000000-0000-0000-0004-000000000030": {
+    "path": "stop/00000000-0000-0000-0004-000000000030.mp3",
+    "hash": "0f6d31f5fa0e27bb",
+    "text": "This stop is Donington, Cowley Secondary School."
+  },
+  "next/00000000-0000-0000-0004-000000000030": {
+    "path": "next/00000000-0000-0000-0004-000000000030.mp3",
+    "hash": "e787691b827a6490",
+    "text": "The next stop is Donington, Cowley Secondary School."
+  },
+  "arrive/00000000-0000-0000-0004-000000000030": {
+    "path": "arrive/00000000-0000-0000-0004-000000000030.mp3",
+    "hash": "df560a597ecdf13f",
+    "text": "This is Donington, Cowley Secondary School."
+  },
+  "stop/00000000-0000-0000-0005-000000000002": {
+    "path": "stop/00000000-0000-0000-0005-000000000002.mp3",
+    "hash": "c686101b658e67d2",
+    "text": "This stop is Donington, Market Place."
+  },
+  "next/00000000-0000-0000-0005-000000000002": {
+    "path": "next/00000000-0000-0000-0005-000000000002.mp3",
+    "hash": "e3d64ae15d07cfa6",
+    "text": "The next stop is Donington, Market Place."
+  },
+  "arrive/00000000-0000-0000-0005-000000000002": {
+    "path": "arrive/00000000-0000-0000-0005-000000000002.mp3",
+    "hash": "e5154b6c0b1a6c9a",
+    "text": "This is Donington, Market Place."
+  },
+  "stop/00000000-0000-0000-0005-000000000003": {
+    "path": "stop/00000000-0000-0000-0005-000000000003.mp3",
+    "hash": "6cf52966a0b6a404",
+    "text": "This stop is Northorpe, Church Street."
+  },
+  "next/00000000-0000-0000-0005-000000000003": {
+    "path": "next/00000000-0000-0000-0005-000000000003.mp3",
+    "hash": "5e78f408f813bdf6",
+    "text": "The next stop is Northorpe, Church Street."
+  },
+  "arrive/00000000-0000-0000-0005-000000000003": {
+    "path": "arrive/00000000-0000-0000-0005-000000000003.mp3",
+    "hash": "ea96bae66e125f6e",
+    "text": "This is Northorpe, Church Street."
+  },
+  "stop/00000000-0000-0000-0005-000000000004": {
+    "path": "stop/00000000-0000-0000-0005-000000000004.mp3",
+    "hash": "7f854557dedc5d4e",
+    "text": "This stop is Northorpe, Browntoft Lane."
+  },
+  "next/00000000-0000-0000-0005-000000000004": {
+    "path": "next/00000000-0000-0000-0005-000000000004.mp3",
+    "hash": "4c473471210b30d2",
+    "text": "The next stop is Northorpe, Browntoft Lane."
+  },
+  "arrive/00000000-0000-0000-0005-000000000004": {
+    "path": "arrive/00000000-0000-0000-0005-000000000004.mp3",
+    "hash": "f5530fa4d897c40f",
+    "text": "This is Northorpe, Browntoft Lane."
+  },
+  "stop/00000000-0000-0000-0005-000000000005": {
+    "path": "stop/00000000-0000-0000-0005-000000000005.mp3",
+    "hash": "1b2a9d6f953bbc11",
+    "text": "This stop is Bicker Bar, Bicker Bar Hotel."
+  },
+  "next/00000000-0000-0000-0005-000000000005": {
+    "path": "next/00000000-0000-0000-0005-000000000005.mp3",
+    "hash": "2800dd464f9b4933",
+    "text": "The next stop is Bicker Bar, Bicker Bar Hotel."
+  },
+  "arrive/00000000-0000-0000-0005-000000000005": {
+    "path": "arrive/00000000-0000-0000-0005-000000000005.mp3",
+    "hash": "7eefa47bacb311df",
+    "text": "This is Bicker Bar, Bicker Bar Hotel."
+  },
+  "stop/00000000-0000-0000-0005-000000000006": {
+    "path": "stop/00000000-0000-0000-0005-000000000006.mp3",
+    "hash": "c3778becc4a62796",
+    "text": "This stop is Swineshead, Bentley's Garage."
+  },
+  "next/00000000-0000-0000-0005-000000000006": {
+    "path": "next/00000000-0000-0000-0005-000000000006.mp3",
+    "hash": "ba069c83fa620cff",
+    "text": "The next stop is Swineshead, Bentley's Garage."
+  },
+  "arrive/00000000-0000-0000-0005-000000000006": {
+    "path": "arrive/00000000-0000-0000-0005-000000000006.mp3",
+    "hash": "ee9b60e2116943dd",
+    "text": "This is Swineshead, Bentley's Garage."
+  },
+  "stop/00000000-0000-0000-0005-000000000007": {
+    "path": "stop/00000000-0000-0000-0005-000000000007.mp3",
+    "hash": "86d6ff84fef6d6ce",
+    "text": "This stop is Swineshead, High Green."
+  },
+  "next/00000000-0000-0000-0005-000000000007": {
+    "path": "next/00000000-0000-0000-0005-000000000007.mp3",
+    "hash": "db0fb91eb84a0a43",
+    "text": "The next stop is Swineshead, High Green."
+  },
+  "arrive/00000000-0000-0000-0005-000000000007": {
+    "path": "arrive/00000000-0000-0000-0005-000000000007.mp3",
+    "hash": "1ca3414e34df572b",
+    "text": "This is Swineshead, High Green."
+  },
+  "stop/00000000-0000-0000-0005-000000000008": {
+    "path": "stop/00000000-0000-0000-0005-000000000008.mp3",
+    "hash": "4597db9e7608e978",
+    "text": "This stop is Swineshead, Bullens Lane."
+  },
+  "next/00000000-0000-0000-0005-000000000008": {
+    "path": "next/00000000-0000-0000-0005-000000000008.mp3",
+    "hash": "638f1f8056b45c86",
+    "text": "The next stop is Swineshead, Bullens Lane."
+  },
+  "arrive/00000000-0000-0000-0005-000000000008": {
+    "path": "arrive/00000000-0000-0000-0005-000000000008.mp3",
+    "hash": "5eab04fb6b530a22",
+    "text": "This is Swineshead, Bullens Lane."
+  },
+  "stop/00000000-0000-0000-0005-000000000009": {
+    "path": "stop/00000000-0000-0000-0005-000000000009.mp3",
+    "hash": "d06b87f9e151831d",
+    "text": "This stop is Swineshead, St Mary's Church."
+  },
+  "next/00000000-0000-0000-0005-000000000009": {
+    "path": "next/00000000-0000-0000-0005-000000000009.mp3",
+    "hash": "72d2b05a7bf4494a",
+    "text": "The next stop is Swineshead, St Mary's Church."
+  },
+  "arrive/00000000-0000-0000-0005-000000000009": {
+    "path": "arrive/00000000-0000-0000-0005-000000000009.mp3",
+    "hash": "c3cf0e05bd526bac",
+    "text": "This is Swineshead, St Mary's Church."
+  },
+  "stop/00000000-0000-0000-0005-000000000010": {
+    "path": "stop/00000000-0000-0000-0005-000000000010.mp3",
+    "hash": "1f867ab2e4e78994",
+    "text": "This stop is Swineshead, King John's Road."
+  },
+  "next/00000000-0000-0000-0005-000000000010": {
+    "path": "next/00000000-0000-0000-0005-000000000010.mp3",
+    "hash": "7da88743178fe538",
+    "text": "The next stop is Swineshead, King John's Road."
+  },
+  "arrive/00000000-0000-0000-0005-000000000010": {
+    "path": "arrive/00000000-0000-0000-0005-000000000010.mp3",
+    "hash": "462cb2955c404272",
+    "text": "This is Swineshead, King John's Road."
+  },
+  "stop/00000000-0000-0000-0005-000000000011": {
+    "path": "stop/00000000-0000-0000-0005-000000000011.mp3",
+    "hash": "bb6c9ca7a48308d4",
+    "text": "This stop is Swineshead, Cole's Lane."
+  },
+  "next/00000000-0000-0000-0005-000000000011": {
+    "path": "next/00000000-0000-0000-0005-000000000011.mp3",
+    "hash": "c05d0a6a8b0bb732",
+    "text": "The next stop is Swineshead, Cole's Lane."
+  },
+  "arrive/00000000-0000-0000-0005-000000000011": {
+    "path": "arrive/00000000-0000-0000-0005-000000000011.mp3",
+    "hash": "1bc6ec1e90bd50ce",
+    "text": "This is Swineshead, Cole's Lane."
+  },
+  "stop/00000000-0000-0000-0005-000000000012": {
+    "path": "stop/00000000-0000-0000-0005-000000000012.mp3",
+    "hash": "bc637dedf718dc81",
+    "text": "This stop is Swineshead, Tarry Hill."
+  },
+  "next/00000000-0000-0000-0005-000000000012": {
+    "path": "next/00000000-0000-0000-0005-000000000012.mp3",
+    "hash": "6c5e4bef2cf6fdaf",
+    "text": "The next stop is Swineshead, Tarry Hill."
+  },
+  "arrive/00000000-0000-0000-0005-000000000012": {
+    "path": "arrive/00000000-0000-0000-0005-000000000012.mp3",
+    "hash": "db870003dfa0e77d",
+    "text": "This is Swineshead, Tarry Hill."
+  },
+  "stop/f14e3a5e-c097-4aa7-a02a-8cb7b7f8fc2a": {
+    "path": "stop/f14e3a5e-c097-4aa7-a02a-8cb7b7f8fc2a.mp3",
+    "hash": "1bad613c5dc5e763",
+    "text": "This stop is Swineshead, Golden Cross PH."
+  },
+  "next/f14e3a5e-c097-4aa7-a02a-8cb7b7f8fc2a": {
+    "path": "next/f14e3a5e-c097-4aa7-a02a-8cb7b7f8fc2a.mp3",
+    "hash": "54d8555566fd75ec",
+    "text": "The next stop is Swineshead, Golden Cross PH."
+  },
+  "arrive/f14e3a5e-c097-4aa7-a02a-8cb7b7f8fc2a": {
+    "path": "arrive/f14e3a5e-c097-4aa7-a02a-8cb7b7f8fc2a.mp3",
+    "hash": "2e999684d5880312",
+    "text": "This is Swineshead, Golden Cross PH."
+  },
+  "stop/00000000-0000-0000-0005-000000000014": {
+    "path": "stop/00000000-0000-0000-0005-000000000014.mp3",
+    "hash": "c07cbc1edefd8a99",
+    "text": "This stop is Baythorpe, Hardwick Plot Lane."
+  },
+  "next/00000000-0000-0000-0005-000000000014": {
+    "path": "next/00000000-0000-0000-0005-000000000014.mp3",
+    "hash": "e9a1ae802be0b953",
+    "text": "The next stop is Baythorpe, Hardwick Plot Lane."
+  },
+  "arrive/00000000-0000-0000-0005-000000000014": {
+    "path": "arrive/00000000-0000-0000-0005-000000000014.mp3",
+    "hash": "9260d279dfa7848b",
+    "text": "This is Baythorpe, Hardwick Plot Lane."
+  },
+  "stop/00000000-0000-0000-0005-000000000015": {
+    "path": "stop/00000000-0000-0000-0005-000000000015.mp3",
+    "hash": "f20bf1cecb0ef148",
+    "text": "This stop is Kirton Holme, Fenhouses Drove."
+  },
+  "next/00000000-0000-0000-0005-000000000015": {
+    "path": "next/00000000-0000-0000-0005-000000000015.mp3",
+    "hash": "c73407d5ef2e59c5",
+    "text": "The next stop is Kirton Holme, Fenhouses Drove."
+  },
+  "arrive/00000000-0000-0000-0005-000000000015": {
+    "path": "arrive/00000000-0000-0000-0005-000000000015.mp3",
+    "hash": "5d19c5f4de35635c",
+    "text": "This is Kirton Holme, Fenhouses Drove."
+  },
+  "stop/00000000-0000-0000-0005-000000000016": {
+    "path": "stop/00000000-0000-0000-0005-000000000016.mp3",
+    "hash": "d7bdf0d7305d8af6",
+    "text": "This stop is Swineshead, Fenhouses Lane."
+  },
+  "next/00000000-0000-0000-0005-000000000016": {
+    "path": "next/00000000-0000-0000-0005-000000000016.mp3",
+    "hash": "340c246ce556289a",
+    "text": "The next stop is Swineshead, Fenhouses Lane."
+  },
+  "arrive/00000000-0000-0000-0005-000000000016": {
+    "path": "arrive/00000000-0000-0000-0005-000000000016.mp3",
+    "hash": "1300704ba545336a",
+    "text": "This is Swineshead, Fenhouses Lane."
+  },
+  "stop/00000000-0000-0000-0005-000000000017": {
+    "path": "stop/00000000-0000-0000-0005-000000000017.mp3",
+    "hash": "3c89cc2ea0b0debc",
+    "text": "This stop is Blackjack, Crossroads."
+  },
+  "next/00000000-0000-0000-0005-000000000017": {
+    "path": "next/00000000-0000-0000-0005-000000000017.mp3",
+    "hash": "14a387caba5af1f0",
+    "text": "The next stop is Blackjack, Crossroads."
+  },
+  "arrive/00000000-0000-0000-0005-000000000017": {
+    "path": "arrive/00000000-0000-0000-0005-000000000017.mp3",
+    "hash": "f5e4b740c2af8727",
+    "text": "This is Blackjack, Crossroads."
+  },
+  "stop/00000000-0000-0000-0005-000000000018": {
+    "path": "stop/00000000-0000-0000-0005-000000000018.mp3",
+    "hash": "e748599c732e4d46",
+    "text": "This stop is Kirton End, Post Office."
+  },
+  "next/00000000-0000-0000-0005-000000000018": {
+    "path": "next/00000000-0000-0000-0005-000000000018.mp3",
+    "hash": "092547d97fc47965",
+    "text": "The next stop is Kirton End, Post Office."
+  },
+  "arrive/00000000-0000-0000-0005-000000000018": {
+    "path": "arrive/00000000-0000-0000-0005-000000000018.mp3",
+    "hash": "976d74f5a6d30138",
+    "text": "This is Kirton End, Post Office."
+  },
+  "stop/00000000-0000-0000-0005-000000000020": {
+    "path": "stop/00000000-0000-0000-0005-000000000020.mp3",
+    "hash": "5b991e958c4f82ff",
+    "text": "This stop is Kirton, Woodlands Court."
+  },
+  "next/00000000-0000-0000-0005-000000000020": {
+    "path": "next/00000000-0000-0000-0005-000000000020.mp3",
+    "hash": "51543a30574af513",
+    "text": "The next stop is Kirton, Woodlands Court."
+  },
+  "arrive/00000000-0000-0000-0005-000000000020": {
+    "path": "arrive/00000000-0000-0000-0005-000000000020.mp3",
+    "hash": "512323622226b206",
+    "text": "This is Kirton, Woodlands Court."
+  },
+  "stop/00000000-0000-0000-0005-000000000021": {
+    "path": "stop/00000000-0000-0000-0005-000000000021.mp3",
+    "hash": "8c9b5722c5eeb48a",
+    "text": "This stop is Frampton, Middlegate Road."
+  },
+  "next/00000000-0000-0000-0005-000000000021": {
+    "path": "next/00000000-0000-0000-0005-000000000021.mp3",
+    "hash": "fc15567ba719c662",
+    "text": "The next stop is Frampton, Middlegate Road."
+  },
+  "arrive/00000000-0000-0000-0005-000000000021": {
+    "path": "arrive/00000000-0000-0000-0005-000000000021.mp3",
+    "hash": "cd110d2f96a2897d",
+    "text": "This is Frampton, Middlegate Road."
+  },
+  "stop/00000000-0000-0000-0005-000000000022": {
+    "path": "stop/00000000-0000-0000-0005-000000000022.mp3",
+    "hash": "c4a14781485c622c",
+    "text": "This stop is Frampton, Millfield Lane West."
+  },
+  "next/00000000-0000-0000-0005-000000000022": {
+    "path": "next/00000000-0000-0000-0005-000000000022.mp3",
+    "hash": "76a107cdc4e4f834",
+    "text": "The next stop is Frampton, Millfield Lane West."
+  },
+  "arrive/00000000-0000-0000-0005-000000000022": {
+    "path": "arrive/00000000-0000-0000-0005-000000000022.mp3",
+    "hash": "acd89d04297bf406",
+    "text": "This is Frampton, Millfield Lane West."
+  },
+  "stop/00000000-0000-0000-0005-000000000023": {
+    "path": "stop/00000000-0000-0000-0005-000000000023.mp3",
+    "hash": "b0a8decde4fc3f5e",
+    "text": "This stop is Wyberton, Ralphs Lane."
+  },
+  "next/00000000-0000-0000-0005-000000000023": {
+    "path": "next/00000000-0000-0000-0005-000000000023.mp3",
+    "hash": "8943368bc918f650",
+    "text": "The next stop is Wyberton, Ralphs Lane."
+  },
+  "arrive/00000000-0000-0000-0005-000000000023": {
+    "path": "arrive/00000000-0000-0000-0005-000000000023.mp3",
+    "hash": "8b5721060c42a030",
+    "text": "This is Wyberton, Ralphs Lane."
+  },
+  "stop/00000000-0000-0000-0005-000000000025": {
+    "path": "stop/00000000-0000-0000-0005-000000000025.mp3",
+    "hash": "396cea506e7a6c8f",
+    "text": "This stop is Boston, Oldrids."
+  },
+  "next/00000000-0000-0000-0005-000000000025": {
+    "path": "next/00000000-0000-0000-0005-000000000025.mp3",
+    "hash": "79691b2f198e4d1b",
+    "text": "The next stop is Boston, Oldrids."
+  },
+  "arrive/00000000-0000-0000-0005-000000000025": {
+    "path": "arrive/00000000-0000-0000-0005-000000000025.mp3",
+    "hash": "29b8b6fd1f5111cd",
+    "text": "This is Boston, Oldrids."
+  },
+  "stop/00000000-0000-0000-0005-000000000026": {
+    "path": "stop/00000000-0000-0000-0005-000000000026.mp3",
+    "hash": "2e23901cb712002d",
+    "text": "This stop is Boston, Wyberton High Bridge."
+  },
+  "next/00000000-0000-0000-0005-000000000026": {
+    "path": "next/00000000-0000-0000-0005-000000000026.mp3",
+    "hash": "84a120b7518ec624",
+    "text": "The next stop is Boston, Wyberton High Bridge."
+  },
+  "arrive/00000000-0000-0000-0005-000000000026": {
+    "path": "arrive/00000000-0000-0000-0005-000000000026.mp3",
+    "hash": "3b33679b26e7af15",
+    "text": "This is Boston, Wyberton High Bridge."
+  },
+  "stop/00000000-0000-0000-0005-000000000027": {
+    "path": "stop/00000000-0000-0000-0005-000000000027.mp3",
+    "hash": "0ed566de1acf7a34",
+    "text": "This stop is Boston, Footpath to Arundel Crescent."
+  },
+  "next/00000000-0000-0000-0005-000000000027": {
+    "path": "next/00000000-0000-0000-0005-000000000027.mp3",
+    "hash": "fd4897d01adceff1",
+    "text": "The next stop is Boston, Footpath to Arundel Crescent."
+  },
+  "arrive/00000000-0000-0000-0005-000000000027": {
+    "path": "arrive/00000000-0000-0000-0005-000000000027.mp3",
+    "hash": "263c3f16c962dd23",
+    "text": "This is Boston, Footpath to Arundel Crescent."
+  },
+  "stop/d50ee2f0-66c3-4a7e-9ed1-a16efde126a9": {
+    "path": "stop/d50ee2f0-66c3-4a7e-9ed1-a16efde126a9.mp3",
+    "hash": "433fcfe4c1da4893",
+    "text": "This stop is Boston, Rosebery Avenue."
+  },
+  "next/d50ee2f0-66c3-4a7e-9ed1-a16efde126a9": {
+    "path": "next/d50ee2f0-66c3-4a7e-9ed1-a16efde126a9.mp3",
+    "hash": "bd72d594961749b7",
+    "text": "The next stop is Boston, Rosebery Avenue."
+  },
+  "arrive/d50ee2f0-66c3-4a7e-9ed1-a16efde126a9": {
+    "path": "arrive/d50ee2f0-66c3-4a7e-9ed1-a16efde126a9.mp3",
+    "hash": "b9a5ce66075a334a",
+    "text": "This is Boston, Rosebery Avenue."
+  },
+  "stop/00000000-0000-0000-0005-000000000029": {
+    "path": "stop/00000000-0000-0000-0005-000000000029.mp3",
+    "hash": "664dfecf3e4aff4d",
+    "text": "This stop is Boston, The Minstrels."
+  },
+  "next/00000000-0000-0000-0005-000000000029": {
+    "path": "next/00000000-0000-0000-0005-000000000029.mp3",
+    "hash": "5fe8b413e44c0ccd",
+    "text": "The next stop is Boston, The Minstrels."
+  },
+  "arrive/00000000-0000-0000-0005-000000000029": {
+    "path": "arrive/00000000-0000-0000-0005-000000000029.mp3",
+    "hash": "b1acae89b36863bf",
+    "text": "This is Boston, The Minstrels."
+  },
+  "stop/00000000-0000-0000-0002-000000000001": {
+    "path": "stop/00000000-0000-0000-0002-000000000001.mp3",
+    "hash": "1a2b76aae09c25ff",
+    "text": "This stop is Weston, The Chequers PH."
+  },
+  "next/00000000-0000-0000-0002-000000000001": {
+    "path": "next/00000000-0000-0000-0002-000000000001.mp3",
+    "hash": "fda5c5d993aed9d3",
+    "text": "The next stop is Weston, The Chequers PH."
+  },
+  "arrive/00000000-0000-0000-0002-000000000001": {
+    "path": "arrive/00000000-0000-0000-0002-000000000001.mp3",
+    "hash": "8972e69c65694add",
+    "text": "This is Weston, The Chequers PH."
+  },
+  "stop/00000000-0000-0000-0002-000000000002": {
+    "path": "stop/00000000-0000-0000-0002-000000000002.mp3",
+    "hash": "93407265afe82d0a",
+    "text": "This stop is Weston, Delgate Bank."
+  },
+  "next/00000000-0000-0000-0002-000000000002": {
+    "path": "next/00000000-0000-0000-0002-000000000002.mp3",
+    "hash": "369c34a445a0afee",
+    "text": "The next stop is Weston, Delgate Bank."
+  },
+  "arrive/00000000-0000-0000-0002-000000000002": {
+    "path": "arrive/00000000-0000-0000-0002-000000000002.mp3",
+    "hash": "c159ae92b6623bf7",
+    "text": "This is Weston, Delgate Bank."
+  },
+  "stop/00000000-0000-0000-0002-000000000003": {
+    "path": "stop/00000000-0000-0000-0002-000000000003.mp3",
+    "hash": "d7f223085c8e9056",
+    "text": "This stop is Moulton, Bell Lane."
+  },
+  "next/00000000-0000-0000-0002-000000000003": {
+    "path": "next/00000000-0000-0000-0002-000000000003.mp3",
+    "hash": "5d9d62f84ee266bc",
+    "text": "The next stop is Moulton, Bell Lane."
+  },
+  "arrive/00000000-0000-0000-0002-000000000003": {
+    "path": "arrive/00000000-0000-0000-0002-000000000003.mp3",
+    "hash": "8f3bbde3b6579024",
+    "text": "This is Moulton, Bell Lane."
+  },
+  "stop/00000000-0000-0000-0002-000000000004": {
+    "path": "stop/00000000-0000-0000-0002-000000000004.mp3",
+    "hash": "be2bfb54f2f84ce9",
+    "text": "This stop is Moulton, River Lane."
+  },
+  "next/00000000-0000-0000-0002-000000000004": {
+    "path": "next/00000000-0000-0000-0002-000000000004.mp3",
+    "hash": "09379bab1d072a53",
+    "text": "The next stop is Moulton, River Lane."
+  },
+  "arrive/00000000-0000-0000-0002-000000000004": {
+    "path": "arrive/00000000-0000-0000-0002-000000000004.mp3",
+    "hash": "255e174a812d2cfa",
+    "text": "This is Moulton, River Lane."
+  },
+  "stop/00000000-0000-0000-0002-000000000005": {
+    "path": "stop/00000000-0000-0000-0002-000000000005.mp3",
+    "hash": "fba8480243c40fdf",
+    "text": "This stop is Whaplode, St Mary's Gardens."
+  },
+  "next/00000000-0000-0000-0002-000000000005": {
+    "path": "next/00000000-0000-0000-0002-000000000005.mp3",
+    "hash": "d817a6fbd51b4f62",
+    "text": "The next stop is Whaplode, St Mary's Gardens."
+  },
+  "arrive/00000000-0000-0000-0002-000000000005": {
+    "path": "arrive/00000000-0000-0000-0002-000000000005.mp3",
+    "hash": "70f7db5436ba89f5",
+    "text": "This is Whaplode, St Mary's Gardens."
+  },
+  "stop/00000000-0000-0000-0002-000000000006": {
+    "path": "stop/00000000-0000-0000-0002-000000000006.mp3",
+    "hash": "3e7e7654fc91a47e",
+    "text": "This stop is Whaplode, Darjeeling Restaurant."
+  },
+  "next/00000000-0000-0000-0002-000000000006": {
+    "path": "next/00000000-0000-0000-0002-000000000006.mp3",
+    "hash": "72a903509302eca6",
+    "text": "The next stop is Whaplode, Darjeeling Restaurant."
+  },
+  "arrive/00000000-0000-0000-0002-000000000006": {
+    "path": "arrive/00000000-0000-0000-0002-000000000006.mp3",
+    "hash": "f4129d6b4c77baec",
+    "text": "This is Whaplode, Darjeeling Restaurant."
+  },
+  "stop/00000000-0000-0000-0002-000000000007": {
+    "path": "stop/00000000-0000-0000-0002-000000000007.mp3",
+    "hash": "30cd4282cabd6ab9",
+    "text": "This stop is Whaplode, Middle Road."
+  },
+  "next/00000000-0000-0000-0002-000000000007": {
+    "path": "next/00000000-0000-0000-0002-000000000007.mp3",
+    "hash": "bb5f3a113f624fd6",
+    "text": "The next stop is Whaplode, Middle Road."
+  },
+  "arrive/00000000-0000-0000-0002-000000000007": {
+    "path": "arrive/00000000-0000-0000-0002-000000000007.mp3",
+    "hash": "bbb14469bfe00ed5",
+    "text": "This is Whaplode, Middle Road."
+  },
+  "stop/00000000-0000-0000-0002-000000000008": {
+    "path": "stop/00000000-0000-0000-0002-000000000008.mp3",
+    "hash": "f0a27f7e208936e3",
+    "text": "This stop is Whaplode, Stockwell Gate."
+  },
+  "next/00000000-0000-0000-0002-000000000008": {
+    "path": "next/00000000-0000-0000-0002-000000000008.mp3",
+    "hash": "ec11f1965449068d",
+    "text": "The next stop is Whaplode, Stockwell Gate."
+  },
+  "arrive/00000000-0000-0000-0002-000000000008": {
+    "path": "arrive/00000000-0000-0000-0002-000000000008.mp3",
+    "hash": "99eed97f6567df0d",
+    "text": "This is Whaplode, Stockwell Gate."
+  },
+  "stop/00000000-0000-0000-0002-000000000009": {
+    "path": "stop/00000000-0000-0000-0002-000000000009.mp3",
+    "hash": "4bf9ea127573ac83",
+    "text": "This stop is Holbeach, Wignals Gate."
+  },
+  "next/00000000-0000-0000-0002-000000000009": {
+    "path": "next/00000000-0000-0000-0002-000000000009.mp3",
+    "hash": "47034d4063d8f5ea",
+    "text": "The next stop is Holbeach, Wignals Gate."
+  },
+  "arrive/00000000-0000-0000-0002-000000000009": {
+    "path": "arrive/00000000-0000-0000-0002-000000000009.mp3",
+    "hash": "d7b7a7143fa9bc24",
+    "text": "This is Holbeach, Wignals Gate."
+  },
+  "stop/00000000-0000-0000-0002-000000000010": {
+    "path": "stop/00000000-0000-0000-0002-000000000010.mp3",
+    "hash": "e1648df618ada049",
+    "text": "This stop is Holbeach, Netherfield."
+  },
+  "next/00000000-0000-0000-0002-000000000010": {
+    "path": "next/00000000-0000-0000-0002-000000000010.mp3",
+    "hash": "96e95dd8c8611e28",
+    "text": "The next stop is Holbeach, Netherfield."
+  },
+  "arrive/00000000-0000-0000-0002-000000000010": {
+    "path": "arrive/00000000-0000-0000-0002-000000000010.mp3",
+    "hash": "8160273685495305",
+    "text": "This is Holbeach, Netherfield."
+  },
+  "stop/00000000-0000-0000-0002-000000000011": {
+    "path": "stop/00000000-0000-0000-0002-000000000011.mp3",
+    "hash": "342bb64162f9c538",
+    "text": "This stop is Holbeach, Fairfields."
+  },
+  "next/00000000-0000-0000-0002-000000000011": {
+    "path": "next/00000000-0000-0000-0002-000000000011.mp3",
+    "hash": "827977d0fc3eb855",
+    "text": "The next stop is Holbeach, Fairfields."
+  },
+  "arrive/00000000-0000-0000-0002-000000000011": {
+    "path": "arrive/00000000-0000-0000-0002-000000000011.mp3",
+    "hash": "f69509ab33de7711",
+    "text": "This is Holbeach, Fairfields."
+  },
+  "stop/00000000-0000-0000-0002-000000000012": {
+    "path": "stop/00000000-0000-0000-0002-000000000012.mp3",
+    "hash": "f996d432e976a0c8",
+    "text": "This stop is Holbeach, Stukeley Hall Drive."
+  },
+  "next/00000000-0000-0000-0002-000000000012": {
+    "path": "next/00000000-0000-0000-0002-000000000012.mp3",
+    "hash": "316d3703ed8678f5",
+    "text": "The next stop is Holbeach, Stukeley Hall Drive."
+  },
+  "arrive/00000000-0000-0000-0002-000000000012": {
+    "path": "arrive/00000000-0000-0000-0002-000000000012.mp3",
+    "hash": "ac1511a8e8c18c2f",
+    "text": "This is Holbeach, Stukeley Hall Drive."
+  },
+  "stop/00000000-0000-0000-0002-000000000013": {
+    "path": "stop/00000000-0000-0000-0002-000000000013.mp3",
+    "hash": "aa028d5c864e7c08",
+    "text": "This stop is Holbeach, Interchange Shelter."
+  },
+  "next/00000000-0000-0000-0002-000000000013": {
+    "path": "next/00000000-0000-0000-0002-000000000013.mp3",
+    "hash": "51cfb75dbc36b89e",
+    "text": "The next stop is Holbeach, Interchange Shelter."
+  },
+  "arrive/00000000-0000-0000-0002-000000000013": {
+    "path": "arrive/00000000-0000-0000-0002-000000000013.mp3",
+    "hash": "7f7a8139b913da91",
+    "text": "This is Holbeach, Interchange Shelter."
+  },
+  "stop/00000000-0000-0000-0002-000000000014": {
+    "path": "stop/00000000-0000-0000-0002-000000000014.mp3",
+    "hash": "9083c4d52dfba65c",
+    "text": "This stop is Holbeach, Damgate."
+  },
+  "next/00000000-0000-0000-0002-000000000014": {
+    "path": "next/00000000-0000-0000-0002-000000000014.mp3",
+    "hash": "c1936f9e6b54b871",
+    "text": "The next stop is Holbeach, Damgate."
+  },
+  "arrive/00000000-0000-0000-0002-000000000014": {
+    "path": "arrive/00000000-0000-0000-0002-000000000014.mp3",
+    "hash": "71b4394bd2d7b1b6",
+    "text": "This is Holbeach, Damgate."
+  },
+  "stop/00000000-0000-0000-0002-000000000015": {
+    "path": "stop/00000000-0000-0000-0002-000000000015.mp3",
+    "hash": "4e2d4012ac3fe3ab",
+    "text": "This stop is Holbeach, Rowan Close."
+  },
+  "next/00000000-0000-0000-0002-000000000015": {
+    "path": "next/00000000-0000-0000-0002-000000000015.mp3",
+    "hash": "3e98921094a4d90f",
+    "text": "The next stop is Holbeach, Rowan Close."
+  },
+  "arrive/00000000-0000-0000-0002-000000000015": {
+    "path": "arrive/00000000-0000-0000-0002-000000000015.mp3",
+    "hash": "a1c5babe38b5dee0",
+    "text": "This is Holbeach, Rowan Close."
+  },
+  "stop/00000000-0000-0000-0002-000000000016": {
+    "path": "stop/00000000-0000-0000-0002-000000000016.mp3",
+    "hash": "ca8270e83f975377",
+    "text": "This stop is Fleet Hargate, Fleet Road."
+  },
+  "next/00000000-0000-0000-0002-000000000016": {
+    "path": "next/00000000-0000-0000-0002-000000000016.mp3",
+    "hash": "fb8e5f820e6a64ea",
+    "text": "The next stop is Fleet Hargate, Fleet Road."
+  },
+  "arrive/00000000-0000-0000-0002-000000000016": {
+    "path": "arrive/00000000-0000-0000-0002-000000000016.mp3",
+    "hash": "af5550008433ed50",
+    "text": "This is Fleet Hargate, Fleet Road."
+  },
+  "stop/00000000-0000-0000-0002-000000000017": {
+    "path": "stop/00000000-0000-0000-0002-000000000017.mp3",
+    "hash": "61698d44f5d53d9c",
+    "text": "This stop is Fleet Hargate, Winslow Gate."
+  },
+  "next/00000000-0000-0000-0002-000000000017": {
+    "path": "next/00000000-0000-0000-0002-000000000017.mp3",
+    "hash": "15986375a0e72776",
+    "text": "The next stop is Fleet Hargate, Winslow Gate."
+  },
+  "arrive/00000000-0000-0000-0002-000000000017": {
+    "path": "arrive/00000000-0000-0000-0002-000000000017.mp3",
+    "hash": "09fe7d057d67151c",
+    "text": "This is Fleet Hargate, Winslow Gate."
+  },
+  "stop/00000000-0000-0000-0002-000000000018": {
+    "path": "stop/00000000-0000-0000-0002-000000000018.mp3",
+    "hash": "0c71a72bd76f3a15",
+    "text": "This stop is Fleet Hargate, Proctors Close."
+  },
+  "next/00000000-0000-0000-0002-000000000018": {
+    "path": "next/00000000-0000-0000-0002-000000000018.mp3",
+    "hash": "357ff6e100e9bf86",
+    "text": "The next stop is Fleet Hargate, Proctors Close."
+  },
+  "arrive/00000000-0000-0000-0002-000000000018": {
+    "path": "arrive/00000000-0000-0000-0002-000000000018.mp3",
+    "hash": "2d5419d6944c014f",
+    "text": "This is Fleet Hargate, Proctors Close."
+  },
+  "stop/00000000-0000-0000-0002-000000000019": {
+    "path": "stop/00000000-0000-0000-0002-000000000019.mp3",
+    "hash": "32d4315d13398545",
+    "text": "This stop is Holbeach Cackle Hill, 188 Boston Road."
+  },
+  "next/00000000-0000-0000-0002-000000000019": {
+    "path": "next/00000000-0000-0000-0002-000000000019.mp3",
+    "hash": "4e3c82f61faabf44",
+    "text": "The next stop is Holbeach Cackle Hill, 188 Boston Road."
+  },
+  "arrive/00000000-0000-0000-0002-000000000019": {
+    "path": "arrive/00000000-0000-0000-0002-000000000019.mp3",
+    "hash": "4748f254c340d4db",
+    "text": "This is Holbeach Cackle Hill, 188 Boston Road."
+  },
+  "stop/00000000-0000-0000-0002-000000000020": {
+    "path": "stop/00000000-0000-0000-0002-000000000020.mp3",
+    "hash": "522fcd22fa345237",
+    "text": "This stop is Saracens Head, New Saracen's Head PH."
+  },
+  "next/00000000-0000-0000-0002-000000000020": {
+    "path": "next/00000000-0000-0000-0002-000000000020.mp3",
+    "hash": "408019923359eeb3",
+    "text": "The next stop is Saracens Head, New Saracen's Head PH."
+  },
+  "arrive/00000000-0000-0000-0002-000000000020": {
+    "path": "arrive/00000000-0000-0000-0002-000000000020.mp3",
+    "hash": "9d82e28ab1e3d25a",
+    "text": "This is Saracens Head, New Saracen's Head PH."
+  },
+  "stop/00000000-0000-0000-0002-000000000021": {
+    "path": "stop/00000000-0000-0000-0002-000000000021.mp3",
+    "hash": "c205e31038283ade",
+    "text": "This stop is Fosdyke, Village Hall."
+  },
+  "next/00000000-0000-0000-0002-000000000021": {
+    "path": "next/00000000-0000-0000-0002-000000000021.mp3",
+    "hash": "d5e50f2537995c8f",
+    "text": "The next stop is Fosdyke, Village Hall."
+  },
+  "arrive/00000000-0000-0000-0002-000000000021": {
+    "path": "arrive/00000000-0000-0000-0002-000000000021.mp3",
+    "hash": "cb60f1ab03081597",
+    "text": "This is Fosdyke, Village Hall."
+  },
+  "stop/00000000-0000-0000-0002-000000000022": {
+    "path": "stop/00000000-0000-0000-0002-000000000022.mp3",
+    "hash": "8b112f73a913afb7",
+    "text": "This stop is Fosdyke, All Saint's Church."
+  },
+  "next/00000000-0000-0000-0002-000000000022": {
+    "path": "next/00000000-0000-0000-0002-000000000022.mp3",
+    "hash": "cfdc5494160622fa",
+    "text": "The next stop is Fosdyke, All Saint's Church."
+  },
+  "arrive/00000000-0000-0000-0002-000000000022": {
+    "path": "arrive/00000000-0000-0000-0002-000000000022.mp3",
+    "hash": "3fbc91861ad5b445",
+    "text": "This is Fosdyke, All Saint's Church."
+  },
+  "stop/00000000-0000-0000-0002-000000000023": {
+    "path": "stop/00000000-0000-0000-0002-000000000023.mp3",
+    "hash": "5d2723a207b711bb",
+    "text": "This stop is Boston, Boston College."
+  },
+  "next/00000000-0000-0000-0002-000000000023": {
+    "path": "next/00000000-0000-0000-0002-000000000023.mp3",
+    "hash": "aa4e8f65564eb852",
+    "text": "The next stop is Boston, Boston College."
+  },
+  "arrive/00000000-0000-0000-0002-000000000023": {
+    "path": "arrive/00000000-0000-0000-0002-000000000023.mp3",
+    "hash": "e6af816a314c9800",
+    "text": "This is Boston, Boston College."
+  },
+  "stop/00000000-0000-0000-0003-000000000001": {
+    "path": "stop/00000000-0000-0000-0003-000000000001.mp3",
+    "hash": "d2250163c579fffc",
+    "text": "This stop is Boston, Boston College Car Park."
+  },
+  "next/00000000-0000-0000-0003-000000000001": {
+    "path": "next/00000000-0000-0000-0003-000000000001.mp3",
+    "hash": "1f5670d4c8ce36c1",
+    "text": "The next stop is Boston, Boston College Car Park."
+  },
+  "arrive/00000000-0000-0000-0003-000000000001": {
+    "path": "arrive/00000000-0000-0000-0003-000000000001.mp3",
+    "hash": "840ce49105d70fc0",
+    "text": "This is Boston, Boston College Car Park."
+  },
+  "stop/00000000-0000-0000-0003-000000000002": {
+    "path": "stop/00000000-0000-0000-0003-000000000002.mp3",
+    "hash": "8b112f73a913afb7",
+    "text": "This stop is Fosdyke, All Saint's Church."
+  },
+  "next/00000000-0000-0000-0003-000000000002": {
+    "path": "next/00000000-0000-0000-0003-000000000002.mp3",
+    "hash": "cfdc5494160622fa",
+    "text": "The next stop is Fosdyke, All Saint's Church."
+  },
+  "arrive/00000000-0000-0000-0003-000000000002": {
+    "path": "arrive/00000000-0000-0000-0003-000000000002.mp3",
+    "hash": "3fbc91861ad5b445",
+    "text": "This is Fosdyke, All Saint's Church."
+  },
+  "stop/00000000-0000-0000-0003-000000000003": {
+    "path": "stop/00000000-0000-0000-0003-000000000003.mp3",
+    "hash": "c205e31038283ade",
+    "text": "This stop is Fosdyke, Village Hall."
+  },
+  "next/00000000-0000-0000-0003-000000000003": {
+    "path": "next/00000000-0000-0000-0003-000000000003.mp3",
+    "hash": "d5e50f2537995c8f",
+    "text": "The next stop is Fosdyke, Village Hall."
+  },
+  "arrive/00000000-0000-0000-0003-000000000003": {
+    "path": "arrive/00000000-0000-0000-0003-000000000003.mp3",
+    "hash": "cb60f1ab03081597",
+    "text": "This is Fosdyke, Village Hall."
+  },
+  "stop/00000000-0000-0000-0003-000000000004": {
+    "path": "stop/00000000-0000-0000-0003-000000000004.mp3",
+    "hash": "522fcd22fa345237",
+    "text": "This stop is Saracens Head, New Saracen's Head PH."
+  },
+  "next/00000000-0000-0000-0003-000000000004": {
+    "path": "next/00000000-0000-0000-0003-000000000004.mp3",
+    "hash": "408019923359eeb3",
+    "text": "The next stop is Saracens Head, New Saracen's Head PH."
+  },
+  "arrive/00000000-0000-0000-0003-000000000004": {
+    "path": "arrive/00000000-0000-0000-0003-000000000004.mp3",
+    "hash": "9d82e28ab1e3d25a",
+    "text": "This is Saracens Head, New Saracen's Head PH."
+  },
+  "stop/00000000-0000-0000-0003-000000000005": {
+    "path": "stop/00000000-0000-0000-0003-000000000005.mp3",
+    "hash": "32d4315d13398545",
+    "text": "This stop is Holbeach Cackle Hill, 188 Boston Road."
+  },
+  "next/00000000-0000-0000-0003-000000000005": {
+    "path": "next/00000000-0000-0000-0003-000000000005.mp3",
+    "hash": "4e3c82f61faabf44",
+    "text": "The next stop is Holbeach Cackle Hill, 188 Boston Road."
+  },
+  "arrive/00000000-0000-0000-0003-000000000005": {
+    "path": "arrive/00000000-0000-0000-0003-000000000005.mp3",
+    "hash": "4748f254c340d4db",
+    "text": "This is Holbeach Cackle Hill, 188 Boston Road."
+  },
+  "stop/00000000-0000-0000-0003-000000000006": {
+    "path": "stop/00000000-0000-0000-0003-000000000006.mp3",
+    "hash": "0c71a72bd76f3a15",
+    "text": "This stop is Fleet Hargate, Proctors Close."
+  },
+  "next/00000000-0000-0000-0003-000000000006": {
+    "path": "next/00000000-0000-0000-0003-000000000006.mp3",
+    "hash": "357ff6e100e9bf86",
+    "text": "The next stop is Fleet Hargate, Proctors Close."
+  },
+  "arrive/00000000-0000-0000-0003-000000000006": {
+    "path": "arrive/00000000-0000-0000-0003-000000000006.mp3",
+    "hash": "2d5419d6944c014f",
+    "text": "This is Fleet Hargate, Proctors Close."
+  },
+  "stop/00000000-0000-0000-0003-000000000007": {
+    "path": "stop/00000000-0000-0000-0003-000000000007.mp3",
+    "hash": "61698d44f5d53d9c",
+    "text": "This stop is Fleet Hargate, Winslow Gate."
+  },
+  "next/00000000-0000-0000-0003-000000000007": {
+    "path": "next/00000000-0000-0000-0003-000000000007.mp3",
+    "hash": "15986375a0e72776",
+    "text": "The next stop is Fleet Hargate, Winslow Gate."
+  },
+  "arrive/00000000-0000-0000-0003-000000000007": {
+    "path": "arrive/00000000-0000-0000-0003-000000000007.mp3",
+    "hash": "09fe7d057d67151c",
+    "text": "This is Fleet Hargate, Winslow Gate."
+  },
+  "stop/00000000-0000-0000-0003-000000000008": {
+    "path": "stop/00000000-0000-0000-0003-000000000008.mp3",
+    "hash": "ca8270e83f975377",
+    "text": "This stop is Fleet Hargate, Fleet Road."
+  },
+  "next/00000000-0000-0000-0003-000000000008": {
+    "path": "next/00000000-0000-0000-0003-000000000008.mp3",
+    "hash": "fb8e5f820e6a64ea",
+    "text": "The next stop is Fleet Hargate, Fleet Road."
+  },
+  "arrive/00000000-0000-0000-0003-000000000008": {
+    "path": "arrive/00000000-0000-0000-0003-000000000008.mp3",
+    "hash": "af5550008433ed50",
+    "text": "This is Fleet Hargate, Fleet Road."
+  },
+  "stop/00000000-0000-0000-0003-000000000009": {
+    "path": "stop/00000000-0000-0000-0003-000000000009.mp3",
+    "hash": "4e2d4012ac3fe3ab",
+    "text": "This stop is Holbeach, Rowan Close."
+  },
+  "next/00000000-0000-0000-0003-000000000009": {
+    "path": "next/00000000-0000-0000-0003-000000000009.mp3",
+    "hash": "3e98921094a4d90f",
+    "text": "The next stop is Holbeach, Rowan Close."
+  },
+  "arrive/00000000-0000-0000-0003-000000000009": {
+    "path": "arrive/00000000-0000-0000-0003-000000000009.mp3",
+    "hash": "a1c5babe38b5dee0",
+    "text": "This is Holbeach, Rowan Close."
+  },
+  "stop/00000000-0000-0000-0003-000000000010": {
+    "path": "stop/00000000-0000-0000-0003-000000000010.mp3",
+    "hash": "9083c4d52dfba65c",
+    "text": "This stop is Holbeach, Damgate."
+  },
+  "next/00000000-0000-0000-0003-000000000010": {
+    "path": "next/00000000-0000-0000-0003-000000000010.mp3",
+    "hash": "c1936f9e6b54b871",
+    "text": "The next stop is Holbeach, Damgate."
+  },
+  "arrive/00000000-0000-0000-0003-000000000010": {
+    "path": "arrive/00000000-0000-0000-0003-000000000010.mp3",
+    "hash": "71b4394bd2d7b1b6",
+    "text": "This is Holbeach, Damgate."
+  },
+  "stop/00000000-0000-0000-0003-000000000011": {
+    "path": "stop/00000000-0000-0000-0003-000000000011.mp3",
+    "hash": "aa028d5c864e7c08",
+    "text": "This stop is Holbeach, Interchange Shelter."
+  },
+  "next/00000000-0000-0000-0003-000000000011": {
+    "path": "next/00000000-0000-0000-0003-000000000011.mp3",
+    "hash": "51cfb75dbc36b89e",
+    "text": "The next stop is Holbeach, Interchange Shelter."
+  },
+  "arrive/00000000-0000-0000-0003-000000000011": {
+    "path": "arrive/00000000-0000-0000-0003-000000000011.mp3",
+    "hash": "7f7a8139b913da91",
+    "text": "This is Holbeach, Interchange Shelter."
+  },
+  "stop/00000000-0000-0000-0003-000000000012": {
+    "path": "stop/00000000-0000-0000-0003-000000000012.mp3",
+    "hash": "f996d432e976a0c8",
+    "text": "This stop is Holbeach, Stukeley Hall Drive."
+  },
+  "next/00000000-0000-0000-0003-000000000012": {
+    "path": "next/00000000-0000-0000-0003-000000000012.mp3",
+    "hash": "316d3703ed8678f5",
+    "text": "The next stop is Holbeach, Stukeley Hall Drive."
+  },
+  "arrive/00000000-0000-0000-0003-000000000012": {
+    "path": "arrive/00000000-0000-0000-0003-000000000012.mp3",
+    "hash": "ac1511a8e8c18c2f",
+    "text": "This is Holbeach, Stukeley Hall Drive."
+  },
+  "stop/00000000-0000-0000-0003-000000000013": {
+    "path": "stop/00000000-0000-0000-0003-000000000013.mp3",
+    "hash": "342bb64162f9c538",
+    "text": "This stop is Holbeach, Fairfields."
+  },
+  "next/00000000-0000-0000-0003-000000000013": {
+    "path": "next/00000000-0000-0000-0003-000000000013.mp3",
+    "hash": "827977d0fc3eb855",
+    "text": "The next stop is Holbeach, Fairfields."
+  },
+  "arrive/00000000-0000-0000-0003-000000000013": {
+    "path": "arrive/00000000-0000-0000-0003-000000000013.mp3",
+    "hash": "f69509ab33de7711",
+    "text": "This is Holbeach, Fairfields."
+  },
+  "stop/00000000-0000-0000-0003-000000000014": {
+    "path": "stop/00000000-0000-0000-0003-000000000014.mp3",
+    "hash": "e1648df618ada049",
+    "text": "This stop is Holbeach, Netherfield."
+  },
+  "next/00000000-0000-0000-0003-000000000014": {
+    "path": "next/00000000-0000-0000-0003-000000000014.mp3",
+    "hash": "96e95dd8c8611e28",
+    "text": "The next stop is Holbeach, Netherfield."
+  },
+  "arrive/00000000-0000-0000-0003-000000000014": {
+    "path": "arrive/00000000-0000-0000-0003-000000000014.mp3",
+    "hash": "8160273685495305",
+    "text": "This is Holbeach, Netherfield."
+  },
+  "stop/00000000-0000-0000-0003-000000000015": {
+    "path": "stop/00000000-0000-0000-0003-000000000015.mp3",
+    "hash": "4bf9ea127573ac83",
+    "text": "This stop is Holbeach, Wignals Gate."
+  },
+  "next/00000000-0000-0000-0003-000000000015": {
+    "path": "next/00000000-0000-0000-0003-000000000015.mp3",
+    "hash": "47034d4063d8f5ea",
+    "text": "The next stop is Holbeach, Wignals Gate."
+  },
+  "arrive/00000000-0000-0000-0003-000000000015": {
+    "path": "arrive/00000000-0000-0000-0003-000000000015.mp3",
+    "hash": "d7b7a7143fa9bc24",
+    "text": "This is Holbeach, Wignals Gate."
+  },
+  "stop/00000000-0000-0000-0003-000000000016": {
+    "path": "stop/00000000-0000-0000-0003-000000000016.mp3",
+    "hash": "f0a27f7e208936e3",
+    "text": "This stop is Whaplode, Stockwell Gate."
+  },
+  "next/00000000-0000-0000-0003-000000000016": {
+    "path": "next/00000000-0000-0000-0003-000000000016.mp3",
+    "hash": "ec11f1965449068d",
+    "text": "The next stop is Whaplode, Stockwell Gate."
+  },
+  "arrive/00000000-0000-0000-0003-000000000016": {
+    "path": "arrive/00000000-0000-0000-0003-000000000016.mp3",
+    "hash": "99eed97f6567df0d",
+    "text": "This is Whaplode, Stockwell Gate."
+  },
+  "stop/00000000-0000-0000-0003-000000000017": {
+    "path": "stop/00000000-0000-0000-0003-000000000017.mp3",
+    "hash": "30cd4282cabd6ab9",
+    "text": "This stop is Whaplode, Middle Road."
+  },
+  "next/00000000-0000-0000-0003-000000000017": {
+    "path": "next/00000000-0000-0000-0003-000000000017.mp3",
+    "hash": "bb5f3a113f624fd6",
+    "text": "The next stop is Whaplode, Middle Road."
+  },
+  "arrive/00000000-0000-0000-0003-000000000017": {
+    "path": "arrive/00000000-0000-0000-0003-000000000017.mp3",
+    "hash": "bbb14469bfe00ed5",
+    "text": "This is Whaplode, Middle Road."
+  },
+  "stop/00000000-0000-0000-0003-000000000018": {
+    "path": "stop/00000000-0000-0000-0003-000000000018.mp3",
+    "hash": "3e7e7654fc91a47e",
+    "text": "This stop is Whaplode, Darjeeling Restaurant."
+  },
+  "next/00000000-0000-0000-0003-000000000018": {
+    "path": "next/00000000-0000-0000-0003-000000000018.mp3",
+    "hash": "72a903509302eca6",
+    "text": "The next stop is Whaplode, Darjeeling Restaurant."
+  },
+  "arrive/00000000-0000-0000-0003-000000000018": {
+    "path": "arrive/00000000-0000-0000-0003-000000000018.mp3",
+    "hash": "f4129d6b4c77baec",
+    "text": "This is Whaplode, Darjeeling Restaurant."
+  },
+  "stop/00000000-0000-0000-0003-000000000019": {
+    "path": "stop/00000000-0000-0000-0003-000000000019.mp3",
+    "hash": "fba8480243c40fdf",
+    "text": "This stop is Whaplode, St Mary's Gardens."
+  },
+  "next/00000000-0000-0000-0003-000000000019": {
+    "path": "next/00000000-0000-0000-0003-000000000019.mp3",
+    "hash": "d817a6fbd51b4f62",
+    "text": "The next stop is Whaplode, St Mary's Gardens."
+  },
+  "arrive/00000000-0000-0000-0003-000000000019": {
+    "path": "arrive/00000000-0000-0000-0003-000000000019.mp3",
+    "hash": "70f7db5436ba89f5",
+    "text": "This is Whaplode, St Mary's Gardens."
+  },
+  "stop/00000000-0000-0000-0003-000000000020": {
+    "path": "stop/00000000-0000-0000-0003-000000000020.mp3",
+    "hash": "be2bfb54f2f84ce9",
+    "text": "This stop is Moulton, River Lane."
+  },
+  "next/00000000-0000-0000-0003-000000000020": {
+    "path": "next/00000000-0000-0000-0003-000000000020.mp3",
+    "hash": "09379bab1d072a53",
+    "text": "The next stop is Moulton, River Lane."
+  },
+  "arrive/00000000-0000-0000-0003-000000000020": {
+    "path": "arrive/00000000-0000-0000-0003-000000000020.mp3",
+    "hash": "255e174a812d2cfa",
+    "text": "This is Moulton, River Lane."
+  },
+  "stop/00000000-0000-0000-0003-000000000021": {
+    "path": "stop/00000000-0000-0000-0003-000000000021.mp3",
+    "hash": "d7f223085c8e9056",
+    "text": "This stop is Moulton, Bell Lane."
+  },
+  "next/00000000-0000-0000-0003-000000000021": {
+    "path": "next/00000000-0000-0000-0003-000000000021.mp3",
+    "hash": "5d9d62f84ee266bc",
+    "text": "The next stop is Moulton, Bell Lane."
+  },
+  "arrive/00000000-0000-0000-0003-000000000021": {
+    "path": "arrive/00000000-0000-0000-0003-000000000021.mp3",
+    "hash": "8f3bbde3b6579024",
+    "text": "This is Moulton, Bell Lane."
+  },
+  "stop/00000000-0000-0000-0003-000000000022": {
+    "path": "stop/00000000-0000-0000-0003-000000000022.mp3",
+    "hash": "93407265afe82d0a",
+    "text": "This stop is Weston, Delgate Bank."
+  },
+  "next/00000000-0000-0000-0003-000000000022": {
+    "path": "next/00000000-0000-0000-0003-000000000022.mp3",
+    "hash": "369c34a445a0afee",
+    "text": "The next stop is Weston, Delgate Bank."
+  },
+  "arrive/00000000-0000-0000-0003-000000000022": {
+    "path": "arrive/00000000-0000-0000-0003-000000000022.mp3",
+    "hash": "c159ae92b6623bf7",
+    "text": "This is Weston, Delgate Bank."
+  },
+  "stop/00000000-0000-0000-0003-000000000023": {
+    "path": "stop/00000000-0000-0000-0003-000000000023.mp3",
+    "hash": "1a2b76aae09c25ff",
+    "text": "This stop is Weston, The Chequers PH."
+  },
+  "next/00000000-0000-0000-0003-000000000023": {
+    "path": "next/00000000-0000-0000-0003-000000000023.mp3",
+    "hash": "fda5c5d993aed9d3",
+    "text": "The next stop is Weston, The Chequers PH."
+  },
+  "arrive/00000000-0000-0000-0003-000000000023": {
+    "path": "arrive/00000000-0000-0000-0003-000000000023.mp3",
+    "hash": "8972e69c65694add",
+    "text": "This is Weston, The Chequers PH."
+  },
+  "stop/47526c90-4a9b-431d-95fa-359a78af0532": {
+    "path": "stop/47526c90-4a9b-431d-95fa-359a78af0532.mp3",
+    "hash": "b149437f22aef534",
+    "text": "This stop is Donington, Primary School."
+  },
+  "next/47526c90-4a9b-431d-95fa-359a78af0532": {
+    "path": "next/47526c90-4a9b-431d-95fa-359a78af0532.mp3",
+    "hash": "48b06e6996e333be",
+    "text": "The next stop is Donington, Primary School."
+  },
+  "arrive/47526c90-4a9b-431d-95fa-359a78af0532": {
+    "path": "arrive/47526c90-4a9b-431d-95fa-359a78af0532.mp3",
+    "hash": "374a61f1d075aacf",
+    "text": "This is Donington, Primary School."
+  },
+  "stop/ae162e4f-3f9f-4d9f-acf1-5f1c6f50b853": {
+    "path": "stop/ae162e4f-3f9f-4d9f-acf1-5f1c6f50b853.mp3",
+    "hash": "2b35af099db1808e",
+    "text": "This stop is Swineshead, Primary School."
+  },
+  "next/ae162e4f-3f9f-4d9f-acf1-5f1c6f50b853": {
+    "path": "next/ae162e4f-3f9f-4d9f-acf1-5f1c6f50b853.mp3",
+    "hash": "8eef3cca72b75418",
+    "text": "The next stop is Swineshead, Primary School."
+  },
+  "arrive/ae162e4f-3f9f-4d9f-acf1-5f1c6f50b853": {
+    "path": "arrive/ae162e4f-3f9f-4d9f-acf1-5f1c6f50b853.mp3",
+    "hash": "dc8977bcdeb150c0",
+    "text": "This is Swineshead, Primary School."
+  },
+  "stop/3a817a9e-c0ed-4b41-9fbb-c9c630487431": {
+    "path": "stop/3a817a9e-c0ed-4b41-9fbb-c9c630487431.mp3",
+    "hash": "703787f8449e0f08",
+    "text": "This stop is Sutterton, Bell Mere Pool."
+  },
+  "next/3a817a9e-c0ed-4b41-9fbb-c9c630487431": {
+    "path": "next/3a817a9e-c0ed-4b41-9fbb-c9c630487431.mp3",
+    "hash": "30a3374ce84e4534",
+    "text": "The next stop is Sutterton, Bell Mere Pool."
+  },
+  "arrive/3a817a9e-c0ed-4b41-9fbb-c9c630487431": {
+    "path": "arrive/3a817a9e-c0ed-4b41-9fbb-c9c630487431.mp3",
+    "hash": "8071551df5505829",
+    "text": "This is Sutterton, Bell Mere Pool."
+  },
+  "stop/3d7f1bb0-b445-4d44-bfbf-69b3e94f42c0": {
+    "path": "stop/3d7f1bb0-b445-4d44-bfbf-69b3e94f42c0.mp3",
+    "hash": "72521d58f487825a",
+    "text": "This stop is Kirton, Middlecott School."
+  },
+  "next/3d7f1bb0-b445-4d44-bfbf-69b3e94f42c0": {
+    "path": "next/3d7f1bb0-b445-4d44-bfbf-69b3e94f42c0.mp3",
+    "hash": "6cb3761217588102",
+    "text": "The next stop is Kirton, Middlecott School."
+  },
+  "arrive/3d7f1bb0-b445-4d44-bfbf-69b3e94f42c0": {
+    "path": "arrive/3d7f1bb0-b445-4d44-bfbf-69b3e94f42c0.mp3",
+    "hash": "7a335ad80ff15565",
+    "text": "This is Kirton, Middlecott School."
+  },
+  "terminus-tail": {
+    "path": "terminus-tail.mp3",
+    "hash": "4eeacd3dde60d257",
+    "text": "This bus terminates here, all change please."
+  },
+  "diversion": {
+    "path": "diversion.mp3",
+    "hash": "96c3625369510bac",
+    "text": "This bus is on diversion"
+  }
+}
