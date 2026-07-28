@@ -236,9 +236,9 @@ async function runSign(duty) {
   el('sign-service-code').textContent = duty.service_code;
   el('sign-destination').textContent = destination;
   el('onboard-sign').hidden = false;
-  // Brand mark is idle-screen-only (see onboard.html/css) — now that the
-  // route line is left-aligned it would otherwise sit right under it.
-  el('onboard-brand').hidden = true;
+  // Brand mark stays visible once active too — repositioned in
+  // onboard.css to a corner of the central track band so it no longer
+  // sits under the (now left-aligned) purple topbar.
 
   setAnnouncementsEnabled(true);
   announceJourneyStart({ serviceCode: duty.service_code, destination });

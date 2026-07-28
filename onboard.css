@@ -106,9 +106,17 @@ body {
   background: var(--ep-paper);
 }
 
+/* Bottom-left of the central track band, not the top-left corner — that
+   spot sits directly under the (purple, white-text) topbar's left-aligned
+   route line once the sign is active, and the brand mark's own ink-on-paper
+   colours would be invisible painted over purple there. 27vh clears the
+   bottom bar's own rendered height (measured ~25.5vh — 2vh padding either
+   side of --min-text's line box, which runs taller than its 17vh font-size)
+   with a small margin, confirmed empirically via screenshot at both the
+   Fire HD and wide-sign aspect ratios. */
 #onboard-brand {
   position: fixed;
-  top: 3vh;
+  bottom: 27vh;
   left: 3vw;
   display: flex;
   flex-direction: column;
@@ -118,7 +126,10 @@ body {
 
 .bh-wordmark {
   font-family: var(--ep-font);
-  font-size: 1.8vh;
+  /* Was 1.8vh — fine as a corner watermark on the idle screen alone, but
+     unreadably tiny once it's sharing the track band with everything
+     else. Bumped alongside .cm-powered-by/.cm-wordmark below. */
+  font-size: 3.2vh;
   font-weight: 800;
   letter-spacing: -0.01em;
   color: var(--ep-ink);
@@ -136,7 +147,7 @@ body {
 
 .cm-powered-by {
   font-family: var(--ep-font);
-  font-size: 0.9vh;
+  font-size: 1.6vh;
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -145,7 +156,7 @@ body {
 
 .cm-wordmark {
   font-family: var(--ep-font);
-  font-size: 1.2vh;
+  font-size: 2.2vh;
   letter-spacing: -0.02em;
 }
 
