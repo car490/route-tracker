@@ -301,9 +301,11 @@ body {
 .tube-node {
   position: relative;
   display: flex;
-  flex-direction: column;
+  /* Label above the dot/line, not below — column-reverse flips the visual
+     order without needing to reorder the dot/label markup in onboard.js. */
+  flex-direction: column-reverse;
   align-items: center;
-  gap: 1.5vh;
+  gap: 2.5vh;
   flex: 1;
   min-width: 0;
 }
