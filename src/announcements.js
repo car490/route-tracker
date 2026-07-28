@@ -145,6 +145,7 @@ function speakSynthesis(text) {
 // previewVoice, and anywhere the caller has no stop/service id to key on).
 function speak(text, audioKeys) {
   if (isMuted()) return;
+  console.log('[announcements] speak()', { audioKeys, text });
   if (audioKeys && audioKeys.length) {
     playSequence(audioKeys).then((ok) => { if (!ok) speakSynthesis(text); });
     return;
