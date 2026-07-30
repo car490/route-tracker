@@ -29,7 +29,14 @@ const PREFERRED_VOICE_NAMES = [
 
 let enabled = false;
 let onAnnounce = null; // (text) => void, wired to the on-screen banner
-let currentAudio = null; // in-flight pre-rendered clip, so mute can stop it mid-playback
+let currentAudio = null; // in-flight pre-rendered clip, cleared once its sequence finishes
+let isBusy = false; // true from the moment something starts playing until it fully finishes
+// Holds at most the single most recent announcement that arrived while
+// something else was playing — never a growing backlog. If a newer event
+// supersedes it before its turn comes, it's simply overwritten and never
+// heard, which is correct: a stale "approaching X" isn't worth playing once
+// "stopped at X" has already superseded it.
+let queued = null; // { text, audioKeys } | null
 
 export function setAnnouncementsEnabled(v) {
   enabled = v;
@@ -40,10 +47,14 @@ export function isMuted() {
 }
 
 // Stops whatever is currently audible — a live clip, a synthesis utterance,
-// or both — so a new announcement never overlaps one still in progress.
+// or both — and drops anything queued. Only used for muting: normal new
+// announcements queue behind whatever's playing (see speak()) rather than
+// cutting it off mid-sentence.
 function stopCurrentPlayback() {
   if ('speechSynthesis' in window) window.speechSynthesis.cancel();
   if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  isBusy = false;
+  queued = null;
 }
 
 export function setMuted(v) {
@@ -134,27 +145,54 @@ async function playSequence(keys) {
   return true;
 }
 
+// Resolves once the utterance finishes (or immediately if speech synthesis
+// isn't available) — playNow() needs this so it knows when it's safe to
+// start whatever's next queued, same as it waits on playSequence() above.
 function speakSynthesis(text) {
-  if (!('speechSynthesis' in window)) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(stripSpeechAnnotations(text));
-  utterance.lang = 'en-GB';
-  const voice = pickVoice();
-  if (voice) utterance.voice = voice;
-  window.speechSynthesis.speak(utterance);
+  return new Promise((resolve) => {
+    if (!('speechSynthesis' in window)) { resolve(); return; }
+    const utterance = new SpeechSynthesisUtterance(stripSpeechAnnotations(text));
+    utterance.lang = 'en-GB';
+    const voice = pickVoice();
+    if (voice) utterance.voice = voice;
+    utterance.onend = () => resolve();
+    utterance.onerror = () => resolve();
+    window.speechSynthesis.speak(utterance);
+  });
+}
+
+// Plays one announcement to completion, then plays whatever's queued (if
+// anything arrived while this one was playing) — never both at once. See
+// speak() below for why a new announcement queues instead of interrupting.
+async function playNow(text, audioKeys) {
+  isBusy = true;
+  const ok = audioKeys && audioKeys.length ? await playSequence(audioKeys) : false;
+  if (!ok) await speakSynthesis(text);
+  currentAudio = null;
+  isBusy = false;
+
+  if (queued) {
+    const next = queued;
+    queued = null;
+    playNow(next.text, next.audioKeys); // fire-and-forget — same as the original call
+  }
 }
 
 // audioKeys: ordered list of pre-rendered clip keys (no .mp3/base path) to
 // try first — omit/leave empty to go straight to live synthesis (used for
 // previewVoice, and anywhere the caller has no stop/service id to key on).
+//
+// Queues rather than interrupts: cutting an announcement off mid-sentence
+// to start a new one is worse than a short delay, and only the single most
+// recent queued announcement is ever kept (see `queued` above), so a burst
+// of fast events can't build up a stale backlog.
 function speak(text, audioKeys) {
   if (isMuted()) return;
-  stopCurrentPlayback();
-  if (audioKeys && audioKeys.length) {
-    playSequence(audioKeys).then((ok) => { if (!ok) speakSynthesis(text); });
+  if (isBusy) {
+    queued = { text, audioKeys };
     return;
   }
-  speakSynthesis(text);
+  playNow(text, audioKeys);
 }
 
 // Lets the voice picker play a sample regardless of the mute toggle — the
