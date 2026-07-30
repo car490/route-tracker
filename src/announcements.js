@@ -163,7 +163,7 @@ export function previewVoice(voiceURI) {
   if (!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(
-    'This stop is Example Street. The next stop is Example Road.');
+    'This is Example Street. The next stop will be Example Road.');
   utterance.lang = 'en-GB';
   const voice = listVoices().find(v => v.voiceURI === voiceURI) || pickVoice();
   if (voice) utterance.voice = voice;
@@ -180,22 +180,41 @@ function announce(text, audioKeys) {
 // main.js/onboard.js — must match what the generator stripped/slugged for
 // the same route, or the clip lookup misses and falls back to synthesis
 // (not a bug, just a wasted clip until names line up again).
-export function announceJourneyStart({ serviceCode, destination }) {
+//
+// PSVAIR event 1 (Start pressed): announces route+destination, then the
+// starting stop, then the stop after it — all three as one spoken block.
+export function announceJourneyStart({ serviceCode, destination, firstStopId, firstStopName, nextStopId, nextStopName }) {
   const clean = stripSpeechAnnotations(destination);
-  const key = `service/${slug(serviceCode)}__${slug(clean)}`;
-  announce(`This is the ${serviceCode} service to ${clean}.`, [key]);
+  const serviceKey = `service/${slug(serviceCode)}__${slug(clean)}`;
+  const text = `This is a ${serviceCode} to ${clean}. This stop is ${firstStopName}. The next stop will be ${nextStopName}.`;
+  const keys = firstStopId && nextStopId ? [serviceKey, `stop/${firstStopId}`, `next/${nextStopId}`] : null;
+  announce(text, keys);
 }
 
-export function announceAtStop({ stopId, stopName, nextStopId, nextStopName, isFinal }) {
+// PSVAIR event 2 (approaching a stop, ~250m out — see gps.js): names the
+// stop about to be reached. Never called for the final stop — that's
+// event 4's job instead (see announceStopEvent.js's announceApproachEvent).
+export function announceApproaching({ stopId, stopName }) {
+  announce(`This is ${stopName}.`, stopId ? [`arrive/${stopId}`] : null);
+}
+
+// PSVAIR events 3 & 4 (vehicle has stopped): a non-final stop repeats
+// route+destination and names the next stop, for passengers boarding here.
+// The final stop instead gets one fixed announcement — no stop name at all,
+// since event 2's approach announcement or the on-screen sign already named
+// it moments earlier.
+export function announceAtStop({ nextStopId, nextStopName, isFinal, serviceCode, destination }) {
   if (isFinal) {
     announce(
-      `This is ${stopName}. This bus terminates here, all change please.`,
-      stopId ? [`arrive/${stopId}`, 'terminus-tail'] : null
+      'This is the final stop. This bus terminates here, all change please.',
+      ['final-stop', 'terminus-tail']
     );
   } else {
+    const clean = stripSpeechAnnotations(destination);
+    const serviceKey = `service/${slug(serviceCode)}__${slug(clean)}`;
     announce(
-      `This stop is ${stopName}. The next stop is ${nextStopName}.`,
-      stopId && nextStopId ? [`stop/${stopId}`, `next/${nextStopId}`] : null
+      `This is a ${serviceCode} to ${clean}, the next stop will be ${nextStopName}.`,
+      serviceCode && destination && nextStopId ? [serviceKey, `next/${nextStopId}`] : null
     );
   }
 }

@@ -102,7 +102,7 @@ function buildJobs(schedule) {
         jobs.set(key, {
           key,
           relPath: `${key}.mp3`,
-          text: `This is the ${serviceCode} service to ${destination}.`,
+          text: `This is a ${serviceCode} to ${destination}.`,
         });
       }
     }
@@ -116,7 +116,7 @@ function buildJobs(schedule) {
     });
     jobs.set(`next/${stopId}`, {
       key: `next/${stopId}`, relPath: `next/${stopId}.mp3`,
-      text: `The next stop is ${clean}.`,
+      text: `The next stop will be ${clean}.`,
     });
     jobs.set(`arrive/${stopId}`, {
       key: `arrive/${stopId}`, relPath: `arrive/${stopId}.mp3`,
@@ -126,6 +126,10 @@ function buildJobs(schedule) {
 
   // Fully-fixed clips — no variable content, rendered once regardless of
   // route/stop data.
+  jobs.set('final-stop', {
+    key: 'final-stop', relPath: 'final-stop.mp3',
+    text: 'This is the final stop.',
+  });
   jobs.set('terminus-tail', {
     key: 'terminus-tail', relPath: 'terminus-tail.mp3',
     text: 'This bus terminates here, all change please.',

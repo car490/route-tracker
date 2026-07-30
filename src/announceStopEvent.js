@@ -1,15 +1,24 @@
 // src/announceStopEvent.js
 //
 // Slice 2: Driver-Triggered Diversion Alert
-// Single gate that main.js and onboard.js call instead of announceAtStop
-// directly, so diversion suppression lives in one place.
+// Single gate that main.js and onboard.js call instead of announceAtStop/
+// announceApproaching directly, so diversion suppression lives in one place.
 
-import { announceAtStop, announceDiversion } from './announcements.js';
+import { announceApproaching, announceAtStop, announceDiversion } from './announcements.js';
 
-export function announceStopEvent({ stopId, stopName, nextStopId, nextStopName, isFinal, diversionActive }) {
+// PSVAIR event 2 — approaching a stop (~250m out, see gps.js). Silent for
+// the final stop by design: that gets one combined announcement at arrival
+// instead (event 4, via announceStopEvent below), not a separate heads-up.
+export function announceApproachEvent({ stopId, stopName, isFinal, diversionActive }) {
+  if (diversionActive || isFinal) return;
+  announceApproaching({ stopId, stopName });
+}
+
+// PSVAIR events 3 & 4 — vehicle has stopped.
+export function announceStopEvent({ nextStopId, nextStopName, isFinal, diversionActive, serviceCode, destination }) {
   if (diversionActive) {
     announceDiversion();
     return;
   }
-  announceAtStop({ stopId, stopName, nextStopId, nextStopName, isFinal });
+  announceAtStop({ nextStopId, nextStopName, isFinal, serviceCode, destination });
 }

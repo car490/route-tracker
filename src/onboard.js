@@ -13,7 +13,7 @@
 import { startGpsTracking } from './gps.js';
 import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
 import { setAnnouncementsEnabled, announceJourneyStart, announceDiversion } from './announcements.js';
-import { announceStopEvent } from './announceStopEvent.js';
+import { announceApproachEvent, announceStopEvent } from './announceStopEvent.js';
 
 const DEPOT = { name: 'Phil Haines Coaches Depot', lat: 52.950412, lon: -0.050110 };
 const WATCH_JOURNEY_ID = new URLSearchParams(window.location.search).get('journey');
@@ -241,7 +241,16 @@ async function runSign(duty) {
   // sits under the (now left-aligned) purple topbar.
 
   setAnnouncementsEnabled(true);
-  announceJourneyStart({ serviceCode: duty.service_code, destination });
+  // initialStopIndex is always 1 here (see above), so allStops[1]/[2] are
+  // always the first two real stops — same reasoning as main.js's runTracker.
+  announceJourneyStart({
+    serviceCode: duty.service_code,
+    destination,
+    firstStopId: allStops[1].stop_id,
+    firstStopName: allStops[1].name,
+    nextStopId: allStops[2].stop_id,
+    nextStopName: allStops[2].name,
+  });
 
   // See main.js's runTracker for why this starts at initialStopIndex, not
   // null — otherwise a vehicle already at the starting stop when NextStop
@@ -276,20 +285,19 @@ async function runSign(duty) {
     lateAllowanceMin: 2,
     initialStopIndex,
     positionSource: usingLocalApi ? localPiPositionSource : undefined,
-    onUpdate: ({ nextStopIndex, earlyWait, atStop, timing }) => {
+    onUpdate: ({ nextStopIndex, earlyWait, atStop, approaching, timing }) => {
       const centerIndex = atStop ? atStop.stopIndex : Math.max(nextStopIndex - 1, initialStopIndex);
       const isFinal = centerIndex === allStops.length - 2;
 
       // One line of text that changes wording rather than a second line
-      // appearing/disappearing — matches the audio announcements exactly
-      // ("This stop is X" / "The next stop is Y", see announcements.js) and
-      // keeps the bottom bar's height constant so the tube-track above it
-      // never jumps.
+      // appearing/disappearing — a close, not verbatim, echo of the audio
+      // announcements (see announcements.js) — and keeps the bottom bar's
+      // height constant so the tube-track above it never jumps.
       el('sbl-status').textContent = atStop
         ? `This stop is ${allStops[centerIndex].name}`
         : isFinal
           ? 'End of route'
-          : `The next stop is ${allStops[centerIndex + 1].name}`;
+          : `The next stop will be ${allStops[centerIndex + 1].name}`;
       renderTubeTrack(allStops, centerIndex, !!atStop);
       renderUpcoming(allStops, centerIndex, timing);
 
@@ -301,20 +309,33 @@ async function runSign(duty) {
         banner.hidden = true;
       }
 
+      // PSVAIR event 2 — approaching (see gps.js's 250m radius). Silent for
+      // the final stop (announceApproachEvent itself suppresses that case).
+      if (approaching && approaching.stopIndex > 0 && approaching.stopIndex < allStops.length - 1) {
+        const approachIsFinal = approaching.stopIndex === allStops.length - 2;
+        announceApproachEvent({
+          stopId: allStops[approaching.stopIndex].stop_id,
+          stopName: allStops[approaching.stopIndex].name,
+          isFinal: approachIsFinal,
+          diversionActive,
+        });
+      }
+
       // Real passenger-facing stops are indices [1, length-2]; 0 and length-1
       // are the depot padding stops and are never announced. Announce on
-      // arrival (atStop set), not departure, so "this stop" is true when said.
+      // arrival (atStop set), not departure, so "this stop" is true when said
+      // (PSVAIR events 3 & 4).
       if (atStop && atStop.stopIndex !== lastAnnouncedStopIdx
           && atStop.stopIndex > 0 && atStop.stopIndex < allStops.length - 1) {
         lastAnnouncedStopIdx = atStop.stopIndex;
         const stopIsFinal = atStop.stopIndex === allStops.length - 2;
         announceStopEvent({
-          stopId: allStops[atStop.stopIndex].stop_id,
-          stopName: allStops[atStop.stopIndex].name,
           nextStopId: stopIsFinal ? null : allStops[atStop.stopIndex + 1].stop_id,
           nextStopName: stopIsFinal ? null : allStops[atStop.stopIndex + 1].name,
           isFinal: stopIsFinal,
           diversionActive,
+          serviceCode: duty.service_code,
+          destination,
         });
       }
     },

@@ -42,10 +42,20 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, execSync } from 'node:child_process';
+import { haversine } from '../src/geo.js';
 
 const MODE = process.argv[2];
-const SECONDS_PER_STOP = Number(process.argv[3] ?? 7);
+// Slower than demo-drive.mjs's default (7s) — this script exists to
+// demonstrate the 4 PSVAIR announcement events distinctly (see APPROACHING_
+// RADIUS_M below), and back-to-back events need enough room each to finish
+// playing before the next one starts, or stopCurrentPlayback() in
+// announcements.js will cut one off early.
+const SECONDS_PER_STOP = Number(process.argv[3] ?? 14);
 const SUB_STEPS = 6; // interpolation points per stop-to-stop leg
+// Mirrors gps.js's APPROACHING_RADIUS_M — used here only to narrate in the
+// terminal which of the 4 PSVAIR events should be audible right now, synced
+// with the real app logic firing off the same simulated GPS feed.
+const APPROACHING_RADIUS_M = 250;
 
 if (MODE !== 'duty' && MODE !== 'manual') {
   console.error('Usage: node scripts/demo-2up.mjs <duty|manual> [secondsPerStop]');
@@ -282,11 +292,15 @@ process.on('SIGTERM', shutdown);
     driver.page.waitForSelector('#tracker:not([hidden])', { timeout: 10 * 60 * 1000 }),
     nextstop.page.waitForSelector('#onboard-sign:not([hidden])', { timeout: 10 * 60 * 1000 }),
   ]);
-  console.log('Both started — driving the route now.\n');
+  console.log('Both started — driving the route now.');
+  console.log('[EVENT 1] Journey start — should be audible now: route/destination + first two stops.\n');
 
   for (let i = 1; i < STOPS.length; i++) {
     const from = STOPS[i - 1];
     const to = STOPS[i];
+    const isFinalStop = i === STOPS.length - 1;
+    let approachAnnounced = false;
+
     for (let s = 1; s <= SUB_STEPS; s++) {
       const t = s / SUB_STEPS;
       const pos = { latitude: lerp(from.lat, to.lat, t), longitude: lerp(from.lon, to.lon, t) };
@@ -294,9 +308,29 @@ process.on('SIGTERM', shutdown);
         driver.context.setGeolocation(pos),
         nextstop.context.setGeolocation(pos),
       ]);
+
+      // Narrates in the terminal, synced with the same simulated GPS feed
+      // the app itself is reacting to — not a separate source of truth,
+      // just gps.js's own 250m/50m thresholds computed here too so you know
+      // which of the 4 events to expect right now.
+      if (!isFinalStop && !approachAnnounced) {
+        const distM = haversine(pos.latitude, pos.longitude, to.lat, to.lon);
+        if (distM <= APPROACHING_RADIUS_M) {
+          approachAnnounced = true;
+          console.log(`  [EVENT 2] Approaching "${to.name}" — should be audible now.`);
+        }
+      }
+
       await sleep((SECONDS_PER_STOP * 1000) / SUB_STEPS);
     }
-    console.log(`→ ${to.name}`);
+
+    if (isFinalStop) {
+      console.log(`→ ${to.name}`);
+      console.log('[EVENT 4] Final stop — should be audible now: "This is the final stop..."');
+    } else {
+      console.log(`→ ${to.name}`);
+      console.log(`  [EVENT 3] Stopped at "${to.name}" — should be audible now: route/destination + next stop.`);
+    }
   }
 
   console.log('\nRoute complete — arrived at Boston College. Windows stay open;');

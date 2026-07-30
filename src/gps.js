@@ -20,12 +20,18 @@ function browserGeolocationSource(onFix, onError) {
   return { stop: () => navigator.geolocation.clearWatch(watchId) };
 }
 
+// PSVAIR "approaching" announcement lead distance — fixed radius rather than
+// a speed-based ETA, same reasoning as the 50m/75m arrival hysteresis below:
+// simple and consistent regardless of how fast the vehicle is going.
+const APPROACHING_RADIUS_M = 250;
+
 export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIndex = 0, onUpdate, onGpsFix, positionSource = browserGeolocationSource }) {
   let nextStopIndex = initialStopIndex;
   const arrivals = new Array(schedule.length).fill(null);
   let gpsLostAt = null;
   let fixCount = 0;
   let atStop = null; // { stopIndex } while vehicle is within the stop geo-fence
+  let approachAnnouncedIdx = null; // last stopIndex the 250m approach radius has already fired for — one-shot per stop
   let pendingMatch = null; // { index, count } — forward geofence match awaiting a second confirming ping
   let lastGpsUploadMs = 0; // throttle GPS fix uploads to every 30 s
 
@@ -71,6 +77,18 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
       }
 
       let distanceToNextM = haversine(latitude, longitude, schedule[nextStopIndex].lat, schedule[nextStopIndex].lon);
+
+      // Fires once per stop, the first fix that crosses the approach radius
+      // while still moving toward it (not yet arrived) — kept separate from
+      // the atStop/off-route branch below since it's a distance-only signal,
+      // not a state transition.
+      let approaching = null;
+      if (atStop === null && nextStopIndex < schedule.length - 1
+          && distanceToNextM <= APPROACHING_RADIUS_M
+          && approachAnnouncedIdx !== nextStopIndex) {
+        approachAnnouncedIdx = nextStopIndex;
+        approaching = { stopIndex: nextStopIndex };
+      }
 
       if (atStop !== null) {
         // Dwelling at a stop — wait for the vehicle to exit the geo-fence (75 m hysteresis)
@@ -140,7 +158,7 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
         lateAllowanceMin,
       });
 
-      onUpdate({ timing, nextStopIndex, speedMps, distanceToNextM, arrivals, earlyWait, atStop, lat: latitude, lon: longitude });
+      onUpdate({ timing, nextStopIndex, speedMps, distanceToNextM, arrivals, earlyWait, atStop, approaching, lat: latitude, lon: longitude });
     },
     (err) => {
       if (gpsLostAt === null) {
@@ -156,6 +174,7 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
     jumpToStop: (idx) => {
       if (idx < 0 || idx >= schedule.length) return;
       atStop = null;
+      approachAnnouncedIdx = null;
       pendingMatch = null;
       log('info', `Jumped to: ${schedule[idx].name}`);
       nextStopIndex = idx;

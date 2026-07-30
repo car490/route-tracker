@@ -9,7 +9,7 @@ import {
   listVoices, getSelectedVoiceURI, setSelectedVoiceURI, previewVoice,
 } from './announcements.js';
 import { sbFetch, rpc, fetchStopsForDeparture } from './supabaseApi.js';
-import { announceStopEvent } from './announceStopEvent.js';
+import { announceApproachEvent, announceStopEvent } from './announceStopEvent.js';
 import { triggerDiversionAlert, clearDiversionAlert } from './diversionAlert.js';
 import { selectServiceManually } from './manualSelection.js';
 import { routeData } from './routeData.js';
@@ -100,8 +100,11 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   document.getElementById('tracker').hidden = false;
   document.getElementById('route-header').scrollIntoView();
 
-  const firstStop = allStops[1];
-  const lastStop  = allStops[allStops.length - 2];
+  const firstStop  = allStops[1];
+  // Second real stop — always exists: a route needs at least a first and a
+  // last passenger stop, and on a 2-stop route this simply equals lastStop.
+  const secondStop = allStops[2];
+  const lastStop   = allStops[allStops.length - 2];
   document.getElementById('header-service-code').textContent   = serviceCode;
   document.getElementById('header-service-period').textContent = servicePeriod ?? '';
   document.getElementById('header-line1').textContent          = `${firstStop.name} and`;
@@ -166,7 +169,14 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
     psvairVoiceSelect.onchange = () => setSelectedVoiceURI(psvairVoiceSelect.value);
     psvairVoiceTestBtn.onclick = () => previewVoice(psvairVoiceSelect.value);
 
-    announceJourneyStart({ serviceCode, destination: lastStop.name });
+    announceJourneyStart({
+      serviceCode,
+      destination: lastStop.name,
+      firstStopId: firstStop.stop_id,
+      firstStopName: firstStop.name,
+      nextStopId: secondStop.stop_id,
+      nextStopName: secondStop.name,
+    });
   }
 
   // ── Diversion alert ────────────────────────────────────────────────────────
@@ -285,26 +295,39 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
           }).catch(() => {}); // fire-and-forget; GPS loop must not block
         }
       : null,
-    onUpdate: ({ timing, nextStopIndex, speedMps, distanceToNextM, arrivals, earlyWait, atStop, lat, lon }) => {
+    onUpdate: ({ timing, nextStopIndex, speedMps, distanceToNextM, arrivals, earlyWait, atStop, approaching, lat, lon }) => {
       arrivalsRef = arrivals;
       lastStopIdx = nextStopIndex;
       if (lat !== undefined) { lastLat = lat; lastLon = lon; }
 
+      // PSVAIR event 2 — approaching (see gps.js's 250m radius). Silent for
+      // the final stop (announceApproachEvent itself suppresses that case).
+      if (psvairEnabled && approaching
+          && approaching.stopIndex > 0 && approaching.stopIndex < allStops.length - 1) {
+        const isFinal = approaching.stopIndex === allStops.length - 2;
+        announceApproachEvent({
+          stopId: allStops[approaching.stopIndex].stop_id,
+          stopName: allStops[approaching.stopIndex].name,
+          isFinal,
+          diversionActive: !!diversionAlertState,
+        });
+      }
+
       // Real passenger-facing stops are indices [1, length-2]; 0 and length-1
       // are the depot padding stops and are never announced. Announce on
-      // arrival (atStop set) rather than departure, so the "this stop /
-      // next stop" pairing is heard while the vehicle is actually there.
+      // arrival (atStop set) rather than departure, so it's heard while the
+      // vehicle is actually there (PSVAIR events 3 & 4).
       if (psvairEnabled && atStop && atStop.stopIndex !== lastAnnouncedStopIdx
           && atStop.stopIndex > 0 && atStop.stopIndex < allStops.length - 1) {
         lastAnnouncedStopIdx = atStop.stopIndex;
         const isFinal = atStop.stopIndex === allStops.length - 2;
         announceStopEvent({
-          stopId: allStops[atStop.stopIndex].stop_id,
-          stopName: allStops[atStop.stopIndex].name,
           nextStopId: isFinal ? null : allStops[atStop.stopIndex + 1].stop_id,
           nextStopName: isFinal ? null : allStops[atStop.stopIndex + 1].name,
           isFinal,
           diversionActive: !!diversionAlertState,
+          serviceCode,
+          destination: lastStop.name,
         });
       }
       updateUi({ timing, nextStopIndex, schedule: allStops, speedMps, distanceToNextM, arrivals, earlyWait, atStop });
