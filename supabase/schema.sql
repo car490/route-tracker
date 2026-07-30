@@ -210,13 +210,19 @@ create table vehicles (
 -- Only super_user employees may create or modify stops (enforced by RLS).
 
 create table stops (
-  id              uuid        primary key default gen_random_uuid(),
-  name            text        not null,
-  lat             float8      not null,
-  lon             float8      not null,
-  naptan_code     text        unique,   -- NaPTAN ATCO code (up to 12 chars)
-  is_depot        boolean     not null default false,
-  created_at      timestamptz not null default now()
+  id                  uuid        primary key default gen_random_uuid(),
+  name                text        not null,
+  lat                 float8      not null,
+  lon                 float8      not null,
+  naptan_code         text        unique,   -- NaPTAN ATCO code (up to 12 chars)
+  is_depot            boolean     not null default false,
+  -- Optional override for display_name() below — some NaPTAN-composed names
+  -- are too long for the 22mm-minimum onboard sign, or unclear when spoken
+  -- (PSVAIR audio/visual announcements). Null everywhere by default; set
+  -- directly via SQL for specific problem stops (no admin UI yet — flagged
+  -- as a follow-up, see memory).
+  announcement_name   text,
+  created_at          timestamptz not null default now()
 );
 
 
@@ -248,6 +254,8 @@ grant all    on public.naptan_stops to service_role;
 -- Computed "<locality>, <landmark> (<indicator>)" display name for a stop,
 -- derived from naptan_stops via stops.naptan_code. Falls back to stops.name
 -- when there's no NAPTAN match (e.g. stops outside imported counties).
+-- stops.announcement_name, when set, overrides both — for the rare stop
+-- whose NaPTAN name is too long/unclear for the onboard sign or TTS.
 -- Exposed via PostgREST as a computed column: select=name,display_name
 create or replace function public.display_name(s stops)
 returns text
@@ -255,6 +263,7 @@ language sql
 stable
 as $$
   select coalesce(
+    s.announcement_name,
     (select n.locality_name || ', ' || n.common_name ||
        case when n.indicator is not null and n.indicator <> '' then ' (' || n.indicator || ')' else '' end
      from naptan_stops n
