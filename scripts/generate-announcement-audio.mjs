@@ -46,8 +46,11 @@ function slug(text) {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
+// Includes VOICE so switching AZURE_SPEECH_VOICE forces a full re-render
+// instead of every clip being skipped as "unchanged" (the text alone
+// hasn't changed, only which voice speaks it).
 function hashText(text) {
-  return createHash('sha256').update(text).digest('hex').slice(0, 16);
+  return createHash('sha256').update(`${VOICE}|${text}`).digest('hex').slice(0, 16);
 }
 
 function escapeXml(text) {
