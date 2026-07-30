@@ -74,7 +74,7 @@ async function fetchStops(departureId) {
   const res = await fetch(
     `${SUPABASE_URL}/rest/v1/schedule_view` +
     `?departure_id=eq.${departureId}` +
-    `&select=timetable_stop_id,stop_type,scheduled_time,display_name,lat,lon,sequence` +
+    `&select=timetable_stop_id,stop_id,stop_type,scheduled_time,display_name,lat,lon,sequence` +
     `&order=sequence`,
     { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
   );
@@ -95,7 +95,7 @@ function stripIndicator(name) {
 function rowsToStops(rows) {
   return rows
     .sort((a, b) => a.sequence - b.sequence)
-    .map((r) => ({ name: stripIndicator(r.display_name), lat: r.lat, lon: r.lon, time: r.scheduled_time.substring(0, 5), stop_type: r.stop_type }));
+    .map((r) => ({ name: stripIndicator(r.display_name), lat: r.lat, lon: r.lon, time: r.scheduled_time.substring(0, 5), stop_type: r.stop_type, stop_id: r.stop_id }));
 }
 
 // Polls a Pi's local GPS bridge (pi-server/server.mjs's /api/position,
