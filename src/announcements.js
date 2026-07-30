@@ -39,12 +39,16 @@ export function isMuted() {
   return localStorage.getItem(MUTE_KEY) === '1';
 }
 
+// Stops whatever is currently audible — a live clip, a synthesis utterance,
+// or both — so a new announcement never overlaps one still in progress.
+function stopCurrentPlayback() {
+  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+}
+
 export function setMuted(v) {
   localStorage.setItem(MUTE_KEY, v ? '1' : '0');
-  if (v) {
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
-  }
+  if (v) stopCurrentPlayback();
 }
 
 // speechSynthesis.getVoices() only returns the full list once the
@@ -145,6 +149,7 @@ function speakSynthesis(text) {
 // previewVoice, and anywhere the caller has no stop/service id to key on).
 function speak(text, audioKeys) {
   if (isMuted()) return;
+  stopCurrentPlayback();
   if (audioKeys && audioKeys.length) {
     playSequence(audioKeys).then((ok) => { if (!ok) speakSynthesis(text); });
     return;
