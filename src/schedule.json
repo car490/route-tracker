@@ -1306,7 +1306,7 @@
           "stop_id": "00000000-0000-0000-0002-000000000022"
         },
         {
-          "name": "Boston, Boston College (adj)",
+          "name": "Boston College",
           "lat": 52.972156,
           "lon": -0.018524,
           "time": "08:40",
@@ -1322,7 +1322,7 @@
       "departure_time": "16:50",
       "stops": [
         {
-          "name": "Boston, Boston College Car Park (in)",
+          "name": "Boston College",
           "lat": 52.972644,
           "lon": -0.018537,
           "time": "16:50",
