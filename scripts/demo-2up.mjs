@@ -244,7 +244,12 @@ async function openWindow({ url, windowPosition, windowSize, mute }) {
     viewport: null,
     args: [`--window-size=${windowSize}`, `--window-position=${windowPosition}`, `--app=${url}`],
     geolocation: { latitude: STOPS[0].lat, longitude: STOPS[0].lon },
-    permissions: ['geolocation'],
+    // Granting only 'geolocation' makes Chromium auto-deny every other
+    // permission it hasn't been told about explicitly — including Screen
+    // Wake Lock — so the driver PWA's wakelock-warning banner falsely
+    // fires on every demo run even though a real device never denies it.
+    // Listing 'screen-wake-lock' too avoids that false positive.
+    permissions: ['geolocation', 'screen-wake-lock'],
   });
   const page = await waitForRealPage(context, url);
   await page.waitForLoadState('domcontentloaded').catch(() => {});
