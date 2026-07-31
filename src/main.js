@@ -16,6 +16,14 @@ import { routeData } from './routeData.js';
 
 const DEBUG = new URLSearchParams(window.location.search).has('debug');
 
+// NaPTAN indicator suffixes like "(adj)"/"(opp)" give the precise pole/bay/
+// side of the road — useful in the stop list and on the map where the driver
+// is actually locating a stop, but just clutter in the route-header summary
+// line. Stripped there only; every other use of a stop's name keeps it.
+function stripIndicator(name) {
+  return name.replace(/\s*\([^)]*\)\s*$/, '');
+}
+
 // ── Stop time upload ──────────────────────────────────────────────────────────
 
 async function uploadStopTimes(jId, arrivals, stops) {
@@ -90,8 +98,8 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   const lastStop   = allStops[allStops.length - 1];
   document.getElementById('header-service-code').textContent   = serviceCode;
   document.getElementById('header-service-period').textContent = servicePeriod ?? '';
-  document.getElementById('header-line1').textContent          = `${firstStop.name} and`;
-  document.getElementById('header-line2').textContent   = lastStop.name;
+  document.getElementById('header-line1').textContent          = `${stripIndicator(firstStop.name)} and`;
+  document.getElementById('header-line2').textContent   = stripIndicator(lastStop.name);
 
   log('info', `Started: ${serviceCode}${servicePeriod ? ' ' + servicePeriod : ''} from "${allStops[initialStopIndex].name}"`);
 
