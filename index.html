@@ -82,7 +82,13 @@
     </div>
 
     <div id="tracker" hidden>
-    <button id="psvair-toggle-btn" type="button" hidden>&#128266; Announcements</button>
+    <button id="btn-incident" class="top-toggle-btn top-toggle-btn--incident" type="button" hidden>&#9888; Report Incident</button>
+    <button id="btn-diversion" class="top-toggle-btn top-toggle-btn--diversion" type="button" hidden>&#8635; Diversion Alert</button>
+    <div id="diversion-panel" hidden>
+      <button id="diversion-confirm-btn" type="button"></button>
+      <button id="diversion-cancel-btn" type="button">Cancel</button>
+    </div>
+    <button id="psvair-toggle-btn" class="top-toggle-btn" type="button" hidden>&#128266; Announcements</button>
     <div id="psvair-banner" hidden>
       <span id="psvair-text" aria-live="assertive"></span>
       <button id="psvair-voice-btn" type="button" aria-label="Announcement voice settings">&#9881;</button>
@@ -154,9 +160,10 @@
     <div id="map-view" hidden></div>
     <div id="directions-view" hidden></div>
     <div id="log-view" hidden></div>
-    <button id="btn-incident" hidden>&#9888; Report Incident</button>
-    <button id="btn-diversion" hidden>&#8635; Start Diversion Alert</button>
-    <button id="btn-complete" style="width:100%;margin-top:8px;padding:14px;background:#c0392b;color:#fff;font-family:inherit;font-size:1rem;font-weight:700;letter-spacing:0.02em;border:none;border-radius:8px;cursor:pointer;">Complete Trip</button>
+    <!-- Trip completes automatically on GPS arrival at the final stop; this
+         is a low-key fallback for when that never fires (e.g. GPS never
+         confirms arrival) — deliberately not a prominent button. -->
+    <button id="btn-complete-manual" class="manual-complete-link" type="button">Trip not finishing automatically? Complete manually</button>
     </div>
 
     <!-- Fixed to the viewport corner (see style.css) so it's visible on
@@ -189,6 +196,18 @@
           <button id="incident-cancel" class="incident-btn-cancel">Cancel</button>
           <button id="incident-submit" class="incident-btn-submit">Submit Report</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Trip-complete confirmation — shown once the final-stop upload
+         finishes (automatically or via the manual fallback), OK dismisses
+         it immediately and it also auto-dismisses after a short delay. -->
+    <div id="trip-complete-overlay" hidden>
+      <div id="trip-complete-modal">
+        <div class="tc-icon">&#10003;</div>
+        <div class="tc-title">Trip Complete</div>
+        <div class="tc-body">Data saved</div>
+        <button id="trip-complete-ok-btn" class="tc-ok-btn">OK</button>
       </div>
     </div>
 

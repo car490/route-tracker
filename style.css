@@ -86,7 +86,7 @@ body {
   pointer-events: none;
 }
 
-/* Clearance so #btn-complete never scrolls under the fixed mark above. */
+/* Clearance so tracker content never scrolls under the fixed mark above. */
 #tracker {
   padding-bottom: 4.5rem;
 }
@@ -149,15 +149,15 @@ body {
   border-radius: 6px;
 }
 
-/* ── PSVAIR announcement banner ──────────────── */
-/* Live next-stop / destination announcement for PSVAIR-in-scope local bus
-   services — audio via Web Speech API (announcements.js), visual here. */
-
-/* Collapsed state — banner starts hidden by default (see main.js), this is
-   the only always-visible affordance to bring it back. */
-#psvair-toggle-btn {
+/* ── Top toggle bars ──────────────────────────── */
+/* Shared slim collapsed-bar look for the three top-of-screen toggles:
+   Report Incident, Diversion Alert, and Announcements. Each reveals its
+   own content below it on tap rather than acting immediately (except
+   Report Incident, whose "content" is the existing incident modal). */
+.top-toggle-btn {
   display: block;
   width: 100%;
+  text-align: left;
   margin-bottom: 0.5rem;
   padding: 0.5rem 0.75rem;
   background: var(--surface);
@@ -169,6 +169,55 @@ body {
   font-weight: 600;
   cursor: pointer;
 }
+
+.top-toggle-btn--incident {
+  color: var(--early);
+  border-color: var(--early);
+}
+
+.top-toggle-btn--diversion {
+  color: var(--late);
+  border-color: var(--late);
+}
+
+.top-toggle-btn--diversion.active {
+  background: var(--late);
+  color: #fff;
+}
+
+#diversion-panel {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+#diversion-panel button {
+  flex: 1;
+  padding: 0.6rem;
+  border-radius: 8px;
+  font-family: var(--cm-font);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+#diversion-confirm-btn {
+  background: var(--late);
+  color: #fff;
+  border: none;
+}
+
+#diversion-cancel-btn {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+/* ── PSVAIR announcement banner ──────────────── */
+/* Live next-stop / destination announcement for PSVAIR-in-scope local bus
+   services — audio via Web Speech API (announcements.js), visual here. */
 
 #psvair-banner {
   background: var(--brand-cyan);
@@ -1061,55 +1110,6 @@ body {
   padding: 0.4rem;
 }
 
-/* ── Incident button ──────────────────────────── */
-
-#btn-incident {
-  width: 100%;
-  margin-top: 12px;
-  padding: 12px;
-  background: transparent;
-  color: var(--early);
-  border: 1.5px solid var(--early);
-  border-radius: 6px;
-  font-family: var(--cm-font);
-  font-size: 0.95rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-#btn-incident:active {
-  background: rgba(251, 140, 0, 0.15);
-}
-
-/* ── Diversion alert button ───────────────────── */
-
-#btn-diversion {
-  width: 100%;
-  margin-top: 8px;
-  padding: 12px;
-  background: transparent;
-  color: var(--late);
-  border: 1.5px solid var(--late);
-  border-radius: 6px;
-  font-family: var(--cm-font);
-  font-size: 0.95rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-#btn-diversion:active {
-  background: rgba(239, 68, 68, 0.15);
-}
-
-#btn-diversion.active {
-  background: var(--late);
-  color: #fff;
-}
-
 /* ── Incident overlay ─────────────────────────── */
 
 #incident-overlay {
@@ -1251,4 +1251,87 @@ body {
 #manual-back-btn:active {
   color: var(--text);
   border-color: var(--text);
+}
+
+/* ── Manual trip-complete fallback ─────────────── */
+/* Deliberately understated — the trip completes automatically on arrival
+   at the final stop, this is only a safety net for when that doesn't fire. */
+.manual-complete-link {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 0.5rem;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--cm-font);
+  font-size: 0.75rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ── Trip-complete overlay ─────────────────────── */
+
+#trip-complete-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+#trip-complete-modal {
+  background: var(--surface);
+  border: 1px solid var(--brand-cyan);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 380px;
+  padding: 1.75rem 1.5rem 1.5rem;
+  text-align: center;
+}
+
+.tc-icon {
+  font-size: 2.5rem;
+  color: var(--brand-cyan);
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
+
+.tc-title {
+  font-family: var(--cm-font);
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.tc-body {
+  font-family: var(--cm-font);
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  margin-top: 0.35rem;
+}
+
+.tc-ok-btn {
+  margin-top: 1.25rem;
+  width: 100%;
+  padding: 0.8rem;
+  background: var(--brand-cyan);
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  font-family: var(--cm-font);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.tc-ok-btn:active {
+  opacity: 0.85;
 }

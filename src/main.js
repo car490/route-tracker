@@ -28,7 +28,7 @@ function stripIndicator(name) {
 
 async function uploadStopTimes(jId, arrivals, stops) {
   const rows = [];
-  for (let i = 1; i < stops.length - 1; i++) {
+  for (let i = 0; i < stops.length; i++) {
     const stop = stops[i];
     const a = arrivals[i];
     if (!stop.timetable_stop_id || !a || a === 'missed') continue;
@@ -84,6 +84,26 @@ function greetingPrefix() {
   return 'Good evening,';
 }
 
+// Shown once a trip finishes (automatically or via the manual fallback).
+// Dismissed by the OK tap or, if the driver doesn't touch it, on its own
+// after a few seconds — either way runs onDismiss exactly once.
+const TRIP_COMPLETE_AUTO_DISMISS_MS = 8000;
+
+function showTripCompleteBanner(onDismiss) {
+  const overlay = document.getElementById('trip-complete-overlay');
+  const okBtn = document.getElementById('trip-complete-ok-btn');
+  let dismissed = false;
+  const dismiss = () => {
+    if (dismissed) return;
+    dismissed = true;
+    overlay.hidden = true;
+    onDismiss();
+  };
+  okBtn.onclick = dismiss;
+  overlay.hidden = false;
+  setTimeout(dismiss, TRIP_COMPLETE_AUTO_DISMISS_MS);
+}
+
 // ── Tracker ───────────────────────────────────────────────────────────────────
 
 function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex, serviceCode, servicePeriod, psvairEnabled, onComplete }) {
@@ -136,6 +156,10 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   // gps.js), that arrival would otherwise be (re-)announced on top of
   // announceJourneyStart above, which already covers the starting context.
   let lastAnnouncedStopIdx = initialStopIndex;
+  // Guards completeTrip() against firing twice — once from GPS arrival at
+  // the final stop and again from the manual fallback link, or from GPS
+  // reporting arrival on more than one fix while parked at the final stop.
+  let tripCompleted = false;
 
   if (psvairEnabled) {
     onAnnouncementChange(text => { psvairText.textContent = text; });
@@ -187,19 +211,32 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   // Driver-triggered fixed alert tone + fixed announcement, suppressing the
   // normal stop announcement while active. Only relevant on in-scope
   // PSVAIR routes, same gating as the banner above.
-  const btnDiversion = document.getElementById('btn-diversion');
+  //
+  // Collapsed like Announcements: tapping the top bar only reveals a
+  // confirm/cancel panel, it doesn't fire the alert itself — broadcasting a
+  // diversion alert to passengers deserves a deliberate second tap, not a
+  // single accidental one.
+  const btnDiversion        = document.getElementById('btn-diversion');
+  const diversionPanel      = document.getElementById('diversion-panel');
+  const diversionConfirmBtn = document.getElementById('diversion-confirm-btn');
+  const diversionCancelBtn  = document.getElementById('diversion-cancel-btn');
   btnDiversion.hidden = !psvairEnabled;
   let diversionAlertState = null;
 
   const setDiversionBtnLabel = () => {
-    btnDiversion.textContent = diversionAlertState
-      ? '✖ Clear Diversion Alert'
-      : '↻ Start Diversion Alert';
-    btnDiversion.classList.toggle('active', !!diversionAlertState);
+    const active = !!diversionAlertState;
+    btnDiversion.textContent = active ? '⚠ Diversion Alert Active' : '↻ Diversion Alert';
+    btnDiversion.classList.toggle('active', active);
+    diversionConfirmBtn.textContent = active ? '✖ Clear Diversion Alert' : '↻ Start Diversion Alert';
   };
   setDiversionBtnLabel();
 
-  btnDiversion.onclick = async () => {
+  btnDiversion.onclick = () => { diversionPanel.hidden = !diversionPanel.hidden; };
+  diversionCancelBtn.onclick = () => { diversionPanel.hidden = true; };
+
+  diversionConfirmBtn.onclick = async () => {
+    diversionPanel.hidden = true;
+
     if (diversionAlertState) {
       const eventId = diversionAlertState.eventId;
       const cleared = clearDiversionAlert(diversionAlertState);
@@ -330,6 +367,16 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
           destination: lastStop.name,
         });
       }
+
+      // Trip completes on its own once the vehicle is confirmed at the
+      // final stop — no driver action needed. completeTrip() itself is
+      // also guarded by tripCompleted, but checking here too skips the
+      // (harmless but pointless) extra calls from repeat GPS fixes while
+      // still parked there.
+      if (!tripCompleted && atStop && atStop.stopIndex === allStops.length - 1) {
+        completeTrip();
+      }
+
       updateUi({ timing, nextStopIndex, schedule: allStops, speedMps, distanceToNextM, arrivals, earlyWait, atStop });
       if (lat !== undefined) updateMapPosition(lat, lon, nextStopIndex, arrivals);
       syncCurrentStop(nextStopIndex);
@@ -378,21 +425,34 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
     log('info', `Incident: ${category}${description ? ' — ' + description : ''}`);
   };
 
-  document.getElementById('btn-complete').onclick = async () => {
-    if (!confirm('End trip and upload stop times?')) return;
+  // Runs once — either from GPS arrival at the final stop (see onUpdate
+  // above) or from the manual fallback link below — uploads stop times,
+  // marks the journey complete, and shows the completion banner.
+  async function completeTrip() {
+    if (tripCompleted) return;
+    tripCompleted = true;
+
     tracker.stop();
     btnIncident.hidden = true;
     btnDiversion.hidden = true;
+    diversionPanel.hidden = true;
     incidentOverlay.hidden = true;
     setAnnouncementsEnabled(false);
     psvairBanner.hidden = true;
     psvairToggleBtn.hidden = true;
+    document.getElementById('btn-complete-manual').hidden = true;
+
+    const finish = () => {
+      document.getElementById('tracker').hidden = true;
+      onComplete();
+    };
 
     if (journeyId) {
       const uploadResult = await uploadStopTimes(journeyId, arrivalsRef, allStops);
       await rpc('complete_journey', { p_journey_id: journeyId }).catch(() => {});
       if (uploadResult.ok) {
         log('info', `Uploaded ${uploadResult.count} stop time(s)`);
+        showTripCompleteBanner(finish);
       } else {
         alert(
           `Trip ended but stop times could not be saved.\n\n` +
@@ -400,14 +460,17 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
           `Server response: ${uploadResult.responseBody || '(empty)'}\n\n` +
           `Screenshot this message and contact ops.`
         );
+        finish();
       }
     } else {
       log('warn', 'No journey ID — stop times not saved');
       alert('Trip ended.\n\nNo journey ID was set — stop times were not saved.\nAsk ops to share the driver link for this journey.');
+      finish();
     }
+  }
 
-    document.getElementById('tracker').hidden = true;
-    onComplete();
+  document.getElementById('btn-complete-manual').onclick = () => {
+    if (confirm('Complete this trip now and upload stop times?')) completeTrip();
   };
 }
 
