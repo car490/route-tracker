@@ -206,7 +206,7 @@ create table vehicles (
 
 -- ── Stops (global — not company-scoped) ───────────────────────────────────────
 -- Physical bus stops shared across all companies and routes.
--- naptan_code reserved for Phase 5 BODS integration.
+-- atco_code reserved for Phase 5 BODS integration.
 -- Only super_user employees may create or modify stops (enforced by RLS).
 
 create table stops (
@@ -214,7 +214,7 @@ create table stops (
   name                text        not null,
   lat                 float8      not null,
   lon                 float8      not null,
-  naptan_code         text        unique,   -- NaPTAN ATCO code (up to 12 chars)
+  atco_code           text        unique,   -- NaPTAN ATCO code (up to 12 chars)
   is_depot            boolean     not null default false,
   -- Optional override for display_name() below — some NaPTAN-composed names
   -- are too long for the 22mm-minimum onboard sign, or unclear when spoken
@@ -242,6 +242,11 @@ create table naptan_stops (
   lat           float8      not null,
   lon           float8      not null,
   stop_type     text        not null default 'BCT',
+  -- Taken verbatim from the DfT feed's Status field (active/inactive/etc.),
+  -- plus 'removed' — set by the import's sweep step when a stop that was
+  -- active here has dropped out of the feed entirely (record deleted at the
+  -- source, not just flagged non-active). naptan_near_point() only matches
+  -- status = 'active', so any other value excludes a stop from the planner.
   status        text        not null default 'active',
   updated_at    timestamptz not null default now()
 );
@@ -252,7 +257,7 @@ grant select on public.naptan_stops to anon, authenticated;
 grant all    on public.naptan_stops to service_role;
 
 -- Computed "<locality>, <landmark> (<indicator>)" display name for a stop,
--- derived from naptan_stops via stops.naptan_code. Falls back to stops.name
+-- derived from naptan_stops via stops.atco_code. Falls back to stops.name
 -- when there's no NAPTAN match (e.g. stops outside imported counties).
 -- stops.announcement_name, when set, overrides both — for the rare stop
 -- whose NaPTAN name is too long/unclear for the onboard sign or TTS.
@@ -267,7 +272,7 @@ as $$
     (select n.locality_name || ', ' || n.common_name ||
        case when n.indicator is not null and n.indicator <> '' then ' (' || n.indicator || ')' else '' end
      from naptan_stops n
-     where n.atco_code = s.naptan_code),
+     where n.atco_code = s.atco_code),
     s.name
   )
 $$;
@@ -1224,7 +1229,7 @@ create or replace view schedule_view with (security_invoker = true) as
     s.lat,
     s.lon,
     s.is_depot,
-    s.naptan_code,
+    s.atco_code,
     ts.timetable_id,
     td.id                as departure_id,
     td.departure_time,

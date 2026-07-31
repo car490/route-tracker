@@ -76,15 +76,15 @@ export async function saveRouteTimetableStops({
     const s = stopsToSave[i]
     let stopId = s.stop_id
     if (!stopId) {
-      if (s.naptan_code) {
+      if (s.atco_code) {
         // Reuse existing stops row if this NAPTAN stop was already created
         const { data: existing } = await supabase
-          .from('stops').select('id').eq('naptan_code', s.naptan_code).maybeSingle()
+          .from('stops').select('id').eq('atco_code', s.atco_code).maybeSingle()
         if (existing) {
           stopId = existing.id
         } else {
           const { data, error } = await supabase
-            .from('stops').insert({ name: s.name, lat: s.lat, lon: s.lon, naptan_code: s.naptan_code })
+            .from('stops').insert({ name: s.name, lat: s.lat, lon: s.lon, atco_code: s.atco_code })
             .select('id').single()
           if (error) return { error: `Stop "${s.name}": ${error.message}` }
           stopId = data.id

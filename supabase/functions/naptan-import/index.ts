@@ -18,6 +18,11 @@
  *
  * One-time DB setup per environment (run in SQL editor, not in migrations):
  *   select vault.create_secret('<service_role_key>', 'naptan_import_token');
+ *
+ * Each run's status (active/inactive/etc.) is taken from the source Status
+ * field, and any previously-active stop within the run's bbox that's missing
+ * from the feed entirely (record deleted at the source, not just flagged
+ * non-active) is swept to status='removed' — see fetchExistingActiveAtcoCodes().
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -85,6 +90,12 @@ async function runImport(mode: string, counties: string[], serviceKey: string) {
   const stops = await streamNaptanCsv(bbox)
   console.log(`Filtered to ${stops.length} stops`)
 
+  // Snapshot which currently-active stops already exist in this area — used
+  // below to detect stops that have dropped out of the feed entirely (as
+  // opposed to still being present but flagged non-active, which the real
+  // Status value on each row already covers).
+  const existingCodes = await fetchExistingActiveAtcoCodes(supabase, bbox)
+
   // Upsert in batches
   for (let i = 0; i < stops.length; i += BATCH_SIZE) {
     const { error } = await supabase
@@ -93,7 +104,48 @@ async function runImport(mode: string, counties: string[], serviceKey: string) {
     if (error) throw new Error(`Upsert failed at offset ${i}: ${error.message}`)
   }
 
-  console.log(`naptan-import done: ${stops.length} stops upserted`)
+  // Sweep: anything previously active here but absent from this run's feed
+  // has been removed from the source data — flag it so naptan_near_point()
+  // (which filters status = 'active') stops suggesting it.
+  const seenCodes = new Set(stops.map(s => s.atco_code))
+  const removed   = existingCodes.filter(code => !seenCodes.has(code))
+  for (let i = 0; i < removed.length; i += BATCH_SIZE) {
+    const { error } = await supabase
+      .from('naptan_stops')
+      .update({ status: 'removed', updated_at: new Date().toISOString() })
+      .in('atco_code', removed.slice(i, i + BATCH_SIZE))
+    if (error) throw new Error(`Sweep update failed at offset ${i}: ${error.message}`)
+  }
+
+  console.log(`naptan-import done: ${stops.length} stops upserted, ${removed.length} removed`)
+}
+
+// ── Existing-stops snapshot (for the removal sweep) ───────────────────────────
+
+async function fetchExistingActiveAtcoCodes(
+  supabase: ReturnType<typeof createClient>,
+  bbox: BBox,
+): Promise<string[]> {
+  const PAGE_SIZE = 1000
+  const codes: string[] = []
+  let from = 0
+
+  for (;;) {
+    const { data, error } = await supabase
+      .from('naptan_stops')
+      .select('atco_code')
+      .eq('status', 'active')
+      .gte('lat', bbox.latMin).lte('lat', bbox.latMax)
+      .gte('lon', bbox.lonMin).lte('lon', bbox.lonMax)
+      .range(from, from + PAGE_SIZE - 1)
+    if (error) throw new Error(`Failed to read existing naptan_stops: ${error.message}`)
+
+    codes.push(...(data ?? []).map((r: { atco_code: string }) => r.atco_code))
+    if (!data || data.length < PAGE_SIZE) break
+    from += PAGE_SIZE
+  }
+
+  return codes
 }
 
 // ── OpenCage geocoding ─────────────────────────────────────────────────────────
@@ -151,7 +203,7 @@ async function streamNaptanCsv(bbox: BBox): Promise<NaptanStop[]> {
 
       const status   = (cols['Status'] ?? '').toLowerCase()
       const stopType = cols['StopType'] ?? ''
-      if (status !== 'active' || !BUS_TYPES.has(stopType)) continue
+      if (!BUS_TYPES.has(stopType)) continue
 
       const lat = parseFloat(cols['Latitude'])
       const lon = parseFloat(cols['Longitude'])
@@ -168,7 +220,7 @@ async function streamNaptanCsv(bbox: BBox): Promise<NaptanStop[]> {
         bearing:      cols['Bearing'] || null,
         lat, lon,
         stop_type:    stopType,
-        status:       'active',
+        status:       status || 'active',
         updated_at:   new Date().toISOString(),
       })
     }
