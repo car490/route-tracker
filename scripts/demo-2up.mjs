@@ -8,6 +8,17 @@
 // scripts/demo-drive.mjs, but two windows instead of three, and two
 // selectable starting scenarios instead of one fixed duty-card URL:
 //
+// Every run also bypasses one random intermediate stop — a request stop
+// nobody needed on the day, as distinct from a GPS dropout or a driver-
+// triggered diversion alert (see demo-drive.mjs for the full rationale).
+// The GPS path still crosses that stop's 250m approach radius (EVENT 2
+// still fires) but stays just outside its 50m arrival radius, so EVENT 3
+// never fires there — gps.js's findForwardMatch rejoin confirms the skip
+// once the vehicle reaches the following stop instead (which then arrives
+// normally, but with no EVENT 2 of its own — the app jumps straight from
+// "still searching" to arrived once matched). Set DEMO_SKIP_STOP=0 to
+// disable and drive straight through every stop instead.
+//
 //   duty    Driver already has an assigned duty card (the PSVAIR demo
 //           journey). PWA opens straight to the duty card.
 //   manual  No duty card assigned. PWA opens to the "No duty assigned"
@@ -156,6 +167,33 @@ const STOPS = [
 
 const lerp = (a, b, t) => a + (b - a) * t;
 
+// Must clear geofence.js's GEOFENCE_RADIUS_M (50m) with margin, while
+// staying well inside APPROACHING_RADIUS_M (250m) — the vehicle still
+// triggers the approach announcement as it passes the stop, it just never
+// registers as arrived there, same as a real drive-by. Kept identical to
+// scripts/demo-drive.mjs's constant of the same name.
+const SKIP_BYPASS_OFFSET_M = 100;
+const SKIP_ENABLED = process.env.DEMO_SKIP_STOP !== '0';
+
+// Offsets `target` sideways off the prev->next road direction by offsetM,
+// so the simulated path drives past it at a safe distance instead of
+// through it — regardless of how the real stops happen to line up.
+function offsetPerpendicular(prev, target, next, offsetM) {
+  const mPerDegLat = 111320;
+  const mPerDegLon = 111320 * Math.cos((target.lat * Math.PI) / 180);
+
+  const dxm = (next.lon - prev.lon) * mPerDegLon;
+  const dym = (next.lat - prev.lat) * mPerDegLat;
+  const len = Math.hypot(dxm, dym) || 1;
+  const perpXm = -dym / len;
+  const perpYm = dxm / len;
+
+  return {
+    lat: target.lat + (perpYm * offsetM) / mPerDegLat,
+    lon: target.lon + (perpXm * offsetM) / mPerDegLon,
+  };
+}
+
 // Resolves (creating if needed) today's journey row for the manual-mode
 // departure, so the NextStop window can be pointed at its journey_id before
 // the driver has actually clicked Start. Idempotent — keyed on
@@ -295,10 +333,34 @@ process.on('SIGTERM', shutdown);
   console.log('Both started — driving the route now.');
   console.log('[EVENT 1] Journey start — should be audible now: route/destination + first two stops.\n');
 
+  // Candidates exclude the first stop (covered by EVENT 1) and the last
+  // stop (terminus, its own scenario).
+  const skipIdx = SKIP_ENABLED
+    ? 1 + Math.floor(Math.random() * (STOPS.length - 2))
+    : null;
+
+  const drivePoints = STOPS.map((s) => ({ lat: s.lat, lon: s.lon }));
+  if (skipIdx !== null) {
+    drivePoints[skipIdx] = offsetPerpendicular(
+      STOPS[skipIdx - 1], STOPS[skipIdx], STOPS[skipIdx + 1], SKIP_BYPASS_OFFSET_M
+    );
+    console.log(`This run bypasses "${STOPS[skipIdx].name}" — EVENT 2 still fires as the vehicle`);
+    console.log('passes it, but it drives on without stopping (no EVENT 3 there); the skip is');
+    console.log('confirmed once it reaches the next stop instead.\n');
+  }
+
   for (let i = 1; i < STOPS.length; i++) {
-    const from = STOPS[i - 1];
-    const to = STOPS[i];
+    const from = drivePoints[i - 1];
+    const to = drivePoints[i];
+    const trueTo = STOPS[i]; // real stop position/name — what the app itself measures against
     const isFinalStop = i === STOPS.length - 1;
+    const isSkip = i === skipIdx;
+    // The app never fires a separate approach pre-announcement for the stop
+    // right after a skip — nextStopIndex is still parked on the skipped
+    // index until the moment it's confirmed arrived (see gps.js's
+    // findForwardMatch branch), so it jumps straight from "still
+    // searching" to arrived with no EVENT 2 in between.
+    const suppressApproach = skipIdx !== null && i === skipIdx + 1;
     let approachAnnounced = false;
 
     for (let s = 1; s <= SUB_STEPS; s++) {
@@ -312,12 +374,14 @@ process.on('SIGTERM', shutdown);
       // Narrates in the terminal, synced with the same simulated GPS feed
       // the app itself is reacting to — not a separate source of truth,
       // just gps.js's own 250m/50m thresholds computed here too so you know
-      // which of the 4 events to expect right now.
-      if (!isFinalStop && !approachAnnounced) {
-        const distM = haversine(pos.latitude, pos.longitude, to.lat, to.lon);
+      // which of the 4 events to expect right now. Distance is measured
+      // against trueTo (the real stop position), same as the app's own
+      // schedule data — not the bypass waypoint the GPS feed is following.
+      if (!isFinalStop && !approachAnnounced && !suppressApproach) {
+        const distM = haversine(pos.latitude, pos.longitude, trueTo.lat, trueTo.lon);
         if (distM <= APPROACHING_RADIUS_M) {
           approachAnnounced = true;
-          console.log(`  [EVENT 2] Approaching "${to.name}" — should be audible now.`);
+          console.log(`  [EVENT 2] Approaching "${trueTo.name}" — should be audible now.`);
         }
       }
 
@@ -325,11 +389,14 @@ process.on('SIGTERM', shutdown);
     }
 
     if (isFinalStop) {
-      console.log(`→ ${to.name}`);
+      console.log(`→ ${trueTo.name}`);
       console.log('[EVENT 4] Final stop — should be audible now: "This is the final stop..."');
+    } else if (isSkip) {
+      console.log(`⤳ ${trueTo.name}  (bypassed — no stop)`);
+      console.log(`  [SKIP] Passed "${trueTo.name}" without stopping — no EVENT 3 here.`);
     } else {
-      console.log(`→ ${to.name}`);
-      console.log(`  [EVENT 3] Stopped at "${to.name}" — should be audible now: route/destination + next stop.`);
+      console.log(`→ ${trueTo.name}`);
+      console.log(`  [EVENT 3] Stopped at "${trueTo.name}" — should be audible now: route/destination + next stop.`);
     }
   }
 

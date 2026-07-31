@@ -8,6 +8,17 @@
 // updates in parallel in a normal browser tab, all without a real moving
 // vehicle.
 //
+// Every run also simulates the vehicle passing one random intermediate stop
+// without stopping there — a request stop nobody needed on the day, as
+// distinct from a GPS dropout or a driver-triggered diversion alert. The GPS
+// path still crosses that stop's 250m approach radius (so the "approaching"
+// announcement still fires — the vehicle really does get close enough to be
+// heard/seen), but stays just outside its 50m arrival radius, so no arrival
+// is ever registered there. This exercises gps.js's findForwardMatch rejoin
+// path (see geofence.js): the skip gets confirmed once the vehicle arrives
+// at the following stop instead. Set DEMO_SKIP_STOP=0 to drive straight
+// through every stop instead (no bypass).
+//
 // Usage:
 //   node scripts/demo-drive.mjs <duty-url> [secondsPerStop]
 //
@@ -85,6 +96,32 @@ const STOPS = [
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const lerp = (a, b, t) => a + (b - a) * t;
+
+// Must clear geofence.js's GEOFENCE_RADIUS_M (50m) with margin, while
+// staying well inside gps.js's APPROACHING_RADIUS_M (250m) — the vehicle
+// still triggers the approach announcement as it passes the stop, it just
+// never registers as arrived there, same as a real drive-by.
+const SKIP_BYPASS_OFFSET_M = 100;
+const SKIP_ENABLED = process.env.DEMO_SKIP_STOP !== '0';
+
+// Offsets `target` sideways off the prev->next road direction by offsetM,
+// so the simulated path drives past it at a safe distance instead of
+// through it — regardless of how the real stops happen to line up.
+function offsetPerpendicular(prev, target, next, offsetM) {
+  const mPerDegLat = 111320;
+  const mPerDegLon = 111320 * Math.cos((target.lat * Math.PI) / 180);
+
+  const dxm = (next.lon - prev.lon) * mPerDegLon;
+  const dym = (next.lat - prev.lat) * mPerDegLat;
+  const len = Math.hypot(dxm, dym) || 1;
+  const perpXm = -dym / len;
+  const perpYm = dxm / len;
+
+  return {
+    lat: target.lat + (perpYm * offsetM) / mPerDegLat,
+    lon: target.lon + (perpXm * offsetM) / mPerDegLon,
+  };
+}
 
 // context.pages()[0] can race the --app= window's real navigation and grab
 // a transient about:blank page instead — when that happens the actual app
@@ -184,11 +221,27 @@ async function openWindow({ url, windowPosition, windowSize, mute }) {
     onboardTablet.page.waitForSelector('#onboard-sign:not([hidden])', { timeout: 10 * 60 * 1000 }),
     onboardWide.page.waitForSelector('#onboard-sign:not([hidden])', { timeout: 10 * 60 * 1000 }),
   ]);
+  // Candidates exclude the first stop (already covered by the Start
+  // announcement) and the last stop (terminus, handled as its own scenario).
+  const skipIdx = SKIP_ENABLED
+    ? 1 + Math.floor(Math.random() * (STOPS.length - 2))
+    : null;
+
+  const drivePoints = STOPS.map((s) => ({ lat: s.lat, lon: s.lon }));
+  if (skipIdx !== null) {
+    drivePoints[skipIdx] = offsetPerpendicular(
+      STOPS[skipIdx - 1], STOPS[skipIdx], STOPS[skipIdx + 1], SKIP_BYPASS_OFFSET_M
+    );
+    console.log(`This run bypasses "${STOPS[skipIdx].name}" — the vehicle will still trigger its`);
+    console.log('approach announcement, but drive past without stopping (no arrival there); watch');
+    console.log('for the skip to show up in the driver PWA log panel once it rejoins at the next stop.\n');
+  }
+
   console.log('All three started — driving the route now.\n');
 
   for (let i = 1; i < STOPS.length; i++) {
-    const from = STOPS[i - 1];
-    const to = STOPS[i];
+    const from = drivePoints[i - 1];
+    const to = drivePoints[i];
     for (let s = 1; s <= SUB_STEPS; s++) {
       const t = s / SUB_STEPS;
       const pos = { latitude: lerp(from.lat, to.lat, t), longitude: lerp(from.lon, to.lon, t) };
@@ -199,7 +252,7 @@ async function openWindow({ url, windowPosition, windowSize, mute }) {
       ]);
       await sleep((SECONDS_PER_STOP * 1000) / SUB_STEPS);
     }
-    console.log(`→ ${to.name}`);
+    console.log(i === skipIdx ? `⤳ ${STOPS[i].name}  (bypassed — no stop)` : `→ ${STOPS[i].name}`);
   }
 
   console.log('\nRoute complete — arrived at Boston College. Windows stay open;');
