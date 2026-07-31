@@ -83,10 +83,6 @@ export function updateMapPosition(lat, lon, nextStopIndex, arrivals) {
   });
 }
 
-export function centreOnPosition(lat, lon) {
-  if (_map) _map.setView([lat, lon], Math.max(_map.getZoom(), 15), { animate: true });
-}
-
 export function invalidateSize() {
   if (_map) _map.invalidateSize();
 }
