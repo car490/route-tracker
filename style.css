@@ -290,10 +290,10 @@ body {
 #header-service {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.15rem;
   background: var(--surface);
-  padding: 0.25rem 0.7rem;
+  padding: 0.25rem 0.7rem 0.25rem 0;
   border-radius: 4px;
   flex-shrink: 0;
 }
