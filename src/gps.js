@@ -98,8 +98,11 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
           atStop = null;
           distanceToNextM = haversine(latitude, longitude, schedule[nextStopIndex].lat, schedule[nextStopIndex].lon);
         }
-      } else if (distanceToNextM < 50 && nextStopIndex < schedule.length - 1) {
-        // Entering geo-fence — record arrival, enter dwell mode
+      } else if (distanceToNextM < 50) {
+        // Entering geo-fence — record arrival, enter dwell mode. Includes
+        // the final stop: there's no depot padding to exclude any more, so
+        // every schedule index (0..length-1) is a real, arrivable stop.
+
         const arrivalTime = new Date();
         arrivals[nextStopIndex] = arrivalTime;
         log('arrive', `Arrived: ${schedule[nextStopIndex].name} (${distanceToNextM.toFixed(0)} m)`);
@@ -114,9 +117,11 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
           const minEarly = Math.round((scheduledDepart - arrivalTime) / 60000);
           log('info', `Running ${minEarly} min early — wait until ${scheduledDepart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
         }
-      } else if (nextStopIndex < schedule.length - 1) {
+      } else {
         // Off-route: normal next-stop geofence missed — search forward for a later
         // stop the vehicle has actually reached (road closure / detour / GPS gap).
+        // A no-op if nextStopIndex is already the last stop (nothing further
+        // to search forward into).
         const match = findForwardMatch({ schedule, nextStopIndex, lat: latitude, lon: longitude, pendingMatch });
         pendingMatch = match.pendingMatch;
 
