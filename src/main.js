@@ -5,7 +5,7 @@ import { log, getEntries } from './logger.js';
 import { initDirections, syncCurrentStop, updateDirections } from './directions.js';
 import {
   setAnnouncementsEnabled, onAnnouncementChange, announceJourneyStart,
-  announceDiversion, isMuted, setMuted,
+  announceDiversion, isMuted, setMuted, isBannerShown, setBannerShown,
   listVoices, getSelectedVoiceURI, setSelectedVoiceURI, previewVoice,
 } from './announcements.js';
 import { sbFetch, rpc, fetchStopsForDeparture } from './supabaseApi.js';
@@ -124,8 +124,23 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   const psvairVoicePanel = document.getElementById('psvair-voice-panel');
   const psvairVoiceSelect  = document.getElementById('psvair-voice-select');
   const psvairVoiceTestBtn = document.getElementById('psvair-voice-test-btn');
+  const psvairToggleBtn  = document.getElementById('psvair-toggle-btn');
   setAnnouncementsEnabled(!!psvairEnabled);
-  psvairBanner.hidden = !psvairEnabled;
+
+  // Banner defaults to collapsed — the running caption + mute/voice controls
+  // are a driver convenience, not something needed every trip, and having it
+  // open by default just eats space above the route header. The toggle
+  // button itself only ever shows on PSVAIR-in-scope routes; the driver's
+  // show/hide choice persists across the app (localStorage) rather than
+  // resetting every journey.
+  psvairToggleBtn.hidden = !psvairEnabled;
+  const applyBannerVisibility = () => {
+    const shown = isBannerShown();
+    psvairBanner.hidden = !psvairEnabled || !shown;
+    psvairToggleBtn.textContent = shown ? '\u{1F508} Hide Announcements' : '\u{1F50A} Announcements';
+  };
+  applyBannerVisibility();
+  psvairToggleBtn.onclick = () => { setBannerShown(!isBannerShown()); applyBannerVisibility(); };
   // Starts at initialStopIndex, not null: if tracking begins already sitting
   // at/near the starting stop (a normal case, not just a demo artifact — the
   // very first GPS fix can satisfy that stop's geofence instantly, see
@@ -386,6 +401,7 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
     incidentOverlay.hidden = true;
     setAnnouncementsEnabled(false);
     psvairBanner.hidden = true;
+    psvairToggleBtn.hidden = true;
 
     if (journeyId) {
       const uploadResult = await uploadStopTimes(journeyId, arrivalsRef, allStops);

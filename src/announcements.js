@@ -12,6 +12,7 @@
 
 const MUTE_KEY = 'psvair-muted';
 const VOICE_KEY = 'psvair-voice-uri';
+const BANNER_SHOWN_KEY = 'psvair-banner-shown';
 const AUDIO_BASE = './audio/announcements/';
 
 // Known-good warmer-sounding voices, checked in order, across the platforms
@@ -60,6 +61,16 @@ function stopCurrentPlayback() {
 export function setMuted(v) {
   localStorage.setItem(MUTE_KEY, v ? '1' : '0');
   if (v) stopCurrentPlayback();
+}
+
+// Whether the driver has opted to show the on-screen caption/mute/voice
+// banner — collapsed by default so it doesn't sit open on every trip.
+export function isBannerShown() {
+  return localStorage.getItem(BANNER_SHOWN_KEY) === '1';
+}
+
+export function setBannerShown(v) {
+  localStorage.setItem(BANNER_SHOWN_KEY, v ? '1' : '0');
 }
 
 // speechSynthesis.getVoices() only returns the full list once the

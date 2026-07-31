@@ -153,6 +153,23 @@ body {
 /* Live next-stop / destination announcement for PSVAIR-in-scope local bus
    services — audio via Web Speech API (announcements.js), visual here. */
 
+/* Collapsed state — banner starts hidden by default (see main.js), this is
+   the only always-visible affordance to bring it back. */
+#psvair-toggle-btn {
+  display: block;
+  width: 100%;
+  margin-bottom: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: var(--cm-font);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 #psvair-banner {
   background: var(--brand-cyan);
   color: #000;
