@@ -632,6 +632,12 @@ function initManualSelection() {
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 async function init() {
+  // Dedicated tablet mount, not a driver's own phone — keep the screen awake
+  // from boot (duty-card/picker screens included), not just once tracking
+  // starts, so the wakelock-warning banner only ever appears on a genuine
+  // Wake Lock API failure rather than "haven't pressed Start yet".
+  acquireWakeLock();
+
   initManualSelection();
 
   const dutiesParam = new URLSearchParams(window.location.search).get('duties');
