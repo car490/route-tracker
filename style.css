@@ -308,16 +308,6 @@ body {
   white-space: nowrap;
 }
 
-#header-service-period {
-  color: rgba(255, 255, 255, 0.75);
-  font-family: var(--cm-font);
-  font-size: 0.72rem;
-  font-weight: 400;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
 #route-lines {
   display: flex;
   flex-direction: column;
@@ -326,14 +316,6 @@ body {
 }
 
 #header-line1 {
-  font-family: var(--cm-font);
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text);
-  line-height: 1.3;
-}
-
-#header-line2 {
   font-family: var(--cm-font);
   font-size: 0.9rem;
   font-weight: 600;

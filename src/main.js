@@ -96,10 +96,9 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   // last passenger stop, and on a 2-stop route this simply equals lastStop.
   const secondStop = allStops[1];
   const lastStop   = allStops[allStops.length - 1];
-  document.getElementById('header-service-code').textContent   = serviceCode;
-  document.getElementById('header-service-period').textContent = servicePeriod ?? '';
-  document.getElementById('header-line1').textContent          = `${stripIndicator(firstStop.name)} and`;
-  document.getElementById('header-line2').textContent   = stripIndicator(lastStop.name);
+  document.getElementById('header-service-code').textContent = serviceCode;
+  document.getElementById('header-line1').textContent =
+    `${stripIndicator(firstStop.name)} → ${stripIndicator(lastStop.name)}`;
 
   log('info', `Started: ${serviceCode}${servicePeriod ? ' ' + servicePeriod : ''} from "${allStops[initialStopIndex].name}"`);
 
