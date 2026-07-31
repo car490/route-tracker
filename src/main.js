@@ -14,7 +14,6 @@ import { triggerDiversionAlert, clearDiversionAlert } from './diversionAlert.js'
 import { selectServiceManually } from './manualSelection.js';
 import { routeData } from './routeData.js';
 
-const DEPOT = { name: 'Phil Haines Coaches Depot', lat: 52.950412, lon: -0.050110 };
 const DEBUG = new URLSearchParams(window.location.search).has('debug');
 
 // ── Stop time upload ──────────────────────────────────────────────────────────
@@ -70,22 +69,6 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && wakeLock === null) acquireWakeLock();
 });
 
-// ── Utilities ─────────────────────────────────────────────────────────────────
-
-function shiftTime(timeStr, deltaMinutes) {
-  const [h, m] = timeStr.split(':').map(Number);
-  const total = ((h * 60 + m + deltaMinutes) % 1440 + 1440) % 1440;
-  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
-}
-
-function withDepotStops(stops) {
-  return [
-    { ...DEPOT, time: shiftTime(stops[0].time, -30) },
-    ...stops,
-    { ...DEPOT, time: shiftTime(stops[stops.length - 1].time, +30) },
-  ];
-}
-
 function greetingPrefix() {
   const h = new Date().getHours();
   if (h < 12) return 'Good morning,';
@@ -100,16 +83,15 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   document.getElementById('tracker').hidden = false;
   document.getElementById('route-header').scrollIntoView();
 
-  const firstStop  = allStops[1];
+  const firstStop  = allStops[0];
   // Second real stop — always exists: a route needs at least a first and a
   // last passenger stop, and on a 2-stop route this simply equals lastStop.
-  const secondStop = allStops[2];
-  const lastStop   = allStops[allStops.length - 2];
+  const secondStop = allStops[1];
+  const lastStop   = allStops[allStops.length - 1];
   document.getElementById('header-service-code').textContent   = serviceCode;
   document.getElementById('header-service-period').textContent = servicePeriod ?? '';
   document.getElementById('header-line1').textContent          = `${firstStop.name} and`;
   document.getElementById('header-line2').textContent   = lastStop.name;
-  document.getElementById('header-line3').textContent   = `To & From ${DEPOT.name}`;
 
   log('info', `Started: ${serviceCode}${servicePeriod ? ' ' + servicePeriod : ''} from "${allStops[initialStopIndex].name}"`);
 
@@ -317,9 +299,8 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
 
       // PSVAIR event 2 — approaching (see gps.js's 250m radius). Silent for
       // the final stop (announceApproachEvent itself suppresses that case).
-      if (psvairEnabled && approaching
-          && approaching.stopIndex > 0 && approaching.stopIndex < allStops.length - 1) {
-        const isFinal = approaching.stopIndex === allStops.length - 2;
+      if (psvairEnabled && approaching) {
+        const isFinal = approaching.stopIndex === allStops.length - 1;
         announceApproachEvent({
           stopId: allStops[approaching.stopIndex].stop_id,
           stopName: allStops[approaching.stopIndex].name,
@@ -328,14 +309,11 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
         });
       }
 
-      // Real passenger-facing stops are indices [1, length-2]; 0 and length-1
-      // are the depot padding stops and are never announced. Announce on
-      // arrival (atStop set) rather than departure, so it's heard while the
-      // vehicle is actually there (PSVAIR events 3 & 4).
-      if (psvairEnabled && atStop && atStop.stopIndex !== lastAnnouncedStopIdx
-          && atStop.stopIndex > 0 && atStop.stopIndex < allStops.length - 1) {
+      // Announce on arrival (atStop set) rather than departure, so it's
+      // heard while the vehicle is actually there (PSVAIR events 3 & 4).
+      if (psvairEnabled && atStop && atStop.stopIndex !== lastAnnouncedStopIdx) {
         lastAnnouncedStopIdx = atStop.stopIndex;
-        const isFinal = atStop.stopIndex === allStops.length - 2;
+        const isFinal = atStop.stopIndex === allStops.length - 1;
         announceStopEvent({
           nextStopId: isFinal ? null : allStops[atStop.stopIndex + 1].stop_id,
           nextStopName: isFinal ? null : allStops[atStop.stopIndex + 1].name,
@@ -525,7 +503,7 @@ async function launchDutyRoute(duties, idx, journeyIds) {
     return;
   }
 
-  const allStops = withDepotStops(journey.stops);
+  const allStops = journey.stops;
 
   document.getElementById('duty-card').hidden             = true;
   document.getElementById('picker').hidden                = false;
@@ -635,7 +613,7 @@ function initManualSelection() {
       document.getElementById('manual-picker').hidden = true;
       await acquireWakeLock();
 
-      runTracker({ ...result, allStops: withDepotStops(result.allStops) });
+      runTracker(result);
     } catch (err) {
       console.error('Manual service selection failed:', err);
       alert(`Couldn't start this service:\n${err.message}`);

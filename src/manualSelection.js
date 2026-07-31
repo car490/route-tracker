@@ -4,8 +4,8 @@ import { rpc, fetchStopsForDeparture } from './supabaseApi.js';
 // Fallback path for the "no active duties" dead-end: driver picks a
 // service/variant by hand instead of following a duty card. Produces the
 // exact param bag runTracker() already expects from the duty-card path
-// (see main.js launchDutyRoute), so withDepotStops() -> runTracker()
-// downstream needs zero changes regardless of which path produced it.
+// (see main.js launchDutyRoute), so runTracker() downstream needs zero
+// changes regardless of which path produced it.
 //
 // initialStopIndex is always 0 here — deliberate "start of route" default
 // for a picker-less flow, not a mirror of either existing flow's DOM

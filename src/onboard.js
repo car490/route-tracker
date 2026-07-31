@@ -15,7 +15,6 @@ import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
 import { setAnnouncementsEnabled, announceJourneyStart, announceDiversion } from './announcements.js';
 import { announceApproachEvent, announceStopEvent } from './announceStopEvent.js';
 
-const DEPOT = { name: 'Phil Haines Coaches Depot', lat: 52.950412, lon: -0.050110 };
 const WATCH_JOURNEY_ID = new URLSearchParams(window.location.search).get('journey');
 const POLL_INTERVAL_MS = 5000;
 const WIDE_LAYOUT_QUERY = '(min-aspect-ratio: 4/1)'; // 16:3 ultra-wide sign, see docs/onboard-widescreen-layout.md
@@ -128,20 +127,6 @@ function localPiPositionSource(onFix, onError) {
   return { stop: () => { stopped = true; } };
 }
 
-function shiftTime(timeStr, deltaMinutes) {
-  const [h, m] = timeStr.split(':').map(Number);
-  const total = ((h * 60 + m + deltaMinutes) % 1440 + 1440) % 1440;
-  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
-}
-
-function withDepotStops(stops) {
-  return [
-    { ...DEPOT, time: shiftTime(stops[0].time, -30) },
-    ...stops,
-    { ...DEPOT, time: shiftTime(stops[stops.length - 1].time, +30) },
-  ];
-}
-
 // ── Wake lock — keep the mounted screen on ─────────────────────────────────
 let wakeLock = null;
 async function acquireWakeLock() {
@@ -167,7 +152,7 @@ function renderTubeTrack(allStops, centerIndex, isAtStop) {
   const track = el('tube-track');
   track.innerHTML = '';
 
-  const first = 1, last = allStops.length - 2; // real stops only; 0/length-1 are depot padding
+  const first = 0, last = allStops.length - 1;
   // Labels must stay readable from the back of an 11m bus (~22mm min text,
   // see --min-text in onboard.css), which leaves room for very few stops
   // either side regardless of the extra width the wide sign has.
@@ -212,7 +197,7 @@ function renderUpcoming(allStops, centerIndex, timing) {
   const box = el('sign-upcoming');
   if (!isWideLayout()) { box.hidden = true; return; }
 
-  const last = allStops.length - 2; // real stops only; length-1 is depot padding
+  const last = allStops.length - 1;
   const rows = [];
   for (let i = centerIndex + 1; i <= Math.min(centerIndex + UPCOMING_STOP_COUNT, last); i++) rows.push(allStops[i]);
 
@@ -229,8 +214,8 @@ function renderUpcoming(allStops, centerIndex, timing) {
 async function runSign(duty) {
   const stops = await fetchStops(duty.timetable_departure_id);
   if (!stops.length) { console.error('No stops for departure', duty.timetable_departure_id); return; }
-  const allStops = withDepotStops(stops);
-  const initialStopIndex = 1; // start of route; geofence catch-up handles wherever the vehicle actually is
+  const allStops = stops;
+  const initialStopIndex = 0; // start of route; geofence catch-up handles wherever the vehicle actually is
 
   const destination = stripIndicator(duty.last_stop_name);
   el('sign-service-code').textContent = duty.service_code;
@@ -241,15 +226,15 @@ async function runSign(duty) {
   // sits under the (now left-aligned) purple topbar.
 
   setAnnouncementsEnabled(true);
-  // initialStopIndex is always 1 here (see above), so allStops[1]/[2] are
+  // initialStopIndex is always 0 here (see above), so allStops[0]/[1] are
   // always the first two real stops — same reasoning as main.js's runTracker.
   announceJourneyStart({
     serviceCode: duty.service_code,
     destination,
-    firstStopId: allStops[1].stop_id,
-    firstStopName: allStops[1].name,
-    nextStopId: allStops[2].stop_id,
-    nextStopName: allStops[2].name,
+    firstStopId: allStops[0].stop_id,
+    firstStopName: allStops[0].name,
+    nextStopId: allStops[1].stop_id,
+    nextStopName: allStops[1].name,
   });
 
   // See main.js's runTracker for why this starts at initialStopIndex, not
@@ -287,7 +272,7 @@ async function runSign(duty) {
     positionSource: usingLocalApi ? localPiPositionSource : undefined,
     onUpdate: ({ nextStopIndex, earlyWait, atStop, approaching, timing }) => {
       const centerIndex = atStop ? atStop.stopIndex : Math.max(nextStopIndex - 1, initialStopIndex);
-      const isFinal = centerIndex === allStops.length - 2;
+      const isFinal = centerIndex === allStops.length - 1;
 
       // One line of text that changes wording rather than a second line
       // appearing/disappearing — a close, not verbatim, echo of the audio
@@ -311,8 +296,8 @@ async function runSign(duty) {
 
       // PSVAIR event 2 — approaching (see gps.js's 250m radius). Silent for
       // the final stop (announceApproachEvent itself suppresses that case).
-      if (approaching && approaching.stopIndex > 0 && approaching.stopIndex < allStops.length - 1) {
-        const approachIsFinal = approaching.stopIndex === allStops.length - 2;
+      if (approaching) {
+        const approachIsFinal = approaching.stopIndex === allStops.length - 1;
         announceApproachEvent({
           stopId: allStops[approaching.stopIndex].stop_id,
           stopName: allStops[approaching.stopIndex].name,
@@ -321,14 +306,11 @@ async function runSign(duty) {
         });
       }
 
-      // Real passenger-facing stops are indices [1, length-2]; 0 and length-1
-      // are the depot padding stops and are never announced. Announce on
-      // arrival (atStop set), not departure, so "this stop" is true when said
-      // (PSVAIR events 3 & 4).
-      if (atStop && atStop.stopIndex !== lastAnnouncedStopIdx
-          && atStop.stopIndex > 0 && atStop.stopIndex < allStops.length - 1) {
+      // Announce on arrival (atStop set), not departure, so "this stop" is
+      // true when said (PSVAIR events 3 & 4).
+      if (atStop && atStop.stopIndex !== lastAnnouncedStopIdx) {
         lastAnnouncedStopIdx = atStop.stopIndex;
-        const stopIsFinal = atStop.stopIndex === allStops.length - 2;
+        const stopIsFinal = atStop.stopIndex === allStops.length - 1;
         announceStopEvent({
           nextStopId: stopIsFinal ? null : allStops[atStop.stopIndex + 1].stop_id,
           nextStopName: stopIsFinal ? null : allStops[atStop.stopIndex + 1].name,
