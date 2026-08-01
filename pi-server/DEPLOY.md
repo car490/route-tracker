@@ -151,7 +151,7 @@ sudo apt install chromium-browser
 Create `/etc/systemd/system/coachmate-kiosk.service`:
 ```ini
 [Unit]
-Description=CoachMate NextStop kiosk
+Description=CoachMate BusOps Announce kiosk
 After=coachmate-onboard.service graphical.target
 Requires=coachmate-onboard.service
 
