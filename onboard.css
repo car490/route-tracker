@@ -141,8 +141,9 @@ body {
 
 .cm-attribution {
   display: flex;
-  flex-direction: column;
-  gap: 0.2vh;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.4vw;
 }
 
 .cm-powered-by {
