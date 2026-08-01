@@ -54,11 +54,12 @@ body {
 }
 
 /* ── App brand mark ───────────────────────────── */
-/* App name (BusHub.Driver — this product, one of several under the BusHub
-   suite) over a smaller CoachMate attribution (the platform all BusHub
-   products run on; same wordmark as the ops dashboard's sidebar footer,
-   dashboard/src/index.css .sidebar-coachmate, where CoachMate alone is
-   shown with no BusHub line since the dashboard *is* CoachMate).
+/* App name (BusOps Driver — this product, one of several under the BusOps
+   suite) alongside a smaller CoachMate attribution, single line (the
+   platform all BusOps products run on; same wordmark as the ops
+   dashboard's sidebar footer, dashboard/src/index.css .sidebar-coachmate,
+   where CoachMate alone is shown with no BusOps line since the dashboard
+   *is* CoachMate).
    Fixed to the viewport corner so it's visible on every screen without
    scrolling — including #duty-card, which reserves a full min-height:100vh
    whether or not its content fills that, so an in-flow mark would land
@@ -75,8 +76,8 @@ body {
   bottom: 0.75rem;
   z-index: 10;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-direction: row;
+  align-items: baseline;
   gap: 0.4rem;
   padding: 0.4rem 0.6rem;
   background: var(--surface);
@@ -91,7 +92,7 @@ body {
   padding-bottom: 4.5rem;
 }
 
-.bh-wordmark {
+.bo-wordmark {
   font-family: var(--cm-font);
   font-size: 1rem;
   font-weight: 800;
@@ -99,8 +100,14 @@ body {
   color: var(--text);
 }
 
-.bh-app {
+.bo-app {
   color: var(--late);
+}
+
+.brand-sep {
+  color: var(--text-muted);
+  opacity: 0.55;
+  font-size: 0.8rem;
 }
 
 .cm-attribution {
