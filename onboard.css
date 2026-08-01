@@ -82,9 +82,9 @@ body {
 }
 
 /* ── Sign layout — top bar / tube-track + ETA panel / bottom line ────────
-   Brand mark (BusHub.NextStop over a smaller CoachMate attribution, in
-   real brand colours rather than greyscale) lives here too — at idle it's
-   the ONLY thing on screen, over a blank grey background.
+   Brand mark (BusOps Announce alongside a smaller CoachMate attribution,
+   single line, in real brand colours rather than greyscale) lives here
+   too — at idle it's the ONLY thing on screen, over a blank grey background.
    #onboard-brand stays a position: fixed sibling of #onboard-sign (not a
    grid child) because it must also render on the idle screen, before
    #onboard-sign exists in the visible DOM (see onboard.html) — it's
@@ -119,12 +119,13 @@ body {
   bottom: 27vh;
   left: 1vw;
   display: flex;
-  flex-direction: column;
-  gap: 0.4vh;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.6vw;
   pointer-events: none;
 }
 
-.bh-wordmark {
+.bo-wordmark {
   font-family: var(--ep-font);
   /* Was 1.8vh — fine as a corner watermark on the idle screen alone, but
      unreadably tiny once it's sharing the track band with everything
@@ -135,14 +136,20 @@ body {
   color: var(--ep-ink);
 }
 
-.bh-app {
+.bo-app {
   color: var(--ep-late);
+}
+
+.brand-sep {
+  color: var(--ep-ink-soft);
+  font-size: 2vh;
 }
 
 .cm-attribution {
   display: flex;
-  flex-direction: column;
-  gap: 0.2vh;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.4vw;
 }
 
 .cm-powered-by {
