@@ -1,6 +1,6 @@
 # WiFi Direct bench-test harness
 
-Throwaway hardware validation tool for the `.Driver` / `.NextStop` redesign — **not**
+Throwaway hardware validation tool for the Driver / Announce redesign — **not**
 part of the RouteTracker product build, not deployed anywhere. Its only job is to
 answer, on real candidate hardware, the question research alone couldn't answer:
 does this specific device actually support WiFi Direct client pairing, does it
@@ -8,23 +8,23 @@ survive a reboot without a manual re-pair, and does one Group Owner hold multipl
 clients at once.
 
 See the memory file `project_nextstop_architecture.md` for the full design context —
-short version: `.Driver` will be the WiFi Direct Group Owner, `.NextStop` display(s)
+short version: Driver will be the WiFi Direct Group Owner, Announce display(s)
 join as clients and receive pushed visual state. This app is one APK that can play
 either role, so you install the same build on every test device.
 
 ## What it tests
 
-1. **Pairing** — Driver creates a fixed-identity P2P group; NextStop discovers and
+1. **Pairing** — Driver creates a fixed-identity P2P group; Announce discovers and
    joins it.
 2. **Reboot survival** — kill/relaunch the app (or reboot the device) on both ends
    and confirm they re-form the same group without any manual WiFi Direct pairing
    UI step in Android Settings. This is the "no need to manage it" requirement —
    if this fails, the device is a no-go regardless of anything else.
 3. **Data path** — once connected, Driver sends a timestamped "PING" over a plain
-   TCP socket every 3s; NextStop logs each one and sends an ACK back. This proves
+   TCP socket every 3s; Announce logs each one and sends an ACK back. This proves
    the link actually carries data, not just that P2P association succeeded (radio
    pairing and application connectivity are different failure modes — test both).
-4. **Multi-client fan-out** — run the app as NextStop on two devices at once,
+4. **Multi-client fan-out** — run the app as Announce on two devices at once,
    both pointed at the same Driver. Confirm the Driver's log shows two concurrent
    client connections both receiving pings. This is the one thing official Android
    docs don't specify a limit for — only a real test answers it.
@@ -56,16 +56,16 @@ are both core Android SDK.
 ## Running the test
 
 1. Install on two (ideally three, to test multi-client) devices.
-2. On one device — the stand-in for `.Driver` — select **Driver (Group Owner)**
+2. On one device — the stand-in for Driver — select **Driver (Group Owner)**
    and tap **Start**. Watch the log for "Group formed... this device is Group
    Owner" then "Client connected: ...".
-3. On the other device(s) — the actual candidate `.NextStop` hardware — select
-   **NextStop (Client)** and tap **Start**. Watch for "Connected to Driver server"
+3. On the other device(s) — the actual candidate Announce hardware — select
+   **Announce (Client)** and tap **Start**. Watch for "Connected to Driver server"
    and a stream of "Received: PING ..." lines.
 4. Force-stop or reboot both devices, relaunch the app, hit Start again on both
    (same role each). If they reconnect without you touching Android's WiFi
    Direct settings screen, that's a pass on requirement #2 above.
-5. Add a second NextStop device while the first is still connected. Check the
+5. Add a second Announce device while the first is still connected. Check the
    Driver's log shows both clients concurrently.
 
 If any candidate device fails step 2 (never becomes Group Owner or never shows a
@@ -75,7 +75,7 @@ test is to filter before money is spent.
 
 ## Interpreting a failure
 
-- Driver never logs "Client connected": either discovery failed on the NextStop
+- Driver never logs "Client connected": either discovery failed on the Announce
   side (check its log for "Found peer...") or the P2P group never formed on the
   Driver side (check for "createGroup: FAILED (reason=...)").
 - Connected but no pings ever arrive: P2P association works but something (a

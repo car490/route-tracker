@@ -28,11 +28,11 @@
             android:checked="true" />
 
         <RadioButton
-            android:id="@+id/roleNextStop"
+            android:id="@+id/roleAnnounce"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="24dp"
-            android:text="NextStop (Client)" />
+            android:text="Announce (Client)" />
     </RadioGroup>
 
     <Button

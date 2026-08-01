@@ -33,7 +33,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Throwaway bench-test harness for de-risking WiFi Direct as the .Driver <-> .NextStop
+ * Throwaway bench-test harness for de-risking WiFi Direct as the Driver <-> Announce
  * transport before committing to hardware. Not part of the RouteTracker product build —
  * see wifi-direct-poc/README.md for what this is testing and how to read the results.
  *
@@ -44,7 +44,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * manual pairing step in Android Settings) and runs a plain TCP server, accepting
  * any number of simultaneous clients and pinging each one every few seconds.
  *
- * NEXTSTOP — discovers the Driver device, joins its group, connects to the TCP
+ * ANNOUNCE — discovers the Driver device, joins its group, connects to the TCP
  * server, and logs every ping received (with an ack sent back), so the log makes
  * it obvious whether the link carries real data, not just whether P2P "connected".
  */
@@ -55,15 +55,15 @@ class MainActivity : AppCompatActivity() {
 
         // Must start with "DIRECT-xy-" (any two chars for xy) — Android's P2P
         // framework enforces this prefix on any manually-chosen network name.
-        private const val NETWORK_NAME = "DIRECT-nt-NextStopPOC"
-        private const val PASSPHRASE = "nextstop-poc-2026" // WPA2 rules: 8-63 chars
+        private const val NETWORK_NAME = "DIRECT-an-AnnouncePOC"
+        private const val PASSPHRASE = "announce-poc-2026" // WPA2 rules: 8-63 chars
         private const val SERVER_PORT = 8988
 
-        // NextStop picks the first peer whose WiFi Direct device name contains this
+        // Announce picks the first peer whose WiFi Direct device name contains this
         // (rename the device under Settings > WiFi > WiFi Direct if you want to be
         // explicit about which physical unit is which) — falls back to "first peer
         // found" if nothing matches, since some devices don't expose a rename option.
-        private const val DEVICE_NAME_MATCH = "NextStopPOC"
+        private const val DEVICE_NAME_MATCH = "AnnouncePOC"
     }
 
     private lateinit var manager: WifiP2pManager
@@ -157,7 +157,7 @@ class MainActivity : AppCompatActivity() {
         startStopBtn.text = "Stop"
         registerReceiverCompat()
 
-        if (isDriver()) startDriver() else startNextStop()
+        if (isDriver()) startDriver() else startAnnounce()
     }
 
     private fun stopTest() {
@@ -216,7 +216,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun onConnectionInfo(info: WifiP2pInfo) {
         if (!info.groupFormed) {
-            statusText.text = if (isDriver()) "Driver: waiting for group..." else "NextStop: not connected"
+            statusText.text = if (isDriver()) "Driver: waiting for group..." else "Announce: not connected"
             return
         }
         if (info.isGroupOwner) {
@@ -225,7 +225,7 @@ class MainActivity : AppCompatActivity() {
             startServer()
         } else {
             val goAddress = info.groupOwnerAddress
-            statusText.text = "NextStop: joined group, GO at ${goAddress?.hostAddress}"
+            statusText.text = "Announce: joined group, GO at ${goAddress?.hostAddress}"
             log("Group formed as client. Group Owner address: ${goAddress?.hostAddress}")
             goAddress?.hostAddress?.let { connectToServer(it) }
         }
@@ -281,10 +281,10 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    // ── NEXTSTOP (Client) ───────────────────────────────────────────────────
+    // ── ANNOUNCE (Client) ────────────────────────────────────────────────────
 
-    private fun startNextStop() {
-        statusText.text = "NextStop: discovering peers..."
+    private fun startAnnounce() {
+        statusText.text = "Announce: discovering peers..."
         log("Discovering peers, looking for a device named like \"$DEVICE_NAME_MATCH\"...")
         manager.discoverPeers(channel, simpleListener("discoverPeers"))
         manager.requestPeers(channel) { peers -> tryConnectToDriver(peers.deviceList) }
