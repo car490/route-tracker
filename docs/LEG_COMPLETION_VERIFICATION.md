@@ -124,12 +124,12 @@ and there is no mechanism to reconstruct it from `journey_events`.
 
 ## Conclusion
 
-BH-004's assumption — "PWA writes are a single batch at journey end, BusHub introduces real-time
+BH-004's assumption — "PWA writes are a single batch at journey end, BusOps introduces real-time
 streaming as a new concept" — is **partially incorrect**.
 
 **GPS position data (`journey_events`, `event_type = 'gps_fix'`) is already written in real
 time**, one INSERT per 30-second throttle interval throughout the journey. Real-time streaming of
-GPS positions is not a new concept introduced by BusHub; it is the current behaviour. The
+GPS positions is not a new concept introduced by BusOps; it is the current behaviour. The
 SIRI_VM_VERIFICATION finding is confirmed by the code.
 
 **Stop visit data (`journey_stop_times`, including `visit_status`) is written as a single batch

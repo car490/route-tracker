@@ -238,8 +238,8 @@ async function runSign(duty) {
   });
 
   // See main.js's runTracker for why this starts at initialStopIndex, not
-  // null — otherwise a vehicle already at the starting stop when NextStop
-  // wakes gets that arrival (re-)announced on top of announceJourneyStart.
+  // null — otherwise a vehicle already at the starting stop when BusOps
+  // Announce wakes gets that arrival (re-)announced on top of announceJourneyStart.
   let lastAnnouncedStopIdx = initialStopIndex;
 
   // ── Diversion status polling ────────────────────────────────────────────

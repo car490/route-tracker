@@ -22,7 +22,7 @@ export async function selectServiceManually(serviceCode, servicePeriod, { onComp
 
   // Mirrors the duty-card path's start_journey call (main.js's
   // launchDutyRoute) — without this, journeys.status never leaves
-  // 'scheduled', so the NextStop onboard display (which waits for
+  // 'scheduled', so the BusOps Announce onboard display (which waits for
   // get_duty_card to report in_progress) never wakes, and complete_journey
   // silently no-ops at the end since it requires status = 'in_progress'.
   // No-ops harmlessly (returns false, doesn't throw) if already in_progress

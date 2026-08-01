@@ -16,8 +16,8 @@ number covers the whole solution — PWA and dashboard release together on the
   next stop, proper terminus message), driver-triggered diversion alerts wired into
   both the driver PWA and the onboard sign, and fixed-volume audio config calibration
   per vehicle.
-- BusHub.NextStop onboard passenger sign redesigned as a fixed landscape e-paper-themed
-  display, with the CoachMate/BusHub wordmark, a Raspberry Pi + Fire HD deployment
+- BusOps Announce onboard passenger sign redesigned as a fixed landscape e-paper-themed
+  display, with the CoachMate/BusOps wordmark, a Raspberry Pi + Fire HD deployment
   backend, and a demo mode that drives it alongside the PWA.
 - Route Detail Modal — clicking a route now opens a centred modal with the route
   summary, timetable list, and a per-timetable departures accordion, instead of a card

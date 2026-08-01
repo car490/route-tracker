@@ -6,7 +6,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#0d1215" />
-  <title>BusHub — Interactive Demo</title>
+  <title>BusOps — Interactive Demo</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -338,15 +338,17 @@
       bottom: 0.65rem;
       pointer-events: none;
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
+      align-items: baseline;
       gap: 0.35rem;
       z-index: 5;
     }
-    .driver-brand .bh-wm {
+    .driver-brand .bo-wm {
       font-size: 0.9rem; font-weight: 800; letter-spacing: -0.01em; color: #fff;
     }
-    .driver-brand .bh-app { color: #EF4444; }
-    .driver-brand .cm-attr { display: flex; flex-direction: column; gap: 0.1rem; opacity: 0.5; }
+    .driver-brand .bo-app { color: #EF4444; }
+    .driver-brand .brand-sep { color: #8BA4B0; opacity: 0.5; font-size: 0.8rem; }
+    .driver-brand .cm-attr { display: flex; flex-direction: row; align-items: baseline; gap: 0.25rem; opacity: 0.5; }
     .driver-brand .cm-pb {
       font-size: 0.45rem; font-weight: 400; letter-spacing: 0.04em;
       text-transform: uppercase; color: #8BA4B0;
@@ -384,17 +386,19 @@
       left: 1.2rem;
       bottom: 0.8rem;
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
+      align-items: baseline;
       gap: 0.35rem;
       pointer-events: none;
       z-index: 5;
     }
-    .onboard-screen .bh-wm {
+    .onboard-screen .bo-wm {
       font-size: 0.9rem; font-weight: 800; letter-spacing: -0.01em;
       color: var(--ep-ink);
     }
-    .onboard-screen .bh-app { color: var(--ep-late); }
-    .onboard-screen .cm-attr { display: flex; flex-direction: column; gap: 0.15rem; }
+    .onboard-screen .bo-app { color: var(--ep-late); }
+    .onboard-screen .brand-sep { color: var(--ep-soft); font-size: 0.8rem; }
+    .onboard-screen .cm-attr { display: flex; flex-direction: row; align-items: baseline; gap: 0.25rem; }
     .onboard-screen .cm-pb {
       font-size: 0.55rem; font-weight: 600; letter-spacing: 0.1em;
       text-transform: uppercase; color: var(--ep-soft);
@@ -570,7 +574,7 @@
   <!-- ── Demo chrome ──────────────────────────────────────────────────── -->
   <div class="demo-header">
     <div class="demo-title-group">
-      <span class="demo-wordmark">BUSHUB</span>
+      <span class="demo-wordmark">BUSOPS</span>
       <span class="demo-tag">Interactive Demo</span>
     </div>
     <div class="demo-controls">
@@ -660,9 +664,10 @@
 
       </div><!-- .driver-screen -->
 
-      <!-- BusHub.Driver brand mark -->
+      <!-- BusOps Driver brand mark -->
       <div class="driver-brand" aria-hidden="true">
-        <div class="bh-wm">BUSHUB<span class="bh-app">.Driver</span></div>
+        <div class="bo-wm">BUSOPS <span class="bo-app">Driver</span></div>
+        <span class="brand-sep" aria-hidden="true">&middot;</span>
         <div class="cm-attr">
           <span class="cm-pb">Powered by</span>
           <span class="cm-wm"><span class="cm-coach">COACH</span><span class="cm-mate">Mate</span></span>
@@ -672,13 +677,14 @@
     </div><!-- .driver-tab-wrap -->
   </div>
 
-  <!-- ── Passenger Display (NextStop) tab ─────────────────────────────── -->
+  <!-- ── Passenger Display (Announce) tab ─────────────────────────────── -->
   <div id="tab-onboard" class="demo-tab-panel" role="tabpanel">
     <div class="onboard-screen" id="onboard-screen">
 
-      <!-- BusHub.NextStop brand mark -->
+      <!-- BusOps Announce brand mark -->
       <div id="ob-brand" aria-hidden="true">
-        <div class="bh-wm">BUSHUB<span class="bh-app">.NextStop</span></div>
+        <div class="bo-wm">BUSOPS <span class="bo-app">Announce</span></div>
+        <span class="brand-sep" aria-hidden="true">&middot;</span>
         <div class="cm-attr">
           <span class="cm-pb">Powered by</span>
           <span class="cm-wm"><span class="cm-coach">COACH</span><span class="cm-mate">Mate</span></span>
@@ -1036,7 +1042,7 @@
       // Stop list
       renderStopList(stops, sIdx, sim.arrivals);
 
-      // ════ ONBOARD (NEXTSTOP) VIEW ══════════════════════════════════════
+      // ════ ONBOARD (ANNOUNCE) VIEW ═══════════════════════════════════════
 
       document.getElementById('ob-svc-code').textContent    = route.service;
       document.getElementById('ob-destination').textContent  = stops[stops.length - 1].name;

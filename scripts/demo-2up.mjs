@@ -1,5 +1,5 @@
 // Two-window client-pitch demo: the real driver PWA next to the real
-// NextStop passenger display, borderless and positioned for a 15" laptop
+// BusOps Announce passenger display, borderless and positioned for a 15" laptop
 // (1280x720 logical / window.screen coordinate space — see openWindow()'s
 // comment on why that's not the same as the panel's physical pixels).
 //
@@ -23,7 +23,7 @@
 //           journey). PWA opens straight to the duty card.
 //   manual  No duty card assigned. PWA opens to the "No duty assigned"
 //           screen; you click "Select a service manually" and pick it
-//           yourself. The NextStop window is already pointed at the
+//           yourself. The BusOps Announce window is already pointed at the
 //           journey this will resolve to (get_or_create_manual_journey is
 //           keyed on departure + date, so the id is known up front even
 //           though the row's status flips to in_progress only once you
@@ -33,7 +33,7 @@
 // Both scenarios drive the same physical route (S125S, Weston → Boston
 // College) so one set of mocked stop coordinates covers either.
 //
-// Audio: the NextStop window is the one that talks (real onboard hardware
+// Audio: the BusOps Announce window is the one that talks (real onboard hardware
 // only has one speaker — the vehicle's, not the driver's phone); the PWA
 // window's own PSVAIR announcements are muted via localStorage so the two
 // don't talk over each other.
@@ -195,7 +195,7 @@ function offsetPerpendicular(prev, target, next, offsetM) {
 }
 
 // Resolves (creating if needed) today's journey row for the manual-mode
-// departure, so the NextStop window can be pointed at its journey_id before
+// departure, so the BusOps Announce window can be pointed at its journey_id before
 // the driver has actually clicked Start. Idempotent — keyed on
 // (timetable_departure_id, journey_date) — see schema.sql. This does NOT
 // flip status to in_progress; that only happens once you click Start in the
@@ -304,7 +304,7 @@ process.on('SIGTERM', shutdown);
   const onboardUrl = new URL('/onboard.html', BASE_URL);
   onboardUrl.searchParams.set('journey', journeyId);
 
-  const [driver, nextstop] = await Promise.all([
+  const [driver, announce] = await Promise.all([
     openWindow({
       url: pwaUrl, mute: true,
       windowPosition: `${PWA_X},${PWA_Y}`, windowSize: `${PWA_W},${PWA_H}`,
@@ -323,17 +323,17 @@ process.on('SIGTERM', shutdown);
   } else {
     console.log('LEFT  (driver PWA):  click "Select a service manually", choose');
     console.log(`                     Service: ${MANUAL_SERVICE}, Period: ${MANUAL_PERIOD}, then hit Start.`);
-    console.log('                     (Must be that exact service/period — the NextStop window');
+    console.log('                     (Must be that exact service/period — the BusOps Announce window');
     console.log('                     is already watching the journey it resolves to.)');
   }
-  console.log('RIGHT (NextStop):    nothing to click — it polls for the journey to start and');
+  console.log('RIGHT (Announce):    nothing to click — it polls for the journey to start and');
   console.log('                     wakes on its own within a few seconds of you hitting Start.');
   console.log('                     It has voice; the driver PWA is muted so they don\'t overlap.');
   console.log('\nWaiting for both to start…');
 
   await Promise.all([
     driver.page.waitForSelector('#tracker:not([hidden])', { timeout: 10 * 60 * 1000 }),
-    nextstop.page.waitForSelector('#onboard-sign:not([hidden])', { timeout: 10 * 60 * 1000 }),
+    announce.page.waitForSelector('#onboard-sign:not([hidden])', { timeout: 10 * 60 * 1000 }),
   ]);
   console.log('Both started — driving the route now.');
   console.log('[EVENT 1] Journey start — should be audible now: route/destination + first two stops.\n');
@@ -373,7 +373,7 @@ process.on('SIGTERM', shutdown);
       const pos = { latitude: lerp(from.lat, to.lat, t), longitude: lerp(from.lon, to.lon, t) };
       await Promise.all([
         driver.context.setGeolocation(pos),
-        nextstop.context.setGeolocation(pos),
+        announce.context.setGeolocation(pos),
       ]);
 
       // Narrates in the terminal, synced with the same simulated GPS feed

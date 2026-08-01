@@ -22,7 +22,7 @@ The screen is divided into three locked columns, sized by content criticality:
 
 - Service code in a large bordered box (mono font, same style as now) filling most of the column height
 - Operator name below it (one line, very small)
-- The brand mark (`BUSHUB.NextStop`) anchored to the bottom of this column
+- The brand mark (`BUSOPS Announce`) anchored to the bottom of this column
 
 ### Centre Column — Stop Information (≈58% width)
 
