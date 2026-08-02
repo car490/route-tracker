@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Interior Display System Proposal</title>
+<style>
+  @page { margin: 26mm 18mm 20mm 18mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
+    color: #1a1a1a;
+    font-size: 10.5pt;
+    line-height: 1.5;
+  }
+  h1 { font-size: 18pt; color: #0D0D0D; border-bottom: 2.5px solid #D32F2F; padding-bottom: 6px; margin-top: 0; }
+  h2 { font-size: 13.5pt; color: #0D0D0D; margin-top: 22px; }
+  h3 { font-size: 11.5pt; color: #0D0D0D; margin-top: 14px; }
+  .section { page-break-before: always; }
+  .section:first-of-type { page-break-before: auto; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0 16px 0; font-size: 9.5pt; }
+  th, td { border: 1px solid #ccc; padding: 5px 8px; text-align: left; vertical-align: top; }
+  th { background: #f2f2f2; }
+  code, pre { font-family: 'Consolas', 'Courier New', monospace; font-size: 9pt; }
+  pre { background: #f6f6f6; border: 1px solid #ddd; padding: 10px; white-space: pre-wrap; }
+  ul { margin: 6px 0; padding-left: 20px; }
+  li { margin: 2px 0; }
+  .badge {
+    display: inline-block; background: #0D0D0D; color: #fff; padding: 14px 26px;
+    border-radius: 6px; font-weight: bold; font-size: 20pt; letter-spacing: 0.5px;
+  }
+  .badge .accent { color: #D32F2F; }
+  .badge-sub { font-size: 8.5pt; color: #bbb; letter-spacing: 1px; margin-top: 4px; }
+  .cover { text-align: center; padding-top: 90px; }
+  .cover h1 { border: none; font-size: 27pt; margin-top: 50px; }
+  .cover .subtitle { font-style: italic; color: #555; margin-top: 6px; font-size: 12pt; }
+  .cover .meta { margin-top: 110px; font-size: 11pt; }
+  .cover .meta div { margin: 4px 0; }
+  .cover .confidential { margin-top: 220px; font-size: 9pt; color: #777; }
+  .corrected { background: #FFF8E1; }
+  .note {
+    background: #FFF3E0; border-left: 4px solid #F57C00; padding: 8px 12px;
+    margin: 10px 0; font-size: 9.5pt;
+  }
+  .status-compliant { color: #1B5E20; font-weight: 600; }
+  .status-partial { color: #E65100; font-weight: 600; }
+  .status-gap { color: #B71C1C; font-weight: 600; }
+  .status-planned { color: #0D47A1; font-weight: 600; }
+  .status-oos { color: #555; font-weight: 600; }
+  .status-na { color: #777; font-weight: 600; }
+  .summary-box { border: 1px solid #ccc; border-radius: 6px; padding: 12px 16px; margin: 10px 0; background: #fafafa; }
+</style>
+</head>
+<body>
+
+<!-- COVER PAGE -->
+<div class="cover">
+  <div class="badge">BusOps<span class="accent">Driver</span><div class="badge-sub">POWERED BY COACHMATE</div></div>
+  <h1>Interior Display System Proposal</h1>
+  <div class="subtitle">Powered by CoachMate</div>
+  <div class="meta">
+    <div>Prepared for: <strong>[Employer Name]</strong></div>
+    <div>Prepared by: <strong>John</strong></div>
+    <div>Date: <strong>02 August 2026</strong></div>
+  </div>
+  <div class="confidential">Confidential — Prepared for Internal Review</div>
+</div>
+
+<!-- 1. EXECUTIVE SUMMARY -->
+<div class="section">
+<h1>1. Executive Summary</h1>
+<p>This proposal, powered by CoachMate, introduces a modern interior passenger information display
+system designed specifically for older fleet vehicles such as the Volvo B7RLE. The system uses
+a controller-driven HDMI display, bypassing legacy DG3/IBIS hardware entirely. This delivers a
+passenger information experience using UK-sourced components, with minimal electrical
+integration and full control over the UI.</p>
+<p>The solution is:</p>
+<ul>
+  <li><strong>Modern</strong> — full graphics, animations, branding</li>
+  <li><strong>Compatible</strong> — works with any older bus</li>
+  <li><strong>Maintainable</strong> — uses standard, UK-stocked components</li>
+  <li><strong>Cost-effective</strong> — avoids EG4/Ethernet retrofits</li>
+  <li><strong>Deterministic</strong> — the Bus Controller drives all display logic</li>
+  <li><strong>Regulation-aware</strong> — designed against the PSV Accessible Information Regulations 2023 display requirements; see Appendix A for the full compliance mapping</li>
+</ul>
+
+<h1>2. System Architecture Overview</h1>
+<h2>High-Level Architecture</h2>
+<pre>24V Bus Supply --> Victron Orion-Tr Isolated 24/12 DC-DC Converter --> Fused 12V
+Distribution --> [Bus Controller, Interior Display, Driver PWA charging] --HDMI--> Interior Display</pre>
+<h2>Application Flow</h2>
+<p><strong>Operations PWA</strong> Creates routes, duties, schedules. Sends duty link to driver.</p>
+<p><strong>Driver PWA</strong> Receives duty link. If none: shows Route Selector. On Start: begins GPS polling and
+progress tracking. Joins the Bus Controller's local WiFi access point and sends structured progress events to it over that link.</p>
+<p><strong>Bus Controller</strong> Hosts a local WiFi access point for the Driver PWA to join. Receives progress events. Renders final UI. Outputs HDMI to interior display.</p>
+<p><strong>Interior Display</strong> Shows the passenger information UI.</p>
+</div>
+
+<!-- 3. DRIVER PWA -->
+<div class="section">
+<h1>3. Driver PWA (Dedicated Chapter)</h1>
+<p><em>The heart of the platform's real-time intelligence</em></p>
+<p>The Driver PWA is the operational core of the ecosystem. It is responsible for:</p>
+<ul>
+  <li>Duty retrieval</li>
+  <li>Route selection</li>
+  <li>GPS polling</li>
+  <li>Stop detection</li>
+  <li>Progress tracking</li>
+  <li>Sending structured progress events to the Bus Controller</li>
+</ul>
+<p>It runs on a dedicated tablet mounted in the driver's cab.</p>
+
+<h2>3.1 Driver PWA Responsibilities</h2>
+<h3>Duty Handling</h3>
+<ul>
+  <li>Receives duty link from Operations PWA</li>
+  <li>Displays duty summary</li>
+  <li>If no duty: presents Route Selector</li>
+  <li>Ensures driver starts correct route</li>
+</ul>
+<h3>GPS Polling</h3>
+<ul>
+  <li>Polls GPS at fixed intervals</li>
+  <li>Calculates distance to next stop</li>
+  <li>Determines stop arrival/leave events</li>
+  <li>Detects terminus arrival</li>
+</ul>
+<h3>Progress Event Generation</h3>
+<p>Driver PWA sends structured JSON events to the Bus Controller, including:</p>
+<ul>
+  <li><code>next_stop</code></li>
+  <li><code>following_stop</code></li>
+  <li><code>distance_to_next</code></li>
+  <li><code>eta_next_stop</code></li>
+  <li><code>progress_percent</code></li>
+  <li><code>stop_requested</code></li>
+  <li><code>disruption_message</code></li>
+  <li><code>terminus_flag</code></li>
+</ul>
+<h3 class="corrected">Connectivity</h3>
+<div class="note"><strong>Corrected:</strong> the Bus Controller hosts the local network (a <code>hostapd</code> WiFi access point); the Driver PWA device joins it as a standard, low-privilege WiFi client. The device does not host its own hotspot.</div>
+<ul>
+  <li>Joins the Bus Controller's WiFi access point as a client</li>
+  <li>No pairing step required on the tablet beyond the one-time WiFi join</li>
+  <li>USB tether (optional, bench/diagnostic use only)</li>
+</ul>
+
+<h2>3.2 Driver PWA Data Flow Diagram</h2>
+<pre>+------------------------+
+|     Operations PWA     |
+|   (Routes & Duties)    |
++-----------+------------+
+            | Duty Link
+            v
++------------------------+
+|       Driver PWA        |
+| (Galaxy Tab A9 LTE,      |
+|  SM-X115, cab-mounted)   |
++------------+-----------+
+| GPS Polling | Route Sel |
++------+------+-----+----+
+       | Progress Events (JSON), over WiFi client link
+       v
++------------------------+
+|      Bus Controller     |
+| (Raspberry Pi 5, 4GB —   |
+|  hosts WiFi AP)          |
++-----------+------------+
+            | HDMI Output
+            v
++------------------------+
+|    Interior Display     |
+| (Allsee WS28HD8-B,       |
+|  28", 1920x360)          |
++------------------------+</pre>
+</div>
+
+<!-- 4. UI MOCKUPS -->
+<div class="section">
+<h1>4. Refined UI Mockups (Pixel-Level Specification)</h1>
+<div class="note"><strong>Corrected:</strong> the interior display is a 28", 16:3, 1920×360 stretched-bar panel (not a 15–21" standard-aspect LCD). The layout below is <code>vh</code>-based so it scales to the panel's physical height regardless of pixel resolution, and the panel's fixed 28" height itself satisfies the PSV(AI)R minimum 22mm text-height requirement — see Appendix A, §1.4.</div>
+<h2>4.1 Layout Zones</h2>
+<h3>Zone A — Header Bar (Top 12%)</h3>
+<ul>
+  <li>Background: #0D0D0D</li>
+  <li>Route number: Roboto Bold, 72px, #F9A825</li>
+  <li>Destination: Roboto Medium, 48px, #FFFFFF</li>
+  <li>Time: Roboto Regular, 36px, #CCCCCC</li>
+  <li>Operator logo: white silhouette</li>
+  <li>Company logo placed top-left in header</li>
+</ul>
+<h3>Zone B — Main Content (Middle 65%)</h3>
+<p><em>Next Stop (Primary)</em></p>
+<ul>
+  <li>Font: Roboto Black, 96px, #FFFFFF</li>
+  <li>Alignment: centred</li>
+  <li>Animation: slide-in (300ms)</li>
+</ul>
+<p><em>Following Stop (Secondary)</em></p>
+<ul>
+  <li>Font: Roboto Regular, 48px, #AAAAAA</li>
+  <li>Alignment: centred</li>
+  <li>Animation: fade-in (200ms)</li>
+</ul>
+<p><em>Icon Row</em></p>
+<ul>
+  <li>Icons: wheelchair, bell, interchange</li>
+  <li>Style: line icons, 2px stroke</li>
+  <li>Colour: #F9A825</li>
+  <li>Size: 48px</li>
+</ul>
+<h3>Zone C — Footer Bar (Bottom 23%)</h3>
+<p><em>Progress Bar</em></p>
+<ul>
+  <li>Background: #1A1A1A</li>
+  <li>Bar colour: #F9A825</li>
+  <li>Height: 24px</li>
+  <li>Animation: smooth linear progression</li>
+</ul>
+<p><em>Disruption / Notices</em></p>
+<ul>
+  <li>Font: Roboto Medium, 36px, #FF5252</li>
+  <li>Behaviour: static or scrolling</li>
+</ul>
+
+<h2>4.2 Colour Palette</h2>
+<table>
+  <tr><th>Purpose</th><th>Colour</th></tr>
+  <tr><td>Background</td><td>#0D0D0D</td></tr>
+  <tr><td>Primary text</td><td>#FFFFFF</td></tr>
+  <tr><td>Secondary text</td><td>#AAAAAA</td></tr>
+  <tr><td>Accent</td><td>#F9A825</td></tr>
+  <tr><td>Warning</td><td>#FF5252</td></tr>
+</table>
+
+<h2>4.3 Typography</h2>
+<ul>
+  <li>Roboto family (Bold, Medium, Regular, Black)</li>
+  <li>High readability</li>
+  <li>Clean, modern, widely supported</li>
+  <li>Works well on stretched-bar LCD panels</li>
+</ul>
+</div>
+
+<!-- 5. WIRING -->
+<div class="section">
+<h1>5. Wiring Diagram (Text-Based)</h1>
+<div class="note"><strong>Corrected:</strong> power conditioning is a single isolated 24V→12V converter stage feeding a fused 12V distribution block, with point-of-load USB-C PD modules per device — not separate 24V→12V and 24V→5V converters.</div>
+<h2 class="corrected">Power Path</h2>
+<pre>24V Bus Supply
+  |
+  |-- Input Fuse --> Victron Orion-Tr Isolated 24/12 DC-DC Converter
+                      |
+                      v
+                Fused 12V Distribution Block
+                      |
+        +-------------+-------------+---------------------+
+        |                           |                      |
+   Fuse --> Interior Display   Fuse --> 12V-in USB-C PD   Fuse --> 12V-in USB-C PD
+            (native 12V)             module --> Raspberry     module --> Driver PWA
+                                     Pi 5 (5V/5A via USB-C)    tablet (USB-C fast charge)</pre>
+<h2>Signal Path</h2>
+<pre>Driver PWA --> Progress Events (JSON, over WiFi client link) --> Bus Controller
+Bus Controller HDMI Out --> Shielded HDMI Cable --> Interior Display (native HDMI input)</pre>
+<h2>Grounding</h2>
+<pre>Interior Display GND
+Bus Controller (Pi) GND
+DC-DC Converter GND
+    --> Single Chassis Ground Point</pre>
+</div>
+
+<!-- 6. INSTALLATION -->
+<div class="section">
+<h1>6. Installation Plan (Volvo B7RLE)</h1>
+<h2>6.1 Mechanical Installation</h2>
+<ol>
+  <li>Identify roof structure/cross-members above the aisle, just past the entry area.</li>
+  <li>Install VESA ceiling-drop mount (75×75, rated for the panel's ~10kg) with M8 bolt-through fixings into the roof structure.</li>
+  <li>Add anti-vibration isolation mounts.</li>
+  <li>Mount the Interior Display to the ceiling-drop mount.</li>
+  <li class="corrected">Install the Bus Controller (Raspberry Pi 5) and power electronics together in a single <strong>polycarbonate</strong> enclosure, recessed into the same ceiling void. Polycarbonate is specifically required, not metal — a metal enclosure would attenuate the Pi's onboard WiFi (Faraday-cage effect), which the Driver PWA depends on to reach the access point it hosts.</li>
+  <li>Install the Driver PWA tablet mount in the cab using a RAM Mounts C-size ball-and-socket cradle on a bolted (not suction-cup) base, rated for commercial-vehicle vibration.</li>
+</ol>
+<h2>6.2 Electrical Installation</h2>
+<ol>
+  <li>Tap into auxiliary 24V circuit, downstream of the vehicle's master isolator switch.</li>
+  <li>Install input fuse ahead of the Victron Orion-Tr Isolated 24/12 converter, and an output fuse per branch off the 12V distribution block.</li>
+  <li>Mount the converter and fused distribution block in the enclosure.</li>
+  <li>Run 12V to the Interior Display (native 12V input).</li>
+  <li>Run 12V to a USB-C PD module powering the Raspberry Pi 5 (5V/5A over USB-C).</li>
+  <li>Run 12V to a USB-C PD module for Driver PWA tablet charging at the cab mount.</li>
+  <li>Install ferrite chokes on power lines.</li>
+  <li>Run shielded HDMI cable from the Bus Controller to the Interior Display.</li>
+</ol>
+<h2 class="corrected">6.3 Software Commissioning</h2>
+<ol>
+  <li>Install Raspberry Pi OS, boot from USB3/NVMe SSD (avoids SD-card corruption risk on ungraceful power loss).</li>
+  <li>Configure <code>hostapd</code> WiFi access point on the Pi (with the WiFi interface marked <code>unmanaged</code> in NetworkManager so it doesn't fight the manually-run <code>hostapd</code>), and configure auto-boot systemd services for both the AP and the kiosk browser.</li>
+  <li>Pair the Driver PWA tablet to the Pi's access point (one-time WiFi join at commissioning).</li>
+  <li>Set HDMI output to the panel's native 1920×360 resolution.</li>
+  <li>Test UI transitions and brightness for daylight visibility through the vehicle glazing.</li>
+  <li>Perform road test for readability, stability, and AP reconnect behaviour after a power cycle.</li>
+</ol>
+</div>
+
+<!-- 7. PROCUREMENT -->
+<div class="section">
+<h1>7. Procurement Tables (All Devices)</h1>
+
+<h2 class="corrected">7.1 Driver PWA Device</h2>
+<div class="note"><strong>Corrected:</strong> the confirmed device is a tablet, not a phone — specifically the LTE SKU, which is the only variant with a GNSS chip.</div>
+<table>
+<tr><th>Item</th><th>Model</th><th>Supplier</th><th>Notes</th></tr>
+<tr class="corrected"><td>Driver PWA Device</td><td>Samsung Galaxy Tab A9, LTE (SM-X115), 8GB/128GB</td><td>Samsung UK / Currys</td><td>LTE SKU required — the Wi-Fi-only SM-X110 has no GNSS chip and would fail the geofence requirement. LTE also covers mid-route Supabase connectivity independent of the Pi's local AP.</td></tr>
+<tr class="corrected"><td>Cab Mount</td><td>RAM Mounts C-size ball-and-socket, X-Grip or Tab-Tite cradle</td><td>RAM Mounts UK (ram-mount.co.uk) or MUD-UK</td><td>Bolted base, not suction-cup — rated for sustained commercial-vehicle vibration</td></tr>
+</table>
+
+<h2 class="corrected">7.2 Bus Controller</h2>
+<table>
+<tr><th>Item</th><th>Model</th><th>Supplier</th><th>Notes</th></tr>
+<tr class="corrected"><td>Bus Controller</td><td>Raspberry Pi 5, 4GB</td><td>The Pi Hut</td><td>4GB is sufficient for this workload (kiosk browser + hostapd + one WebSocket link); HDMI output</td></tr>
+<tr><td>Storage</td><td>USB3/NVMe SSD (boot device)</td><td>The Pi Hut</td><td>Preferred over SD card — avoids the classic SD-corruption failure mode on ungraceful power loss, using Pi 5's PCIe support</td></tr>
+<tr class="corrected"><td>Enclosure</td><td>Polycarbonate, combined with power electronics</td><td>—</td><td>Not metal — metal would attenuate the Pi's onboard WiFi needed to host the access point</td></tr>
+</table>
+
+<h2 class="corrected">7.3 Interior Display</h2>
+<div class="note"><strong>Corrected:</strong> the confirmed panel is a 28" stretched-bar display, not a generic 15–21" industrial LCD.</div>
+<table>
+<tr><th>Item</th><th>Model</th><th>Supplier</th><th>Notes</th></tr>
+<tr class="corrected"><td>Display Panel</td><td>Allsee WS28HD8-B — 28", 1920×360 native 16:3, 700 cd/m², VESA 75×75</td><td>Allsee Technologies (UK), via POS-Hardware Ltd or Screenage</td><td>Direct HDMI input (no separate HDMI-to-LVDS driver board needed); 3-year commercial warranty + UK technical support. Confirm before ordering: exact resolution/VESA figures, and whether the panel auto-boots straight to its HDMI input with no menu navigation.</td></tr>
+<tr class="corrected"><td>Ceiling Mount</td><td>B-Tech AV Mounts VESA ceiling-drop mount (BT8426 or equivalent)</td><td>ScreenMoove / Futureshop.co.uk / JP-UK (UK stock)</td><td>VESA 75×75–400×400, up to 50"/40kg</td></tr>
+</table>
+
+<h2 class="corrected">7.4 Power System</h2>
+<div class="note"><strong>Corrected:</strong> a single isolated converter stage plus point-of-load modules, replacing the two separate generic 24V→12V/24V→5V converters.</div>
+<table>
+<tr><th>Item</th><th>Model</th><th>Supplier</th><th>Notes</th></tr>
+<tr class="corrected"><td>Central DC-DC Converter</td><td>Victron Orion-Tr <strong>Isolated</strong> 24/12</td><td>12 Volt Planet / Sunshine Solar / BMS Technologies / Midsummer Energy (UK)</td><td>Isolated variant specifically — galvanic isolation gives real noise/interference blocking, sold explicitly for comms/entertainment/navigation systems. Feeds one clean fused 12V distribution point.</td></tr>
+<tr class="corrected"><td>Point-of-load Modules</td><td>12V-input USB-C PD modules, 25–60W rated</td><td>RS / Farnell</td><td>One per device (Pi 5, Driver PWA tablet); Interior Display takes 12V directly, no conversion needed</td></tr>
+<tr><td>Fuses</td><td>Sized per branch off the distribution block</td><td>Vehicle Wiring Products</td><td>Individual fuse per branch — one downstream short doesn't take out the rest</td></tr>
+</table>
+
+<h2>7.5 Cabling &amp; Mounting</h2>
+<table>
+<tr><th>Item</th><th>Model</th><th>Supplier</th><th>Notes</th></tr>
+<tr><td>HDMI Cable</td><td>Shielded, short run</td><td>The Pi Hut</td><td>Reduce interference</td></tr>
+<tr><td>Automotive Wiring</td><td>24V rated</td><td>Vehicle Wiring Products</td><td>Power loom</td></tr>
+<tr><td>Mounting Hardware</td><td>M8 bolts, anti-vibration isolation mounts</td><td>Screwfix</td><td>Roof/ceiling fixing</td></tr>
+</table>
+</div>
+
+<!-- 8/9/10 -->
+<div class="section">
+<h1>8. Project Timeline</h1>
+<table>
+<tr><th>Phase</th><th>Duration</th></tr>
+<tr><td>Procurement (panel lead time confirmed with Allsee/POS-Hardware before ordering)</td><td>2-4 weeks</td></tr>
+<tr><td>Installation (per bus)</td><td>4-6 hours</td></tr>
+<tr><td>Software commissioning</td><td>1-2 hours</td></tr>
+<tr><td>Road testing</td><td>1 day</td></tr>
+</table>
+<div class="note">Timeline lengthened slightly from the original draft to reflect that the 28" Allsee panel is a quote-and-lead-time B2B AV-integrator product rather than an off-the-shelf retail item — confirm actual lead time with the supplier before committing to a fixed installation date.</div>
+
+<h1>9. Cost Summary</h1>
+<p>Costs to be confirmed once panel pricing/lead-time is obtained from Allsee/POS-Hardware/Screenage and the Victron converter and mounting hardware are quoted — the original placeholder figures assumed a generic 15–21" LCD and are not carried forward here to avoid understating cost.</p>
+
+<h1>10. Benefits to the Operator</h1>
+<ul>
+  <li>Modern passenger experience</li>
+  <li>Full control over UI and branding</li>
+  <li>No dependency on DG3/IBIS</li>
+  <li>No expensive EG4/Ethernet retrofit</li>
+  <li>Uses standard UK-available/UK-stocked components throughout</li>
+  <li>Easy maintenance and replacement</li>
+  <li>Scalable across entire fleet</li>
+  <li>Designed against the PSV(AI)R 2023 display requirements — see Appendix A</li>
+</ul>
+</div>
+
+<!-- 11 CONCLUSION -->
+<div class="section">
+<h1>11. Conclusion</h1>
+<p>This system provides a modern, reliable, and cost-effective interior display for older buses. It leverages
+your existing software, UK-sourced components confirmed against real supplier availability, and a clean
+HDMI architecture to deliver a passenger experience without the complexity of legacy bus systems.</p>
+</div>
+
+<!-- APPENDIX A -->
+<div class="section">
+<h1>Appendix A: PSV Accessible Information Regulations (PSV(AI)R) Compliance</h1>
+<p>Prepared against two source documents supplied by the operator: the CPT Operator Checklist for Vehicle
+Compliance (display, audio, and announcement requirements), and the accompanying CPT guidance note on
+diversions, hail-and-ride, and Annexes A (volume measurement) and B (alerts).</p>
+<p>This appendix covers the <strong>full</strong> PSV(AI)R scope. The Interior Display System described in the body of
+this proposal delivers the <strong>visual display</strong> rows (Section A1) and receives the disruption/diversion text
+shown on-screen. Audio announcements, volume calibration, and driver-triggered diversion alerts are
+delivered by the separate Driver PWA announcement subsystem (pre-rendered TTS clips + live speech
+synthesis), not by the Interior Display hardware covered above — rows below are marked accordingly.</p>
+<p>Status key: <span class="status-compliant">Compliant</span> ·
+<span class="status-partial">Partial</span> ·
+<span class="status-gap">Gap</span> ·
+<span class="status-planned">Planned</span> ·
+<span class="status-oos">Out of scope (hardware/procedural)</span> ·
+<span class="status-na">N/A</span></p>
+
+<h2>A1. Display requirements (visual) — delivered by this proposal's Interior Display system</h2>
+<table>
+<tr><th>#</th><th>Requirement</th><th>Status</th><th>Notes</th></tr>
+<tr><td>1.1</td><td>Visible from ≥51% of passenger seats on each deck (no standing passengers)</td><td class="status-planned">Planned</td><td>Panel spec and central-aisle ceiling position chosen with this in mind; not yet physically verified since no panel is installed on a vehicle yet.</td></tr>
+<tr><td>1.2</td><td>Visible from each forward-facing wheelchair space, and any designated priority seats</td><td class="status-planned">Planned</td><td>Same as 1.1 — position chosen accordingly, not yet physically verified.</td></tr>
+<tr><td>1.3</td><td>Buses first used from 1/10/24: display reasonably visible from rearward-facing wheelchair space(s)</td><td class="status-planned">Planned</td><td>Not yet verified — depends on final panel position relative to each vehicle's wheelchair bay, which varies by vehicle model.</td></tr>
+<tr><td>1.4</td><td>Display text ≥22mm in height, on a contrasting background</td><td class="status-compliant">Compliant (by design)</td><td>The UI layout (Section 4) is height-relative (<code>vh</code>-based), so the panel's fixed 28" physical height satisfies 22mm by panel size alone, independent of pixel resolution. High-contrast palette (Section 4.2) is already built. Not yet verified on installed hardware.</td></tr>
+<tr><td>1.5</td><td>Audio announcements must be consistent with the visual information provided</td><td class="status-gap">Gap</td><td>The Interior Display currently renders from its own progress-event feed; the live link from the Driver PWA's announcement engine to the Interior Display so the two are guaranteed to show/say the same thing at the same moment is not yet built/verified end-to-end.</td></tr>
+</table>
+
+<h2>A2. Audio requirements — delivered by the Driver PWA announcement subsystem, not this proposal's hardware</h2>
+<table>
+<tr><th>#</th><th>Requirement</th><th>Status</th><th>Notes</th></tr>
+<tr><td>2.1</td><td>Pre-measured ambient / live-measured volume levels measured per Annex A</td><td class="status-oos">Out of scope (procedural)</td><td>Physical calibration exercise (empty vehicle, front/rear average, 5mph &amp; 20mph) carried out by ops staff with a sound-level meter. The Driver PWA platform stores the resulting figure (<code>vehicle_audio_config</code>: ambient reading, fixed output level, measured-by, measured-at) but does not perform the measurement. Needs a named owner and documented procedure.</td></tr>
+<tr><td>2.2</td><td>Audio delivered at every seat/wheelchair space at a level 3dB louder than ambient (non-adaptive) or live ambient (adaptive)</td><td class="status-oos">Out of scope (hardware)</td><td>Function of the vehicle PA amplifier/speaker installation and its physical calibration — outside this proposal's scope (this proposal covers the visual display only). No PA/amp/speaker system is currently specified.</td></tr>
+<tr><td>2.3</td><td>Audio not delivered louder than 84dB at any seat/wheelchair space</td><td class="status-oos">Out of scope (hardware)</td><td>Same as 2.2 — a physical PA/amplifier ceiling, needs a named hardware owner.</td></tr>
+<tr><td>2.4</td><td>Volume control facility — adaptive (auto-varies with live ambient) OR non-adaptive (pre-measured, operator-set)</td><td class="status-compliant">Compliant — non-adaptive route</td><td>The Driver PWA platform implements the non-adaptive path: one fixed calibrated output level per vehicle, applied uniformly. Valid under the regulation's non-adaptive option.</td></tr>
+<tr><td>2.5</td><td>Audio available via induction hearing loop at every wheelchair space and priority seat, for telecoil hearing aids</td><td class="status-oos">Out of scope (hardware)</td><td>Vehicle audio-hardware component, independent of this proposal and the Driver PWA software. Not addressed anywhere in the current build. Needs a named hardware owner and confirmation of fitment per vehicle.</td></tr>
+<tr><td>2.6</td><td>Operators must not require use of a "personal electronic device" to receive the mandated information</td><td class="status-compliant">Compliant</td><td>All mandated audio/visual info is delivered via vehicle-mounted hardware (this proposal's Interior Display, and the Driver PWA driving the PA). No passenger-facing app or personal device is required.</td></tr>
+</table>
+
+<h2>A3. Announcement content &amp; timing requirements — delivered by the Driver PWA announcement subsystem</h2>
+<table>
+<tr><th>#</th><th>Requirement</th><th>Status</th><th>Notes</th></tr>
+<tr><td>3.1</td><td>At each stopping place, beginning when doors open: announce route name/number and final stopping place (or direction)</td><td class="status-compliant">Compliant</td><td>Implemented, announcing route code and final destination on arrival. <strong>Trigger nuance:</strong> fires on GPS-confirmed arrival, not a physical door-open sensor — there is no door-sensor integration in the current hardware stack, so "doors open" and "GPS arrival" are treated as equivalent triggers.</td></tr>
+<tr><td>3.2</td><td>After leaving/passing each stopping place, in good time before the next: announce the name of the next stopping place</td><td class="status-compliant">Compliant</td><td>An "approaching" announcement fires 250m out from the next stop, ahead of arrival.</td></tr>
+<tr><td>3.3</td><td>Passengers informed when the service has reached its final stopping place, preceded by an alert</td><td class="status-partial">Partial</td><td>The final-stop announcement itself is implemented and fires once, on arrival. No distinct "alert" sound precedes it — see A4, row 5.1.</td></tr>
+<tr><td>3.4</td><td>Sufficient time provided at the final stopping place for passengers to alight</td><td class="status-compliant">Compliant</td><td>The final-stop announcement is not time-boxed or auto-dismissed; nothing in the software curtails alighting time.</td></tr>
+<tr><td>3.5</td><td>Facility to provide diversion information to passengers</td><td class="status-compliant">Compliant</td><td>Driver-triggered "Diversion Alert" control in the Driver PWA fires an immediate fixed announcement and suppresses normal stop announcements while active.</td></tr>
+<tr><td>3.6</td><td>Diversion known in advance: information provided before the last scheduled stopping place, prior to the diversion commencing</td><td class="status-gap">Gap</td><td>Only real-time, driver-toggled alerts exist — there is no concept of a pre-planned diversion with route/timing data the system could use to announce automatically ahead of the diversion point. Recommend scoping this as a follow-up, or formally confirming driver procedure as the interim mitigation.</td></tr>
+<tr><td>3.7</td><td>Diversion not known in advance: information given as soon as possible once known</td><td class="status-compliant">Compliant</td><td>Exactly what the driver-triggered button provides.</td></tr>
+<tr><td>3.8</td><td>Diversion info preceded by an alert</td><td class="status-gap">Gap</td><td>Same alert-tone gap as 3.3/5.1.</td></tr>
+<tr><td>3.9–3.12</td><td>Hail-and-ride notification requirements (start of route, mid-route commencement, end-of-section warning, preceded by an alert)</td><td class="status-na">N/A</td><td>Confirmed with the operator: no current or planned routes use hail-and-ride sections. If this changes, none of the schema, GPS engine, or announcement pipeline currently models a hail-and-ride section — it would need real design/build work.</td></tr>
+</table>
+
+<h2>A4. Annex A (volume measurement) &amp; Annex B (alerts)</h2>
+<table>
+<tr><th>#</th><th>Requirement</th><th>Status</th><th>Notes</th></tr>
+<tr><td>4.1</td><td>Annex A — non-adaptive/adaptive measurement methodology (empty vehicle, front/rear average, 5mph &amp; 20mph)</td><td class="status-oos">Out of scope (procedural)</td><td>See A2, row 2.1 — operational process, not software.</td></tr>
+<tr><td>5.1</td><td>Annex B — where an alert is required, it is "a sound intended to draw the attention of passengers to the information following it"</td><td class="status-gap">Gap</td><td>No distinct alert tone/chime exists anywhere in the current audio pipeline. Diversion, final-stop, and (if applicable in future) hail-and-ride announcements go straight into spoken content with nothing preceding them. Recommend scoping a short fixed chime clip ahead of these three announcement types — ordinary next-stop/approaching announcements are not "alerts" under the regulation and don't need one.</td></tr>
+</table>
+
+<h2>Summary of open items</h2>
+<div class="summary-box">
+<p><strong>Real gaps requiring build work:</strong></p>
+<ul>
+  <li><strong>5.1 / 3.3 / 3.8</strong> — no alert tone precedes diversion or final-stop announcements.</li>
+  <li><strong>3.6</strong> — no system support for advance-notice diversions (only real-time driver-triggered).</li>
+  <li><strong>1.5</strong> — visual/audio consistency can't be verified until the Interior Display is confirmed receiving live, synchronised state alongside the Driver PWA's spoken announcements.</li>
+</ul>
+<p><strong>Hardware/installation work, not software gaps — needs a named owner and sign-off:</strong></p>
+<ul>
+  <li>Section A1 (display) — panel physically not yet installed on any vehicle; design meets spec on paper.</li>
+  <li>2.2 / 2.3 / 2.5 — PA amplifier calibration (3dB above ambient, 84dB ceiling) and induction hearing loop fitment; no PA/amp system is currently specified in this proposal.</li>
+  <li>2.1 / 4.1 — the physical ambient-measurement procedure itself.</li>
+</ul>
+<p><strong>Confirmed not applicable:</strong> hail-and-ride (3.9–3.12) — no routes use hail-and-ride.</p>
+<p><strong>Compliant / acceptable as designed:</strong> 2.4 (non-adaptive volume control), 2.6 (no personal device required), 1.4, 3.1, 3.2, 3.4, 3.5, 3.7.</p>
+</div>
+</div>
+
+</body>
+</html>
