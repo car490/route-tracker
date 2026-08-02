@@ -170,15 +170,15 @@ progress tracking. Joins the Bus Controller's local WiFi access point and sends 
             v
 +------------------------+
 |    Interior Display     |
-| (Allsee WS28HD8-B,       |
-|  28", 1920x360)          |
+| (compact/low-power LCD,  |
+|  model TBD — see §7.3)   |
 +------------------------+</pre>
 </div>
 
 <!-- 4. UI MOCKUPS -->
 <div class="section">
 <h1>4. Refined UI Mockups (Pixel-Level Specification)</h1>
-<div class="note"><strong>Corrected:</strong> the interior display is a 28", 16:3, 1920×360 stretched-bar panel (not a 15–21" standard-aspect LCD). The layout below is <code>vh</code>-based so it scales to the panel's physical height regardless of pixel resolution, and the panel's fixed 28" height itself satisfies the PSV(AI)R minimum 22mm text-height requirement — see Appendix A, §1.4.</div>
+<div class="note"><strong>Open item:</strong> a large-format 28" stretched-bar panel was evaluated but is not being pursued — sourcing it within the project timeline proved impractical, and more fundamentally, the target fleet (10+ year old vehicles, e.g. Volvo B7RLE) has interior wiring that cannot support a large-format TFT retrofit without a major rewiring job. The plan is now a smaller, lower-power "dumb" panel — still fully driven by the Bus Controller over HDMI, with the same custom UI — that fits within the existing wiring's practical limits. Panel model is not yet chosen (see §7.3). The layout below is <code>vh</code>-based, so it is written to scale to whatever panel is finally selected, but the specific pixel/physical dimensions below (assumed for a 28"/16:3 panel) will need re-checking against the real chosen panel before build.</div>
 <h2>4.1 Layout Zones</h2>
 <h3>Zone A — Header Bar (Top 12%)</h3>
 <ul>
@@ -238,7 +238,7 @@ progress tracking. Joins the Bus Controller's local WiFi access point and sends 
   <li>Roboto family (Bold, Medium, Regular, Black)</li>
   <li>High readability</li>
   <li>Clean, modern, widely supported</li>
-  <li>Works well on stretched-bar LCD panels</li>
+  <li>Works well on standard LCD panels</li>
 </ul>
 </div>
 
@@ -275,7 +275,7 @@ DC-DC Converter GND
 <h2>6.1 Mechanical Installation</h2>
 <ol>
   <li>Identify roof structure/cross-members above the aisle, just past the entry area.</li>
-  <li>Install VESA ceiling-drop mount (75×75, rated for the panel's ~10kg) with M8 bolt-through fixings into the roof structure.</li>
+  <li>Install a ceiling-drop mount sized to the final panel's weight and VESA/mounting pattern (TBD — see §7.3) with bolt-through fixings into the roof structure.</li>
   <li>Add anti-vibration isolation mounts.</li>
   <li>Mount the Interior Display to the ceiling-drop mount.</li>
   <li class="corrected">Install the Bus Controller (Raspberry Pi 5) and power electronics together in a single <strong>polycarbonate</strong> enclosure, recessed into the same ceiling void. Polycarbonate is specifically required, not metal — a metal enclosure would attenuate the Pi's onboard WiFi (Faraday-cage effect), which the Driver PWA depends on to reach the access point it hosts.</li>
@@ -297,7 +297,7 @@ DC-DC Converter GND
   <li>Install Raspberry Pi OS, boot from USB3/NVMe SSD (avoids SD-card corruption risk on ungraceful power loss).</li>
   <li>Configure <code>hostapd</code> WiFi access point on the Pi (with the WiFi interface marked <code>unmanaged</code> in NetworkManager so it doesn't fight the manually-run <code>hostapd</code>), and configure auto-boot systemd services for both the AP and the kiosk browser.</li>
   <li>Pair the Driver PWA tablet to the Pi's access point (one-time WiFi join at commissioning).</li>
-  <li>Set HDMI output to the panel's native 1920×360 resolution.</li>
+  <li>Set HDMI output to the chosen panel's native resolution.</li>
   <li>Test UI transitions and brightness for daylight visibility through the vehicle glazing.</li>
   <li>Perform road test for readability, stability, and AP reconnect behaviour after a power cycle.</li>
 </ol>
@@ -324,11 +324,11 @@ DC-DC Converter GND
 </table>
 
 <h2 class="corrected">7.3 Interior Display</h2>
-<div class="note"><strong>Corrected:</strong> the confirmed panel is a 28" stretched-bar display, not a generic 15–21" industrial LCD.</div>
+<div class="note"><strong>Open item — panel not yet selected.</strong> A 28" stretched-bar panel (Allsee WS28HD8-B) was the earlier candidate but is no longer being pursued: it proved difficult to source within the project timeline, and — more fundamentally — the target fleet (10+ year old vehicles) has interior wiring that cannot support a large-format TFT retrofit without a major rewiring job. The direction now is a smaller, lower-power, easier-to-source "dumb" panel that still plugs into the same Bus Controller over HDMI and renders the same custom UI, but fits within what the existing wiring can support without a full rewire. Candidate panels are being evaluated; model, exact power draw, and mounting pattern are TBD.</div>
 <table>
 <tr><th>Item</th><th>Model</th><th>Supplier</th><th>Notes</th></tr>
-<tr class="corrected"><td>Display Panel</td><td>Allsee WS28HD8-B — 28", 1920×360 native 16:3, 700 cd/m², VESA 75×75</td><td>Allsee Technologies (UK), via POS-Hardware Ltd or Screenage</td><td>Direct HDMI input (no separate HDMI-to-LVDS driver board needed); 3-year commercial warranty + UK technical support. Confirm before ordering: exact resolution/VESA figures, and whether the panel auto-boots straight to its HDMI input with no menu navigation.</td></tr>
-<tr class="corrected"><td>Ceiling Mount</td><td>B-Tech AV Mounts VESA ceiling-drop mount (BT8426 or equivalent)</td><td>ScreenMoove / Futureshop.co.uk / JP-UK (UK stock)</td><td>VESA 75×75–400×400, up to 50"/40kg</td></tr>
+<tr class="corrected"><td>Display Panel</td><td>TBD — compact HDMI-input LCD, low power draw, standard aspect ratio</td><td>Being sourced</td><td>Selection criteria: HDMI input, power draw compatible with the vehicle's existing sign wiring capacity (no major rewire), physically small enough for the ceiling-void install. Once chosen, re-verify against Appendix A §1.1–1.4 (seat visibility, text height).</td></tr>
+<tr class="corrected"><td>Ceiling Mount</td><td>TBD — sized to final panel's weight/mounting pattern</td><td>—</td><td>To be selected once the panel is confirmed</td></tr>
 </table>
 
 <h2 class="corrected">7.4 Power System</h2>
@@ -354,15 +354,16 @@ DC-DC Converter GND
 <h1>8. Project Timeline</h1>
 <table>
 <tr><th>Phase</th><th>Duration</th></tr>
-<tr><td>Procurement (panel lead time confirmed with Allsee/POS-Hardware before ordering)</td><td>2-4 weeks</td></tr>
-<tr><td>Installation (per bus)</td><td>4-6 hours</td></tr>
-<tr><td>Software commissioning</td><td>1-2 hours</td></tr>
+<tr><td>Panel selection (evaluating alternatives to the earlier 28" candidate)</td><td>TBD</td></tr>
+<tr><td>Procurement (once panel confirmed)</td><td>1-2 weeks</td></tr>
+<tr><td>Installation (per bus)</td><td>3-5 hours</td></tr>
+<tr><td>Software commissioning</td><td>1 hour</td></tr>
 <tr><td>Road testing</td><td>1 day</td></tr>
 </table>
-<div class="note">Timeline lengthened slightly from the original draft to reflect that the 28" Allsee panel is a quote-and-lead-time B2B AV-integrator product rather than an off-the-shelf retail item — confirm actual lead time with the supplier before committing to a fixed installation date.</div>
+<div class="note">Timeline depends on finalising the panel choice first — the earlier 28" candidate's B2B lead time is no longer the constraint, but a replacement panel meeting the wiring/power constraints hasn't been confirmed yet.</div>
 
 <h1>9. Cost Summary</h1>
-<p>Costs to be confirmed once panel pricing/lead-time is obtained from Allsee/POS-Hardware/Screenage and the Victron converter and mounting hardware are quoted — the original placeholder figures assumed a generic 15–21" LCD and are not carried forward here to avoid understating cost.</p>
+<p>Costs to be confirmed once a panel is selected and quoted, along with the Victron converter and mounting hardware — no placeholder figures are given here to avoid understating or overstating cost ahead of that decision.</p>
 
 <h1>10. Benefits to the Operator</h1>
 <ul>
@@ -406,10 +407,10 @@ synthesis), not by the Interior Display hardware covered above — rows below ar
 <h2>A1. Display requirements (visual) — delivered by this proposal's Interior Display system</h2>
 <table>
 <tr><th>#</th><th>Requirement</th><th>Status</th><th>Notes</th></tr>
-<tr><td>1.1</td><td>Visible from ≥51% of passenger seats on each deck (no standing passengers)</td><td class="status-planned">Planned</td><td>Panel spec and central-aisle ceiling position chosen with this in mind; not yet physically verified since no panel is installed on a vehicle yet.</td></tr>
-<tr><td>1.2</td><td>Visible from each forward-facing wheelchair space, and any designated priority seats</td><td class="status-planned">Planned</td><td>Same as 1.1 — position chosen accordingly, not yet physically verified.</td></tr>
+<tr><td>1.1</td><td>Visible from ≥51% of passenger seats on each deck (no standing passengers)</td><td class="status-planned">Planned</td><td>Central-aisle ceiling mounting position is the intended approach; the panel itself is not yet chosen (see §7.3), so seat-visibility percentage cannot be confirmed until a candidate panel's size/position is finalised.</td></tr>
+<tr><td>1.2</td><td>Visible from each forward-facing wheelchair space, and any designated priority seats</td><td class="status-planned">Planned</td><td>Same as 1.1 — depends on the final panel choice and position, not yet confirmed.</td></tr>
 <tr><td>1.3</td><td>Buses first used from 1/10/24: display reasonably visible from rearward-facing wheelchair space(s)</td><td class="status-planned">Planned</td><td>Not yet verified — depends on final panel position relative to each vehicle's wheelchair bay, which varies by vehicle model.</td></tr>
-<tr><td>1.4</td><td>Display text ≥22mm in height, on a contrasting background</td><td class="status-compliant">Compliant (by design)</td><td>The UI layout (Section 4) is height-relative (<code>vh</code>-based), so the panel's fixed 28" physical height satisfies 22mm by panel size alone, independent of pixel resolution. High-contrast palette (Section 4.2) is already built. Not yet verified on installed hardware.</td></tr>
+<tr><td>1.4</td><td>Display text ≥22mm in height, on a contrasting background</td><td class="status-planned">Planned</td><td>The UI layout (Section 4) is height-relative (<code>vh</code>-based) and the colour palette (Section 4.2) is high-contrast, so the design intent supports this requirement on any reasonably-sized panel. However, the earlier "compliant by design" reasoning specifically relied on the 28" panel's fixed physical height — that panel is no longer the plan (see §7.3), so 22mm compliance must be re-verified once the replacement panel's physical size is confirmed. Do not treat as settled.</td></tr>
 <tr><td>1.5</td><td>Audio announcements must be consistent with the visual information provided</td><td class="status-gap">Gap</td><td>The Interior Display currently renders from its own progress-event feed; the live link from the Driver PWA's announcement engine to the Interior Display so the two are guaranteed to show/say the same thing at the same moment is not yet built/verified end-to-end.</td></tr>
 </table>
 
@@ -455,12 +456,12 @@ synthesis), not by the Interior Display hardware covered above — rows below ar
 </ul>
 <p><strong>Hardware/installation work, not software gaps — needs a named owner and sign-off:</strong></p>
 <ul>
-  <li>Section A1 (display) — panel physically not yet installed on any vehicle; design meets spec on paper.</li>
+  <li>Section A1 (display) — the interior display panel itself is not yet chosen (see §7.3): the earlier 28" candidate was dropped due to sourcing difficulty and the target fleet's wiring being unable to support a large-format TFT retrofit without a major rewire. 1.1–1.4 all depend on this decision and must be re-verified once a replacement panel is confirmed.</li>
   <li>2.2 / 2.3 / 2.5 — PA amplifier calibration (3dB above ambient, 84dB ceiling) and induction hearing loop fitment; no PA/amp system is currently specified in this proposal.</li>
   <li>2.1 / 4.1 — the physical ambient-measurement procedure itself.</li>
 </ul>
 <p><strong>Confirmed not applicable:</strong> hail-and-ride (3.9–3.12) — no routes use hail-and-ride.</p>
-<p><strong>Compliant / acceptable as designed:</strong> 2.4 (non-adaptive volume control), 2.6 (no personal device required), 1.4, 3.1, 3.2, 3.4, 3.5, 3.7.</p>
+<p><strong>Compliant / acceptable as designed:</strong> 2.4 (non-adaptive volume control), 2.6 (no personal device required), 3.1, 3.2, 3.4, 3.5, 3.7.</p>
 </div>
 </div>
 
