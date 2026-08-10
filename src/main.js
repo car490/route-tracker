@@ -342,8 +342,10 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
       lastStopIdx = nextStopIndex;
       if (lat !== undefined) { lastLat = lat; lastLon = lon; }
 
-      // PSVAIR event 2 — approaching (see gps.js's 250m radius). Silent for
-      // the final stop (announceApproachEvent itself suppresses that case).
+      // PSVAIR event 2 — approaching (fires once per stop off gps.js's
+      // stopStates 'approaching' status, the same signal the stop list and
+      // status card show). Silent for the final stop (announceApproachEvent
+      // itself suppresses that case).
       if (psvairEnabled && approaching) {
         const isFinal = approaching.stopIndex === allStops.length - 1;
         announceApproachEvent({

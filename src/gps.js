@@ -20,20 +20,18 @@ function browserGeolocationSource(onFix, onError) {
   return { stop: () => navigator.geolocation.clearWatch(watchId) };
 }
 
-// PSVAIR "approaching" announcement lead distance — fixed radius rather than
-// a speed-based ETA, same reasoning as the 50m/75m arrival hysteresis below:
-// simple and consistent regardless of how fast the vehicle is going.
-const APPROACHING_RADIUS_M = 250;
-
 export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIndex = 0, onUpdate, onGpsFix, positionSource = browserGeolocationSource }) {
   let nextStopIndex = initialStopIndex;
   // Single source of truth for per-stop geofence state — one status per stop:
   // 'not_tracked' (before the driver's start point — never uploaded),
   // 'upcoming', 'approaching', 'arrived', 'departed', 'skipped_signal', 'skipped_detour'.
+  // Everything downstream — the UI's APPROACHING badge, the PSVAIR approach
+  // announcement, the DB upload — reads off this array; there is no second
+  // proximity calculation anywhere else.
   const stopStates = schedule.map(() => ({ status: 'upcoming', arrivedAt: null, departedAt: null }));
   let gpsLostAt = null;
   let fixCount = 0;
-  let approachAnnouncedIdx = null; // last stopIndex the 250m approach radius has already fired for — one-shot per stop, drives the PSVAIR approach announcement only (separate from stopStates' persistent 'approaching' status below)
+  let approachAnnouncedIdx = null; // last stopIndex the PSVAIR approach announcement has already fired for — one-shot per stop
   let pendingMatch = null; // { index, count } — forward geofence match awaiting a second confirming ping
   let lastGpsUploadMs = 0; // throttle GPS fix uploads to every 30 s
 
@@ -80,19 +78,6 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
 
       let distanceToNextM = haversine(latitude, longitude, schedule[nextStopIndex].lat, schedule[nextStopIndex].lon);
       const dwelling = stopStates[nextStopIndex].status === 'arrived';
-
-      // Fires once per stop, the first fix that crosses the approach radius
-      // while still moving toward it (not yet arrived) — kept separate from
-      // the dwelling/off-route branch below since it's a one-shot distance
-      // signal for the PSVAIR announcement, not the persistent 'approaching'
-      // status tracked in stopStates further down.
-      let approaching = null;
-      if (!dwelling && nextStopIndex < schedule.length - 1
-          && distanceToNextM <= APPROACHING_RADIUS_M
-          && approachAnnouncedIdx !== nextStopIndex) {
-        approachAnnouncedIdx = nextStopIndex;
-        approaching = { stopIndex: nextStopIndex };
-      }
 
       if (dwelling) {
         // Dwelling at a stop — wait for the vehicle to exit the geo-fence (75 m hysteresis)
@@ -164,6 +149,14 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
       const dwellIndex = stopStates[nextStopIndex].status === 'arrived' ? nextStopIndex : null;
       const atStop = dwellIndex !== null ? { stopIndex: dwellIndex } : null;
       const earlyWait = computeEarlyWait(now, dwellIndex);
+
+      // PSVAIR approach announcement — one-shot per stop, fired off the same
+      // 'approaching' status the UI shows, not a second proximity check.
+      let approaching = null;
+      if (stopStates[nextStopIndex].status === 'approaching' && approachAnnouncedIdx !== nextStopIndex) {
+        approachAnnouncedIdx = nextStopIndex;
+        approaching = { stopIndex: nextStopIndex };
+      }
 
       const timing = computeTiming({
         now,
