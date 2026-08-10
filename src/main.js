@@ -26,18 +26,19 @@ function stripIndicator(name) {
 
 // ── Stop time upload ──────────────────────────────────────────────────────────
 
-async function uploadStopTimes(jId, arrivals, stops) {
+const UPLOADABLE_STOP_STATUSES = new Set(['arrived', 'departed', 'skipped_signal', 'skipped_detour']);
+
+async function uploadStopTimes(jId, stopStates, stops) {
   const rows = [];
   for (let i = 0; i < stops.length; i++) {
     const stop = stops[i];
-    const a = arrivals[i];
-    if (!stop.timetable_stop_id || !a || a === 'missed') continue;
-    const isDate = a instanceof Date;
+    const s = stopStates[i];
+    if (!stop.timetable_stop_id || !s || !UPLOADABLE_STOP_STATUSES.has(s.status)) continue;
     rows.push({
       journey_id: jId,
       timetable_stop_id: stop.timetable_stop_id,
-      arrived_at: isDate ? a.toISOString() : null,
-      visit_status: isDate ? 'visited' : a.status,
+      arrived_at: s.arrivedAt ? s.arrivedAt.toISOString() : null,
+      visit_status: s.status === 'skipped_signal' || s.status === 'skipped_detour' ? s.status : 'visited',
     });
   }
   log('info', `Upload payload (${rows.length} rows): ${JSON.stringify(rows)}`);
@@ -278,7 +279,7 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
     }
   };
 
-  let activeTab = 'list', mapReady = false, arrivalsRef = [];
+  let activeTab = 'list', mapReady = false, stopStatesRef = [];
   let lastLat = null, lastLon = null, lastStopIdx = initialStopIndex;
 
   function showTab(tab) {
@@ -336,8 +337,8 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
           }).catch(() => {}); // fire-and-forget; GPS loop must not block
         }
       : null,
-    onUpdate: ({ timing, nextStopIndex, speedMps, distanceToNextM, arrivals, earlyWait, atStop, approaching, lat, lon }) => {
-      arrivalsRef = arrivals;
+    onUpdate: ({ timing, nextStopIndex, speedMps, distanceToNextM, stopStates, earlyWait, atStop, approaching, lat, lon }) => {
+      stopStatesRef = stopStates;
       lastStopIdx = nextStopIndex;
       if (lat !== undefined) { lastLat = lat; lastLon = lon; }
 
@@ -377,8 +378,8 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
         completeTrip();
       }
 
-      updateUi({ timing, nextStopIndex, schedule: allStops, speedMps, distanceToNextM, arrivals, earlyWait, atStop });
-      if (lat !== undefined) updateMapPosition(lat, lon, nextStopIndex, arrivals);
+      updateUi({ timing, nextStopIndex, schedule: allStops, speedMps, distanceToNextM, stopStates, earlyWait, atStop });
+      if (lat !== undefined) updateMapPosition(lat, lon, nextStopIndex, stopStates);
       syncCurrentStop(nextStopIndex);
       if (activeTab === 'dir') updateDirections();
       if (activeTab === 'log') renderLog(getEntries());
@@ -448,7 +449,7 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
     };
 
     if (journeyId) {
-      const uploadResult = await uploadStopTimes(journeyId, arrivalsRef, allStops);
+      const uploadResult = await uploadStopTimes(journeyId, stopStatesRef, allStops);
       await rpc('complete_journey', { p_journey_id: journeyId }).catch(() => {});
       if (uploadResult.ok) {
         log('info', `Uploaded ${uploadResult.count} stop time(s)`);

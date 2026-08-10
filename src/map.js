@@ -70,14 +70,15 @@ export function initMap(stops) {
   });
 }
 
-export function updateMapPosition(lat, lon, nextStopIndex, arrivals) {
+export function updateMapPosition(lat, lon, nextStopIndex, stopStates) {
   if (!_map) return;
   _posMarker.setLatLng([lat, lon]);
   _stopMarkers.forEach((m, i) => {
-    const arrived = arrivals[i] instanceof Date;
-    const missed  = arrivals[i] === 'missed' || (arrivals[i] !== null && typeof arrivals[i] === 'object' && !arrived);
+    const status  = stopStates[i]?.status;
+    const visited = status === 'arrived' || status === 'departed';
+    const missed  = status === 'skipped_signal' || status === 'skipped_detour' || status === 'not_tracked';
     if      (missed)               m.setStyle(stopStyle('missed'));
-    else if (arrived)              m.setStyle(stopStyle('past'));
+    else if (visited)              m.setStyle(stopStyle('past'));
     else if (i === nextStopIndex)  m.setStyle(stopStyle('current'));
     else                           m.setStyle(stopStyle('future'));
   });
