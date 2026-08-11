@@ -28,7 +28,7 @@ function arrivalStatusClass(stop, actualDate) {
   return 'sl-ontime';
 }
 
-function updateStopList({ schedule, arrivals, nextStopIndex }) {
+function updateStopList({ schedule, stopStates, nextStopIndex }) {
   const container = el('stop-list');
   container.innerHTML = '';
   let currentRow = null;
@@ -36,11 +36,14 @@ function updateStopList({ schedule, arrivals, nextStopIndex }) {
   schedule.forEach((stop, i) => {
     const row = document.createElement('div');
     const state = i < nextStopIndex ? 'past' : i === nextStopIndex ? 'current' : 'future';
-    row.className = `stop-row stop-${state}`;
-    const arrived = arrivals[i] instanceof Date;
-    const missed = arrivals[i] === 'missed' || (arrivals[i] !== null && typeof arrivals[i] === 'object' && !arrived);
-    const actualText = arrived ? fmtTime(arrivals[i]) : missed ? '--:--' : '—';
-    const actualClass = arrived ? arrivalStatusClass(stop, arrivals[i]) : missed ? 'sl-missed' : '';
+    const { status, arrivedAt } = stopStates[i] ?? { status: 'upcoming', arrivedAt: null };
+    const rowClasses = ['stop-row', `stop-${state}`];
+    if (status === 'approaching') rowClasses.push('stop-approaching');
+    row.className = rowClasses.join(' ');
+
+    const skipped = status === 'skipped_signal' || status === 'skipped_detour' || status === 'not_tracked';
+    const actualText = arrivedAt ? fmtTime(arrivedAt) : skipped ? '--:--' : '—';
+    const actualClass = arrivedAt ? arrivalStatusClass(stop, arrivedAt) : skipped ? 'sl-missed' : '';
 
     row.innerHTML =
       `<span class="sl-name">${stop.name}</span>` +
@@ -83,7 +86,7 @@ export function renderLog(entries) {
   });
 }
 
-export function updateUi({ timing, nextStopIndex, schedule, speedMps, distanceToNextM, arrivals, earlyWait, atStop }) {
+export function updateUi({ timing, nextStopIndex, schedule, speedMps, distanceToNextM, stopStates, earlyWait, atStop }) {
   const banner = el('early-wait-banner');
   if (earlyWait) {
     el('ewb-time').textContent = fmtTime(earlyWait.scheduledTime);
@@ -95,6 +98,9 @@ export function updateUi({ timing, nextStopIndex, schedule, speedMps, distanceTo
   if (atStop) {
     el('status-card').className = 'status-at-stop';
     el('status-label').textContent = 'AT STOP';
+  } else if (stopStates[nextStopIndex]?.status === 'approaching') {
+    el('status-card').className = 'status-approaching';
+    el('status-label').textContent = 'APPROACHING';
   } else {
     el('status-card').className = `status-${timing.status}`;
     el('status-label').textContent = timing.status.replace('-', ' ').toUpperCase();
@@ -114,5 +120,5 @@ export function updateUi({ timing, nextStopIndex, schedule, speedMps, distanceTo
   const progress = schedule.length > 1 ? nextStopIndex / (schedule.length - 1) : 0;
   el('progress-fill').style.width = `${Math.min(progress * 100, 100)}%`;
 
-  updateStopList({ schedule, arrivals, nextStopIndex });
+  updateStopList({ schedule, stopStates, nextStopIndex });
 }

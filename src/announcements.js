@@ -240,9 +240,10 @@ export function announceJourneyStart({ serviceCode, destination, firstStopId, fi
   announce(text, keys);
 }
 
-// PSVAIR event 2 (approaching a stop, ~250m out — see gps.js): names the
-// stop about to be reached. Never called for the final stop — that's
-// event 4's job instead (see announceStopEvent.js's announceApproachEvent).
+// PSVAIR event 2 (approaching a stop — see gps.js's stopStates 'approaching'
+// status): names the stop about to be reached. Never called for the final
+// stop — that's event 4's job instead (see announceStopEvent.js's
+// announceApproachEvent).
 export function announceApproaching({ stopId, stopName }) {
   announce(`This is ${stopName}.`, stopId ? [`arrive/${stopId}`] : null);
 }

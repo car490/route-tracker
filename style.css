@@ -550,10 +550,11 @@ body {
   gap: 0.75rem;
 }
 
-.status-on-time { border-color: var(--on-time); }
-.status-late    { border-color: var(--late); }
-.status-early   { border-color: var(--early); }
-.status-at-stop { border-color: var(--surface); }
+.status-on-time    { border-color: var(--on-time); }
+.status-late       { border-color: var(--late); }
+.status-early      { border-color: var(--early); }
+.status-at-stop    { border-color: var(--surface); }
+.status-approaching { border-color: var(--brand-cyan); }
 
 #status-label {
   font-family: var(--cm-font);
@@ -564,10 +565,11 @@ body {
   color: var(--text-muted);
 }
 
-.status-on-time #status-label { color: var(--on-time); }
-.status-late    #status-label { color: var(--late); }
-.status-early   #status-label { color: var(--early); }
-.status-at-stop #status-label { color: var(--surface); }
+.status-on-time    #status-label { color: var(--on-time); }
+.status-late       #status-label { color: var(--late); }
+.status-early      #status-label { color: var(--early); }
+.status-at-stop    #status-label { color: var(--surface); }
+.status-approaching #status-label { color: var(--brand-cyan); }
 
 #next-stop {
   font-size: 1.5rem;
@@ -614,10 +616,11 @@ body {
   align-self: center;
 }
 
-.status-on-time #delta { color: var(--on-time); }
-.status-late    #delta { color: var(--late); }
-.status-early   #delta { color: var(--early); }
-.status-at-stop #delta { color: var(--surface); }
+.status-on-time    #delta { color: var(--on-time); }
+.status-late       #delta { color: var(--late); }
+.status-early      #delta { color: var(--early); }
+.status-at-stop    #delta { color: var(--surface); }
+.status-approaching #delta { color: var(--brand-cyan); }
 
 /* ── Metrics row ──────────────────────────────── */
 
@@ -800,6 +803,10 @@ body {
 
 .stop-current .sl-actual {
   color: var(--text-muted);
+}
+
+.stop-approaching {
+  border-left: 3px solid var(--brand-cyan);
 }
 
 .sl-jump {

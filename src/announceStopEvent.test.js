@@ -7,8 +7,9 @@
 // enforced in one place rather than duplicated at both callsites.
 //
 // PSVAIR rework (2026-07-30): split into two gates matching the four
-// regulation events — announceApproachEvent (event 2, ~250m out, silent for
-// the final stop) and announceStopEvent (events 3 & 4, vehicle stopped).
+// regulation events — announceApproachEvent (event 2, fired off gps.js's
+// stopStates 'approaching' status, silent for the final stop) and
+// announceStopEvent (events 3 & 4, vehicle stopped).
 //
 // Co-located in src/ to match vitest.config.js's `src/**/*.test.js` include
 // pattern (see audioConfigPipeline.test.js for the established Slice 1

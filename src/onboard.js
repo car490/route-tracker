@@ -294,8 +294,9 @@ async function runSign(duty) {
         banner.hidden = true;
       }
 
-      // PSVAIR event 2 — approaching (see gps.js's 250m radius). Silent for
-      // the final stop (announceApproachEvent itself suppresses that case).
+      // PSVAIR event 2 — approaching (fires once per stop off gps.js's
+      // stopStates 'approaching' status). Silent for the final stop
+      // (announceApproachEvent itself suppresses that case).
       if (approaching) {
         const approachIsFinal = approaching.stopIndex === allStops.length - 1;
         announceApproachEvent({
