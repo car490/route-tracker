@@ -1,10 +1,10 @@
-// Run at boot (before/alongside the Pi joins its own AP) while the Pi still
-// has a route to the internet — e.g. depot WiFi each morning. Fetches the
-// current schedule_view rows and caches them locally so pi-server/server.mjs
-// can serve /api/schedule to the Fire HD all day with no live Supabase
-// dependency. If it can't reach Supabase in the retry window (already
-// offline, missed the window), it leaves yesterday's cache alone rather
-// than wiping it — a stale schedule beats no schedule.
+// Run at boot while the Pi still has a route to the internet — e.g. depot
+// WiFi each morning. Fetches the current schedule_view rows and caches them
+// locally so pi-server/server.mjs can serve /api/schedule to the local
+// kiosk browser all day with no live Supabase dependency. If it can't reach
+// Supabase in the retry window (already offline, missed the window), it
+// leaves yesterday's cache alone rather than wiping it — a stale schedule
+// beats no schedule.
 //
 // Run manually: node sync-schedule.mjs
 // Or as a systemd oneshot before pi-server.service starts (see DEPLOY.md).

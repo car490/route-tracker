@@ -1,11 +1,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 /* ── E-paper passenger sign ───────────────────────────────────────────────
-   Fixed vehicle-mounted landscape display (Fire HD 10, ~1920x1200 / 16:10).
+   Fixed vehicle-mounted landscape display (24"-28" non-touch monitor,
+   Full HD 1920x1080 / 16:9, HDMI-fed from the Pi's local kiosk browser).
    Mostly monochrome and motion-free: no gradients, no shadows, hard
    corners, status normally carried by text and border weight rather than
    colour. Two deliberate exceptions to that rule: the brand mark keeps its
-   real CoachMate colours (this is an LCD tablet, not actual e-ink hardware
+   real CoachMate colours (this is an LCD monitor, not actual e-ink hardware
    — the monochrome look is aesthetic, not a hardware limit), and the
    tube-track dot for a stop the vehicle has actually arrived at (confirmed
    by the geofence, not just estimated) pulses green so it reads at a

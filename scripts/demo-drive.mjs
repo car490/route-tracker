@@ -17,7 +17,7 @@
 //   - LEFT:  the driver PWA duty-card link you pass in. Click through the
 //            duty card, pick the FIRST stop as the starting point, hit Start.
 //   - RIGHT: the onboard passenger sign (onboard.html?journey=<id>, landscape,
-//            Fire-HD proportions). No interaction needed — it polls
+//            16:9 saloon-monitor proportions). No interaction needed — it polls
 //            get_duty_card for that journey and wakes on its own within a
 //            few seconds of the driver hitting Start on the left.
 // The simulator waits for both, then drives the route in lockstep. Only the
@@ -119,8 +119,8 @@ async function openWindow({ url, windowPosition, windowSize, viewport, mute }) {
     }),
     openWindow({
       url: ONBOARD_URL, mute: true,
-      // Landscape, ~16:10 — same proportions as the real Fire HD 10 target device.
-      windowPosition: '396,60', windowSize: '960,620', viewport: { width: 944, height: 560 },
+      // Landscape, 16:9 — same proportions as the real saloon monitor target device.
+      windowPosition: '396,60', windowSize: '960,591', viewport: { width: 944, height: 531 },
     }),
   ]);
 
