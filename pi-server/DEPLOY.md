@@ -29,30 +29,16 @@ the browser DevTools colour picker can verify a colour before it is saved.
 future use but is not currently consumed by any visible element on the sign.
 
 ## Hardware
-- **Raspberry Pi 5** (4GB) — preferred; see [Storage](#storage) below for why
-- NVMe HAT (e.g. Pimoroni NVMe Base or Waveshare PCIe HAT) + M.2 NVMe SSD
-  (any 2230/2242 form factor, 32GB+ is plenty)
-- USB or UART GPS module (e.g. u-blox NEO-6M/7M/8M)
-- USB WiFi dongle (second radio for hotspot — see [Why two WiFi radios](#why-two-wifi-radios))
-- Passenger display — either:
-  - Fire HD 10 tablet (WiFi-only, no GPS of its own), **or**
-  - HDMI stretch-bar display (e.g. VSDISPLAY 28" 1920×360) connected to the Pi's
-    micro-HDMI port with Chromium running in kiosk mode on the Pi itself
+Full spec, MUST-vs-nice-to-have breakdown, and rationale now live in
+**[`docs/HARDWARE.md`](../docs/HARDWARE.md)** — including the two
+WiFi/GPS architecture models (a second-radio hotspot dongle vs. the
+proposal doc's single-radio model), which are not yet reconciled. Read
+that first if you're planning a build. The setup steps below assume
+whichever hardware you land on is already in hand.
 
 ## Storage
-
-**Do not use a microSD card in a vehicle-deployed Pi.** microSD is unsuitable for
-this environment for three reasons:
-
-1. **Vibration** — constant road vibration works cards loose and fatigues contacts.
-2. **Write endurance** — gpsd, Node server logs, and systemd journals write
-   continuously. Consumer microSD cards hit their write-cycle limit and
-   corrupt under sustained write load.
-3. **Unclean shutdowns** — vehicles lose power suddenly (ignition off). microSD
-   is especially prone to filesystem corruption on unclean power loss; NVMe
-   handles this far better with proper power-loss protection.
-
-**Use a Pi 5 + NVMe HAT instead:**
+**No microSD in a vehicle-deployed Pi** — see `docs/HARDWARE.md` §1 for
+why (vibration, write endurance, unclean-shutdown corruption). Setup:
 - Fit an NVMe HAT to the Pi 5's PCIe slot (e.g. Pimoroni NVMe Base, ~£15)
 - Insert any M.2 2230 or 2242 NVMe SSD (32GB+; ~£15–£20)
 - Flash Raspberry Pi OS to the NVMe using `rpi-imager` or `dd` from another machine
@@ -62,7 +48,14 @@ this environment for three reasons:
 If you must use a Pi 4 (e.g. existing stock), boot from a USB 3.0 SSD
 (e.g. Samsung T7) instead — same principle, just via USB rather than PCIe.
 
-## Why two WiFi radios
+## Why two WiFi radios (Model 1 only — see `docs/HARDWARE.md`)
+
+The steps below assume the second-radio hotspot model (`pi-server/config/
+hostapd.conf.example` + `dnsmasq.conf.example`) rather than the proposal
+doc's single-radio model — that conflict is tracked in `docs/HARDWARE.md`
+§6, not resolved here. If your build uses the single-radio model instead,
+skip step 3 below and configure `hostapd` on the Pi's onboard radio per
+the proposal's §6.3 commissioning steps.
 
 `wlan0` stays a normal WiFi *client*, joining the depot's WiFi each morning
 to sync the schedule. `wlan1` runs its own access point permanently, all
@@ -209,32 +202,11 @@ UID if `pi`'s UID isn't 1000 (`id -u pi`), and re-verify PSVAIR announcement
 audio autoplay on real hardware either way
 (`--autoplay-policy=no-user-gesture-required` is already in its `ExecStart`).
 
-### Option B panel: beta pick vs. production status
-`docs/BusOpsDriver_Proposal.source.html` §7.3 is the authoritative sourcing
-decision for the production panel, and it's moved on from what's written
-above: the 28" Allsee stretch-bar panel (the `VSDISPLAY 28" 1920×360`
-example in the Hardware list and the resolution note above) was **dropped**
-— it proved hard to source in time, and more fundamentally, the target
-fleet (10+ year old vehicles) has interior wiring that can't support a
-large-format TFT retrofit without a major rewire. Production panel is
-currently **TBD**: "compact, low-power, standard aspect ratio, fits the
-existing wiring" per the proposal. This section (and the resolution note
-above) hasn't been updated to match yet — treat the 28" example here as
-stale until a replacement panel is confirmed in the proposal doc.
-
-That same wiring/power constraint is the open question for the **beta**
-pick too, not just production — it hasn't been confirmed whether the beta
-unit runs off the vehicle's existing sign wiring (in which case it's bound
-by the same low-power ceiling as production) or a temporary/external supply
-just for the trial (in which case power isn't the limiting factor and a
-larger consumer monitor is fine for six weeks). Confirm which before
-ordering. If it's the latter, a 24" non-touch consumer monitor — e.g.
-iiyama ProLite XUB2492HSN-B1, slim 4-side bezel, matte black, detachable
-stand (VESA 100×100 on the panel), universal 100–240V input — VESA-mounted
-on a wall/ceiling bracket instead of its desk stand reads as a fixed panel
-rather than an obvious PC monitor, and needs no bespoke enclosure. A
-consumer monitor's duty cycle is nowhere near a limiting factor at 4
-journeys/day for 6 weeks either way.
+### Option B panel: which one to actually buy
+The `VSDISPLAY 28" 1920×360` example above is **stale** — see
+`docs/HARDWARE.md` §3 for the current MUST-vs-nice-to-have breakdown, the
+full status trail (why that panel was dropped, what's TBD for production,
+and the still-open beta pick question), and don't order against this file.
 
 ## Refreshing the schedule mid-shift
 The display's "Refresh routes" button only re-reads the Pi's *existing*
