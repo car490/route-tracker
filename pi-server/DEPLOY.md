@@ -12,6 +12,36 @@ web app itself — this file is Pi-side setup only.
 - 24"–28" non-touch monitor, Full HD (1920×1080, 16:9), HDMI input — no
   WiFi, no OS of its own, it purely displays whatever's on the HDMI cable
 
+### Monitor: beta pick vs. production candidates
+The beta trial (6 weeks, 4 journeys/day) doesn't justify the cost or lead
+time of a bespoke enclosure or a commercial-grade always-on panel — but the
+unit should still look and sit like the eventual production display, not
+like a desk monitor propped in the saloon. Logging both here so the
+production decision has this trail to work from later.
+
+**Beta (current):** iiyama ProLite XUB2492HSN-B1 — 23.8", Full HD, non-touch,
+slim 4-side bezel, matte black, detachable stand (VESA 100×100 on the panel
+itself), universal 100–240V input. Mount it on a low-profile VESA wall/
+ceiling bracket instead of the bundled desk stand — no enclosure to build,
+but it reads as a fixed panel rather than an obvious PC monitor. A consumer
+monitor's duty-cycle rating is nowhere near a limiting factor at this usage
+level.
+
+**Production candidates (not yet chosen, revisit before rollout):**
+- iiyama's open-frame chassis line (the T2452MSC-B2AG family this project
+  originally speced) — sealed, bezel-less, panel-mount, designed to sit
+  flush in a custom enclosure. Appears to be a touch-only product line; no
+  non-touch equivalent found in that chassis so far (unconfirmed — iiyama.com
+  wasn't reachable to verify against their live catalogue). Touch would go
+  entirely unused since this display has no interaction.
+- Commercial digital-signage panels (e.g. iiyama's Android-based LFD/signage
+  line) were considered and ruled out — they're smart players with their own
+  OS/app layer, which works against the "HDMI in, display that, nothing else
+  ever" requirement; would need to be configured down to a passthrough input
+  rather than adding capability we want.
+- Whichever direction production takes, it needs a real duty-cycle rating
+  (all-day, every day) that the beta's consumer pick isn't spec'd for.
+
 ## 1. GPS — gpsd
 ```bash
 sudo apt install gpsd gpsd-clients
