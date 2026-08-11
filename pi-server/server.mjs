@@ -1,10 +1,11 @@
-// Runs on the Pi, reachable only from the Pi's own local kiosk browser
-// (cage + Chromium, see DEPLOY.md) driving the HDMI-fed saloon monitor.
-// Three jobs: serve the onboard app's static files (the monitor has no
-// browser or network of its own), serve the schedule cache written by
-// sync-schedule.mjs, and bridge gpsd's GPS fix out as a tiny polled
-// endpoint. Zero external dependencies, same style as the repo-root
-// server.js.
+// Runs on the Pi, reachable either over its own WiFi hotspot (Option A —
+// a Fire HD or other WiFi-client display) or from a kiosk browser running
+// locally on the Pi itself (Option B — HDMI display, see DEPLOY.md). Three
+// jobs: serve the onboard app's static files (the display can't reach
+// GitHub Pages from an isolated hotspot, and has no browser of its own in
+// Option B), serve the schedule cache written by sync-schedule.mjs, and
+// bridge gpsd's GPS fix out as a tiny polled endpoint. Zero external
+// dependencies, same style as the repo-root server.js.
 import http from 'node:http';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';

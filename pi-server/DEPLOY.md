@@ -187,6 +187,55 @@ kiosk mode on the stretch bar automatically on every boot.
 > hdmi_cvt=1920 360 60 6 0 0 0
 > ```
 
+#### Alternative: `cage` instead of a full desktop
+The X11/desktop-autologin approach above works, but it boots a full desktop
+environment just to run one fullscreen browser. `cage` is a minimal Wayland
+kiosk compositor that launches a single client fullscreen with nothing else
+running — it works on Pi OS **Lite**, no desktop image or autologin config
+needed. It also supports the Wayland idle-inhibit protocol, so the existing
+`navigator.wakeLock` call in `src/onboard.js` does real work keeping the
+screen from blanking (under X11 you'd want `xset s off`/`xset -dpms`
+alongside it instead).
+```bash
+sudo apt install cage chromium-browser
+sudo cp config/coachmate-kiosk.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now coachmate-kiosk
+```
+`pi-server/config/coachmate-kiosk.service` in this repo is the `cage`
+version — install *either* that file *or* the X11 unit above, not both, they
+both claim the `coachmate-kiosk` service name. Adjust its `XDG_RUNTIME_DIR`
+UID if `pi`'s UID isn't 1000 (`id -u pi`), and re-verify PSVAIR announcement
+audio autoplay on real hardware either way
+(`--autoplay-policy=no-user-gesture-required` is already in its `ExecStart`).
+
+### Option B panel: beta pick vs. production status
+`docs/BusOpsDriver_Proposal.source.html` §7.3 is the authoritative sourcing
+decision for the production panel, and it's moved on from what's written
+above: the 28" Allsee stretch-bar panel (the `VSDISPLAY 28" 1920×360`
+example in the Hardware list and the resolution note above) was **dropped**
+— it proved hard to source in time, and more fundamentally, the target
+fleet (10+ year old vehicles) has interior wiring that can't support a
+large-format TFT retrofit without a major rewire. Production panel is
+currently **TBD**: "compact, low-power, standard aspect ratio, fits the
+existing wiring" per the proposal. This section (and the resolution note
+above) hasn't been updated to match yet — treat the 28" example here as
+stale until a replacement panel is confirmed in the proposal doc.
+
+That same wiring/power constraint is the open question for the **beta**
+pick too, not just production — it hasn't been confirmed whether the beta
+unit runs off the vehicle's existing sign wiring (in which case it's bound
+by the same low-power ceiling as production) or a temporary/external supply
+just for the trial (in which case power isn't the limiting factor and a
+larger consumer monitor is fine for six weeks). Confirm which before
+ordering. If it's the latter, a 24" non-touch consumer monitor — e.g.
+iiyama ProLite XUB2492HSN-B1, slim 4-side bezel, matte black, detachable
+stand (VESA 100×100 on the panel), universal 100–240V input — VESA-mounted
+on a wall/ceiling bracket instead of its desk stand reads as a fixed panel
+rather than an obvious PC monitor, and needs no bespoke enclosure. A
+consumer monitor's duty cycle is nowhere near a limiting factor at 4
+journeys/day for 6 weeks either way.
+
 ## Refreshing the schedule mid-shift
 The display's "Refresh routes" button only re-reads the Pi's *existing*
 cache — it can't reach Supabase itself (that's the whole point of the
@@ -202,14 +251,15 @@ already has. If stops change and the vehicle is already out:
 
 ## Verifying it's working
 ```bash
-curl http://localhost:8080/api/schedule    # should return cached rows, not []
-curl http://localhost:8080/api/position    # 503 {"error":"no_fix"} until gpsd gets a fix, then 200 {lat,lon,speed}
+curl http://192.168.4.1:8080/api/schedule   # from another device on the hotspot
+curl http://localhost:8080/api/schedule     # from the Pi itself (Option B/kiosk)
+curl http://localhost:8080/api/position     # 503 {"error":"no_fix"} until gpsd gets a fix, then 200 {lat,lon,speed}
 journalctl -u coachmate-onboard -f          # tail the server's logs
 journalctl -u coachmate-sync                # check this morning's sync result
-systemctl status coachmate-kiosk            # confirm the kiosk browser is running
-journalctl -u coachmate-kiosk -f            # tail Chromium/cage's logs
+systemctl status coachmate-kiosk            # Option B only — confirm the kiosk browser is running
+journalctl -u coachmate-kiosk -f            # Option B only — tail Chromium's (or cage's) logs
 ```
-If the monitor stays blank, check `coachmate-kiosk`'s logs first, then
-confirm the monitor's actually set to the HDMI input the Pi is plugged into
-— a monitor with no OS of its own won't show anything if it's just idling on
-a different input.
+If an Option B monitor stays blank, check `coachmate-kiosk`'s logs first,
+then confirm the monitor's actually set to the HDMI input the Pi is plugged
+into — a monitor with no OS of its own won't show anything if it's just
+idling on a different input.
