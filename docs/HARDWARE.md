@@ -2,16 +2,21 @@
 
 Single source of truth for every piece of physical hardware in the
 onboard/vehicle system (Bus Controller, GPS, passenger display, driver
-tablet, power, networking, mounting). Supersedes the `## Hardware`,
-`## Storage`, `## Why two WiFi radios`, and `### Option B panel` sections
-that used to live in `pi-server/DEPLOY.md` — that file now just points
-here and keeps its step-by-step install instructions.
+tablet/cab device, power, networking, mounting). Supersedes the
+`## Hardware`, `## Storage`, `## Why two WiFi radios`, and `### Option B
+panel` sections that used to live in `pi-server/DEPLOY.md` — that file now
+just points here and keeps its step-by-step install instructions.
 
-`docs/BusOpsDriver_Proposal.source.html`/`.pdf` (the formal, versioned
-procurement proposal) is **not edited by this doc** — it's referenced by
-section number throughout. Where this doc says something has moved on from
-what the proposal says, that means the proposal is stale on that point, not
-that this doc overrides it as a formal deliverable.
+Two other source documents feed into this one and are **not edited by
+it**:
+- `docs/BusOpsDriver_Proposal.source.html`/`.pdf` — the formal, versioned
+  procurement proposal, referenced by section number throughout. Where
+  this doc says something has moved on from what the proposal says, that
+  means the proposal is stale on that point, not that this doc overrides
+  it as a formal deliverable.
+- `CAB-DEVICE-SETUP.md` (repo root) — the actual, currently-deployed
+  driver-facing device (§4), summarized here but kept as the detailed
+  reference.
 
 ---
 
@@ -57,6 +62,11 @@ specifies. Which one is the real target determines whether a GPS module
 and a second WiFi radio belong on the Bus Controller's BOM at all. **This
 needs a decision from the team, not an assumption from this doc.**
 
+**A third layer, on top of both:** neither model above is what's actually
+in drivers' cabs right now. The real driver-facing device today is a
+temporary bridge — see §4 — that isn't the Tab A9 LTE tablet either
+model assumes.
+
 ---
 
 ## 1. Bus Controller (Raspberry Pi)
@@ -66,7 +76,7 @@ needs a decision from the team, not an assumption from this doc.**
 | Board | Raspberry Pi 5, 4GB | Firm in both models. Pi 4 is a supported fallback (existing stock) — boots from USB3 SSD instead of NVMe. |
 | RAM sizing | 4GB — "sufficient for kiosk browser + hostapd + one WebSocket link" | Stated justification, treated as settled. |
 | Storage | **No microSD, ever** — vibration, write-endurance (gpsd/Node/journald logs), and unclean-shutdown corruption risk all rule it out. NVMe HAT (e.g. Pimoroni NVMe Base, Waveshare PCIe HAT) + M.2 2230/2242 SSD, 32GB+. Pi 4 fallback: USB 3.0 SSD (e.g. Samsung T7). | Firm requirement (no microSD); specific HAT/SSD brand is "e.g.", not mandated. |
-| Power | 5V/5A via USB-C, fed from a 12V-in USB-C PD point-of-load module (25–60W rated) | Firm, part of the power chain — see §4. |
+| Power | 5V/5A via USB-C, fed from a 12V-in USB-C PD point-of-load module (25–60W rated) | Firm, part of the power chain — see §6. |
 | Enclosure | **Polycarbonate**, combined with the power electronics in one enclosure, recessed into the ceiling void — **metal is explicitly disallowed**: it would Faraday-cage the Pi's onboard WiFi, which the AP (whichever model above is real) depends on. | Firm, specific reason given, not just a preference. |
 
 ## 2. GPS
@@ -76,7 +86,7 @@ Two independent hardware chains — don't conflate them:
 | Chain | Spec | Status |
 |---|---|---|
 | **Pi's own GPS module** (Model 1 only) | USB or UART module, e.g. u-blox NEO-6M/7M/8M, device path `/dev/ttyUSB0` or `/dev/ttyAMA0`, read via `gpsd` | Only needed if Model 1 (Pi has its own GPS) is the real target — the proposal's Bus Controller procurement table (§7.2) has no GPS line item at all. |
-| **Driver tablet's GNSS** (both models — this one is unconditional) | Requires the **LTE SKU** specifically — Samsung Galaxy Tab A9 **LTE (SM-X115)**. The WiFi-only SM-X110 was evaluated and explicitly rejected: no GNSS chip, fails the geofence requirement. | Firm regardless of which architecture model is real — the driver device needs its own GPS either way. |
+| **Driver tablet's GNSS** (both models — this one is unconditional) | Requires the **LTE SKU** specifically — Samsung Galaxy Tab A9 **LTE (SM-X115)**. The WiFi-only SM-X110 was evaluated and explicitly rejected: no GNSS chip, fails the geofence requirement. | Firm regardless of which architecture model is real — the driver device needs its own GPS either way. (This is the proposal's target tablet — see §5. Today's actual cab device, §4, uses browser geolocation instead.) |
 
 ## 3. Passenger / interior display
 
@@ -131,12 +141,39 @@ Sourced from PSV(AI)R Appendix A and the fleet-wiring finding:
 | Fire HD 10 tablet | Still a live, supported option (`DEPLOY.md` "Option A") | `pi-server/DEPLOY.md` §5 |
 | Allsee WS28HD8-B / "VSDISPLAY 28" 1920×360" stretch-bar | **Dropped** — hard to source in time, and the target fleet's wiring can't take a large-format retrofit without a major rewire | Proposal §7.3; `DEPLOY.md`'s own "Option B panel" section calls its own stretch-bar example stale |
 | Production panel | **TBD** — "compact, low-power, standard aspect ratio, fits the existing wiring" | Proposal §7.3 |
-| Beta pick — iiyama ProLite XUB2492HSN-B1 | Proposed for the 6-week/4-journeys-a-day beta **only**, contingent on an unresolved question: does the beta unit run off the vehicle's existing (constrained) sign wiring, or a temporary/external supply? If existing wiring, it's bound by the same low-power ceiling as production and this pick may not be viable. **Confirm before ordering.** | `pi-server/DEPLOY.md` §"Option B panel: beta pick vs. production status" |
+| Beta pick — iiyama ProLite XUB2492HSN-B1 | Proposed for the 6-week/4-journeys-a-day beta **only**, contingent on an unresolved question: does the beta unit run off the vehicle's existing (constrained) sign wiring, or a temporary/external supply? If existing wiring, it's bound by the same low-power ceiling as production and this pick may not be viable. **Confirm before ordering.** | `pi-server/DEPLOY.md` §"Option B panel: which one to actually buy" |
 
-## 4. Driver PWA tablet (cab-mounted, adjacent hardware)
+## 4. Cab device — the temporary bridge actually deployed today
+
+Full detail: `CAB-DEVICE-SETUP.md` (repo root). This is **not** the
+proposal's Tab A9 LTE tablet — it's a deliberately different, much
+simpler stopgap, explicitly framed as lasting "the next ~6 months, until
+vehicles carry NextStop-native hardware" (i.e. until whichever of Model 1
+or Model 2 above actually gets built).
+
+| Item | Spec | Status |
+|---|---|---|
+| Device | **Any** Android phone/tablet — no specific SKU, no LTE requirement | Deliberately unconstrained — "any unit can be swapped between the 4 vehicles with zero reconfiguration" since nothing on it is bound to a specific vehicle |
+| GPS | Browser's `navigator.geolocation` — same source the existing driver-phone flow already uses | **No dedicated GPS module** — unlike the proposal's tablet, this doesn't require an LTE/GNSS-capable SKU |
+| Power | Ignition-switched USB supply, "like a dashcam" | Firm for this bridge; distinct from the vehicle's 24V→12V DC chain in §6 — a simple USB power source, not wired into the Victron converter |
+| Mount | Not specified in the source doc | **Undetermined** — worth flagging as a gap, not assumed solved |
+| Software | The existing driver PWA (`index.html`/`src/main.js`) itself, installed via "Add to Home Screen" + Android Screen Pinning — no new app, no dedicated firmware | Reuses `src/manualSelection.js`'s existing manual service/run picker; driver taps "Select a service manually" once on boot |
+| Vehicle/driver binding | None — journeys created this way have `driver_id`/`vehicle_id` both `null` (`get_or_create_manual_journey`) | Known limitation: any dashboard report assuming every journey has a driver/vehicle will show gaps for cab-device journeys |
+| Optional resilience | **Fully Kiosk Browser** (free Android app) if unattended reboots turn out to need auto-relaunch — screen pinning alone doesn't survive a reboot | Not required to ship the bridge, only if reboot behaviour turns out to be a real problem in practice |
+
+**Why this matters for the rest of this doc:** §5 below (Driver PWA
+tablet) and the WiFi/GPS architecture conflict at the top are both about
+a *future* target state that hasn't been built. This section is what's
+running now. Don't conflate the two when scoping new work — headroom
+decisions (§10) should account for whichever of Model 1/Model 2 eventually
+replaces this bridge, not extend the bridge itself.
+
+## 5. Driver PWA tablet (cab-mounted, adjacent hardware — proposal's target, not yet built)
 
 Not covered by `DEPLOY.md` at all (that file is Pi-side only) but wired
-into and mounted alongside the same system per the proposal.
+into and mounted alongside the same system per the proposal. This is the
+**production target**, distinct from the cab-device bridge in §4 above,
+which is what's actually deployed today.
 
 | Item | Spec | Status |
 |---|---|---|
@@ -145,7 +182,7 @@ into and mounted alongside the same system per the proposal.
 | Cab mount | RAM Mounts C-size ball-and-socket, X-Grip or Tab-Tite cradle, **bolted base, not suction-cup**, rated for commercial-vehicle vibration | Firm. Supplier: RAM Mounts UK or MUD-UK. |
 | Power | 12V-in USB-C PD module → tablet USB-C fast charge | Firm, part of the power chain below. |
 
-## 5. Power / electrical
+## 6. Power / electrical
 
 | Item | Spec | Status |
 |---|---|---|
@@ -160,7 +197,11 @@ into and mounted alongside the same system per the proposal.
 | Wiring | 24V-rated automotive power loom | Firm. Supplier: Vehicle Wiring Products. |
 | Beta display power (contingent) | iiyama monitor's universal 100–240V AC input — a *different* power source than the 24V/12V vehicle chain above | Only applies if the beta unit runs off a temporary/external supply rather than vehicle wiring — see §3 status trail, still open |
 
-## 6. Networking
+Note: this whole chain is the **proposal's** power design (Model 2 /
+production target). The cab-device bridge (§4) is not wired into it at
+all — it runs off a simple ignition-switched USB supply.
+
+## 7. Networking
 
 See the architecture-conflict note at the top — this table gives both models rather than picking one.
 
@@ -171,7 +212,7 @@ See the architecture-conflict note at the top — this table gives both models r
 | Who joins the hotspot | An external display device (Fire HD, if Option A) | The Driver PWA tablet, as a standard low-privilege client, one-time pairing at commissioning |
 | Recent stability | This has already flip-flopped once in this repo's history: commit `7f1a342` removed the hotspot entirely (assumed no longer needed), commit `a60d075` restored it days later after a `develop` merge showed it was still required | — |
 
-## 7. Mounting / enclosure
+## 8. Mounting / enclosure
 
 | Item | Spec | Status |
 |---|---|---|
@@ -179,9 +220,9 @@ See the architecture-conflict note at the top — this table gives both models r
 | Interior display ceiling-drop mount | Sized to the final panel's weight and VESA/mounting pattern | **TBD** — depends on the undetermined display panel (§3) |
 | Anti-vibration isolation mounts | On the ceiling-drop mount assembly | Firm requirement, generic hardware. Supplier: Screwfix (M8 bolts). |
 | HDMI cable | Shielded, short run | Firm — interference reduction. Supplier: The Pi Hut. |
-| Driver tablet mount | See §4 | Firm |
+| Driver tablet mount | See §5 | Firm (proposal's target device — the cab-device bridge in §4 has no specified mount) |
 
-## 8. Known compliance gaps (carried from Appendix A — not re-solved here)
+## 9. Known compliance gaps (carried from Appendix A — not re-solved here)
 
 These are documented gaps with **no assigned hardware owner** — not
 committed roadmap items, and not something this doc resolves:
@@ -197,14 +238,14 @@ committed roadmap items, and not something this doc resolves:
   announcements go straight to spoken content with nothing preceding
   them; a short fixed chime clip is recommended but not built.
 
-## 9. Near-term Bus Controller roles — reserve headroom, don't over-specify
+## 10. Near-term Bus Controller roles — reserve headroom, don't over-specify
 
 The Bus Controller runs the passenger display only today. Three additional
 roles are expected soon (confirmed directly by the team, not yet in any
 proposal or procurement doc):
 
 - **PA / audio announcement hardware** — the closest match to an existing
-  documented gap (§8 above has no assigned owner for PA/amp/speaker
+  documented gap (§9 above has no assigned owner for PA/amp/speaker
   hardware). Likely implication: amplifier control (relay/GPIO or I2S
   audio out) and a spare fused 12V branch for amplifier power, separate
   from the Pi's own draw.
@@ -225,7 +266,7 @@ sizing the Pi's power budget, enclosure, and available ports going
 forward, leave margin rather than speccing right up to the current
 display-only workload's limit.
 
-## 10. Decision history (why parts of this look unsettled)
+## 11. Decision history (why parts of this look unsettled)
 
 For anyone reading this fresh and wondering if something was overlooked —
 it wasn't, these are tracked reversals, not gaps:
@@ -243,3 +284,9 @@ it wasn't, these are tracked reversals, not gaps:
 - `a151dea` / this doc — beta monitor pick logged, then found to still
   have an open question (existing wiring vs. temporary power) rather than
   being fully resolved.
+- `5486ec4` — `CAB-DEVICE-SETUP.md` written on a separate branch
+  (`claude/pwa-cab-device-setup-708jeb`), describing the actual bridge
+  hardware deployed in cabs today. It sat unmerged and undocumented here
+  until this doc's own review process found it by checking branches other
+  than `develop` — worth remembering that `develop` isn't guaranteed to
+  be the whole picture.
