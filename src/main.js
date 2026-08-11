@@ -13,6 +13,10 @@ import { announceApproachEvent, announceStopEvent } from './announceStopEvent.js
 import { triggerDiversionAlert, clearDiversionAlert } from './diversionAlert.js';
 import { selectServiceManually } from './manualSelection.js';
 import { routeData } from './routeData.js';
+import {
+  captureAnnounceSetup, connectAnnounceLink, disconnectAnnounceLink,
+  broadcastState, setAnnouncing,
+} from './announceLink.js';
 
 const DEBUG = new URLSearchParams(window.location.search).has('debug');
 
@@ -111,6 +115,11 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   document.getElementById('picker').hidden  = true;
   document.getElementById('tracker').hidden = false;
   document.getElementById('route-header').scrollIntoView();
+
+  // No-op on any device not commissioned with a Pi target (see
+  // announceLink.js) — safe to call unconditionally, including on the
+  // cab-device bridge where there's no Pi at all.
+  connectAnnounceLink();
 
   const firstStop  = allStops[0];
   // Second real stop — always exists: a route needs at least a first and a
@@ -354,6 +363,12 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
           isFinal,
           diversionActive: !!diversionAlertState,
         });
+        // Display-only metadata for the onboard sign's push feed (see
+        // announceLink.js) — audio itself stays on this device, never the
+        // Pi. Cleared after a fixed window rather than tracking actual
+        // playback completion — good enough for a "now announcing" hint.
+        setAnnouncing(allStops[approaching.stopIndex].name);
+        setTimeout(() => setAnnouncing(null), 6000);
       }
 
       // Announce on arrival (atStop set) rather than departure, so it's
@@ -369,6 +384,8 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
           serviceCode,
           destination: lastStop.name,
         });
+        setAnnouncing(allStops[atStop.stopIndex].name);
+        setTimeout(() => setAnnouncing(null), 6000);
       }
 
       // Trip completes on its own once the vehicle is confirmed at the
@@ -385,6 +402,20 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
       syncCurrentStop(nextStopIndex);
       if (activeTab === 'dir') updateDirections();
       if (activeTab === 'log') renderLog(getEntries());
+
+      // No-op unless this device is commissioned + connected to a Pi (see
+      // announceLink.js) — never blocks tracking either way.
+      broadcastState({
+        journeyId,
+        nextStopIndex,
+        nextStopName: timing.nextStopName,
+        atStop,
+        approaching,
+        earlyWait,
+        timing,
+        diversionActive: !!diversionAlertState,
+        isFinal: !!(atStop && atStop.stopIndex === allStops.length - 1),
+      });
     },
   });
 
@@ -436,6 +467,7 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
     tripCompleted = true;
 
     tracker.stop();
+    disconnectAnnounceLink();
     btnIncident.hidden = true;
     btnDiversion.hidden = true;
     diversionPanel.hidden = true;
@@ -706,6 +738,10 @@ async function init() {
   acquireWakeLock();
 
   initManualSelection();
+
+  // One-time commissioning step for the Driver -> Pi push feed (see
+  // announceLink.js) — harmless no-op on every visit that isn't it.
+  captureAnnounceSetup(new URLSearchParams(window.location.search));
 
   const dutiesParam = new URLSearchParams(window.location.search).get('duties');
   if (dutiesParam) {

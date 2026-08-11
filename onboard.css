@@ -434,6 +434,17 @@ body {
   min-width: 0;
 }
 
+/* Push-feed mode only (src/onboard.js's runSignPush) — a smaller, muted
+   trailing echo of what the Driver device is currently announcing over its
+   own wired PA connection, not a second equally-weighted line of text. */
+#sign-announcing {
+  margin-left: 1.5vw;
+  font-size: 0.55em;
+  font-weight: 600;
+  opacity: 0.75;
+  flex-shrink: 0;
+}
+
 /* "Replaces" the bottom line while early-wait is active. */
 #early-wait-banner:not([hidden]) ~ #sign-bottom-line {
   display: none;

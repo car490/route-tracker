@@ -12,6 +12,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startGpsdClient } from './gpsd-client.mjs';
+import { attachAnnounceRelay } from './announceRelay.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.join(__dirname, '..'); // pi-server/ sits alongside index.html, src/, style.css
@@ -19,6 +20,14 @@ const CACHE_PATH = path.join(__dirname, 'schedule-cache.json');
 const PORT = Number(process.env.PORT) || 8080;
 const GPSD_HOST = process.env.GPSD_HOST || '127.0.0.1';
 const GPSD_PORT = Number(process.env.GPSD_PORT) || 2947;
+// Shared secret for the /driver-push and /sign-feed WebSocket endpoints
+// (see announceRelay.mjs) — set via the systemd unit's Environment= line.
+// Old gpsd/polling behavior above is untouched either way; this is purely
+// additive, so an unset token just means the push path stays unreachable.
+const DRIVER_PUSH_TOKEN = process.env.DRIVER_PUSH_TOKEN || null;
+if (!DRIVER_PUSH_TOKEN) {
+  console.warn('[announceRelay] DRIVER_PUSH_TOKEN not set — /driver-push and /sign-feed will reject all connections.');
+}
 // A fix older than this is treated as stale (GPS lost) rather than served as current.
 const FIX_MAX_AGE_MS = 15_000;
 
@@ -72,11 +81,15 @@ function serveStaticFile(urlPath, res) {
   });
 }
 
-http.createServer((req, res) => {
+const server = http.createServer((req, res) => {
   const urlPath = req.url.split('?')[0];
   if (urlPath === '/api/schedule') return void serveApiSchedule(res);
   if (urlPath === '/api/position') return void serveApiPosition(res);
   serveStaticFile(urlPath, res);
-}).listen(PORT, () =>
+});
+
+attachAnnounceRelay(server, { token: DRIVER_PUSH_TOKEN });
+
+server.listen(PORT, () =>
   console.log(`pi-server running -> http://0.0.0.0:${PORT}/  (gpsd @ ${GPSD_HOST}:${GPSD_PORT})`)
 );

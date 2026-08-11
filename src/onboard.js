@@ -209,24 +209,110 @@ function renderUpcoming(allStops, centerIndex, timing) {
   }).join('');
 }
 
-// ── Sign ─────────────────────────────────────────────────────────────────
+// ── Rendering — shared between the local-GPS path and the pushed-state path
+// (see runSignLocal/runSignPush below). Purely visual: no audio, no
+// Supabase, no GPS — just DOM updates off an already-computed state shape,
+// whichever path produced it. ──────────────────────────────────────────────
 
-async function runSign(duty) {
-  const stops = await fetchStops(duty.timetable_departure_id);
-  if (!stops.length) { console.error('No stops for departure', duty.timetable_departure_id); return; }
-  const allStops = stops;
-  const initialStopIndex = 0; // start of route; geofence catch-up handles wherever the vehicle actually is
+function render(allStops, initialStopIndex, { nextStopIndex, earlyWait, atStop, timing }) {
+  const centerIndex = atStop ? atStop.stopIndex : Math.max(nextStopIndex - 1, initialStopIndex);
+  const isFinal = centerIndex === allStops.length - 1;
 
-  const destination = stripIndicator(duty.last_stop_name);
-  el('sign-service-code').textContent = duty.service_code;
-  el('sign-destination').textContent = destination;
-  el('onboard-sign').hidden = false;
-  // Brand mark stays visible once active too — repositioned in
-  // onboard.css to a corner of the central track band so it no longer
-  // sits under the (now left-aligned) purple topbar.
+  // One line of text that changes wording rather than a second line
+  // appearing/disappearing — a close, not verbatim, echo of the audio
+  // announcements (see announcements.js) — and keeps the bottom bar's
+  // height constant so the tube-track above it never jumps.
+  el('sbl-status').textContent = atStop
+    ? `This stop is ${allStops[centerIndex].name}`
+    : isFinal
+      ? 'End of route'
+      : `The next stop will be ${allStops[centerIndex + 1].name}`;
+  renderTubeTrack(allStops, centerIndex, !!atStop);
+  renderUpcoming(allStops, centerIndex, timing);
 
+  const banner = el('early-wait-banner');
+  if (earlyWait) {
+    banner.hidden = false;
+    el('ewb-time').textContent = earlyWait.scheduledTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  } else {
+    banner.hidden = true;
+  }
+}
+
+// "Announcing: X" hint — push-feed mode only (see runSignPush). Audio
+// playback itself always stays on the Driver device (PSVAIR reliability —
+// it must keep working even if this feed drops); this is a display-only
+// echo of the announcing field the Driver includes in its push messages.
+// #sign-announcing is optional markup — harmless no-op if it's not present.
+function renderAnnouncing(name) {
+  const box = el('sign-announcing');
+  if (!box) return;
+  box.hidden = !name;
+  if (name) box.textContent = `Announcing: ${name}`;
+}
+
+// ── Pushed-state feed (Driver -> Pi -> this sign) ───────────────────────────
+// See src/announceLink.js (sender) and pi-server/announceRelay.mjs (relay).
+// This device reads its own push-feed token from its own URL rather than
+// commissioning localStorage the way the Driver device does — onboard.html
+// is always opened via one fixed per-vehicle URL (see pi-server/DEPLOY.md),
+// so there's nothing to persist across visits.
+const SIGN_FEED_TIMEOUT_MS = 3000;
+
+function connectSignFeed() {
+  const token = new URLSearchParams(window.location.search).get('announce-token');
+  if (!token) return Promise.resolve(null); // this display isn't set up for the push feed — go straight to the fallback
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const settle = (result) => { if (!settled) { settled = true; clearTimeout(timer); resolve(result); } };
+
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    let ws;
+    try {
+      ws = new WebSocket(`${proto}//${location.host}/sign-feed?token=${encodeURIComponent(token)}`);
+    } catch (_) {
+      return void settle(null);
+    }
+    const timer = setTimeout(() => { ws.close(); settle(null); }, SIGN_FEED_TIMEOUT_MS);
+
+    ws.addEventListener('open', () => settle({
+      onMessage: (cb) => ws.addEventListener('message', (e) => cb(JSON.parse(e.data))),
+    }));
+    ws.addEventListener('error', () => settle(null));
+  });
+}
+
+// Dates cross JSON as ISO strings — revive them back into Date objects the
+// same render()/renderUpcoming() code that consumes gps.js's onUpdate
+// payload already expects.
+function reviveState(msg) {
+  return {
+    ...msg,
+    timing: msg.timing && {
+      ...msg.timing,
+      eta: new Date(msg.timing.eta),
+      scheduledTime: new Date(msg.timing.scheduledTime),
+    },
+    earlyWait: msg.earlyWait && { ...msg.earlyWait, scheduledTime: new Date(msg.earlyWait.scheduledTime) },
+  };
+}
+
+function runSignPush(feed, allStops, initialStopIndex) {
+  feed.onMessage((msg) => {
+    if (msg.type !== 'state') return;
+    const state = reviveState(msg);
+    render(allStops, initialStopIndex, state);
+    renderAnnouncing(state.announcing);
+  });
+}
+
+// ── Local GPS + Supabase-polling path (today's behavior, unchanged) —
+// fallback for any sign not connected to a Driver's push feed. ─────────────
+
+function runSignLocal(duty, allStops, initialStopIndex, destination) {
   setAnnouncementsEnabled(true);
-  // initialStopIndex is always 0 here (see above), so allStops[0]/[1] are
+  // initialStopIndex is always 0 here (see runSign), so allStops[0]/[1] are
   // always the first two real stops — same reasoning as main.js's runTracker.
   announceJourneyStart({
     serviceCode: duty.service_code,
@@ -263,36 +349,13 @@ async function runSign(duty) {
     }
   })();
 
-  await acquireWakeLock();
-
   startGpsTracking({
     schedule: allStops,
     lateAllowanceMin: 2,
     initialStopIndex,
     positionSource: usingLocalApi ? localPiPositionSource : undefined,
     onUpdate: ({ nextStopIndex, earlyWait, atStop, approaching, timing }) => {
-      const centerIndex = atStop ? atStop.stopIndex : Math.max(nextStopIndex - 1, initialStopIndex);
-      const isFinal = centerIndex === allStops.length - 1;
-
-      // One line of text that changes wording rather than a second line
-      // appearing/disappearing — a close, not verbatim, echo of the audio
-      // announcements (see announcements.js) — and keeps the bottom bar's
-      // height constant so the tube-track above it never jumps.
-      el('sbl-status').textContent = atStop
-        ? `This stop is ${allStops[centerIndex].name}`
-        : isFinal
-          ? 'End of route'
-          : `The next stop will be ${allStops[centerIndex + 1].name}`;
-      renderTubeTrack(allStops, centerIndex, !!atStop);
-      renderUpcoming(allStops, centerIndex, timing);
-
-      const banner = el('early-wait-banner');
-      if (earlyWait) {
-        banner.hidden = false;
-        el('ewb-time').textContent = earlyWait.scheduledTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-      } else {
-        banner.hidden = true;
-      }
+      render(allStops, initialStopIndex, { nextStopIndex, earlyWait, atStop, timing });
 
       // PSVAIR event 2 — approaching (fires once per stop off gps.js's
       // stopStates 'approaching' status). Silent for the final stop
@@ -323,6 +386,36 @@ async function runSign(duty) {
       }
     },
   });
+}
+
+// ── Sign ─────────────────────────────────────────────────────────────────
+
+async function runSign(duty) {
+  const stops = await fetchStops(duty.timetable_departure_id);
+  if (!stops.length) { console.error('No stops for departure', duty.timetable_departure_id); return; }
+  const allStops = stops;
+  const initialStopIndex = 0; // start of route; geofence catch-up handles wherever the vehicle actually is
+
+  const destination = stripIndicator(duty.last_stop_name);
+  el('sign-service-code').textContent = duty.service_code;
+  el('sign-destination').textContent = destination;
+  el('onboard-sign').hidden = false;
+  // Brand mark stays visible once active too — repositioned in
+  // onboard.css to a corner of the central track band so it no longer
+  // sits under the (now left-aligned) purple topbar.
+
+  await acquireWakeLock();
+
+  // Prefers a live push feed from the Driver device (see runSignPush); a
+  // sign not commissioned for one, or unable to reach the Pi within
+  // SIGN_FEED_TIMEOUT_MS, falls straight back to today's exact behavior
+  // (runSignLocal) — nothing currently working is affected either way.
+  const feed = await connectSignFeed();
+  if (feed) {
+    runSignPush(feed, allStops, initialStopIndex);
+  } else {
+    runSignLocal(duty, allStops, initialStopIndex, destination);
+  }
 }
 
 // ── Clock — wide-layout top bar only, but harmless to keep updating while

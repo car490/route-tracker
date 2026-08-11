@@ -208,6 +208,48 @@ The `VSDISPLAY 28" 1920×360` example above is **stale** — see
 full status trail (why that panel was dropped, what's TBD for production,
 and the still-open beta pick question), and don't order against this file.
 
+## 6. Driver → Pi push feed (optional, additive)
+
+By default the Pi still runs its own `gpsd` GPS and `onboard.js` polls
+Supabase directly — nothing above changes. This section adds an *additional*
+path: the Driver device pushes its already-computed tracking state
+(next stop, ETA, diversion/final-stop flags — never raw GPS) to this Pi over
+a local WebSocket, and `onboard.js` prefers that pushed state when a
+connection is live, falling back to today's polling/GPS behavior otherwise.
+See `pi-server/announceRelay.mjs` and `src/announceLink.js`.
+
+**Set a shared token** (a commissioning-time secret, not "on this network =
+trusted") before enabling this — both endpoints reject every connection
+until it's set:
+```ini
+# add to coachmate-onboard.service's [Service] section
+Environment=DRIVER_PUSH_TOKEN=<a long random string, same on both ends>
+```
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart coachmate-onboard
+```
+
+**Connect the Driver tablet to this Pi's hotspot once** — no native app or
+auto-join yet, just join `CoachMate-<name>` (the `wlan1` SSID from step 3)
+from the tablet's normal Android WiFi settings, the same as joining any WiFi
+network. It stays connected/reconnects automatically after that, same as any
+remembered WiFi network.
+
+**Commission the Driver device once** by opening (on that tablet, once):
+```
+http://<driver-pwa-url>/?announce-setup=ws://192.168.4.1:8080/driver-push&announce-token=<same token>
+```
+This saves both values to `localStorage` — the Driver PWA never needs the
+query param again, and pushes state automatically for every journey started
+from that device from then on. A device that was never commissioned this way
+simply never connects — the whole feature is a silent no-op for it.
+
+**onboard.js side** needs no separate commissioning: it already knows its own
+host (it's served by this same Pi), and reads the token from its own URL —
+add `&announce-token=<same token>` to whatever fixed URL Option A/B above
+already uses to open `onboard.html`.
+
 ## Refreshing the schedule mid-shift
 The display's "Refresh routes" button only re-reads the Pi's *existing*
 cache — it can't reach Supabase itself (that's the whole point of the
@@ -235,3 +277,13 @@ If an Option B monitor stays blank, check `coachmate-kiosk`'s logs first,
 then confirm the monitor's actually set to the HDMI input the Pi is plugged
 into — a monitor with no OS of its own won't show anything if it's just
 idling on a different input.
+
+If the push feed (section 6) is set up, verify it separately with any
+WebSocket client, e.g. `npx wscat`:
+```bash
+npx wscat -c "ws://192.168.4.1:8080/sign-feed?token=<token>"   # should connect and stay open
+npx wscat -c "ws://192.168.4.1:8080/sign-feed?token=wrong"     # should be rejected (401)
+```
+A driver on a commissioned device should show up as one more open connection
+in `coachmate-onboard`'s logs, and `onboard.js`'s status line should stop
+requesting its own GPS permission once it's receiving pushed state instead.

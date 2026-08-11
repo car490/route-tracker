@@ -63,6 +63,10 @@
 
       <div id="sign-bottom-line">
         <span id="sbl-status"></span>
+        <!-- Push-feed mode only (src/onboard.js's runSignPush) — echoes what
+             the Driver device is currently announcing over its own wired PA
+             connection. Audio itself never plays from this sign. -->
+        <span id="sign-announcing" hidden></span>
       </div>
     </div>
 
