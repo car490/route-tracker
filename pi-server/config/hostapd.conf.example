@@ -1,0 +1,26 @@
+# WiFi AP hosted on the second (USB) WiFi adapter, wlan1 — the Fire HD
+# joins this. Leaves the Pi's onboard wlan0 free to join depot WiFi as a
+# normal client for the morning schedule sync; no mode-switching needed,
+# the two radios run independently and simultaneously all day.
+#
+# Install: sudo cp hostapd.conf.example /etc/hostapd/hostapd.conf
+# Then point /etc/default/hostapd at it (DAEMON_CONF="/etc/hostapd/hostapd.conf")
+# and set a static IP for wlan1 in /etc/dhcpcd.conf, e.g.:
+#   interface wlan1
+#   static ip_address=192.168.4.1/24
+#   nohook wpa_supplicant
+
+interface=wlan1
+driver=nl80211
+ssid=CoachMate-CHANGEME
+hw_mode=g
+channel=7
+wmm_enabled=0
+macaddr_acl=0
+auth_algs=1
+ignore_broadcast_ssid=0
+wpa=2
+wpa_passphrase=CHANGE_ME_BEFORE_DEPLOYING
+wpa_key_mgmt=WPA-PSK
+wpa_pairwise=TKIP
+rsn_pairwise=CCMP
