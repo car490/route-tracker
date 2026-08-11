@@ -24,19 +24,23 @@ export function buildConnectionUrl(base, token) {
   return url.toString();
 }
 
-// The exact JSON-serializable payload sent per state change. Only carries
-// the already-computed fields the onboard sign needs to render — deliberately
-// excludes lat/lon even though callers (main.js's onUpdate) have them handy.
+// The exact JSON-serializable payload sent per state change. Carries the
+// full stopStates array too — gps.js's single source of truth for per-stop
+// geofence status (see gps.js's own header comment on that array) — so any
+// consumer downstream of the push feed has the same data local-GPS mode
+// already had available, not a hand-picked subset. Deliberately excludes
+// lat/lon even though callers (main.js's onUpdate) have them handy — see
+// file header.
 export function buildStatePayload(state, { announcing = null } = {}) {
   const {
     journeyId, nextStopIndex, nextStopName, atStop, approaching,
-    earlyWait, timing, diversionActive, isFinal,
+    earlyWait, timing, stopStates, diversionActive, isFinal,
   } = state;
   return {
     type: 'state',
     ts: Date.now(),
     journeyId, nextStopIndex, nextStopName, atStop, approaching,
-    earlyWait, timing, diversionActive, isFinal, announcing,
+    earlyWait, timing, stopStates, diversionActive, isFinal, announcing,
   };
 }
 

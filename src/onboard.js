@@ -285,7 +285,10 @@ function connectSignFeed() {
 
 // Dates cross JSON as ISO strings — revive them back into Date objects the
 // same render()/renderUpcoming() code that consumes gps.js's onUpdate
-// payload already expects.
+// payload already expects. stopStates isn't consumed by anything yet (see
+// render() below — same as local-GPS mode, which never used it either), but
+// its arrivedAt/departedAt are revived too so it's not a trap for whatever
+// reads it next.
 function reviveState(msg) {
   return {
     ...msg,
@@ -295,6 +298,11 @@ function reviveState(msg) {
       scheduledTime: new Date(msg.timing.scheduledTime),
     },
     earlyWait: msg.earlyWait && { ...msg.earlyWait, scheduledTime: new Date(msg.earlyWait.scheduledTime) },
+    stopStates: msg.stopStates && msg.stopStates.map((s) => ({
+      ...s,
+      arrivedAt: s.arrivedAt ? new Date(s.arrivedAt) : null,
+      departedAt: s.departedAt ? new Date(s.departedAt) : null,
+    })),
   };
 }
 

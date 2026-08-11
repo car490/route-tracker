@@ -413,6 +413,7 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
         approaching,
         earlyWait,
         timing,
+        stopStates,
         diversionActive: !!diversionAlertState,
         isFinal: !!(atStop && atStop.stopIndex === allStops.length - 1),
       });

@@ -33,6 +33,11 @@ describe('buildStatePayload', () => {
     journeyId: 'jrn-1', nextStopIndex: 2, nextStopName: 'High Street',
     atStop: null, approaching: { stopIndex: 2 }, earlyWait: null,
     timing: { status: 'on-time' }, diversionActive: false, isFinal: false,
+    stopStates: [
+      { status: 'departed', arrivedAt: null, departedAt: null },
+      { status: 'skipped_signal', arrivedAt: null, departedAt: null },
+      { status: 'approaching', arrivedAt: null, departedAt: null },
+    ],
     lat: 51.5, lon: -0.1, // must never leak into the payload — see file header of announceLink.js
   };
 
@@ -49,6 +54,12 @@ describe('buildStatePayload', () => {
     expect(payload.nextStopName).toBe('High Street');
     expect(payload.announcing).toBeNull();
     expect(typeof payload.ts).toBe('number');
+  });
+
+  it('carries the full stopStates array — gps.js\'s single source of truth for per-stop status, not a hand-picked subset', () => {
+    const payload = buildStatePayload(baseState);
+    expect(payload.stopStates).toEqual(baseState.stopStates);
+    expect(payload.stopStates.map((s) => s.status)).toEqual(['departed', 'skipped_signal', 'approaching']);
   });
 
   it('carries the announcing field when provided', () => {
