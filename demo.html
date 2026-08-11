@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#0d1215" />
+  <title>BusOps — Interactive Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    /* ════════════════════════════════════════════════════════════════════
+       RESET + SHARED
+    ════════════════════════════════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    [hidden] { display: none !important; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #111;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ════════════════════════════════════════════════════════════════════
+       DEMO CHROME — neutral dark wrapper
+    ════════════════════════════════════════════════════════════════════ */
+    .demo-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.55rem 0.9rem;
+      background: #0d1215;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    .demo-title-group {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+    .demo-wordmark {
+      font-weight: 800;
+      font-size: 1rem;
+      letter-spacing: -0.01em;
+      color: #fff;
+    }
+    .demo-tag {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #00B4D8;
+    }
+    .demo-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+    }
+    .demo-controls select,
+    .demo-controls button {
+      font-family: inherit;
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: #1e2a30;
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 6px;
+      padding: 0.32rem 0.55rem;
+      cursor: pointer;
+      appearance: none;
+      white-space: nowrap;
+    }
+    .demo-controls select {
+      padding-right: 1.4rem;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238BA4B0'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.45rem center;
+    }
+    #play-btn { min-width: 5rem; }
+    #play-btn.paused { color: #10B981; border-color: #10B981; }
+    #step-btn { color: #00B4D8; border-color: rgba(0,180,216,0.5); }
+    #reset-btn { color: #8BA4B0; }
+    .demo-clock {
+      font-size: 0.78rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #00B4D8;
+      letter-spacing: 0.05em;
+      padding: 0.32rem 0.55rem;
+      background: #1e2a30;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 6px;
+      flex-shrink: 0;
+    }
+
+    /* Tab bar */
+    .demo-tabs {
+      display: flex;
+      background: #0d1215;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      flex-shrink: 0;
+    }
+    .demo-tab {
+      flex: 1;
+      padding: 0.55rem 1rem;
+      background: none;
+      border: none;
+      border-bottom: 3px solid transparent;
+      color: #8BA4B0;
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+    }
+    .demo-tab.active {
+      color: #fff;
+      border-bottom-color: #00B4D8;
+    }
+
+    /* Tab panels */
+    .demo-tab-panel {
+      display: none;
+      flex: 1;
+      overflow: hidden;
+      min-height: 0;
+    }
+    .demo-tab-panel.active {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ════════════════════════════════════════════════════════════════════
+       DRIVER SCREEN — dark theme (mirrors style.css), scoped
+    ════════════════════════════════════════════════════════════════════ */
+    .driver-tab-wrap {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .driver-screen {
+      --bg:          #1B2428;
+      --surface:     #242F35;
+      --text:        #ffffff;
+      --text-muted:  #8BA4B0;
+      --on-time:     #10B981;
+      --late:        #EF4444;
+      --early:       #F59E0B;
+      --border:      rgba(255, 255, 255, 0.09);
+      --progress-bg: rgba(255, 255, 255, 0.08);
+      --cyan:        #00B4D8;
+
+      flex: 1;
+      overflow-y: auto;
+      background: var(--bg);
+      color: var(--text);
+      padding: 0.9rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      min-height: 0;
+      /* centre on wide screens like the real PWA */
+      max-width: 480px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    /* early-wait banner (driver) */
+    .driver-screen #d-early-wait {
+      background: var(--early);
+      color: #000;
+      text-align: center;
+      padding: 0.8rem 1rem;
+      border-radius: 10px;
+      animation: ewb-flash 1s ease-in-out infinite;
+    }
+    @keyframes ewb-flash { 0%,100%{opacity:1} 50%{opacity:0.35} }
+    .driver-screen .ewb-title { font-size: 1.4rem; font-weight: 700; letter-spacing: 0.05em; }
+    .driver-screen .ewb-msg   { font-size: 0.95rem; margin-top: 0.2rem; }
+
+    /* route header */
+    .driver-screen #d-route-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.65rem;
+      padding: 0.4rem 0.2rem;
+      border-bottom: 2px solid var(--cyan);
+    }
+    .driver-screen #d-header-service {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.1rem;
+      background: var(--surface);
+      padding: 0.2rem 0.65rem;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .driver-screen #d-svc-code {
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+    .driver-screen #d-svc-period {
+      color: rgba(255,255,255,0.65);
+      font-size: 0.68rem;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+    .driver-screen #d-route-lines { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+    .driver-screen #d-line1 { font-size: 0.88rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .driver-screen #d-line2 { font-size: 0.73rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* status card */
+    .driver-screen #d-status-card {
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 1.1rem 1.3rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+    }
+    .driver-screen #d-status-card.s-on-time { border-color: var(--on-time); }
+    .driver-screen #d-status-card.s-late    { border-color: var(--late); }
+    .driver-screen #d-status-card.s-early   { border-color: var(--early); }
+    .driver-screen #d-status-card.s-at-stop { border-color: var(--surface); }
+
+    .driver-screen #d-status-label {
+      font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em;
+      text-transform: uppercase; color: var(--text-muted);
+    }
+    .driver-screen #d-status-card.s-on-time #d-status-label { color: var(--on-time); }
+    .driver-screen #d-status-card.s-late    #d-status-label { color: var(--late); }
+    .driver-screen #d-status-card.s-early   #d-status-label { color: var(--early); }
+    .driver-screen #d-status-card.s-at-stop #d-status-label { color: rgba(255,255,255,0.4); }
+
+    .driver-screen #d-next-stop {
+      font-size: 1.45rem; font-weight: 700;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .driver-screen .time-row { display: flex; gap: 1.1rem; align-items: baseline; }
+    .driver-screen .time-group { display: flex; flex-direction: column; gap: 0.08rem; }
+    .driver-screen .time-label {
+      font-size: 0.63rem; font-weight: 400; letter-spacing: 0.04em;
+      text-transform: uppercase; color: var(--text-muted);
+    }
+    .driver-screen .time-value {
+      font-size: 1.2rem; font-weight: 600; font-variant-numeric: tabular-nums;
+    }
+    .driver-screen #d-delta {
+      font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums;
+      margin-left: auto; align-self: center;
+    }
+    .driver-screen #d-status-card.s-on-time #d-delta { color: var(--on-time); }
+    .driver-screen #d-status-card.s-late    #d-delta { color: var(--late); }
+    .driver-screen #d-status-card.s-early   #d-delta { color: var(--early); }
+
+    .driver-screen .metrics-row { display: flex; gap: 1.3rem; }
+    .driver-screen .metric { display: flex; flex-direction: column; gap: 0.08rem; }
+    .driver-screen .metric-label {
+      font-size: 0.63rem; font-weight: 400; letter-spacing: 0.04em;
+      text-transform: uppercase; color: var(--text-muted);
+    }
+    .driver-screen .metric-value {
+      font-size: 0.92rem; font-weight: 600; font-variant-numeric: tabular-nums;
+    }
+
+    /* progress */
+    .driver-screen .progress-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.9rem 1.2rem;
+      display: flex; flex-direction: column; gap: 0.45rem;
+    }
+    .driver-screen .stop-labels { display: flex; flex-direction: column; gap: 0.12rem; }
+    .driver-screen .stop-label-prefix {
+      font-size: 0.68rem; letter-spacing: 0.04em;
+      text-transform: uppercase; color: var(--text-muted);
+    }
+    .driver-screen #d-after-next {
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      font-size: 0.95rem; font-weight: 600; color: var(--text);
+    }
+    .driver-screen .progress-track {
+      background: var(--progress-bg); border-radius: 4px; height: 7px; width: 100%; overflow: hidden;
+    }
+    .driver-screen #d-progress-fill {
+      height: 100%; width: 0%; background: var(--cyan);
+      border-radius: 4px; transition: width 0.8s linear;
+    }
+
+    /* stop list */
+    .driver-screen #d-stop-list {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow-y: auto;
+      max-height: 38vh;
+    }
+    .driver-screen .stop-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 0.65rem;
+      align-items: center;
+      padding: 0.55rem 0.9rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.78rem;
+    }
+    .driver-screen .stop-row:last-child { border-bottom: none; }
+    .driver-screen .sl-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .driver-screen .sl-sched { color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .driver-screen .sl-actual { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .driver-screen .stop-past { opacity: 0.42; }
+    .driver-screen .stop-past .sl-actual { opacity: 1; }
+    .driver-screen .stop-current { font-weight: 700; }
+    .driver-screen .sl-ontime { color: var(--on-time); }
+    .driver-screen .sl-early  { color: var(--early); }
+    .driver-screen .sl-late   { color: var(--late); }
+
+    /* brand mark */
+    .driver-brand {
+      position: absolute;
+      left: 0.9rem;
+      bottom: 0.65rem;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      z-index: 5;
+    }
+    .driver-brand .bo-wm {
+      font-size: 0.9rem; font-weight: 800; letter-spacing: -0.01em; color: #fff;
+    }
+    .driver-brand .bo-app { color: #EF4444; }
+    .driver-brand .cm-attr { display: flex; flex-direction: row; align-items: baseline; gap: 0.25rem; opacity: 0.5; }
+    .driver-brand .cm-pb {
+      font-size: 0.45rem; font-weight: 400; letter-spacing: 0.04em;
+      text-transform: uppercase; color: #8BA4B0;
+    }
+    .driver-brand .cm-wm { font-size: 0.65rem; letter-spacing: -0.02em; }
+    .driver-brand .cm-coach { font-weight: 800; color: rgba(255,255,255,0.7); }
+    .driver-brand .cm-mate  { font-weight: 400; color: #00B4D8; }
+
+    /* ════════════════════════════════════════════════════════════════════
+       ONBOARD SCREEN — e-paper theme (mirrors onboard.css), scoped
+    ════════════════════════════════════════════════════════════════════ */
+    .onboard-screen {
+      --ep-bg:       #ECEAE2;
+      --ep-ink:      #1A1A18;
+      --ep-soft:     #5A5850;
+      --ep-line:     #1A1A18;
+      --ep-slate:    #475569;
+      --ep-teal:     #00B4D8;
+      --ep-late:     #EF4444;
+      --op-accent:   ; /* injected by demo if demo-branding is on */
+
+      flex: 1;
+      background: var(--ep-bg);
+      color: var(--ep-ink);
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* brand mark */
+    .onboard-screen #ob-brand {
+      position: absolute;
+      left: 1.2rem;
+      bottom: 0.8rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      pointer-events: none;
+      z-index: 5;
+    }
+    .onboard-screen .bo-wm {
+      font-size: 0.9rem; font-weight: 800; letter-spacing: -0.01em;
+      color: var(--ep-ink);
+    }
+    .onboard-screen .bo-app { color: var(--ep-late); }
+    .onboard-screen .cm-attr { display: flex; flex-direction: row; align-items: baseline; gap: 0.25rem; }
+    .onboard-screen .cm-pb {
+      font-size: 0.55rem; font-weight: 600; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--ep-soft);
+    }
+    .onboard-screen .cm-wm { font-size: 0.8rem; letter-spacing: -0.02em; }
+    .onboard-screen .cm-coach { font-weight: 800; color: var(--ep-slate); }
+    .onboard-screen .cm-mate  { font-weight: 400; color: var(--ep-teal); }
+
+    /* sign wrapper */
+    .onboard-screen #ob-sign {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 3vh 5vw 10vh;
+      gap: 1.5vh;
+      min-height: 0;
+    }
+
+    /* topbar */
+    .onboard-screen #ob-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 2vw;
+      border-bottom: 4px solid var(--op-accent, var(--ep-line));
+      padding-bottom: 1.8vh;
+      flex-shrink: 0;
+    }
+    .onboard-screen #ob-svc-code {
+      font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+      font-size: clamp(1.4rem, 4.5vh, 2.8rem);
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      border: 4px solid var(--op-accent, var(--ep-line));
+      padding: 0.35vh 1.2vw;
+      line-height: 1.1;
+      flex-shrink: 0;
+    }
+    .onboard-screen #ob-destination {
+      font-size: clamp(0.9rem, 2.8vh, 1.8rem);
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      text-transform: uppercase;
+      text-align: right;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .onboard-screen #ob-destination::before { content: '\2192\00A0'; }
+
+    /* early-wait (onboard) */
+    .onboard-screen #ob-early-wait {
+      background: transparent;
+      color: var(--ep-ink);
+      text-align: center;
+      padding: 1vh 1rem;
+      border: 3px dashed var(--ep-line);
+      flex-shrink: 0;
+    }
+    .onboard-screen #ob-early-wait .ewb-title {
+      font-size: clamp(1rem, 2.5vh, 1.6rem);
+      font-weight: 800;
+      letter-spacing: 0.08em;
+    }
+    .onboard-screen #ob-early-wait .ewb-msg {
+      font-size: clamp(0.65rem, 1.5vh, 0.95rem);
+      margin-top: 0.35vh;
+      color: var(--ep-soft);
+    }
+
+    /* hero */
+    .onboard-screen #ob-hero {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 2.5vh;
+      min-height: 0;
+    }
+    .onboard-screen .hero-row { display: flex; flex-direction: column; gap: 0.4vh; }
+    .onboard-screen .hero-label {
+      font-size: clamp(0.6rem, 1.7vh, 1rem);
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--ep-soft);
+    }
+    .onboard-screen .hero-value {
+      font-weight: 800;
+      line-height: 1.05;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .onboard-screen #ob-current-stop { font-size: clamp(1.8rem, 6.5vh, 4rem); }
+    .onboard-screen #ob-next-stop    { font-size: clamp(1.1rem, 4vh, 2.5rem); color: var(--ep-soft); }
+
+    /* tube track */
+    .onboard-screen #ob-tube-track {
+      position: relative;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      height: clamp(72px, 11vh, 120px);
+      padding: 0 1vw;
+      flex-shrink: 0;
+      margin-bottom: 2vh;
+    }
+    .onboard-screen #ob-tube-track::before {
+      content: '';
+      position: absolute;
+      left: calc(1vw + 7%);
+      right: calc(1vw + 7%);
+      top: clamp(9px, 1.6vh, 18px);
+      height: 4px;
+      background: var(--ep-line);
+    }
+    .onboard-screen .tube-node {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.7vh;
+      flex: 1;
+      min-width: 0;
+    }
+    .onboard-screen .tube-dot {
+      width: clamp(14px, 2.2vh, 24px);
+      height: clamp(14px, 2.2vh, 24px);
+      border-radius: 50%;
+      background: var(--ep-ink);
+      border: 4px solid var(--ep-ink);
+      z-index: 1;
+    }
+    .onboard-screen .tube-future .tube-dot {
+      background: var(--ep-bg);
+    }
+    .onboard-screen .tube-current .tube-dot {
+      width: clamp(18px, 3.2vh, 34px);
+      height: clamp(18px, 3.2vh, 34px);
+      background: var(--ep-bg);
+      border-width: 5px;
+    }
+    .onboard-screen .tube-label {
+      font-size: clamp(0.5rem, 1.3vh, 0.8rem);
+      font-weight: 600;
+      text-align: center;
+      max-width: 15vw;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--ep-soft);
+    }
+    .onboard-screen .tube-current .tube-label { font-weight: 800; color: var(--ep-ink); }
+    .onboard-screen .tube-at-stop .tube-dot {
+      background: var(--op-accent, var(--ep-ink));
+      border-color: var(--op-accent, var(--ep-ink));
+      animation: tube-pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes tube-pulse { 0%,100%{opacity:1} 50%{opacity:0.42} }
+
+    /* ════════════════════════════════════════════════════════════════════
+       RESPONSIVE ADJUSTMENTS
+    ════════════════════════════════════════════════════════════════════ */
+    @media (max-width: 420px) {
+      .demo-controls select { max-width: 110px; }
+      #play-btn { min-width: 4.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Demo chrome ──────────────────────────────────────────────────── -->
+  <div class="demo-header">
+    <div class="demo-title-group">
+      <span class="demo-wordmark">BUSOPS</span>
+      <span class="demo-tag">Interactive Demo</span>
+    </div>
+    <div class="demo-controls">
+      <select id="route-select" aria-label="Select route">
+        <option value="0">S116S — Morning (Boston → Donington)</option>
+        <option value="1">S116S — Afternoon (Donington → Boston)</option>
+        <option value="2">S125S — Morning (Weston → College)</option>
+        <option value="3">S125S — Afternoon (College → Weston)</option>
+      </select>
+      <span class="demo-clock" id="sim-clock" aria-label="Simulated time">07:40</span>
+      <button id="play-btn" title="Play / Pause simulation">⏸ Pause</button>
+      <select id="speed-select" aria-label="Simulation speed">
+        <option value="2">2×</option>
+        <option value="5" selected>5×</option>
+        <option value="10">10×</option>
+        <option value="20">20×</option>
+      </select>
+      <button id="step-btn" title="Jump to next stop">⏭ Step</button>
+      <button id="reset-btn" title="Reset to start of route">↺ Reset</button>
+    </div>
+  </div>
+
+  <div class="demo-tabs" role="tablist">
+    <button class="demo-tab active" data-tab="driver" role="tab" aria-selected="true">🚌 Driver PWA</button>
+    <button class="demo-tab"        data-tab="onboard" role="tab" aria-selected="false">📺 Passenger Display</button>
+  </div>
+
+  <!-- ── Driver PWA tab ───────────────────────────────────────────────── -->
+  <div id="tab-driver" class="demo-tab-panel active" role="tabpanel">
+    <div class="driver-tab-wrap">
+
+      <div class="driver-screen">
+
+        <div id="d-early-wait" hidden>
+          <div class="ewb-title">WAIT HERE</div>
+          <div class="ewb-msg">Running early — depart at <span id="d-ewb-time"></span></div>
+        </div>
+
+        <div id="d-route-header">
+          <div id="d-header-service">
+            <span id="d-svc-code">S116S</span>
+            <span id="d-svc-period">In Transit</span>
+          </div>
+          <div id="d-route-lines">
+            <span id="d-line1"></span>
+            <span id="d-line2"></span>
+          </div>
+        </div>
+
+        <div id="d-status-card" class="s-on-time">
+          <div id="d-status-label">ON TIME</div>
+          <div id="d-next-stop">—</div>
+          <div class="time-row">
+            <div class="time-group">
+              <span class="time-label">Scheduled</span>
+              <span class="time-value" id="d-sched-time">--:--</span>
+            </div>
+            <div class="time-group">
+              <span class="time-label">ETA</span>
+              <span class="time-value" id="d-eta-time">--:--</span>
+            </div>
+            <span id="d-delta">—</span>
+          </div>
+          <div class="metrics-row">
+            <div class="metric">
+              <span class="metric-label">Distance</span>
+              <span class="metric-value" id="d-distance">—</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Speed</span>
+              <span class="metric-value" id="d-speed">—</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="progress-section">
+          <div class="stop-labels">
+            <span class="stop-label-prefix">Next Stop:</span>
+            <span id="d-after-next">—</span>
+          </div>
+          <div class="progress-track">
+            <div id="d-progress-fill"></div>
+          </div>
+        </div>
+
+        <div id="d-stop-list"></div>
+
+      </div><!-- .driver-screen -->
+
+      <!-- BusOps Driver brand mark -->
+      <div class="driver-brand" aria-hidden="true">
+        <div class="bo-wm">BUSOPS <span class="bo-app">Driver</span></div>
+        <div class="cm-attr">
+          <span class="cm-pb">Powered by</span>
+          <span class="cm-wm"><span class="cm-coach">COACH</span><span class="cm-mate">Mate</span></span>
+        </div>
+      </div>
+
+    </div><!-- .driver-tab-wrap -->
+  </div>
+
+  <!-- ── Passenger Display (Announce) tab ─────────────────────────────── -->
+  <div id="tab-onboard" class="demo-tab-panel" role="tabpanel">
+    <div class="onboard-screen" id="onboard-screen">
+
+      <!-- BusOps Announce brand mark -->
+      <div id="ob-brand" aria-hidden="true">
+        <div class="bo-wm">BUSOPS <span class="bo-app">Announce</span></div>
+        <div class="cm-attr">
+          <span class="cm-pb">Powered by</span>
+          <span class="cm-wm"><span class="cm-coach">COACH</span><span class="cm-mate">Mate</span></span>
+        </div>
+      </div>
+
+      <div id="ob-sign">
+        <div id="ob-topbar">
+          <span id="ob-svc-code">S116S</span>
+          <span id="ob-destination">Donington</span>
+        </div>
+
+        <div id="ob-early-wait" hidden>
+          <div class="ewb-title">WAIT HERE</div>
+          <div class="ewb-msg">Running early — depart at <span id="ob-ewb-time"></span></div>
+        </div>
+
+        <div id="ob-hero">
+          <div class="hero-row">
+            <span class="hero-label">This stop is</span>
+            <span id="ob-current-stop" class="hero-value">—</span>
+          </div>
+          <div class="hero-row">
+            <span class="hero-label">The next stop will be</span>
+            <span id="ob-next-stop" class="hero-value">—</span>
+          </div>
+        </div>
+
+        <div id="ob-tube-track"></div>
+      </div>
+
+    </div><!-- .onboard-screen -->
+  </div>
+
+  <script>
+    // ════════════════════════════════════════════════════════════════════
+    // ROUTE DATA — embedded from src/schedule.json
+    // ════════════════════════════════════════════════════════════════════
+    const ROUTES = [
+      {
+        service: 'S116S', label: 'Morning Outbound 07:40',
+        direction: 'Boston → Donington',
+        stops: [
+          {name:'Boston, Bus Station (Bay 8)',time:'07:40'},
+          {name:'Boston, The Minstrels (adj)',time:'07:43'},
+          {name:'Boston, Rosebery Avenue (opp)',time:'07:44'},
+          {name:'Boston, Footpath to Arundel Crescent (opp)',time:'07:44'},
+          {name:'Boston, Wyberton High Bridge (SW-bound)',time:'07:45'},
+          {name:'Boston, Oldrids (opp)',time:'07:46'},
+          {name:'Wyberton, Pincushion Inn (opp)',time:'07:53'},
+          {name:'Wyberton, Ralphs Lane (opp)',time:'07:53'},
+          {name:'Frampton, Millfield Lane West (adj)',time:'07:54'},
+          {name:'Frampton, Middlegate Road (adj)',time:'07:55'},
+          {name:'Kirton, Woodlands Court (opp)',time:'07:57'},
+          {name:'Kirton, War Memorial (adj)',time:'07:58'},
+          {name:'Kirton End, Post Office (NW-bound)',time:'08:03'},
+          {name:'Blackjack, Crossroads (N-bound)',time:'08:05'},
+          {name:'Swineshead, Fenhouses Lane (adj)',time:'08:07'},
+          {name:'Kirton Holme, Fenhouses Drove (adj)',time:'08:08'},
+          {name:'Baythorpe, Hardwick Plot Lane (opp)',time:'08:10'},
+          {name:'Swineshead, Golden Cross PH (opp)',time:'08:13'},
+          {name:'Swineshead, Tarry Hill (adj)',time:'08:15'},
+          {name:"Swineshead, Cole's Lane (opp)",time:'08:15'},
+          {name:"Swineshead, King John's Road (adj)",time:'08:16'},
+          {name:"Swineshead, St Mary's Church (opp)",time:'08:17'},
+          {name:'Swineshead, Bullens Lane (adj)',time:'08:17'},
+          {name:'Swineshead, High Green (adj)',time:'08:18'},
+          {name:"Swineshead, Bentley's Garage (adj)",time:'08:18'},
+          {name:'Bicker Bar, Bicker Bar Hotel (opp)',time:'08:19'},
+          {name:'Northorpe, Browntoft Lane (adj)',time:'08:21'},
+          {name:'Northorpe, Church Street (adj)',time:'08:22'},
+          {name:'Donington, Market Place (adj)',time:'08:24'},
+          {name:'Donington, Cowley Secondary School (o/s)',time:'08:25'},
+        ]
+      },
+      {
+        service: 'S116S', label: 'Afternoon Inbound 15:23',
+        direction: 'Donington → Boston',
+        stops: [
+          {name:'Donington, Cowley Secondary School (o/s)',time:'15:23'},
+          {name:'Donington, Market Place (opp)',time:'15:24'},
+          {name:'Northorpe, Church Street (opp)',time:'15:27'},
+          {name:'Northorpe, Browntoft Lane (opp)',time:'15:28'},
+          {name:'Bicker Bar, Bicker Bar Hotel (adj)',time:'15:30'},
+          {name:"Swineshead, Bentley's Garage (opp)",time:'15:31'},
+          {name:'Swineshead, High Green (opp)',time:'15:31'},
+          {name:'Swineshead, Bullens Lane (opp)',time:'15:32'},
+          {name:"Swineshead, St Mary's Church (adj)",time:'15:32'},
+          {name:"Swineshead, King John's Road (opp)",time:'15:33'},
+          {name:"Swineshead, Cole's Lane (adj)",time:'15:33'},
+          {name:'Swineshead, Tarry Hill (opp)',time:'15:35'},
+          {name:'Swineshead, Golden Cross PH (o/s)',time:'15:37'},
+          {name:'Baythorpe, Hardwick Plot Lane (adj)',time:'15:40'},
+          {name:'Kirton Holme, Fenhouses Drove (opp)',time:'15:42'},
+          {name:'Swineshead, Fenhouses Lane (opp)',time:'15:43'},
+          {name:'Blackjack, Crossroads (S-bound)',time:'15:45'},
+          {name:'Kirton End, Post Office (SW-bound)',time:'15:47'},
+          {name:'Kirton, War Memorial (opp)',time:'15:52'},
+          {name:'Kirton, Woodlands Court (adj)',time:'15:52'},
+          {name:'Frampton, Middlegate Road (opp)',time:'15:53'},
+          {name:'Frampton, Millfield Lane West (opp)',time:'15:53'},
+          {name:'Wyberton, Ralphs Lane (adj)',time:'15:54'},
+          {name:'Wyberton, Pincushion Inn (adj)',time:'15:55'},
+          {name:'Boston, Oldrids (adj)',time:'16:01'},
+          {name:'Boston, Wyberton High Bridge (NE-bound)',time:'16:02'},
+          {name:'Boston, Footpath to Arundel Crescent (adj)',time:'16:03'},
+          {name:'Boston, Rosebery Avenue (adj)',time:'16:04'},
+          {name:'Boston, The Minstrels (opp)',time:'16:05'},
+          {name:'Boston, Bus Station (Bay 8)',time:'16:08'},
+        ]
+      },
+      {
+        service: 'S125S', label: 'Morning Outbound 07:27',
+        direction: 'Weston → Boston College',
+        stops: [
+          {name:'Weston, The Chequers PH (adj)',time:'07:27'},
+          {name:'Weston, Delgate Bank (opp)',time:'07:28'},
+          {name:'Moulton, Bell Lane (opp)',time:'07:30'},
+          {name:'Moulton, River Lane (adj)',time:'07:31'},
+          {name:"Whaplode, St Mary's Gardens (opp)",time:'07:34'},
+          {name:'Whaplode, Darjeeling Restaurant (adj)',time:'07:35'},
+          {name:'Whaplode, Middle Road (opp)',time:'07:35'},
+          {name:'Whaplode, Stockwell Gate (adj)',time:'07:36'},
+          {name:'Holbeach, Wignals Gate (opp)',time:'07:36'},
+          {name:'Holbeach, Netherfield (opp)',time:'07:37'},
+          {name:'Holbeach, Fairfields (adj)',time:'07:40'},
+          {name:'Holbeach, Stukeley Hall Drive (opp)',time:'07:41'},
+          {name:'Holbeach, Interchange Shelter (opp)',time:'07:43'},
+          {name:'Holbeach, Damgate (opp)',time:'07:43'},
+          {name:'Holbeach, Rowan Close (adj)',time:'07:50'},
+          {name:'Fleet Hargate, Fleet Road (opp)',time:'07:51'},
+          {name:'Fleet Hargate, Winslow Gate (adj)',time:'07:52'},
+          {name:'Fleet Hargate, Proctors Close (opp)',time:'07:53'},
+          {name:'Holbeach Cackle Hill, 188 Boston Road (opp)',time:'08:00'},
+          {name:"Saracens Head, New Saracen's Head PH (adj)",time:'08:03'},
+          {name:'Fosdyke, Village Hall (adj)',time:'08:10'},
+          {name:"Fosdyke, All Saint's Church (opp)",time:'08:10'},
+          {name:'Boston, Boston College (adj)',time:'08:40'},
+        ]
+      },
+      {
+        service: 'S125S', label: 'Afternoon Inbound 16:50',
+        direction: 'Boston College → Weston',
+        stops: [
+          {name:'Boston, Boston College Car Park (in)',time:'16:50'},
+          {name:"Fosdyke, All Saint's Church (adj)",time:'17:05'},
+          {name:'Fosdyke, Village Hall (opp)',time:'17:09'},
+          {name:"Saracens Head, New Saracen's Head PH (opp)",time:'17:16'},
+          {name:'Holbeach Cackle Hill, 188 Boston Road (adj)',time:'17:19'},
+          {name:'Fleet Hargate, Proctors Close (adj)',time:'17:26'},
+          {name:'Fleet Hargate, Winslow Gate (opp)',time:'17:26'},
+          {name:'Fleet Hargate, Fleet Road (adj)',time:'17:28'},
+          {name:'Holbeach, Rowan Close (opp)',time:'17:29'},
+          {name:'Holbeach, Damgate (adj)',time:'17:30'},
+          {name:'Holbeach, Interchange Shelter (adj)',time:'17:31'},
+          {name:'Holbeach, Stukeley Hall Drive (adj)',time:'17:33'},
+          {name:'Holbeach, Fairfields (opp)',time:'17:35'},
+          {name:'Holbeach, Netherfield (adj)',time:'17:35'},
+          {name:'Holbeach, Wignals Gate (adj)',time:'17:36'},
+          {name:'Whaplode, Stockwell Gate (opp)',time:'17:37'},
+          {name:'Whaplode, Middle Road (adj)',time:'17:37'},
+          {name:'Whaplode, Darjeeling Restaurant (opp)',time:'17:39'},
+          {name:"Whaplode, St Mary's Gardens (adj)",time:'17:40'},
+          {name:'Moulton, River Lane (opp)',time:'17:41'},
+          {name:'Moulton, Bell Lane (adj)',time:'17:42'},
+          {name:'Weston, Delgate Bank (adj)',time:'17:43'},
+          {name:'Weston, The Chequers PH (opp)',time:'17:45'},
+        ]
+      },
+    ];
+
+    // ════════════════════════════════════════════════════════════════════
+    // SIMULATION ENGINE
+    // ════════════════════════════════════════════════════════════════════
+
+    // How long (in simulated minutes) the bus dwells at each stop before departing.
+    const DWELL_SIM_MINS = 0.6;
+
+    // Synthetic timing variance — to make the demo interesting the bus runs
+    // early for the first third of the route, on-time for the middle, and
+    // slightly late for the final third. All display-only; stops are visited
+    // in schedule order regardless.
+    function getDelta(stopIdx, totalStops) {
+      const frac = stopIdx / Math.max(totalStops - 1, 1);
+      if (frac < 0.30) return -1;   // early: -1 min
+      if (frac < 0.65) return 0;    // on time
+      return 1;                      // late: +1 min
+    }
+
+    const sim = {
+      routeIdx:    0,
+      stops:       [],
+      arrivals:    [],   // string "HH:MM" when arrived, null while future
+      stopIdx:     0,    // index of the stop the bus is currently at (or last arrived at)
+      simTimeMins: 0,    // simulated clock: minutes since midnight
+      phase:       'at_stop',  // 'at_stop' | 'traveling'
+      dwellEnd:    0,          // simTimeMins at which to depart the current stop
+      speed:       5,
+      playing:     true,
+      lastTickAt:  null,
+    };
+
+    function parseMins(t) {
+      const [h, m] = t.split(':').map(Number);
+      return h * 60 + m;
+    }
+    function fmtMins(totalMins) {
+      const m = ((Math.round(totalMins) % 1440) + 1440) % 1440;
+      return `${String(Math.floor(m / 60)).padStart(2,'0')}:${String(m % 60).padStart(2,'0')}`;
+    }
+
+    function initRoute(idx) {
+      const route = ROUTES[idx];
+      sim.routeIdx    = idx;
+      sim.stops       = route.stops;
+      sim.arrivals    = new Array(route.stops.length).fill(null);
+      sim.stopIdx     = 0;
+      sim.simTimeMins = parseMins(route.stops[0].time);
+      sim.phase       = 'at_stop';
+      sim.arrivals[0] = route.stops[0].time;
+      sim.dwellEnd    = sim.simTimeMins + DWELL_SIM_MINS;
+      sim.lastTickAt  = null;
+      render();
+    }
+
+    function tick(now) {
+      if (!sim.playing) return;
+
+      const dtSecs = sim.lastTickAt !== null ? (now - sim.lastTickAt) / 1000 : 0;
+      sim.lastTickAt = now;
+
+      // advance simulated clock (speed × real seconds → simulated seconds → /60 → minutes)
+      sim.simTimeMins += dtSecs * sim.speed / 60;
+
+      const { stops, stopIdx } = sim;
+
+      if (sim.phase === 'at_stop') {
+        if (sim.simTimeMins >= sim.dwellEnd && stopIdx < stops.length - 1) {
+          sim.phase = 'traveling';
+        }
+        // if final stop: stay here, loop eventually resets via UI
+      } else {
+        // traveling — check if we've reached the next stop's scheduled time
+        const nextIdx      = stopIdx + 1;
+        const nextTimeMins = parseMins(stops[nextIdx].time);
+        if (sim.simTimeMins >= nextTimeMins) {
+          sim.stopIdx     = nextIdx;
+          sim.simTimeMins = nextTimeMins;  // snap to schedule
+          sim.arrivals[nextIdx] = stops[nextIdx].time;
+          sim.phase    = 'at_stop';
+          sim.dwellEnd = sim.simTimeMins + DWELL_SIM_MINS;
+          if (nextIdx === stops.length - 1) {
+            sim.playing = false;
+            updatePlayBtn();
+          }
+        }
+      }
+
+      render();
+      requestAnimationFrame(tick);
+    }
+
+    function stepToNext() {
+      if (sim.stopIdx >= sim.stops.length - 1) return;
+      const nextIdx = sim.stopIdx + 1;
+      sim.stopIdx     = nextIdx;
+      sim.simTimeMins = parseMins(sim.stops[nextIdx].time);
+      sim.arrivals[nextIdx] = sim.stops[nextIdx].time;
+      sim.phase    = 'at_stop';
+      sim.dwellEnd = sim.simTimeMins + DWELL_SIM_MINS;
+      if (nextIdx === sim.stops.length - 1) {
+        sim.playing = false;
+        updatePlayBtn();
+      }
+      render();
+    }
+
+    // ── Render both views ────────────────────────────────────────────────
+    function render() {
+      const route   = ROUTES[sim.routeIdx];
+      const stops   = sim.stops;
+      const sIdx    = sim.stopIdx;
+      const atStop  = sim.phase === 'at_stop';
+
+      // Determine the "next" stop from the driver's perspective:
+      // - when at a stop: the stop we're heading to next (sIdx+1)
+      // - when traveling: the stop we're heading to (sIdx+1)
+      const nextIdx  = sIdx < stops.length - 1 ? sIdx + 1 : null;
+      const nextStop = nextIdx !== null ? stops[nextIdx] : null;
+      const afterNextStop = nextIdx !== null && nextIdx + 1 < stops.length ? stops[nextIdx + 1] : null;
+
+      // Simulated delta for this part of the route
+      const deltaMin  = getDelta(sIdx, stops.length);
+      const statusKey = atStop ? 's-at-stop' : (deltaMin < 0 ? 's-early' : deltaMin > 0 ? 's-late' : 's-on-time');
+
+      // ── Shared clock ─────────────────────────────────────────────────
+      document.getElementById('sim-clock').textContent = fmtMins(sim.simTimeMins);
+
+      // ════ DRIVER VIEW ═════════════════════════════════════════════════
+
+      // Route header
+      document.getElementById('d-svc-code').textContent    = route.service;
+      document.getElementById('d-svc-period').textContent  = atStop ? 'At Stop' : 'In Transit';
+      document.getElementById('d-line1').textContent        = stops[0].name;
+      document.getElementById('d-line2').textContent        = '→ ' + stops[stops.length - 1].name;
+
+      // Status card
+      const card = document.getElementById('d-status-card');
+      card.className = statusKey;
+
+      if (atStop) {
+        document.getElementById('d-status-label').textContent = 'AT STOP';
+        document.getElementById('d-next-stop').textContent    = stops[sIdx].name;
+        document.getElementById('d-delta').textContent        = '—';
+        document.getElementById('d-distance').textContent     = '0 m';
+        document.getElementById('d-speed').textContent        = '0.0 mph';
+        document.getElementById('d-sched-time').textContent   = nextStop ? nextStop.time : '--:--';
+        document.getElementById('d-eta-time').textContent     = nextStop ? nextStop.time : '--:--';
+      } else {
+        const statusLabel = deltaMin < 0 ? 'EARLY' : deltaMin > 0 ? 'LATE' : 'ON TIME';
+        document.getElementById('d-status-label').textContent = statusLabel;
+        document.getElementById('d-next-stop').textContent    = nextStop ? nextStop.name : 'End of Route';
+        const sign = deltaMin >= 0 ? '+' : '';
+        document.getElementById('d-delta').textContent        = deltaMin === 0 ? '±0m' : `${sign}${deltaMin}m`;
+
+        // Interpolate distance: how far through the current leg are we?
+        const legStart = parseMins(stops[sIdx].time);
+        const legEnd   = nextStop ? parseMins(nextStop.time) : legStart + 1;
+        const frac     = Math.min((sim.simTimeMins - legStart) / Math.max(legEnd - legStart, 0.01), 1);
+        const estDist  = Math.round((1 - frac) * 850); // ~850 m average leg
+        document.getElementById('d-distance').textContent = `${estDist} m`;
+        document.getElementById('d-speed').textContent    = '28.5 mph';
+        document.getElementById('d-sched-time').textContent = nextStop ? nextStop.time : '--:--';
+        document.getElementById('d-eta-time').textContent   = nextStop
+          ? fmtMins(parseMins(nextStop.time) + deltaMin) : '--:--';
+      }
+
+      // After-next label
+      document.getElementById('d-after-next').textContent = afterNextStop
+        ? `${afterNextStop.name} at ${afterNextStop.time}` : 'End of route';
+
+      // Early-wait banner (driver) — shown when early and at a timing stop
+      const dEarlyBanner = document.getElementById('d-early-wait');
+      if (atStop && deltaMin < 0 && nextStop) {
+        dEarlyBanner.hidden = false;
+        document.getElementById('d-ewb-time').textContent = stops[sIdx].time;
+      } else {
+        dEarlyBanner.hidden = true;
+      }
+
+      // Progress bar
+      const pct = stops.length > 1 ? (sIdx / (stops.length - 1)) * 100 : 0;
+      document.getElementById('d-progress-fill').style.width = `${Math.min(pct, 100)}%`;
+
+      // Stop list
+      renderStopList(stops, sIdx, sim.arrivals);
+
+      // ════ ONBOARD (ANNOUNCE) VIEW ═══════════════════════════════════════
+
+      document.getElementById('ob-svc-code').textContent    = route.service;
+      document.getElementById('ob-destination').textContent  = stops[stops.length - 1].name;
+
+      // Current stop: the stop the bus is at right now (or last arrived)
+      document.getElementById('ob-current-stop').textContent = stops[sIdx].name;
+      // Next stop from onboard perspective
+      document.getElementById('ob-next-stop').textContent    = nextStop ? nextStop.name : 'End of route';
+
+      // Tube track: centred on sIdx with onboard convention (0 = current when at stop)
+      renderTubeTrack(stops, sIdx, atStop);
+
+      // Early-wait banner (onboard) — same trigger as driver
+      const obEarlyBanner = document.getElementById('ob-early-wait');
+      if (atStop && deltaMin < 0 && nextStop) {
+        obEarlyBanner.hidden = false;
+        document.getElementById('ob-ewb-time').textContent = stops[sIdx].time;
+      } else {
+        obEarlyBanner.hidden = true;
+      }
+    }
+
+    function renderStopList(stops, currentIdx, arrivals) {
+      const container = document.getElementById('d-stop-list');
+      container.innerHTML = '';
+      let currentRow = null;
+      stops.forEach((stop, i) => {
+        const state = i < currentIdx ? 'past' : i === currentIdx ? 'current' : 'future';
+        const row   = document.createElement('div');
+        row.className = `stop-row stop-${state}`;
+        const arrived = arrivals[i];
+        row.innerHTML =
+          `<span class="sl-name">${stop.name}</span>` +
+          `<span class="sl-sched">${stop.time}</span>` +
+          `<span class="sl-actual${arrived ? ' sl-ontime' : ''}">${arrived ?? '—'}</span>`;
+        if (state === 'current') currentRow = row;
+        container.appendChild(row);
+      });
+      if (currentRow) {
+        currentRow.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+
+    function renderTubeTrack(stops, centerIdx, atStop) {
+      const track = document.getElementById('ob-tube-track');
+      track.innerHTML = '';
+      const first = 0, last = stops.length - 1;
+      const indices = [];
+      for (let i = centerIdx - 2; i <= centerIdx + 2; i++) {
+        if (i >= first && i <= last) indices.push(i);
+      }
+      indices.forEach((i) => {
+        const state = i < centerIdx ? 'past' : i === centerIdx ? 'current' : 'future';
+        const node  = document.createElement('div');
+        node.className = `tube-node tube-${state}` +
+          (i === centerIdx && atStop ? ' tube-at-stop' : '');
+        // Shorten label: "Boston, Bus Station (Bay 8)" → "Boston"
+        const shortName = stops[i].name.split(',')[0];
+        node.innerHTML = `<div class="tube-dot"></div><div class="tube-label">${shortName}</div>`;
+        track.appendChild(node);
+      });
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // CONTROL WIRING
+    // ════════════════════════════════════════════════════════════════════
+
+    function updatePlayBtn() {
+      const btn = document.getElementById('play-btn');
+      if (sim.playing) {
+        btn.textContent = '⏸ Pause';
+        btn.classList.remove('paused');
+      } else {
+        btn.textContent = '▶ Play';
+        btn.classList.add('paused');
+      }
+    }
+
+    document.getElementById('play-btn').addEventListener('click', () => {
+      sim.playing    = !sim.playing;
+      sim.lastTickAt = null; // reset so first tick after resume has dt=0
+      updatePlayBtn();
+      if (sim.playing) requestAnimationFrame(tick);
+    });
+
+    document.getElementById('speed-select').addEventListener('change', (e) => {
+      sim.speed = Number(e.target.value);
+    });
+
+    document.getElementById('step-btn').addEventListener('click', () => {
+      stepToNext();
+    });
+
+    document.getElementById('reset-btn').addEventListener('click', () => {
+      initRoute(sim.routeIdx);
+      if (!sim.playing) {
+        sim.playing = true;
+        updatePlayBtn();
+        requestAnimationFrame(tick);
+      }
+    });
+
+    document.getElementById('route-select').addEventListener('change', (e) => {
+      initRoute(Number(e.target.value));
+      if (!sim.playing) {
+        sim.playing = true;
+        updatePlayBtn();
+        requestAnimationFrame(tick);
+      }
+    });
+
+    // Tab switching
+    document.querySelectorAll('.demo-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.demo-tab').forEach(b => {
+          b.classList.remove('active');
+          b.setAttribute('aria-selected', 'false');
+        });
+        document.querySelectorAll('.demo-tab-panel').forEach(p => {
+          p.classList.remove('active');
+        });
+        btn.classList.add('active');
+        btn.setAttribute('aria-selected', 'true');
+        document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+      });
+    });
+
+    // ════════════════════════════════════════════════════════════════════
+    // BOOT
+    // ════════════════════════════════════════════════════════════════════
+    updatePlayBtn();
+    initRoute(0);
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>

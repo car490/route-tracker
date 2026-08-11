@@ -1,0 +1,7 @@
+{
+  "name": "busops-driver",
+  "compatibility_date": "2026-08-01",
+  "assets": {
+    "directory": "./"
+  }
+}

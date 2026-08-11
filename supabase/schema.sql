@@ -206,17 +206,23 @@ create table vehicles (
 
 -- ── Stops (global — not company-scoped) ───────────────────────────────────────
 -- Physical bus stops shared across all companies and routes.
--- naptan_code reserved for Phase 5 BODS integration.
+-- atco_code reserved for Phase 5 BODS integration.
 -- Only super_user employees may create or modify stops (enforced by RLS).
 
 create table stops (
-  id              uuid        primary key default gen_random_uuid(),
-  name            text        not null,
-  lat             float8      not null,
-  lon             float8      not null,
-  naptan_code     text        unique,   -- NaPTAN ATCO code (up to 12 chars)
-  is_depot        boolean     not null default false,
-  created_at      timestamptz not null default now()
+  id                  uuid        primary key default gen_random_uuid(),
+  name                text        not null,
+  lat                 float8      not null,
+  lon                 float8      not null,
+  atco_code           text        unique,   -- NaPTAN ATCO code (up to 12 chars)
+  is_depot            boolean     not null default false,
+  -- Optional override for display_name() below — some NaPTAN-composed names
+  -- are too long for the 22mm-minimum onboard sign, or unclear when spoken
+  -- (PSVAIR audio/visual announcements). Null everywhere by default; set
+  -- directly via SQL for specific problem stops (no admin UI yet — flagged
+  -- as a follow-up, see memory).
+  announcement_name   text,
+  created_at          timestamptz not null default now()
 );
 
 
@@ -236,6 +242,11 @@ create table naptan_stops (
   lat           float8      not null,
   lon           float8      not null,
   stop_type     text        not null default 'BCT',
+  -- Taken verbatim from the DfT feed's Status field (active/inactive/etc.),
+  -- plus 'removed' — set by the import's sweep step when a stop that was
+  -- active here has dropped out of the feed entirely (record deleted at the
+  -- source, not just flagged non-active). naptan_near_point() only matches
+  -- status = 'active', so any other value excludes a stop from the planner.
   status        text        not null default 'active',
   updated_at    timestamptz not null default now()
 );
@@ -246,8 +257,10 @@ grant select on public.naptan_stops to anon, authenticated;
 grant all    on public.naptan_stops to service_role;
 
 -- Computed "<locality>, <landmark> (<indicator>)" display name for a stop,
--- derived from naptan_stops via stops.naptan_code. Falls back to stops.name
+-- derived from naptan_stops via stops.atco_code. Falls back to stops.name
 -- when there's no NAPTAN match (e.g. stops outside imported counties).
+-- stops.announcement_name, when set, overrides both — for the rare stop
+-- whose NaPTAN name is too long/unclear for the onboard sign or TTS.
 -- Exposed via PostgREST as a computed column: select=name,display_name
 create or replace function public.display_name(s stops)
 returns text
@@ -255,10 +268,11 @@ language sql
 stable
 as $$
   select coalesce(
+    s.announcement_name,
     (select n.locality_name || ', ' || n.common_name ||
        case when n.indicator is not null and n.indicator <> '' then ' (' || n.indicator || ')' else '' end
      from naptan_stops n
-     where n.atco_code = s.naptan_code),
+     where n.atco_code = s.atco_code),
     s.name
   )
 $$;
@@ -947,7 +961,9 @@ CREATE OR REPLACE FUNCTION public.get_duty_card(journey_ids uuid[])
    timetable_departure_id uuid,
    first_stop_time        text,
    last_stop_name         text,
-   notes                  text
+   notes                  text,
+   primary_color          text,
+   accent_color           text
  )
  LANGUAGE sql
  STABLE SECURITY DEFINER
@@ -970,13 +986,16 @@ AS $function$
     (select display_name(st.*) from timetable_stops ts3
      join stops st on st.id = ts3.stop_id
      where ts3.timetable_id = t.id order by ts3.sequence desc limit 1) as last_stop_name,
-    j.notes
+    j.notes,
+    coalesce(c.primary_color, '#242F35')                     as primary_color,
+    coalesce(c.accent_color,  '#00B4D8')                     as accent_color
   from journeys j
   left join employees           e  on e.id  = j.driver_id
   left join vehicles            v  on v.id  = j.vehicle_id
   left join timetable_departures td on td.id = j.timetable_departure_id
   left join timetables          t  on t.id  = td.timetable_id
   left join routes              r  on r.id  = t.route_id
+  left join companies           c  on c.id  = j.company_id
   where j.id = any(journey_ids)
   order by array_position(journey_ids, j.id)
 $function$;
@@ -1210,7 +1229,7 @@ create or replace view schedule_view with (security_invoker = true) as
     s.lat,
     s.lon,
     s.is_depot,
-    s.naptan_code,
+    s.atco_code,
     ts.timetable_id,
     td.id                as departure_id,
     td.departure_time,
@@ -1228,7 +1247,8 @@ create or replace view schedule_view with (security_invoker = true) as
     exists (
       select 1 from journey_types jt
       where jt.name = any(r.journey_type) and jt.requires_bods
-    )                    as psvair_in_scope
+    )                    as psvair_in_scope,
+    s.id                 as stop_id
   from timetable_stops     ts
   join stops               s  on s.id  = ts.stop_id
   join timetables          t  on t.id  = ts.timetable_id

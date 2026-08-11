@@ -139,3 +139,61 @@ so they're safe to commit and ship to every browser regardless of where they
 live in source. A `service_role` key or `SUPABASE_JWT_SECRET` must **never**
 appear here — those are read from `process.env` on a server only (see
 `dashboard/api/*.js` for that pattern on the dashboard side).
+
+---
+
+## PSVAIR announcement audio
+
+Live `speechSynthesis` voice quality varies by device/OS and can sound
+digital. The primary announcement path is now **pre-rendered Azure Neural
+TTS clips**, generated offline and played back as audio files; live
+`speechSynthesis` (`src/announcements.js`) is kept only as the fallback for
+a clip that isn't rendered/cached yet.
+
+- Every announcement sentence has exactly one variable slot (a stop name, or
+  a service+destination pair) — so clips are rendered **per stop** and **per
+  service/destination**, not per route-leg. Keyed by `stops.id` (global,
+  reused across every route/timetable that visits that stop), never by
+  `timetable_stop_id`.
+- `schedule_view` (and `src/schedule.json`) carry `stop_id` for exactly this
+  reason — if you add a column to `schedule_view`, it must go at the **end**
+  of the select list (`CREATE OR REPLACE VIEW` requires existing columns to
+  keep their name/order/type).
+- Regenerate after any stop rename or route change, in this order:
+  1. Apply any pending `schedule_view` migration to Supabase — **to both
+     dev and production** if the change (e.g. a `stops.announcement_name`
+     edit) needs to actually ship, not just be previewed locally.
+  2. `node scripts/generate-schedule.mjs` (refreshes `src/schedule.json`,
+     including `stop_id`). **`schedule.json` is one static file shipped to
+     both environments** (no per-environment build step), so this defaults
+     to reading production — pass `--dev` only to preview a change that's
+     on dev alone so far; re-run without it (against prod) once the same
+     change is applied there too and you're ready to ship. Don't run it
+     "for both environments" — there's only ever one file, one source.
+  3. `AZURE_SPEECH_KEY=... AZURE_SPEECH_REGION=... npm run generate:audio`
+     (writes clips + `audio/announcements/manifest.json`; skips any clip
+     whose text **or voice** hash hasn't changed — the manifest hashes
+     `${AZURE_SPEECH_VOICE}|${text}`, so changing either forces exactly the
+     affected clips to re-render, nothing more).
+- `stops.announcement_name` (nullable) overrides `display_name()`'s NaPTAN-
+  composed name for a stop whose real name is too long for the onboard
+  sign's 22mm minimum or unclear when spoken. No admin UI yet — set it
+  directly via SQL, on both dev and production, then regenerate per above.
+- Requires an Azure AI Speech resource (key + region, e.g. `uksouth`).
+  These are **build-time secrets** for a script run locally — never commit
+  them, never put them in `src/config.js` (that file is public/client-only).
+  `AZURE_SPEECH_VOICE` overrides the script's default (`en-GB-SoniaNeural`);
+  the currently-committed clips were generated with `en-GB-RyanNeural`.
+- `speak()` in `announcements.js` **queues** a new announcement behind
+  whatever's currently playing rather than interrupting it — cutting one
+  off mid-sentence is worse than a short delay. Only the single most recent
+  queued announcement is kept, so a burst of fast events can't build a
+  stale backlog.
+- `service-worker.js` precaches every clip listed in
+  `audio/announcements/manifest.json` on install, so announcements still
+  work offline mid-route.
+- The clip-key slug logic in `src/announcements.js` (`slug()`) must stay
+  identical to the one in `scripts/generate-announcement-audio.mjs` — they
+  independently compute the same filename from the same `serviceCode`/
+  `destination` text, there's no shared import between a browser module and
+  a Node script here.

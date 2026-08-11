@@ -37,7 +37,7 @@ export async function fetchStopsForDeparture(departureId) {
   const res = await sbFetch(
     `/rest/v1/schedule_view` +
     `?departure_id=eq.${departureId}` +
-    `&select=timetable_stop_id,stop_type,scheduled_time,display_name,lat,lon,sequence,psvair_in_scope` +
+    `&select=timetable_stop_id,stop_id,stop_type,scheduled_time,display_name,lat,lon,sequence,psvair_in_scope` +
     `&order=sequence`
   );
   if (!res.ok) throw new Error(res.status);
@@ -50,6 +50,7 @@ export async function fetchStopsForDeparture(departureId) {
       time: r.scheduled_time.substring(0, 5),
       stop_type: r.stop_type,
       timetable_stop_id: r.timetable_stop_id,
+      stop_id: r.stop_id,
     })),
     psvairInScope: rows[0]?.psvair_in_scope ?? false,
   };

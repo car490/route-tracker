@@ -90,11 +90,31 @@ const TILE_CACHE = [
   'https://tile.openstreetmap.org/13/4098/2676.png',
 ];
 
+// Pre-rendered PSVAIR announcement clips (scripts/generate-announcement-audio.mjs)
+// — the file list isn't static like STATIC_ASSETS since it grows/shrinks with
+// stops/routes, so it's read from the manifest the generator writes rather
+// than hardcoded here. Missing manifest (audio feature not set up yet) is a
+// silent no-op, not an install failure — announcements.js falls back to
+// speechSynthesis for anything not cached.
+function cacheAnnouncementAudio(cache) {
+  return fetch('./audio/announcements/manifest.json')
+    .then((res) => (res.ok ? res.json() : null))
+    .then((manifest) => {
+      if (!manifest) return;
+      const urls = Object.values(manifest).map((entry) => `./audio/announcements/${entry.path}`);
+      return cache.addAll(urls);
+    })
+    .catch(() => {});
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) =>
       cache.addAll(STATIC_ASSETS).then(() =>
-        cache.addAll(TILE_CACHE.map(url => new Request(url, { mode: 'cors' })))
+        Promise.all([
+          cache.addAll(TILE_CACHE.map(url => new Request(url, { mode: 'cors' }))),
+          cacheAnnouncementAudio(cache),
+        ])
       )
     ).then(() => self.skipWaiting())
   );
