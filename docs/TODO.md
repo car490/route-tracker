@@ -59,9 +59,20 @@ average lead time, too long for next week's BETA test. Its footprint is
 expected to match the eventual production panel, but it currently has no
 enclosure.
 
-- [ ] Source or build a VESA-mount enclosure for the P2426H in time for
-  BETA — no supplier/spec picked yet (`docs/HARDWARE.md` §8, "Interior
-  display enclosure (BETA, Dell Pro P2426H)" row).
+- [ ] **Urgent — BETA fits without an enclosure.** Order the RAM D-size
+  VESA mount kit (`docs/HARDWARE.md` §8) now, bolted straight to the bare
+  P2426H's native VESA holes, so BETA can be fitted before the enclosure
+  exists. Exact SKUs still TBD.
+- [ ] Source or build the enclosure itself in time for BETA — no
+  supplier/spec picked yet (`docs/HARDWARE.md` §8). **Must** expose a
+  100×100mm VESA passthrough aligned to the panel's own holes on its back
+  panel, so the mount ordered above unbolts from the bare panel and
+  rebolts straight to the enclosure later — buy the mount once, not twice.
+  If the enclosure design instead buries or offsets the VESA holes, this
+  breaks.
+- [ ] Once the enclosure's actual weight/mounting depth are known,
+  double-check the RAM D-size mount is still rated for it — not expected
+  to be an issue, but not yet verified.
 - [ ] Separately, the **production** ceiling-drop mount (§8) stays TBD
   until the final production panel (§3) is sourced — don't conflate the
   BETA enclosure with solving that.

@@ -319,6 +319,7 @@ See the architecture-conflict note at the top — this table gives both models r
 | Anti-vibration isolation mounts | On the ceiling-drop mount assembly | Firm requirement, generic hardware. Supplier: Screwfix (M8 bolts). |
 | HDMI cable | Shielded, short run | Firm — interference reduction. Supplier: The Pi Hut. |
 | Driver tablet mount | See §5 | Firm (proposal's target device — the cab-device bridge in §4 has no specified mount) |
+| **Interior display enclosure — VESA passthrough requirement** | The enclosure's back panel **must** expose a 100×100mm VESA passthrough aligned to the panel's own native mounting holes, not bury the panel behind a solid back | **Firm requirement, 2026-08-14** — lets the same RAM D-size mount hardware (rows above) bolt to the bare P2426H for BETA now, then unbolt/rebolt straight to the enclosure later with no new mount purchase. If the enclosure design instead hides or offsets the VESA holes, the mount has to be bought twice — flag to whoever builds the enclosure before fabrication starts. Re-check D-size's weight/leverage rating once the enclosure's actual weight and mounting depth are known — not expected to be a problem, but not yet verified. |
 
 ## 9. Known compliance gaps (carried from Appendix A — not re-solved here)
 
