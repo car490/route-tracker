@@ -59,10 +59,16 @@ average lead time, too long for next week's BETA test. Its footprint is
 expected to match the eventual production panel, but it currently has no
 enclosure.
 
-- [ ] **Urgent — BETA fits without an enclosure.** Order the RAM D-size
-  VESA mount kit (`docs/HARDWARE.md` §8) now, bolted straight to the bare
-  P2426H's native VESA holes, so BETA can be fitted before the enclosure
-  exists. Exact SKUs still TBD.
+- [ ] **Urgent — BETA fits without an enclosure.** Order the RAM **E-size**
+  VESA mount kit now, bolted straight to the bare P2426H's native VESA
+  holes, so BETA can be fitted before the enclosure exists. **Corrected
+  2026-08-14 from an earlier D-size pick** — D-size is only rated to
+  6 lb/2.72kg dynamic, and the P2426H panel alone weighs 6.88 lb/3.12kg
+  without its stand, already over that before an enclosure is added.
+  Exact parts (`docs/HARDWARE.md` §8): **RAM-E-246U** (or steel-reinforced
+  **RAM-E-246U-IN1**) VESA plate + **RAM-E-202U** (or steel-reinforced
+  **RAM-E-202U-IN1**) round base + **RAM-E-201U-D** short double socket
+  arm, all at [ram-mount.co.uk](https://www.ram-mount.co.uk/).
 - [ ] Source or build the enclosure itself in time for BETA — no
   supplier/spec picked yet (`docs/HARDWARE.md` §8). **Must** expose a
   100×100mm VESA passthrough aligned to the panel's own holes on its back
@@ -71,8 +77,8 @@ enclosure.
   If the enclosure design instead buries or offsets the VESA holes, this
   breaks.
 - [ ] Once the enclosure's actual weight/mounting depth are known,
-  double-check the RAM D-size mount is still rated for it — not expected
-  to be an issue, but not yet verified.
+  double-check the RAM E-size mount (15 lb/6.8kg dynamic rating) is still
+  rated for it — expected to have headroom, but not yet verified.
 - [ ] Separately, the **production** ceiling-drop mount (§8) stays TBD
   until the final production panel (§3) is sourced — don't conflate the
   BETA enclosure with solving that.
