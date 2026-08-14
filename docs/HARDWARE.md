@@ -314,8 +314,8 @@ See the architecture-conflict note at the top — this table gives both models r
 | Item | Spec | Status |
 |---|---|---|
 | Bus Controller + power electronics enclosure | Polycarbonate (see §1) | Firm |
-| Interior display ceiling-drop mount (production) | Sized to the final panel's weight and VESA/mounting pattern | **TBD** — depends on the undetermined production display panel (§3) |
-| Interior display enclosure (BETA, Dell Pro P2426H) | 100×100mm VESA fixing (confirmed on the P2426H itself) | **Not yet sourced/built** — expected in place by next week's BETA test per 2026-08-14 note (§3); no supplier/spec confirmed yet |
+| Interior display ceiling-drop mount (production) | **RAM Mounts D-size (2.25" ball) double-ball VESA system** — face plate + ceiling base + short double-socket arm, chosen for harsh-environment vibration resistance. D-size over RAM's smaller C-size (1.5" ball, sized for tablets) because the leverage of a 24"-class panel needs the sturdier joint. Exact SKUs TBD — depend on the final production panel's weight/VESA pattern (§3) and the ceiling void's attachment point (stud/rail/plate) | **Mount family decided 2026-08-14, exact parts TBD** — also depends on the undetermined production display panel (§3) |
+| Interior display enclosure mount (BETA, Dell Pro P2426H) | Same **RAM D-size VESA system** as above — the P2426H's 100×100mm VESA plate is confirmed, so the mount, not the panel, is the open item. If vibration testing shows resonance, RAM's **Vibe-Safe** add-on puck gives supplemental damping on top of the standard ball-and-socket joint | **Mount family decided 2026-08-14, exact parts TBD** — expected in place by next week's BETA test per 2026-08-14 note (§3); no supplier/SKU confirmed yet |
 | Anti-vibration isolation mounts | On the ceiling-drop mount assembly | Firm requirement, generic hardware. Supplier: Screwfix (M8 bolts). |
 | HDMI cable | Shielded, short run | Firm — interference reduction. Supplier: The Pi Hut. |
 | Driver tablet mount | See §5 | Firm (proposal's target device — the cab-device bridge in §4 has no specified mount) |
