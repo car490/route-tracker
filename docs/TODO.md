@@ -50,6 +50,22 @@ Journeys display is now fixed.
   Overview) for how they currently render a null `driver_id` — blank,
   "Unknown", or does something break?
 
+## Onboard display — BETA enclosure gap
+
+As of 2026-08-14 the Dell Pro P2426H (VESA 100×100mm, no stand) is
+confirmed as the BETA monitor — see `docs/HARDWARE.md` §3/§8. Bought as a
+consumer-grade stand-in because industrial-spec panels run ~6 weeks
+average lead time, too long for next week's BETA test. Its footprint is
+expected to match the eventual production panel, but it currently has no
+enclosure.
+
+- [ ] Source or build a VESA-mount enclosure for the P2426H in time for
+  BETA — no supplier/spec picked yet (`docs/HARDWARE.md` §8, "Interior
+  display enclosure (BETA, Dell Pro P2426H)" row).
+- [ ] Separately, the **production** ceiling-drop mount (§8) stays TBD
+  until the final production panel (§3) is sourced — don't conflate the
+  BETA enclosure with solving that.
+
 ## Tech debt / refactors
 
 - [ ] `dashboard/src/features/route-planner/RoutePlannerPage.jsx` (1,051 lines)
