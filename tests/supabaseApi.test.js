@@ -9,13 +9,16 @@ import { fetchAvailableServices, fetchLocalBusVehicles } from '../src/supabaseAp
 
 // schedule_view is one row per stop, not per departure — a two-stop
 // departure produces two rows with the same service_code/departure_id/
-// departure_time, which fetchAvailableServices must dedupe.
+// departure_time, which fetchAvailableServices must dedupe. journey_type
+// includes 'Local Bus' on all of these by default — see the
+// 'not tagged Local Bus' test below for the excluded case.
 const S116S_AM_ROWS = [
-  { service_code: 'S116S', timetable_name: 'Morning Outbound', departure_id: 'dep-116s-am', departure_time: '08:15:00' },
-  { service_code: 'S116S', timetable_name: 'Morning Outbound', departure_id: 'dep-116s-am', departure_time: '08:15:00' },
+  { service_code: 'S116S', timetable_name: 'Morning Outbound', departure_id: 'dep-116s-am', departure_time: '08:15:00', journey_type: ['Local Bus'] },
+  { service_code: 'S116S', timetable_name: 'Morning Outbound', departure_id: 'dep-116s-am', departure_time: '08:15:00', journey_type: ['Local Bus'] },
 ];
-const S116S_PM_ROW = { service_code: 'S116S', timetable_name: 'Afternoon Inbound', departure_id: 'dep-116s-pm', departure_time: '15:30:00' };
-const S125S_AM_ROW = { service_code: 'S125S', timetable_name: 'Morning Outbound', departure_id: 'dep-125s-am', departure_time: '07:45:00' };
+const S116S_PM_ROW = { service_code: 'S116S', timetable_name: 'Afternoon Inbound', departure_id: 'dep-116s-pm', departure_time: '15:30:00', journey_type: ['Local Bus'] };
+const S125S_AM_ROW = { service_code: 'S125S', timetable_name: 'Morning Outbound', departure_id: 'dep-125s-am', departure_time: '07:45:00', journey_type: ['Local Bus'] };
+const SCHOOL_RUN_ROW = { service_code: 'GilesA', timetable_name: 'Morning Outbound', departure_id: 'dep-giles-am', departure_time: '08:00:00', journey_type: ['Contract Schools'] };
 
 describe('fetchAvailableServices', () => {
   const originalFetch = global.fetch;
@@ -53,6 +56,12 @@ describe('fetchAvailableServices', () => {
   test('throws on a non-ok response rather than returning an empty/partial list silently', async () => {
     global.fetch = jest.fn(async () => ({ ok: false, status: 500 }));
     await expect(fetchAvailableServices()).rejects.toThrow(/500/);
+  });
+
+  test('excludes routes not tagged Local Bus (school contracts, private hire, excursions — still ops-assigned via duty cards)', async () => {
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => [...S116S_AM_ROWS, SCHOOL_RUN_ROW] }));
+    const services = await fetchAvailableServices();
+    expect(Object.keys(services)).toEqual(['S116S']);
   });
 });
 

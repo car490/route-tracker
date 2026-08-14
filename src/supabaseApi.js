@@ -42,10 +42,19 @@ export async function rpc(fn, args) {
 // (PostgREST has no server-side DISTINCT), so rows are deduped client-side
 // on departure_id. The period label includes the departure time (not just
 // the timetable name) since a timetable can run more than once a day.
+//
+// Filtered to routes tagged 'Local Bus' only — same reasoning as
+// fetchLocalBusVehicles(): this flow exists for registered local bus
+// services, not school contracts/private hire/excursions, which still go
+// through ops-assigned duty cards. Deliberately NOT filtered on
+// psvair_in_scope (broader — 'Open Door Schools' also requires_bods=true in
+// seed data, see schema.sql) or done as a PostgREST array-contains query
+// param — filtered here client-side alongside the existing per-row work
+// instead, since journey_type is already coming back on every row anyway.
 export async function fetchAvailableServices() {
   const res = await sbFetch(
     `/rest/v1/schedule_view` +
-    `?select=service_code,timetable_name,departure_id,departure_time` +
+    `?select=service_code,timetable_name,departure_id,departure_time,journey_type` +
     `&order=service_code,departure_time`
   );
   if (!res.ok) throw new Error(`schedule_view ${res.status}`);
@@ -54,6 +63,7 @@ export async function fetchAvailableServices() {
   const services = {};
   const seenDepartures = new Set();
   for (const r of rows) {
+    if (!r.journey_type?.includes('Local Bus')) continue;
     if (seenDepartures.has(r.departure_id)) continue;
     seenDepartures.add(r.departure_id);
     const label = `${r.timetable_name} (${r.departure_time.substring(0, 5)})`;
