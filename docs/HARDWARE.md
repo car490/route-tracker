@@ -187,8 +187,8 @@ only two differences are the panel itself and one added component:
 |---|---|---|
 | Fire HD 10 tablet | Still a live, supported option (`DEPLOY.md` "Option A") | `pi-server/DEPLOY.md` §5 |
 | Allsee WS28HD8-B / "VSDISPLAY 28" 1920×360" stretch-bar | **Dropped** — hard to source in time, and the target fleet's wiring can't take a large-format retrofit without a major rewire | Proposal §7.3; `DEPLOY.md`'s own "Option B panel" section calls its own stretch-bar example stale |
-| **Dell Pro P2426H, without stand** (210-BVTG, service tag FZG4ZD4) | **Demo/validation only**, mains 240V — see two-path note above. 24" FHD IPS, 100×100mm VESA, full-size HDMI + DisplayPort in, ships with a plain IEC mains lead (100–240V AC, 74W max — no external power brick). In active use for the physical fit-out today; explicitly not a production candidate. | This session, 2026-08-13 |
-| Production panel | **TBD, unresolved sourcing gap** — "compact, low-power, standard aspect ratio, fits the existing wiring," and no off-the-shelf candidate found meeting all three as of 2026-08-13 | Proposal §7.3 |
+| **Dell Pro P2426H, without stand** (210-BVTG, service tag FZG4ZD4) | **Confirmed BETA unit, purchased 2026-08-14** for next week's BETA test — mains 240V, see two-path note above. 24" FHD IPS, 100×100mm VESA fixing, full-size HDMI + DisplayPort in, ships with a plain IEC mains lead (100–240V AC, 74W max — no external power brick). Chosen deliberately over an industrial-spec panel: industrial units run ~6 weeks average lead time, which BETA's schedule doesn't allow. Consumer-grade, not the final production pick, but its physical footprint is expected to match the eventual production panel. Ships without an enclosure — an enclosure is expected to be in place by BETA (not yet sourced/built, see §8). In active use for the physical fit-out today. | This session, 2026-08-13; confirmed as BETA unit + lead-time rationale 2026-08-14 |
+| Production panel | **TBD, unresolved sourcing gap** — "compact, low-power, standard aspect ratio, fits the existing wiring," and no off-the-shelf industrial candidate found meeting all three as of 2026-08-13 (industrial-spec panels run ~6 weeks average lead time once a candidate is picked, per 2026-08-14 sourcing note above) | Proposal §7.3 |
 | ~~Beta pick — iiyama ProLite XUB2492HSN-B1~~ | **Removed 2026-08-13** — explicitly dropped in favor of the Dell Pro P2426H above, which is the confirmed unit in use for demo/beta. Its open question (existing wiring vs. temporary supply) is now moot. Do not reintroduce without checking with the user first. | Superseded, kept for audit trail only |
 
 ## 4. Cab device — the temporary bridge actually deployed today
@@ -314,7 +314,8 @@ See the architecture-conflict note at the top — this table gives both models r
 | Item | Spec | Status |
 |---|---|---|
 | Bus Controller + power electronics enclosure | Polycarbonate (see §1) | Firm |
-| Interior display ceiling-drop mount | Sized to the final panel's weight and VESA/mounting pattern | **TBD** — depends on the undetermined display panel (§3) |
+| Interior display ceiling-drop mount (production) | Sized to the final panel's weight and VESA/mounting pattern | **TBD** — depends on the undetermined production display panel (§3) |
+| Interior display enclosure (BETA, Dell Pro P2426H) | 100×100mm VESA fixing (confirmed on the P2426H itself) | **Not yet sourced/built** — expected in place by next week's BETA test per 2026-08-14 note (§3); no supplier/spec confirmed yet |
 | Anti-vibration isolation mounts | On the ceiling-drop mount assembly | Firm requirement, generic hardware. Supplier: Screwfix (M8 bolts). |
 | HDMI cable | Shielded, short run | Firm — interference reduction. Supplier: The Pi Hut. |
 | Driver tablet mount | See §5 | Firm (proposal's target device — the cab-device bridge in §4 has no specified mount) |
