@@ -1,8 +1,8 @@
-# Temporary "Pi controller" — runs the exact same pi-server code the real
+# Temporary "Pi controller" - runs the exact same pi-server code the real
 # Raspberry Pi will run, directly on this laptop, while the Pi hardware
 # order is delayed. See TEMP-LAPTOP.md for the full setup/teardown steps.
 #
-# One-time: copy this file to start-temp-pi.local.ps1 (gitignored — never
+# One-time: copy this file to start-temp-pi.local.ps1 (gitignored - never
 # commit a real token) and set $Token below to a long random string.
 # Every day: run start-temp-pi.local.ps1. It syncs the schedule, prints
 # the two URLs you need (driver commissioning + today's kiosk URL), then
@@ -36,11 +36,11 @@ if (-not $hotspotIp) {
 }
 
 Write-Host ""
-Write-Host "=== Driver phone commissioning — do this ONCE per phone, not every day ===" -ForegroundColor Green
+Write-Host "=== Driver phone commissioning - do this ONCE per phone, not every day ===" -ForegroundColor Green
 Write-Host "Open on the driver's phone (Chrome), once, connected to this laptop's hotspot:"
 Write-Host "http://<driver-pwa-url>/?announce-setup=ws://$($hotspotIp):$Port/driver-push&announce-token=$Token"
 Write-Host ""
-Write-Host "=== Today's kiosk URL — open this in the browser on the Monitor ===" -ForegroundColor Green
+Write-Host "=== Today's kiosk URL - open this in the browser on the Monitor ===" -ForegroundColor Green
 Write-Host "(fill in <journey-id> from the dashboard's Daily Journeys page)"
 Write-Host "http://localhost:$Port/onboard.html?journey=<journey-id>&announce-token=$Token"
 Write-Host ""
