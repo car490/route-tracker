@@ -1,13 +1,13 @@
 // One-off backfill: match existing `stops` rows to naptan_stops by proximity,
-// then set naptan_code for clean matches.
+// then set atco_code for clean matches.
 //
 // Dry run (2026-06-23) showed existing stop coordinates already sit within
-// 0.0-0.1m of the surveyed NAPTAN position, so this only tags naptan_code -
+// 0.0-0.1m of the surveyed NAPTAN position, so this only tags atco_code -
 // it does not touch lat/lon.
 //
 // Usage:
 //   node backfill-naptan-codes.js                 -> dry run, prints proposed matches only
-//   node backfill-naptan-codes.js --apply          -> writes naptan_code for clean matches
+//   node backfill-naptan-codes.js --apply          -> writes atco_code for clean matches
 //
 // Env required:
 //   SUPABASE_URL
@@ -41,7 +41,7 @@ async function sb(path, opts = {}) {
 }
 
 async function main() {
-  const stops = await sb('/stops?select=id,name,lat,lon,naptan_code,is_depot&is_depot=eq.false&order=name');
+  const stops = await sb('/stops?select=id,name,lat,lon,atco_code,is_depot&is_depot=eq.false&order=name');
 
   const claimed = new Map(); // atco_code -> stop name, to flag collisions
   const rows = [];
@@ -83,7 +83,7 @@ async function main() {
   console.log(`\n${matched}/${stops.length} matched within ${SEARCH_RADIUS_M}m; ${stops.length - matched} unmatched.\n`);
 
   if (!APPLY) {
-    console.log('Dry run only — no changes written. Re-run with --apply to write naptan_code + lat/lon.');
+    console.log('Dry run only — no changes written. Re-run with --apply to write atco_code + lat/lon.');
     return;
   }
 
@@ -92,9 +92,9 @@ async function main() {
     await sb(`/stops?id=eq.${stop.id}`, {
       method: 'PATCH',
       headers: { Prefer: 'return=minimal' },
-      body: JSON.stringify({ naptan_code: best.atco_code }),
+      body: JSON.stringify({ atco_code: best.atco_code }),
     });
-    console.log(`Updated ${stop.name} -> naptan_code ${best.atco_code}`);
+    console.log(`Updated ${stop.name} -> atco_code ${best.atco_code}`);
   }
 }
 

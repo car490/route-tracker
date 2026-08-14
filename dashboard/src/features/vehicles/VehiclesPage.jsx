@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../shared/supabase'
 import { getCompanyId } from '../../shared/company'
+import { useJourneyTypes } from '../../shared/hooks/useJourneyTypes'
 import Modal from '../../shared/components/Modal'
 
 const VEHICLE_TYPES = ['Minibus', 'Midi Coach', 'Full Size Coach', 'Single Decker Bus', 'Double Decker']
@@ -16,7 +17,7 @@ const TYPE_DIMENSION_DEFAULTS = {
 
 const EMPTY = {
   registration: '', fleet_number: '', vehicle_type: 'Minibus', fuel_type: 'Diesel',
-  height_metres: '2.85', width_metres: '2.20', length_metres: '8.00',
+  height_metres: '2.85', width_metres: '2.20', length_metres: '8.00', journey_types: [],
 }
 
 export default function VehiclesPage() {
@@ -26,6 +27,7 @@ export default function VehiclesPage() {
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const { journeyTypes, loading: jtLoading } = useJourneyTypes()
 
   async function load() {
     setLoading(true)
@@ -46,9 +48,19 @@ export default function VehiclesPage() {
       height_metres: v.height_metres != null ? String(v.height_metres) : '',
       width_metres:  v.width_metres  != null ? String(v.width_metres)  : '',
       length_metres: v.length_metres != null ? String(v.length_metres) : '',
+      journey_types: v.journey_types ?? [],
     })
     setError('')
     setModal(v)
+  }
+
+  function toggleJourneyType(jt) {
+    setForm(f => ({
+      ...f,
+      journey_types: f.journey_types.includes(jt)
+        ? f.journey_types.filter(x => x !== jt)
+        : [...f.journey_types, jt],
+    }))
   }
 
   async function handleSave(e) {
@@ -66,6 +78,7 @@ export default function VehiclesPage() {
       vehicle_type: form.vehicle_type,
       fuel_type:    form.fuel_type,
       ...dims,
+      journey_types: form.journey_types,
       company_id,
     }
     const { error: err } = modal === 'add'
@@ -76,6 +89,7 @@ export default function VehiclesPage() {
           vehicle_type: form.vehicle_type,
           fuel_type:    form.fuel_type,
           ...dims,
+          journey_types: form.journey_types,
         }).eq('id', modal.id)
     setSaving(false)
     if (err) { setError(err.message); return }
@@ -204,6 +218,35 @@ export default function VehiclesPage() {
               >
                 {FUEL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">
+                Journey Types{' '}
+                <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
+                  — controls which vehicles drivers can pick from the Driver PWA
+                </span>
+              </label>
+              {jtLoading ? (
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Loading…</div>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                  {journeyTypes.map(jt => {
+                    const on = form.journey_types.includes(jt)
+                    return (
+                      <button key={jt} type="button"
+                        onClick={() => toggleJourneyType(jt)}
+                        style={{
+                          padding: '4px 11px', fontSize: 12, borderRadius: 12, cursor: 'pointer',
+                          fontFamily: 'inherit', lineHeight: 1.5,
+                          border: `1px solid ${on ? 'var(--navy-brand)' : 'var(--border)'}`,
+                          background: on ? 'var(--navy-brand)' : 'transparent',
+                          color: on ? '#fff' : 'var(--text-muted)',
+                        }}
+                      >{jt}</button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
             <div style={{ marginBottom: 8 }}>
               <label className="form-label" style={{ marginBottom: 6, display: 'block' }}>

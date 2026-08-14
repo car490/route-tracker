@@ -1,4 +1,4 @@
-import { findForwardMatch } from '../src/geofence.js';
+import { findForwardMatch, isApproaching, GEOFENCE_RADIUS_M, APPROACH_ETA_SECONDS, APPROACH_FALLBACK_RADIUS_M } from '../src/geofence.js';
 
 // Stops spaced ~200m apart along latitude (0.0018 deg ≈ 200m) so each is
 // unambiguously inside/outside the 50m geofence from any other stop's coords.
@@ -132,5 +132,31 @@ describe('findForwardMatch', () => {
 
     expect(result.matchedIndex).toBe(4);
     expect(result.status).toBe('skipped_signal');
+  });
+});
+
+describe('isApproaching', () => {
+  test('inside the arrival geofence is not "approaching" — it should already be "arrived"', () => {
+    expect(isApproaching({ distanceM: GEOFENCE_RADIUS_M - 1, speedMps: 10 })).toBe(false);
+  });
+
+  test('moving with an ETA inside the window counts as approaching', () => {
+    // 200 m at 10 m/s = 20 s ETA, well inside APPROACH_ETA_SECONDS
+    expect(isApproaching({ distanceM: 200, speedMps: 10 })).toBe(true);
+  });
+
+  test('moving but too far away for the ETA window is not approaching', () => {
+    const distanceM = APPROACH_ETA_SECONDS * 10 + 500; // ETA far beyond the window at 10 m/s
+    expect(isApproaching({ distanceM, speedMps: 10 })).toBe(false);
+  });
+
+  test('stationary/noisy speed falls back to the distance band', () => {
+    expect(isApproaching({ distanceM: APPROACH_FALLBACK_RADIUS_M - 1, speedMps: 0 })).toBe(true);
+    expect(isApproaching({ distanceM: APPROACH_FALLBACK_RADIUS_M + 1, speedMps: 0 })).toBe(false);
+  });
+
+  test('moving fast enough, ETA governs even beyond the fallback distance band', () => {
+    // 1000 m at 50 m/s = 20 s ETA — inside the ETA window despite being well outside the fallback radius
+    expect(isApproaching({ distanceM: 1000, speedMps: 50 })).toBe(true);
   });
 });

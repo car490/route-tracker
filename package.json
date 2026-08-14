@@ -6,7 +6,14 @@
   "scripts": {
     "test": "jest",
     "test:vitest": "vitest run",
-    "demo:drive": "node scripts/demo-drive.mjs"
+    "demo:drive": "node scripts/demo-drive.mjs",
+    "demo:2up:duty": "node scripts/demo-2up.mjs duty",
+    "demo:2up:manual": "node scripts/demo-2up.mjs manual",
+    "generate:audio": "node scripts/generate-announcement-audio.mjs",
+    "demo:announce-push": "node scripts/demo-announce-push.mjs"
+  },
+  "dependencies": {
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@babel/core": "^7.26.0",

@@ -194,6 +194,13 @@ create table vehicles (
                         'Hybrid',
                         'Hydrogen'
                       )),
+  -- Same shape as employees.journey_types / routes.journey_type — which
+  -- journey types (journey_types.name) this vehicle is used/tagged for, e.g.
+  -- 'Local Bus'. No CHECK against the lookup table, same as the two columns
+  -- it mirrors — validated at the application layer (dashboard pills) only.
+  -- Drives the Driver PWA's vehicle-commissioning picker (src/vehicleSetup.js)
+  -- via the anon_read_local_bus RLS policy below.
+  journey_types     text[]      not null default '{}',
   seating_capacity  int,
   height_metres     float8,                                -- overall vehicle height (m) — used by route planner
   width_metres      float8,                                -- overall vehicle width (m)
@@ -206,17 +213,23 @@ create table vehicles (
 
 -- ── Stops (global — not company-scoped) ───────────────────────────────────────
 -- Physical bus stops shared across all companies and routes.
--- naptan_code reserved for Phase 5 BODS integration.
+-- atco_code reserved for Phase 5 BODS integration.
 -- Only super_user employees may create or modify stops (enforced by RLS).
 
 create table stops (
-  id              uuid        primary key default gen_random_uuid(),
-  name            text        not null,
-  lat             float8      not null,
-  lon             float8      not null,
-  naptan_code     text        unique,   -- NaPTAN ATCO code (up to 12 chars)
-  is_depot        boolean     not null default false,
-  created_at      timestamptz not null default now()
+  id                  uuid        primary key default gen_random_uuid(),
+  name                text        not null,
+  lat                 float8      not null,
+  lon                 float8      not null,
+  atco_code           text        unique,   -- NaPTAN ATCO code (up to 12 chars)
+  is_depot            boolean     not null default false,
+  -- Optional override for display_name() below — some NaPTAN-composed names
+  -- are too long for the 22mm-minimum onboard sign, or unclear when spoken
+  -- (PSVAIR audio/visual announcements). Null everywhere by default; set
+  -- directly via SQL for specific problem stops (no admin UI yet — flagged
+  -- as a follow-up, see memory).
+  announcement_name   text,
+  created_at          timestamptz not null default now()
 );
 
 
@@ -236,6 +249,11 @@ create table naptan_stops (
   lat           float8      not null,
   lon           float8      not null,
   stop_type     text        not null default 'BCT',
+  -- Taken verbatim from the DfT feed's Status field (active/inactive/etc.),
+  -- plus 'removed' — set by the import's sweep step when a stop that was
+  -- active here has dropped out of the feed entirely (record deleted at the
+  -- source, not just flagged non-active). naptan_near_point() only matches
+  -- status = 'active', so any other value excludes a stop from the planner.
   status        text        not null default 'active',
   updated_at    timestamptz not null default now()
 );
@@ -246,8 +264,10 @@ grant select on public.naptan_stops to anon, authenticated;
 grant all    on public.naptan_stops to service_role;
 
 -- Computed "<locality>, <landmark> (<indicator>)" display name for a stop,
--- derived from naptan_stops via stops.naptan_code. Falls back to stops.name
+-- derived from naptan_stops via stops.atco_code. Falls back to stops.name
 -- when there's no NAPTAN match (e.g. stops outside imported counties).
+-- stops.announcement_name, when set, overrides both — for the rare stop
+-- whose NaPTAN name is too long/unclear for the onboard sign or TTS.
 -- Exposed via PostgREST as a computed column: select=name,display_name
 create or replace function public.display_name(s stops)
 returns text
@@ -255,10 +275,11 @@ language sql
 stable
 as $$
   select coalesce(
+    s.announcement_name,
     (select n.locality_name || ', ' || n.common_name ||
        case when n.indicator is not null and n.indicator <> '' then ' (' || n.indicator || ')' else '' end
      from naptan_stops n
-     where n.atco_code = s.naptan_code),
+     where n.atco_code = s.atco_code),
     s.name
   )
 $$;
@@ -858,9 +879,15 @@ grant execute on function complete_journey(uuid) to anon;
 -- psvair_in_scope is deliberately not computed/returned here — the caller
 -- sources that from schedule_view via fetchStopsForDeparture(), same as
 -- the duty-card path, so it's derived in exactly one place.
+-- p_vehicle_id (optional) is the device's once-commissioned vehicle (see
+-- src/vehicleSetup.js) — validated against the departure's own company
+-- below so anon can't attach an arbitrary vehicle UUID from another company.
+DROP FUNCTION IF EXISTS public.get_or_create_manual_journey(uuid, date);
+
 create or replace function get_or_create_manual_journey(
   p_timetable_departure_id uuid,
-  p_journey_date date default current_date
+  p_journey_date date default current_date,
+  p_vehicle_id uuid default null
 )
 returns table (journey_id uuid)
 language plpgsql
@@ -906,8 +933,14 @@ begin
     raise exception 'service does not run on %', p_journey_date;
   end if;
 
-  insert into journeys (company_id, timetable_departure_id, journey_date, status)
-  values (v_company_id, p_timetable_departure_id, p_journey_date, 'scheduled')
+  if p_vehicle_id is not null and not exists (
+    select 1 from vehicles v where v.id = p_vehicle_id and v.company_id = v_company_id
+  ) then
+    raise exception 'vehicle % not found for this company', p_vehicle_id;
+  end if;
+
+  insert into journeys (company_id, timetable_departure_id, journey_date, status, vehicle_id)
+  values (v_company_id, p_timetable_departure_id, p_journey_date, 'scheduled', p_vehicle_id)
   on conflict (timetable_departure_id, journey_date)
     where status != 'cancelled' and timetable_departure_id is not null
   do nothing
@@ -926,7 +959,7 @@ begin
 end;
 $$;
 
-grant execute on function get_or_create_manual_journey(uuid, date) to anon;
+grant execute on function get_or_create_manual_journey(uuid, date, uuid) to anon;
 
 DROP FUNCTION IF EXISTS public.get_duty_card(uuid[]);
 
@@ -947,7 +980,9 @@ CREATE OR REPLACE FUNCTION public.get_duty_card(journey_ids uuid[])
    timetable_departure_id uuid,
    first_stop_time        text,
    last_stop_name         text,
-   notes                  text
+   notes                  text,
+   primary_color          text,
+   accent_color           text
  )
  LANGUAGE sql
  STABLE SECURITY DEFINER
@@ -970,13 +1005,16 @@ AS $function$
     (select display_name(st.*) from timetable_stops ts3
      join stops st on st.id = ts3.stop_id
      where ts3.timetable_id = t.id order by ts3.sequence desc limit 1) as last_stop_name,
-    j.notes
+    j.notes,
+    coalesce(c.primary_color, '#242F35')                     as primary_color,
+    coalesce(c.accent_color,  '#00B4D8')                     as accent_color
   from journeys j
   left join employees           e  on e.id  = j.driver_id
   left join vehicles            v  on v.id  = j.vehicle_id
   left join timetable_departures td on td.id = j.timetable_departure_id
   left join timetables          t  on t.id  = td.timetable_id
   left join routes              r  on r.id  = t.route_id
+  left join companies           c  on c.id  = j.company_id
   where j.id = any(journey_ids)
   order by array_position(journey_ids, j.id)
 $function$;
@@ -1210,7 +1248,7 @@ create or replace view schedule_view with (security_invoker = true) as
     s.lat,
     s.lon,
     s.is_depot,
-    s.naptan_code,
+    s.atco_code,
     ts.timetable_id,
     td.id                as departure_id,
     td.departure_time,
@@ -1228,7 +1266,8 @@ create or replace view schedule_view with (security_invoker = true) as
     exists (
       select 1 from journey_types jt
       where jt.name = any(r.journey_type) and jt.requires_bods
-    )                    as psvair_in_scope
+    )                    as psvair_in_scope,
+    s.id                 as stop_id
   from timetable_stops     ts
   join stops               s  on s.id  = ts.stop_id
   join timetables          t  on t.id  = ts.timetable_id
@@ -1291,6 +1330,13 @@ create policy "company_all" on vehicles
   for all to authenticated
   using     (company_id = current_company_id())
   with check (company_id = current_company_id());
+
+-- Vehicles: anon may read active 'Local Bus'-tagged vehicles only — powers
+-- the Driver PWA's one-time vehicle-commissioning picker (src/vehicleSetup.js).
+-- No anon policy existed on this table before; nothing else changes.
+create policy "anon_read_local_bus" on vehicles
+  for select to anon
+  using (status = 'active' and 'Local Bus' = any(journey_types));
 
 -- Routes: full access within own company
 create policy "company_all" on routes

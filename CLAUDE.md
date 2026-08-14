@@ -1,13 +1,107 @@
-# RouteTracker — Claude Code instructions
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project overview
-Real-time bus route timing PWA for Phil Haines Coaches drivers, plus an ops back-office dashboard.
-- **Driver PWA**: `route-tracker/src/` (vanilla JS, no build step, deployed to GitHub Pages
-  directly from the repo root — `index.html` loads `src/main.js`)
-- **Ops dashboard**: `route-tracker/dashboard/` (React + Vite, deployed to Vercel)
-- **Supabase backend**: schema at `route-tracker/supabase/schema.sql`
+CoachMate (bus/coach product family: **BusOps Driver** for the driver PWA, **BusOps Announce**
+for the onboard passenger sign) is a real-time bus route timing system for Phil Haines Coaches
+drivers, plus an ops back-office dashboard. It has three deployable surfaces sharing one
+Supabase backend:
 
-See memory files for full project state, deploy URLs, and phase roadmap.
+| Surface | Path | Stack | Deploys to |
+|---|---|---|---|
+| Driver PWA (BusOps Driver) | repo root (`index.html`, `src/`) | Vanilla JS, ES modules, no build step | GitHub Pages today; migrating to Cloudflare Workers at `driver.coachmate.uk` (`wrangler.jsonc` + `.assetsignore` are already in place for that, not yet cut over) |
+| Ops dashboard (CoachMate Ops Dashboard) | `dashboard/` | React + Vite | Vercel, auto on push |
+| Onboard passenger sign (BusOps Announce) | `onboard.html`, `src/onboard.js`; Pi-side setup in `pi-server/` | Vanilla JS + Node (gpsd client) | Raspberry Pi + Fire HD tablet, see `pi-server/DEPLOY.md` |
+
+Supabase schema lives at `supabase/schema.sql`. Everything else (`graphhopper/`, `lib/`,
+`scripts/`, `audio/`) is shared infra used by more than one surface.
+
+**Important:** the driver PWA source is served directly from the repo root — there is no
+`public/` folder (the root `README.md` still describes an old `public/`-based layout; it is
+stale — do not follow it). `server.js` serves `__dirname` as-is, and `index.html` loads
+`src/main.js` straight from the repo root. Do not create or reference a `public/` directory
+for the PWA.
+
+`wifi-direct-poc/` is a standalone, throwaway Android hardware bench-test app for a possible
+future WiFi-Direct-based redesign of how Driver and Announce talk to each other. It is **not**
+part of the product build, not deployed anywhere, and not wired into any of the three surfaces
+above — treat it as exploratory only.
+
+---
+
+## Commands
+
+### Run everything locally
+```sh
+node scripts/dev-all.mjs
+```
+Starts the driver PWA (`server.js`, :8080), dashboard dev server (`dashboard/`, :5173), and
+local GraphHopper (`graphhopper/`, :8989) together, killing anything already bound to those
+ports first. Ctrl-C stops all three. Safe to re-run after a crash.
+
+### Run individually
+```sh
+node server.js              # driver PWA        → http://localhost:8080
+cd dashboard && npm run dev # ops dashboard      → http://localhost:5173
+```
+`http://localhost:8080/?debug` enables the PWA's debug mode (adds a Log tab, hides Directions).
+
+### Tests
+Two independent test setups exist for the driver PWA — know which one a file belongs to:
+- **`tests/*.test.js`** (older, standalone) → run via **Jest**: `npm test`
+- **`src/*.test.js`** (co-located with the module they test, e.g. `src/geofence.test.js`)
+  → run via **Vitest**: `npm run test:vitest`
+
+Run a single test file:
+```sh
+npx jest tests/engine.test.js
+npx vitest run src/geofence.test.js
+```
+
+`tests/staticDeployPaths.test.js` guards `manifest.json` and both `index.html`/`onboard.html`'s
+service-worker registration against hardcoded subpaths (e.g. `/route-tracker/`) — this matters
+because the PWA is moving from a GitHub Pages subpath to owning its own origin
+(`driver.coachmate.uk`); don't reintroduce an absolute or subpath-prefixed registration.
+
+Dashboard tests (Vitest, co-located `dashboard/src/**/*.test.js`):
+```sh
+cd dashboard && npm test
+```
+
+### Lint / build (dashboard only — the PWA has no build step)
+```sh
+cd dashboard
+npm run lint    # eslint, ratcheted at --max-warnings 7 (see dashboard/eslint.config.js)
+npm run build   # vite build
+```
+CI (`.github/workflows/ci.yml`) runs: root `npm test` (PWA), `dashboard` lint, `dashboard`
+build — on every push and PR.
+
+### Demo drives (simulate a run without GPS/hardware)
+```sh
+node scripts/demo-drive.mjs        # single driver PWA, scripted GPS route
+npm run demo:2up:duty              # two windows: driver PWA + BusOps Announce, duty-card start
+npm run demo:2up:manual            # same, but via the manual-selection fallback flow
+```
+All drive the real app code with mocked Geolocation (not a fake simulation) — useful for
+testing timing, announcements, and the onboard display end-to-end without being in a moving
+vehicle. `demo.html` is a separate, fully scripted/fake visual simulation (no real app code)
+used for quick client-facing demos.
+
+### PSVAIR announcement audio
+```sh
+AZURE_SPEECH_KEY=... AZURE_SPEECH_REGION=... npm run generate:audio
+```
+Regenerates pre-rendered Azure Neural TTS clips into `audio/announcements/`. See "PSVAIR
+announcement audio" under Architecture below before running this — order of operations matters
+(schedule regen must happen first).
+
+### Release (version bump across PWA + dashboard together)
+```sh
+node scripts/release.mjs <major|minor|patch>
+```
+See "Release / versioning" below.
 
 ---
 
@@ -47,10 +141,21 @@ Always follow GRANTs with the appropriate RLS policy.
 
 ## Supabase: schema.sql hygiene
 
-- `route-tracker/supabase/schema.sql` is the authoritative full schema. Every new table
+- `supabase/schema.sql` is the authoritative full schema. Every new table
   and function must be added here so a fresh DB reset needs only `schema.sql + seed.sql`.
-- Migration files (e.g. `migration_*.sql`) are applied on top of schema.sql for
-  incremental changes to the live DB. Keep them so there is an audit trail.
+- Migration files are applied on top of schema.sql for incremental changes to the live DB.
+  Keep them so there is an audit trail. **New migrations go in
+  `supabase/migration_<description>.sql`** (flat, descriptive naming) — this is what every
+  migration since late July 2026 actually uses. A `supabase/migrations/<timestamp>_<description>.sql`
+  folder exists from a brief attempt (June 2026) to adopt the Supabase-CLI timestamped
+  convention, but it was abandoned in practice; don't add new files there unless the team
+  explicitly revives that convention.
+- `supabase/scripts/` holds one-off Node maintenance scripts (e.g. NaPTAN import/backfill),
+  distinct from SQL migrations.
+- `supabase/functions/` holds Supabase Edge Functions (Deno/TypeScript) — e.g.
+  `naptan-import`, `dvsa-vol-lookup`.
+- `supabase/tests/` holds RLS policy test SQL, one file per feature (e.g.
+  `diversion_alert_event_rls.sql`).
 - Helper functions called by RLS policies must be defined **before** the policies that
   use them — order matters in a single-pass SQL script.
 - Use `SECURITY DEFINER` on any function called from an anon RLS policy so the function
@@ -62,49 +167,44 @@ Always follow GRANTs with the appropriate RLS policy.
 
 ### Branches
 - `develop` — all active development; **always start here**
-- `main` — production; merge from `develop` only when tested and approved
+- `master` — production; merge from `develop` only when tested and approved
 
 ### Environments
 | Layer | Develop | Production |
 |---|---|---|
-| **Dashboard** | Vercel preview URL (auto on every push to `develop`) | `route-tracker-iota.vercel.app` (auto on merge to `main`) |
-| **PWA** | Local server (`server.js`) — hits dev Supabase automatically | GitHub Pages (deploy from `main`) |
+| **Dashboard** | Vercel preview URL (auto on every push to `develop`) | `route-tracker-iota.vercel.app` (auto on merge to `master`) |
+| **PWA** | Local server (`server.js`) — hits dev Supabase automatically | GitHub Pages (deploy from `master`); Cloudflare Workers migration in progress, see Project overview |
 | **Supabase** | `cgcbfgceputvdvhzrgio` (`route-tracker-dev`) | `nwhayupsvcelyiwltdqo` (production) |
 
 ### Environment switching
 - **Dashboard**: `dashboard/.env.development` holds dev Supabase URL/key; Vite's dev server picks
   it up automatically. Vercel production build ignores this file and uses Vercel's own env vars.
-- **PWA**: `src/main.js` detects `localhost`/`127.0.0.1` at runtime and switches Supabase project.
-  No build step needed.
-
-### Starting Dev (Local)
-`node scripts/dev-all.mjs` starts all three local services in one terminal:
-driver PWA (`server.js`, :8080), dashboard dev server (`dashboard/`, :5173), and
-local GraphHopper (`graphhopper/`, :8989). It kills anything already bound to
-those ports first, so it's always safe to re-run after a crashed process —
-no manual cleanup needed. Ctrl-C stops all three together.
+- **PWA**: `src/config.js` detects `localhost`/`127.0.0.1` at runtime (`IS_DEV`) and switches
+  Supabase project URL/key accordingly. No build step needed.
 
 ### Committing
 - Commit at logical checkpoints — when a feature or fix is complete and working.
 - Always commit before applying a DB migration.
 - Always commit at end of session, even if WIP (prefix message with `wip:`).
-- The Git repo root is `route-tracker/` — **not** `route-tracker/public/`.
-- PWA source files live in `route-tracker/public/`; before committing, copy changed
-  files to the repo root (e.g. `index.html`, `src/`, `sw.js`).
-- Dashboard is a separate Vite project in `route-tracker/dashboard/`; Vercel deploys
-  from that directory automatically on push.
+- The Git repo root **is** the driver PWA root — `index.html`, `src/`, `service-worker.js`,
+  `style.css` all live directly at the repo root, alongside `dashboard/` and `supabase/` as
+  sibling directories. There is no separate `public/` folder to sync from.
+- Dashboard is a separate Vite project in `dashboard/`; Vercel deploys from that directory
+  automatically on push.
 - `.git` persists between sessions — no need to re-init.
 
 ### DB migrations
 - Apply to **dev** first via MCP plugin (project ID `cgcbfgceputvdvhzrgio`).
 - After testing, apply the same migration to **production** (project ID `nwhayupsvcelyiwltdqo`).
-- Keep migration files in `supabase/` for audit trail.
+- Keep migration files in `supabase/` for audit trail (see naming conventions above).
 - Update `supabase/schema.sql` so a fresh reset only needs `schema.sql + seed.sql`.
 
 ### Release / versioning
 One version number covers the whole solution (PWA + dashboard) — they release
 together on the `develop` → `master` merge. Source of truth is the root
-`VERSION` file.
+`VERSION` file. As of this writing `master` is several dozen commits behind `develop`
+(last released v1.4.0) — check `git log origin/master..origin/develop` before assuming
+what's live matches what's in the working tree.
 - When merging `develop` → `master`, run `node scripts/release.mjs <major|minor|patch>`.
   This bumps `VERSION`, `dashboard/package.json`, the `service-worker.js`
   `CACHE_NAME`, and the version footer in `index.html`, and stamps a new
@@ -122,20 +222,106 @@ together on the `develop` → `master` merge. Source of truth is the root
 
 ## Architecture
 
-- **Dashboard**: Vertical Slice Architecture — feature folders (`features/staff/`,
-  `features/journeys/`, etc.) with shared Supabase client in `shared/` or `lib/`.
-  Introduce VSA alongside the first Phase 4 slice, not as a standalone refactor.
-- **PWA**: file-per-concern (no VSA); keep it flat and simple.
-- `staff.name` is a **single field** — never `first_name`/`last_name`.
-- `stops` are **global** (no `company_id`); `stop_type` lives on `timetable_stops`.
-- OSRM directions must use **scheduled stop coordinates**, never live GPS position.
+### Driver PWA data flow
+```
+GPS fix
+  └─► gps.js       (haversine distance, stop-advancement radius, arrival timestamps)
+        └─► geofence.js   (pure: is-within-radius checks used by gps.js)
+        └─► engine.js     (pure: ETA, minutesDifference, on-time/early/late status)
+              └─► ui.js         (status card, progress bar, stop list)
+              └─► map.js        (Leaflet map, OSRM-routed polyline)
+              └─► directions.js (turn-by-turn for the current leg)
+              └─► announcements.js / announceStopEvent.js (announcement playback, see below)
+```
+`main.js` is the entry point wiring the above together (picker logic, wake lock, journey
+start/stop, Supabase upload of arrival times via `supabaseApi.js`). Each module is a pure
+ES module with no circular imports; `gps.js` and `main.js` are the layers with side effects
+(geolocation watch, clock reads, network). `manualSelection.js` provides a fallback path for
+picking a service manually when there's no active scheduled duty. `diversionAlert.js` handles
+driver-triggered diversion alerts, wired into both the PWA and the onboard sign.
 
-### Public client config (PWA)
-The PWA has no build step, so there's no env-var injection like Vite's — all
-dev/prod Supabase URLs and keys live in `src/config.js`, never inline in
-`main.js` or elsewhere. Only ever put **anon/publishable** keys there — they
-carry no privileges on their own (RLS policies are what actually gate access),
-so they're safe to commit and ship to every browser regardless of where they
-live in source. A `service_role` key or `SUPABASE_JWT_SECRET` must **never**
-appear here — those are read from `process.env` on a server only (see
-`dashboard/api/*.js` for that pattern on the dashboard side).
+**OSRM/directions must always use scheduled stop coordinates, never the live GPS position** —
+this keeps route drawing and turn-by-turn stable regardless of GPS drift.
+
+The PWA falls back to `src/schedule.json` (a static, keyed-by-service-number schedule) when
+Supabase is unreachable — see the offline-fallback test flow in `docs/TESTING.md`.
+`scripts/generate-schedule.mjs` regenerates this file.
+
+### PSVAIR announcement audio
+Live `speechSynthesis` voice quality varies by device/OS and can sound digital. The primary
+announcement path is **pre-rendered Azure Neural TTS clips**, generated offline and played
+back as audio files; live `speechSynthesis` (`src/announcements.js`) is kept only as the
+fallback for a clip that isn't rendered/cached yet.
+
+- Every announcement sentence has exactly one variable slot (a stop name, or a
+  service+destination pair) — so clips are rendered **per stop** and **per service/destination**,
+  not per route-leg. Keyed by `stops.id` (global, reused across every route/timetable that
+  visits that stop), never by `timetable_stop_id`.
+- `schedule_view` (and `src/schedule.json`) carry `stop_id` for exactly this reason — if you
+  add a column to `schedule_view`, it must go at the **end** of the select list
+  (`CREATE OR REPLACE VIEW` requires existing columns to keep their name/order/type).
+- Regenerate after any stop rename or route change, in this order:
+  1. Apply any pending `schedule_view` migration to Supabase — **to both dev and production**
+     if the change (e.g. a `stops.announcement_name` edit) needs to actually ship, not just be
+     previewed locally.
+  2. `node scripts/generate-schedule.mjs` (refreshes `src/schedule.json`, including `stop_id`).
+     `schedule.json` is one static file shipped to both environments (no per-environment build
+     step), so this defaults to reading production — pass `--dev` only to preview a change
+     that's on dev alone so far; re-run without it (against prod) once the same change is
+     applied there too and you're ready to ship.
+  3. `AZURE_SPEECH_KEY=... AZURE_SPEECH_REGION=... npm run generate:audio` (writes clips +
+     `audio/announcements/manifest.json`; skips any clip whose text **or voice** hash hasn't
+     changed — the manifest hashes `${AZURE_SPEECH_VOICE}|${text}`).
+- `stops.announcement_name` (nullable) overrides `display_name()`'s ATCO-composed name for a
+  stop whose real name is too long for the onboard sign's 22mm minimum or unclear when spoken.
+  No admin UI yet — set it directly via SQL, on both dev and production, then regenerate per above.
+- Requires an Azure AI Speech resource (key + region, e.g. `uksouth`). These are **build-time
+  secrets** for a script run locally — never commit them, never put them in `src/config.js`
+  (that file is public/client-only). `AZURE_SPEECH_VOICE` overrides the script's default
+  (`en-GB-SoniaNeural`); the currently-committed clips were generated with `en-GB-RyanNeural`.
+- `speak()` in `announcements.js` **queues** a new announcement behind whatever's currently
+  playing rather than interrupting it. Only the single most recent queued announcement is kept.
+- `service-worker.js` precaches every clip listed in `audio/announcements/manifest.json` on
+  install, so announcements still work offline mid-route.
+- The clip-key slug logic in `src/announcements.js` (`slug()`) must stay identical to the one
+  in `scripts/generate-announcement-audio.mjs` — no shared import between a browser module and
+  a Node script here, so keep them in sync by hand.
+
+### Onboard passenger sign (BusOps Announce)
+A separate vanilla-JS app (`onboard.html` + `src/onboard.js`) meant to run full-screen on a
+Fire HD tablet mounted in the vehicle, driven by a Raspberry Pi over its own local WiFi
+hotspot (see `pi-server/DEPLOY.md` for the two-radio WiFi setup, `pi-server/gpsd-client.mjs`
+for the GPS bridge, `pi-server/sync-schedule.mjs` for depot-WiFi schedule sync). Deliberately
+siloed from `main.js` — no login, no duty-card UI, no incident reporting, no writes to
+Supabase at all; it only reads `schedule_view`/`get_duty_card` and tracks GPS live, watching a
+single `journey_id` passed via `?journey=` in the URL. Designed to work fully offline once
+synced at the depot each morning. A separate ultra-wide (16:3) layout exists alongside the
+Fire HD layout — see `docs/onboard-widescreen-layout.md`.
+
+### Dashboard (Vertical Slice Architecture)
+`dashboard/src/features/<slice>/` — each slice owns its own pages/components; shared code
+(Supabase client, layout, modals, hooks) lives in `dashboard/src/shared/`. Current slices:
+`auth`, `overview`, `employees`, `vehicles`, `routes`, `route-planner`, `journeys`, `schedule`,
+`tracking`, `settings`, `company`, `audio-config`. `route-planner` is the largest/most complex
+slice (route + timetable + stop + map + BODS-field + departures editing in one flow, including
+its own `WizardModal.jsx`) — see `docs/TODO.md` for a known refactor candidate there
+(`RoutePlannerPage.jsx`, ~1000 lines). `dashboard/api/*.js` holds Vercel serverless functions
+(the only place `service_role`/JWT secrets are read, via `process.env`).
+
+### Domain conventions
+- `staff.name` (largely renamed to `employees` — see `migration_rename_staff_to_employees.sql`)
+  is a **single field** — never `first_name`/`last_name`.
+- `stops` are **global** (no `company_id`); `stop_type` lives on `timetable_stops`. The stop
+  identifier column is `atco_code` (renamed from `naptan_code` — see
+  `migration_rename_stops_atco_code.sql`).
+- Public client config (PWA): no build step means no Vite-style env-var injection, so all
+  dev/prod Supabase URLs and keys live in `src/config.js`, never inline in `main.js` or
+  elsewhere. Only ever put **anon/publishable** keys there — RLS policies are what actually
+  gate access, so they're safe to commit. A `service_role` key or `SUPABASE_JWT_SECRET` must
+  **never** appear here — those are server-only (`dashboard/api/*.js` pattern).
+- `docs/` holds reference and spec material not tied to any one code path: `TESTING.md` (manual
+  test guide for all three surfaces), `TODO.md` (general engineering follow-ups, e.g. PSVAIR
+  2026 compliance items and dashboard tech debt), `VOL.md` (a parked, not-yet-built fleet-data
+  subsystem — don't assume it's implemented), plus verification write-ups and the BusOps
+  Driver hardware proposal. Root `README.md` is stale (describes an old `public/`-based PWA
+  layout) — prefer this file and `docs/TESTING.md` over it.

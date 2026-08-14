@@ -1,8 +1,6 @@
 let _map = null;
 let _posMarker = null;
 let _routeLine = null;
-let _depotStartLine = null;
-let _depotEndLine = null;
 const _stopMarkers = [];
 
 function stopStyle(state) {
@@ -47,20 +45,9 @@ export function initMap(stops) {
     maxZoom: 18,
   }).addTo(_map);
 
-  // stops[0] and stops[last] are depot; main route is stops[1..last-1]
-  const depotStart = [stops[0], stops[1]];
-  const mainStops  = stops.slice(1, stops.length - 1);
-  const depotEnd   = [stops[stops.length - 2], stops[stops.length - 1]];
-
-  // Main route drawn first (underneath), depot legs drawn on top so dashes
-  // reveal the orange beneath wherever the roads overlap
-  _routeLine = L.polyline(mainStops.map(s => [s.lat, s.lon]), {
+  _routeLine = L.polyline(stops.map(s => [s.lat, s.lon]), {
     color: '#ff7700', weight: 5, opacity: 0.9,
   }).addTo(_map);
-
-  const depotLineOpts = { color: '#000000', weight: 4, opacity: 0.9, dashArray: '10 7' };
-  _depotStartLine = L.polyline(depotStart.map(s => [s.lat, s.lon]), depotLineOpts).addTo(_map);
-  _depotEndLine   = L.polyline(depotEnd.map(s => [s.lat, s.lon]),   depotLineOpts).addTo(_map);
 
   stops.forEach(stop => {
     const m = L.circleMarker([stop.lat, stop.lon], stopStyle('future'))
@@ -77,33 +64,24 @@ export function initMap(stops) {
   // Container is visible — fitBounds works correctly here
   _map.fitBounds(L.featureGroup(_stopMarkers).getBounds(), { padding: [30, 30] });
 
-  // Upgrade all three segments to road-snapped geometry in background
-  fetchRoadGeometry(mainStops).then(coords => {
+  // Upgrade to road-snapped geometry in background
+  fetchRoadGeometry(stops).then(coords => {
     if (coords && _map) _routeLine.setLatLngs(coords);
-  });
-  fetchRoadGeometry(depotStart).then(coords => {
-    if (coords && _map) _depotStartLine.setLatLngs(coords);
-  });
-  fetchRoadGeometry(depotEnd).then(coords => {
-    if (coords && _map) _depotEndLine.setLatLngs(coords);
   });
 }
 
-export function updateMapPosition(lat, lon, nextStopIndex, arrivals) {
+export function updateMapPosition(lat, lon, nextStopIndex, stopStates) {
   if (!_map) return;
   _posMarker.setLatLng([lat, lon]);
   _stopMarkers.forEach((m, i) => {
-    const arrived = arrivals[i] instanceof Date;
-    const missed  = arrivals[i] === 'missed' || (arrivals[i] !== null && typeof arrivals[i] === 'object' && !arrived);
+    const status  = stopStates[i]?.status;
+    const visited = status === 'arrived' || status === 'departed';
+    const missed  = status === 'skipped_signal' || status === 'skipped_detour' || status === 'not_tracked';
     if      (missed)               m.setStyle(stopStyle('missed'));
-    else if (arrived)              m.setStyle(stopStyle('past'));
+    else if (visited)              m.setStyle(stopStyle('past'));
     else if (i === nextStopIndex)  m.setStyle(stopStyle('current'));
     else                           m.setStyle(stopStyle('future'));
   });
-}
-
-export function centreOnPosition(lat, lon) {
-  if (_map) _map.setView([lat, lon], Math.max(_map.getZoom(), 15), { animate: true });
 }
 
 export function invalidateSize() {

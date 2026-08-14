@@ -16,6 +16,28 @@ export const GEOFENCE_RADIUS_M = 50; // matches the existing arrival threshold i
 // tune against real timing-point spacing on live routes.
 export const SKIPPED_SIGNAL_MAX_TIMING_POINTS = 1;
 
+// "Approaching" thresholds — projected by current speed, falling back to a
+// wider distance band when speed is too low/noisy to project a reliable ETA
+// (e.g. stationary in traffic, or a jumpy GPS fix).
+export const APPROACH_ETA_SECONDS = 90;
+export const APPROACH_FALLBACK_RADIUS_M = 300;
+export const APPROACH_MIN_SPEED_MPS = 1;
+
+/**
+ * @param {Object} params
+ * @param {number} params.distanceM - metres to the stop's geofence centre
+ * @param {number} params.speedMps
+ * @returns {boolean}
+ */
+export function isApproaching({ distanceM, speedMps }) {
+  if (distanceM <= GEOFENCE_RADIUS_M) return false; // already inside the arrival geofence
+
+  if (speedMps >= APPROACH_MIN_SPEED_MPS) {
+    return distanceM / speedMps <= APPROACH_ETA_SECONDS;
+  }
+  return distanceM <= APPROACH_FALLBACK_RADIUS_M;
+}
+
 /**
  * @param {Object} params
  * @param {Array}  params.schedule - full stop list (lat, lon, stop_type)

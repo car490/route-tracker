@@ -119,11 +119,11 @@ export function useStopsBuilder(vehicleType) {
     return () => { cancelled = true; clearTimeout(timer) }
   }, [searchQuery])
 
-  function commitStop(name, lat, lon, stopId = null, naptanCode = null) {
+  function commitStop(name, lat, lon, stopId = null, atcoCode = null) {
     setStops(prev => [...prev, {
       _id: crypto.randomUUID(),
-      stop_id:     stopId,
-      naptan_code: naptanCode,
+      stop_id:   stopId,
+      atco_code: atcoCode,
       name, lat, lon,
       stop_type: 'timing_point', time_std: '',
     }])

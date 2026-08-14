@@ -1,0 +1,19 @@
+{
+  "name": "busops-driver",
+  "compatibility_date": "2026-07-01",
+  "assets": {
+    "directory": "./"
+  },
+  "env": {
+    "production": {
+      "assets": {
+        "directory": "./"
+      }
+    },
+    "dev": {
+      "assets": {
+        "directory": "./"
+      }
+    }
+  }
+}

@@ -30,6 +30,11 @@
  *   BCP  Bus/Coach private stop
  *
  * Run when service_counties changes, or periodically to pick up NAPTAN updates.
+ *
+ * Each run's status (active/inactive/etc.) is taken from the source Status
+ * field, and any previously-active stop in the covered area that's missing
+ * from the feed entirely (record deleted at the source, not just flagged
+ * non-active) is swept to status='removed' — see markRemovedBatched().
  */
 
 'use strict'
@@ -79,16 +84,37 @@ async function main() {
   console.log('\nDownloading NAPTAN data from DfT...')
   console.log('(This may take a minute — full GB CSV is ~150 MB)\n')
   const stops = await streamNaptanCsv(bbox)
-  console.log(`\nFiltered to ${stops.length} active bus stops`)
+  console.log(`\nFiltered to ${stops.length} bus stops (any status)`)
 
   if (!stops.length) {
     console.error('No stops found — check service_counties and OpenCage result')
     process.exit(1)
   }
 
-  // 4. Upsert to Supabase
+  // 4. Snapshot which currently-active stops already exist in this area —
+  //    used below to detect stops that have dropped out of the feed entirely
+  //    (as opposed to still being present but flagged non-active, which the
+  //    real Status value passed through above already covers).
+  console.log('Checking for existing stops in this area...')
+  const existingCodes = await fetchExistingActiveAtcoCodes(bbox)
+
+  // 5. Upsert to Supabase
   console.log('Upserting to naptan_stops...')
   await upsertBatched(stops)
+
+  // 6. Sweep: anything previously active here but absent from this run's
+  //    feed has been removed from the source data — flag it so
+  //    naptan_near_point() (which filters status = 'active') stops
+  //    suggesting it.
+  const seenCodes = new Set(stops.map(s => s.atco_code))
+  const removed    = existingCodes.filter(code => !seenCodes.has(code))
+  if (removed.length) {
+    console.log(`Marking ${removed.length} stop(s) no longer in the feed as removed...`)
+    await markRemovedBatched(removed)
+  } else {
+    console.log('No stops have dropped out of the feed.')
+  }
+
   console.log('\nDone.')
 }
 
@@ -221,7 +247,6 @@ function streamNaptanCsv(bbox) {
 
         const status   = (row['Status'] || '').toLowerCase()
         const stopType = row['StopType'] || ''
-        if (status !== 'active')             { skipped++; return }
         if (!BUS_STOP_TYPES.has(stopType))   { skipped++; return }
 
         const lat = parseFloat(row['Latitude'])
@@ -240,7 +265,7 @@ function streamNaptanCsv(bbox) {
           lat,
           lon,
           stop_type:     stopType,
-          status:        'active',
+          status:        status || 'active',
           updated_at:    new Date().toISOString(),
         })
       })
@@ -253,6 +278,104 @@ function streamNaptanCsv(bbox) {
     })
 
     req.on('error', reject)
+    req.end()
+  })
+}
+
+// ── Existing-stops snapshot (for the removal sweep) ───────────────────────────
+
+function fetchExistingActiveAtcoCodes(bbox) {
+  const PAGE_SIZE = 1000
+
+  function fetchPage(offset) {
+    return new Promise((resolve, reject) => {
+      const url = new URL(`${SUPABASE_URL}/rest/v1/naptan_stops`)
+      url.search = [
+        'select=atco_code',
+        'status=eq.active',
+        `lat=gte.${bbox.latMin}`,
+        `lat=lte.${bbox.latMax}`,
+        `lon=gte.${bbox.lonMin}`,
+        `lon=lte.${bbox.lonMax}`,
+      ].join('&')
+
+      const options = {
+        hostname: url.hostname,
+        path:     url.pathname + url.search,
+        method:   'GET',
+        headers:  {
+          'apikey':        SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Range':         `${offset}-${offset + PAGE_SIZE - 1}`,
+        },
+      }
+
+      const req = https.request(options, res => {
+        let data = ''
+        res.on('data', chunk => { data += chunk })
+        res.on('end', () => {
+          if (res.statusCode !== 200 && res.statusCode !== 206) {
+            reject(new Error(`Failed to read naptan_stops (HTTP ${res.statusCode}): ${data}`))
+            return
+          }
+          resolve(JSON.parse(data))
+        })
+      })
+      req.on('error', reject)
+      req.end()
+    })
+  }
+
+  return (async () => {
+    const codes = []
+    let offset = 0
+    for (;;) {
+      const rows = await fetchPage(offset)
+      codes.push(...rows.map(r => r.atco_code))
+      if (rows.length < PAGE_SIZE) break
+      offset += PAGE_SIZE
+    }
+    return codes
+  })()
+}
+
+async function markRemovedBatched(atcoCodes) {
+  for (let i = 0; i < atcoCodes.length; i += BATCH_SIZE) {
+    await markRemoved(atcoCodes.slice(i, i + BATCH_SIZE))
+  }
+}
+
+function markRemoved(atcoCodes) {
+  return new Promise((resolve, reject) => {
+    const url  = new URL(`${SUPABASE_URL}/rest/v1/naptan_stops`)
+    const list = atcoCodes.map(encodeURIComponent).join(',')
+    url.search = `atco_code=in.(${list})`
+
+    const body = JSON.stringify({ status: 'removed', updated_at: new Date().toISOString() })
+
+    const options = {
+      hostname: url.hostname,
+      path:     url.pathname + url.search,
+      method:   'PATCH',
+      headers:  {
+        'Content-Type':   'application/json',
+        'Content-Length': Buffer.byteLength(body),
+        'Authorization':  `Bearer ${SUPABASE_KEY}`,
+        'apikey':         SUPABASE_KEY,
+        'Prefer':         'return=minimal',
+      },
+    }
+
+    const req = https.request(options, res => {
+      let data = ''
+      res.on('data', chunk => { data += chunk })
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) resolve()
+        else reject(new Error(`Sweep update failed (HTTP ${res.statusCode}): ${data}`))
+      })
+    })
+    req.on('error', reject)
+    req.write(body)
     req.end()
   })
 }

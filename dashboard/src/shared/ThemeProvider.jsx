@@ -1,11 +1,5 @@
-import { createContext, useContext, useEffect } from 'react'
+import { useEffect } from 'react'
 import { supabase } from './supabase'
-
-const ThemeContext = createContext(null)
-
-export function useTheme() {
-  return useContext(ThemeContext)
-}
 
 /**
  * Fetches the authenticated user's company branding and injects
@@ -50,5 +44,5 @@ export function ThemeProvider({ children }) {
     return () => subscription.unsubscribe()
   }, [])
 
-  return <ThemeContext.Provider value={null}>{children}</ThemeContext.Provider>
+  return children
 }

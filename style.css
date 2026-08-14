@@ -54,16 +54,20 @@ body {
 }
 
 /* ── App brand mark ───────────────────────────── */
-/* App name (BusHub.Driver — this product, one of several under the BusHub
-   suite) over a smaller CoachMate attribution (the platform all BusHub
+/* App name (BusOps Driver — this product, one of several under the BusOps
+   suite) over a smaller CoachMate attribution (the platform all BusOps
    products run on; same wordmark as the ops dashboard's sidebar footer,
    dashboard/src/index.css .sidebar-coachmate, where CoachMate alone is
-   shown with no BusHub line since the dashboard *is* CoachMate).
+   shown with no BusOps line since the dashboard *is* CoachMate).
    Fixed to the viewport corner so it's visible on every screen without
    scrolling — including #duty-card, which reserves a full min-height:100vh
    whether or not its content fills that, so an in-flow mark would land
    off-screen there. #tracker reserves matching bottom clearance (below)
-   so this doesn't repeat the overlap bug fixed in 47b0f80. */
+   so this doesn't repeat the overlap bug fixed in 47b0f80 — but that
+   clearance only covers the final scroll position; #stop-list is an
+   independently-scrolling box further up the page, so an opaque backdrop
+   here (below) stops its rows from visibly blending into the mark as the
+   page scrolls past it. */
 
 #app-brand {
   position: fixed;
@@ -74,15 +78,20 @@ body {
   flex-direction: column;
   align-items: flex-start;
   gap: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
   pointer-events: none;
 }
 
-/* Clearance so #btn-complete never scrolls under the fixed mark above. */
+/* Clearance so tracker content never scrolls under the fixed mark above. */
 #tracker {
   padding-bottom: 4.5rem;
 }
 
-.bh-wordmark {
+.bo-wordmark {
   font-family: var(--cm-font);
   font-size: 1rem;
   font-weight: 800;
@@ -90,14 +99,15 @@ body {
   color: var(--text);
 }
 
-.bh-app {
+.bo-app {
   color: var(--late);
 }
 
 .cm-attribution {
   display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.3rem;
   opacity: 0.55;
 }
 
@@ -139,6 +149,72 @@ body {
   border-radius: 6px;
 }
 
+/* ── Top toggle bars ──────────────────────────── */
+/* Shared slim collapsed-bar look for the three top-of-screen toggles:
+   Report Incident, Diversion Alert, and Announcements. Each reveals its
+   own content below it on tap rather than acting immediately (except
+   Report Incident, whose "content" is the existing incident modal). */
+.top-toggle-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin-bottom: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: var(--cm-font);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.top-toggle-btn--incident {
+  color: var(--early);
+  border-color: var(--early);
+}
+
+.top-toggle-btn--diversion {
+  color: var(--late);
+  border-color: var(--late);
+}
+
+.top-toggle-btn--diversion.active {
+  background: var(--late);
+  color: #fff;
+}
+
+#diversion-panel {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+#diversion-panel button {
+  flex: 1;
+  padding: 0.6rem;
+  border-radius: 8px;
+  font-family: var(--cm-font);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+#diversion-confirm-btn {
+  background: var(--late);
+  color: #fff;
+  border: none;
+}
+
+#diversion-cancel-btn {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
 /* ── PSVAIR announcement banner ──────────────── */
 /* Live next-stop / destination announcement for PSVAIR-in-scope local bus
    services — audio via Web Speech API (announcements.js), visual here. */
@@ -161,6 +237,7 @@ body {
   line-height: 1.3;
 }
 
+#psvair-voice-btn,
 #psvair-mute-btn {
   flex: none;
   width: 2.25rem;
@@ -169,6 +246,52 @@ body {
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.15);
   font-size: 1.1rem;
+  cursor: pointer;
+}
+
+#psvair-voice-panel {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+#psvair-voice-panel .select-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+#psvair-voice-select {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem 2.25rem 0.6rem 0.85rem;
+  font-size: 0.95rem;
+  width: 100%;
+  appearance: none;
+}
+
+#psvair-voice-select:focus {
+  outline: none;
+  border-color: var(--brand-cyan);
+}
+
+#psvair-voice-test-btn {
+  flex: none;
+  background: transparent;
+  color: var(--brand-cyan);
+  border: 1px solid var(--brand-cyan);
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  font-family: var(--cm-font);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
   cursor: pointer;
 }
 
@@ -206,8 +329,9 @@ body {
 
 #route-header {
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
-  gap: 0.75rem;
+  gap: 0.4rem;
   padding: 0.5rem 0.25rem;
   border-bottom: 2px solid var(--brand-cyan);
 }
@@ -215,10 +339,10 @@ body {
 #header-service {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.15rem;
   background: var(--surface);
-  padding: 0.25rem 0.7rem;
+  padding: 0.25rem 0.7rem 0.25rem 0;
   border-radius: 4px;
   flex-shrink: 0;
 }
@@ -229,16 +353,6 @@ body {
   font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.03em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-#header-service-period {
-  color: rgba(255, 255, 255, 0.75);
-  font-family: var(--cm-font);
-  font-size: 0.72rem;
-  font-weight: 400;
-  letter-spacing: 0.02em;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -256,22 +370,6 @@ body {
   font-weight: 600;
   color: var(--text);
   line-height: 1.3;
-}
-
-#header-line2 {
-  font-family: var(--cm-font);
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text);
-  line-height: 1.3;
-}
-
-#header-line3 {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* ── No duty card screen ─────────────────────── */
@@ -316,9 +414,30 @@ body {
   line-height: 1.6;
 }
 
+.ndc-secondary-btn {
+  background: transparent;
+  color: var(--brand-cyan);
+  border: 1px solid var(--brand-cyan);
+  border-radius: 10px;
+  padding: 0.85rem 1.5rem;
+  font-family: var(--cm-font);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+
+.ndc-secondary-btn:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 /* ── Picker screen ───────────────────────────── */
 
-#picker {
+#picker,
+#manual-picker,
+#vehicle-setup {
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -398,7 +517,9 @@ body {
   border-color: var(--brand-cyan);
 }
 
-#start-btn {
+#start-btn,
+#manual-start-btn,
+#vehicle-setup-btn {
   background: var(--brand-cyan);
   color: #fff;
   border: none;
@@ -414,7 +535,9 @@ body {
   margin-top: 0.5rem;
 }
 
-#start-btn:active {
+#start-btn:active,
+#manual-start-btn:active,
+#vehicle-setup-btn:active {
   background: #3da038;
 }
 
@@ -430,10 +553,11 @@ body {
   gap: 0.75rem;
 }
 
-.status-on-time { border-color: var(--on-time); }
-.status-late    { border-color: var(--late); }
-.status-early   { border-color: var(--early); }
-.status-at-stop { border-color: var(--surface); }
+.status-on-time    { border-color: var(--on-time); }
+.status-late       { border-color: var(--late); }
+.status-early      { border-color: var(--early); }
+.status-at-stop    { border-color: var(--surface); }
+.status-approaching { border-color: var(--brand-cyan); }
 
 #status-label {
   font-family: var(--cm-font);
@@ -444,10 +568,11 @@ body {
   color: var(--text-muted);
 }
 
-.status-on-time #status-label { color: var(--on-time); }
-.status-late    #status-label { color: var(--late); }
-.status-early   #status-label { color: var(--early); }
-.status-at-stop #status-label { color: var(--surface); }
+.status-on-time    #status-label { color: var(--on-time); }
+.status-late       #status-label { color: var(--late); }
+.status-early      #status-label { color: var(--early); }
+.status-at-stop    #status-label { color: var(--surface); }
+.status-approaching #status-label { color: var(--brand-cyan); }
 
 #next-stop {
   font-size: 1.5rem;
@@ -494,10 +619,11 @@ body {
   align-self: center;
 }
 
-.status-on-time #delta { color: var(--on-time); }
-.status-late    #delta { color: var(--late); }
-.status-early   #delta { color: var(--early); }
-.status-at-stop #delta { color: var(--surface); }
+.status-on-time    #delta { color: var(--on-time); }
+.status-late       #delta { color: var(--late); }
+.status-early      #delta { color: var(--early); }
+.status-at-stop    #delta { color: var(--surface); }
+.status-approaching #delta { color: var(--brand-cyan); }
 
 /* ── Metrics row ──────────────────────────────── */
 
@@ -682,6 +808,10 @@ body {
   color: var(--text-muted);
 }
 
+.stop-approaching {
+  border-left: 3px solid var(--brand-cyan);
+}
+
 .sl-jump {
   background: none;
   border: 1px solid var(--border);
@@ -857,7 +987,7 @@ body {
   flex-direction: column;
   gap: 1rem;
   min-height: 100vh;
-  padding: 2rem 0;
+  padding: 2rem 0 4.5rem;
 }
 
 .dc-header {
@@ -990,55 +1120,6 @@ body {
   padding: 0.4rem;
 }
 
-/* ── Incident button ──────────────────────────── */
-
-#btn-incident {
-  width: 100%;
-  margin-top: 12px;
-  padding: 12px;
-  background: transparent;
-  color: var(--early);
-  border: 1.5px solid var(--early);
-  border-radius: 6px;
-  font-family: var(--cm-font);
-  font-size: 0.95rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-#btn-incident:active {
-  background: rgba(251, 140, 0, 0.15);
-}
-
-/* ── Diversion alert button ───────────────────── */
-
-#btn-diversion {
-  width: 100%;
-  margin-top: 8px;
-  padding: 12px;
-  background: transparent;
-  color: var(--late);
-  border: 1.5px solid var(--late);
-  border-radius: 6px;
-  font-family: var(--cm-font);
-  font-size: 0.95rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-#btn-diversion:active {
-  background: rgba(239, 68, 68, 0.15);
-}
-
-#btn-diversion.active {
-  background: var(--late);
-  color: #fff;
-}
-
 /* ── Incident overlay ─────────────────────────── */
 
 #incident-overlay {
@@ -1161,7 +1242,9 @@ body {
 }
 
 /* Back button shown in picker when launched from duty card */
-#picker-back-btn {
+#picker-back-btn,
+#manual-back-btn,
+#vehicle-setup-back-btn {
   background: none;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -1175,7 +1258,116 @@ body {
   align-self: flex-start;
 }
 
-#picker-back-btn:active {
+#picker-back-btn:active,
+#manual-back-btn:active,
+#vehicle-setup-back-btn:active {
   color: var(--text);
   border-color: var(--text);
+}
+
+/* Vehicle line + "Change" link on the no-duty-card screen */
+.ndc-vehicle-info {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 1.5rem;
+}
+
+.ndc-vehicle-info #ndc-vehicle-label {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.ndc-link-btn {
+  background: none;
+  border: none;
+  color: var(--brand-cyan);
+  font-size: 0.85rem;
+  font-family: var(--cm-font);
+  text-decoration: underline;
+  cursor: pointer;
+  margin-left: 0.5rem;
+  padding: 0;
+}
+
+/* ── Manual trip-complete fallback ─────────────── */
+/* Deliberately understated — the trip completes automatically on arrival
+   at the final stop, this is only a safety net for when that doesn't fire. */
+.manual-complete-link {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 0.5rem;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--cm-font);
+  font-size: 0.75rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ── Trip-complete overlay ─────────────────────── */
+
+#trip-complete-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+#trip-complete-modal {
+  background: var(--surface);
+  border: 1px solid var(--brand-cyan);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 380px;
+  padding: 1.75rem 1.5rem 1.5rem;
+  text-align: center;
+}
+
+.tc-icon {
+  font-size: 2.5rem;
+  color: var(--brand-cyan);
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
+
+.tc-title {
+  font-family: var(--cm-font);
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.tc-body {
+  font-family: var(--cm-font);
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  margin-top: 0.35rem;
+}
+
+.tc-ok-btn {
+  margin-top: 1.25rem;
+  width: 100%;
+  padding: 0.8rem;
+  background: var(--brand-cyan);
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  font-family: var(--cm-font);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.tc-ok-btn:active {
+  opacity: 0.85;
 }

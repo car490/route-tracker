@@ -10,7 +10,7 @@ import RouteDetailsForm from './RouteDetailsForm'
 import RouteReviewSummary from './RouteReviewSummary'
 import PlannerMap from './PlannerMap'
 import DeparturesCard from './DeparturesCard'
-import WizardModal from '../../shared/components/WizardModal'
+import WizardModal from './WizardModal'
 
 const TOTAL_STEPS = 4
 

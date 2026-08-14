@@ -4,8 +4,7 @@
  * config.js reads window.location at module scope (IS_DEV / SUPABASE_URL),
  * so anything importing selectServiceManually transitively needs a DOM
  * global — plain Node (this project's default test environment) doesn't
- * have one. Scoped to this file only; routeData.test.js stays on the
- * faster default node environment since it never touches config.js.
+ * have one.
  */
 import { selectServiceManually } from '../src/manualSelection.js';
 
@@ -52,26 +51,27 @@ describe('selectServiceManually', () => {
     global.fetch = originalFetch;
   });
 
-  test('rejects a service/variant not present in routeData rather than guessing a departure id', async () => {
-    await expect(selectServiceManually('S999X', 'Morning Outbound')).rejects.toThrow(/not found/i);
+  const DEPARTURE_ID = '338aebc6-8b5e-4a86-acad-a56bcf7a123b';
+
+  test('rejects a falsy departureId (caller failed to resolve one) rather than guessing', async () => {
+    await expect(selectServiceManually(null, 'S999X', 'Morning Outbound')).rejects.toThrow(/no departure selected/i);
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  test(`POSTs to /rpc/${RPC_NAME} with p_timetable_departure_id, not a free-text value`, async () => {
-    await selectServiceManually('S116S', 'Morning Outbound');
+  test(`POSTs to /rpc/${RPC_NAME} with the given departureId as p_timetable_departure_id`, async () => {
+    await selectServiceManually(DEPARTURE_ID, 'S116S', 'Morning Outbound');
     const rpcCall = global.fetch.mock.calls.find(([url]) => String(url).includes('/rpc/'));
     expect(rpcCall).toBeTruthy();
     const [url, opts] = rpcCall;
     expect(String(url)).toContain(`/rpc/${RPC_NAME}`);
     const body = JSON.parse(opts.body);
-    expect(typeof body.p_timetable_departure_id).toBe('string');
-    expect(body.p_timetable_departure_id.length).toBeGreaterThan(0);
+    expect(body.p_timetable_departure_id).toBe(DEPARTURE_ID);
     // Deliberately NOT asserting p_journey_date is sent — letting the DB
     // default to current_date avoids trusting the tablet's local clock.
   });
 
   test('fetches stops via schedule_view — same source the duty-card path uses, no duplicated stop data', async () => {
-    await selectServiceManually('S116S', 'Morning Outbound');
+    await selectServiceManually(DEPARTURE_ID, 'S116S', 'Morning Outbound');
     const stopsCall = global.fetch.mock.calls.find(([url]) => String(url).includes('schedule_view'));
     expect(stopsCall).toBeTruthy();
   });
@@ -80,7 +80,7 @@ describe('selectServiceManually', () => {
     global.fetch = mockFetchImplementation({
       rpcResult: [{ journey_id: 'jrn-manual-002' }],
     });
-    const result = await selectServiceManually('S116S', 'Morning Outbound');
+    const result = await selectServiceManually(DEPARTURE_ID, 'S116S', 'Morning Outbound');
     expect(result.journeyId).toBe('jrn-manual-002');
   });
 
@@ -88,12 +88,12 @@ describe('selectServiceManually', () => {
     global.fetch = mockFetchImplementation({
       stopRows: fakeStopRows.map((r) => ({ ...r, psvair_in_scope: true })),
     });
-    const result = await selectServiceManually('S116S', 'Morning Outbound');
+    const result = await selectServiceManually(DEPARTURE_ID, 'S116S', 'Morning Outbound');
     expect(result.psvairEnabled).toBe(true);
   });
 
   test('produces a runTracker-shaped param bag with all required fields', async () => {
-    const result = await selectServiceManually('S116S', 'Morning Outbound');
+    const result = await selectServiceManually(DEPARTURE_ID, 'S116S', 'Morning Outbound');
     expect(result).toMatchObject({
       journeyId: 'jrn-manual-001',
       serviceCode: 'S116S',
@@ -107,11 +107,25 @@ describe('selectServiceManually', () => {
 
   test('propagates a clear error if the RPC fails, rather than producing a partial/broken param bag', async () => {
     global.fetch = mockFetchImplementation({ rpcError: 'no matching departure today' });
-    await expect(selectServiceManually('S116S', 'Morning Outbound')).rejects.toThrow(/no matching departure today/);
+    await expect(selectServiceManually(DEPARTURE_ID, 'S116S', 'Morning Outbound')).rejects.toThrow(/no matching departure today/);
   });
 
-  test('does not call fetch at all before the departure id lookup succeeds (lookup fails fast, no partial requests)', async () => {
-    await expect(selectServiceManually('S999X', 'Afternoon Inbound')).rejects.toThrow();
+  test('does not call fetch at all when departureId is missing (fails fast, no partial requests)', async () => {
+    await expect(selectServiceManually(undefined, 'S999X', 'Afternoon Inbound')).rejects.toThrow();
     expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  test('includes p_vehicle_id in the RPC body when a vehicleId is given', async () => {
+    await selectServiceManually(DEPARTURE_ID, 'S116S', 'Morning Outbound', 'veh-42');
+    const rpcCall = global.fetch.mock.calls.find(([url]) => String(url).includes('/rpc/'));
+    const body = JSON.parse(rpcCall[1].body);
+    expect(body.p_vehicle_id).toBe('veh-42');
+  });
+
+  test('omits p_vehicle_id entirely (not sent as null) when no vehicleId is given — lets the DB default apply', async () => {
+    await selectServiceManually(DEPARTURE_ID, 'S116S', 'Morning Outbound');
+    const rpcCall = global.fetch.mock.calls.find(([url]) => String(url).includes('/rpc/'));
+    const body = JSON.parse(rpcCall[1].body);
+    expect('p_vehicle_id' in body).toBe(false);
   });
 });

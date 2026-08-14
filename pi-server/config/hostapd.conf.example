@@ -9,6 +9,22 @@
 #   interface wlan1
 #   static ip_address=192.168.4.1/24
 #   nohook wpa_supplicant
+#
+# ── Security (hardened 2026-08-14) ──────────────────────────────────────────
+# This hotspot has no internet uplink for its clients at all — that's the
+# main thing limiting what a joined device can reach (this Pi's own tiny
+# HTTP/WS server, nothing else). Everything below is defense on top of
+# that, not instead of it. Threat model: a vehicle full of technically
+# curious passengers who can see the SSID broadcasting and may try to join.
+#
+# wpa_passphrase MUST be changed before deploying, and must be UNIQUE PER
+# VEHICLE — never reused fleet-wide (a leaked passphrase should compromise
+# exactly one vehicle, not the pattern for all of them). Generate one on
+# the Pi with:
+#   openssl rand -base64 16
+# 16+ random characters, not a word/phrase — a guessable passphrase is
+# offline-dictionary-attackable regardless of WPA2 vs WPA3 below. Keep it
+# in your commissioning records, not written anywhere inside the vehicle.
 
 interface=wlan1
 driver=nl80211
@@ -19,8 +35,30 @@ wmm_enabled=0
 macaddr_acl=0
 auth_algs=1
 ignore_broadcast_ssid=0
+
+# Client isolation — blocks joined devices from talking to each other
+# directly at the AP (layer 2). Free defense-in-depth: nothing on this
+# hotspot ever needs to reach anything except the Pi itself.
+ap_isolate=1
+
+# WPA2/WPA3-Personal transition mode. WPA3-capable clients authenticate via
+# SAE — real forward secrecy, immune to the offline-dictionary and
+# handshake-capture-then-decrypt attacks classic WPA2-PSK is vulnerable to
+# (WPA2-PSK derives every client's session key from the same shared
+# passphrase, so a device that knows the passphrase and captures another
+# client's handshake can decrypt that client's traffic — SAE closes this).
+# Older clients (e.g. an aging Fire HD) fall back to plain WPA2-PSK
+# automatically — ieee80211w=1 keeps this a *transition*, not a WPA3-only
+# lockout. sae_password isn't set separately; hostapd uses wpa_passphrase
+# for SAE too when it's omitted, so there's only one secret to manage.
+#
+# Requires hostapd built with SAE support — standard in Raspberry Pi OS's
+# hostapd for years now. If hostapd fails to start after this change
+# (`sudo systemctl status hostapd` / `journalctl -u hostapd`), your build
+# lacks it — drop " SAE" from wpa_key_mgmt and delete the ieee80211w line;
+# that's still strictly better than the TKIP config this replaced.
 wpa=2
 wpa_passphrase=CHANGE_ME_BEFORE_DEPLOYING
-wpa_key_mgmt=WPA-PSK
-wpa_pairwise=TKIP
+wpa_key_mgmt=WPA-PSK SAE
+ieee80211w=1
 rsn_pairwise=CCMP
