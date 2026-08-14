@@ -19,3 +19,7 @@ sshcoachmate*
 # per-vehicle data, not source
 pi-server/schedule-cache.json
 pi-server/schedule-cache.json.tmp
+
+# Temporary-Pi startup script holds a real DRIVER_PUSH_TOKEN once filled
+# in — never commit it. Copy start-temp-pi.example.ps1 to this name.
+pi-server/start-temp-pi.local.ps1
