@@ -126,7 +126,8 @@ function stopServer(child) {
 const DUTY_JOURNEY_ID = '2d2f26b1-31b9-434b-a858-e614a53599b5';
 
 // S125S Morning Outbound (Weston → Boston College) — same route as the duty
-// journey above, from src/routeData.js. Manual mode drives this departure.
+// journey above. Manual mode drives this departure (the picker now fetches
+// its list live from Supabase, see supabaseApi.js's fetchAvailableServices).
 const MANUAL_DEPARTURE_ID = '338aebc6-8b5e-4a86-acad-a56bcf7a123b';
 const MANUAL_SERVICE = 'S125S';
 const MANUAL_PERIOD  = 'Morning Outbound';
@@ -322,9 +323,11 @@ process.on('SIGTERM', shutdown);
     console.log('                     and hit Start.');
   } else {
     console.log('LEFT  (driver PWA):  click "Select a service manually", choose');
-    console.log(`                     Service: ${MANUAL_SERVICE}, Period: ${MANUAL_PERIOD}, then hit Start.`);
-    console.log('                     (Must be that exact service/period — the BusOps Announce window');
-    console.log('                     is already watching the journey it resolves to.)');
+    console.log(`                     Service: ${MANUAL_SERVICE}, Period: the one starting "${MANUAL_PERIOD}"`);
+    console.log('                     (label now includes the departure time, e.g. "Morning Outbound (08:15)"),');
+    console.log('                     then hit Start. Must resolve to the same departure as');
+    console.log(`                     MANUAL_DEPARTURE_ID (${MANUAL_DEPARTURE_ID}) above — the BusOps`);
+    console.log('                     Announce window is already watching the journey it resolves to.');
   }
   console.log('RIGHT (Announce):    nothing to click — it polls for the journey to start and');
   console.log('                     wakes on its own within a few seconds of you hitting Start.');

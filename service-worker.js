@@ -27,7 +27,6 @@ const STATIC_ASSETS = [
   './src/schedule.json',
   './src/supabaseApi.js',
   './src/manualSelection.js',
-  './src/routeData.js',
 ];
 
 const TILE_CACHE = [

@@ -1,4 +1,3 @@
-import { routeData } from './routeData.js';
 import { rpc, fetchStopsForDeparture } from './supabaseApi.js';
 
 // Fallback path for the "no active duties" dead-end: driver picks a
@@ -7,13 +6,17 @@ import { rpc, fetchStopsForDeparture } from './supabaseApi.js';
 // (see main.js launchDutyRoute), so runTracker() downstream needs zero
 // changes regardless of which path produced it.
 //
+// departureId comes from the caller (main.js's dynamically-fetched services
+// map, see supabaseApi.js's fetchAvailableServices) — this function has no
+// lookup of its own, it just needs a valid id. serviceCode/servicePeriod are
+// carried through only for display, not re-derived here.
+//
 // initialStopIndex is always 0 here — deliberate "start of route" default
 // for a picker-less flow, not a mirror of either existing flow's DOM
 // <select> fallback.
-export async function selectServiceManually(serviceCode, servicePeriod, { onComplete = () => {} } = {}) {
-  const departureId = routeData[serviceCode]?.[servicePeriod];
+export async function selectServiceManually(departureId, serviceCode, servicePeriod, { onComplete = () => {} } = {}) {
   if (!departureId) {
-    throw new Error(`Service/variant not found: ${serviceCode} / ${servicePeriod}`);
+    throw new Error(`No departure selected for ${serviceCode} / ${servicePeriod}`);
   }
 
   const [{ journey_id: journeyId }] = await rpc('get_or_create_manual_journey', {

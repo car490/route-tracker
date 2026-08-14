@@ -8,11 +8,10 @@ import {
   announceDiversion, isMuted, setMuted, isBannerShown, setBannerShown,
   listVoices, getSelectedVoiceURI, setSelectedVoiceURI, previewVoice,
 } from './announcements.js';
-import { sbFetch, rpc, fetchStopsForDeparture } from './supabaseApi.js';
+import { sbFetch, rpc, fetchStopsForDeparture, fetchAvailableServices } from './supabaseApi.js';
 import { announceApproachEvent, announceStopEvent } from './announceStopEvent.js';
 import { triggerDiversionAlert, clearDiversionAlert } from './diversionAlert.js';
 import { selectServiceManually } from './manualSelection.js';
-import { routeData } from './routeData.js';
 import {
   captureAnnounceSetup, connectAnnounceLink, disconnectAnnounceLink,
   broadcastState, setAnnouncing,
@@ -680,16 +679,15 @@ function initManualSelection() {
   const periodSelect  = document.getElementById('manual-period-select');
   const startBtn      = document.getElementById('manual-start-btn');
 
-  Object.keys(routeData).forEach(code => {
-    const opt = document.createElement('option');
-    opt.value = code;
-    opt.textContent = code;
-    serviceSelect.appendChild(opt);
-  });
+  // Populated fresh from Supabase each time the picker is opened (see
+  // ndc-manual-btn below) rather than once at startup — this is the live
+  // set of routes the company runs, not a bundled/hardcoded list, so a
+  // route added today is pickable today with no app update.
+  let services = {};
 
   const populatePeriods = () => {
     periodSelect.innerHTML = '';
-    Object.keys(routeData[serviceSelect.value] ?? {}).forEach(period => {
+    Object.keys(services[serviceSelect.value] ?? {}).forEach(period => {
       const opt = document.createElement('option');
       opt.value = period;
       opt.textContent = period;
@@ -697,11 +695,33 @@ function initManualSelection() {
     });
   };
   serviceSelect.onchange = populatePeriods;
-  populatePeriods();
+
+  async function loadServices() {
+    serviceSelect.innerHTML = '<option>Loading services…</option>';
+    serviceSelect.disabled = true;
+    startBtn.disabled = true;
+    try {
+      services = await fetchAvailableServices();
+      serviceSelect.innerHTML = '';
+      Object.keys(services).sort().forEach(code => {
+        const opt = document.createElement('option');
+        opt.value = code;
+        opt.textContent = code;
+        serviceSelect.appendChild(opt);
+      });
+      populatePeriods();
+      serviceSelect.disabled = false;
+      startBtn.disabled = false;
+    } catch (err) {
+      console.error('Failed to load services:', err);
+      serviceSelect.innerHTML = '<option>Couldn’t load services — check connection</option>';
+    }
+  }
 
   document.getElementById('ndc-manual-btn').onclick = () => {
     document.getElementById('no-duty-card').hidden  = true;
     document.getElementById('manual-picker').hidden = false;
+    loadServices();
   };
 
   document.getElementById('manual-back-btn').onclick = () => {
@@ -712,7 +732,8 @@ function initManualSelection() {
   startBtn.onclick = async () => {
     startBtn.disabled = true;
     try {
-      const result = await selectServiceManually(serviceSelect.value, periodSelect.value, {
+      const departureId = services[serviceSelect.value]?.[periodSelect.value];
+      const result = await selectServiceManually(departureId, serviceSelect.value, periodSelect.value, {
         onComplete: showNoDutyCard,
       });
 
