@@ -8,10 +8,11 @@ import {
   announceDiversion, isMuted, setMuted, isBannerShown, setBannerShown,
   listVoices, getSelectedVoiceURI, setSelectedVoiceURI, previewVoice,
 } from './announcements.js';
-import { sbFetch, rpc, fetchStopsForDeparture, fetchAvailableServices } from './supabaseApi.js';
+import { sbFetch, rpc, fetchStopsForDeparture, fetchAvailableServices, fetchLocalBusVehicles } from './supabaseApi.js';
 import { announceApproachEvent, announceStopEvent } from './announceStopEvent.js';
 import { triggerDiversionAlert, clearDiversionAlert } from './diversionAlert.js';
 import { selectServiceManually } from './manualSelection.js';
+import { getStoredVehicle, storeVehicle } from './vehicleSetup.js';
 import {
   captureAnnounceSetup, connectAnnounceLink, disconnectAnnounceLink,
   broadcastState, setAnnouncing,
@@ -669,7 +670,69 @@ function showNoDutyCard() {
   document.getElementById('duty-card').hidden     = true;
   document.getElementById('picker').hidden        = true;
   document.getElementById('manual-picker').hidden = true;
+  document.getElementById('vehicle-setup').hidden = true;
   document.getElementById('tracker').hidden       = true;
+  document.getElementById('ndc-vehicle-label').textContent = getStoredVehicle()?.label || '(none)';
+}
+
+// ── Vehicle setup (one-time per device — which vehicle is this?) ──────────────
+// See src/vehicleSetup.js for why: the manual-selection flow below has no
+// other way to attach a vehicle to the journeys it creates.
+
+function initVehicleSetup() {
+  const select    = document.getElementById('vehicle-setup-select');
+  const backBtn   = document.getElementById('vehicle-setup-back-btn');
+  const confirmBtn = document.getElementById('vehicle-setup-btn');
+
+  async function loadVehicles() {
+    select.innerHTML = '<option>Loading vehicles…</option>';
+    select.disabled = true;
+    confirmBtn.disabled = true;
+    try {
+      const vehicles = await fetchLocalBusVehicles();
+      if (vehicles.length === 0) {
+        select.innerHTML = '<option value="">No Local Bus vehicles found</option>';
+        return;
+      }
+      select.innerHTML = '';
+      vehicles.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.id;
+        opt.textContent = v.fleet_number ? `${v.registration} (Fleet ${v.fleet_number})` : v.registration;
+        opt.dataset.label = v.registration;
+        select.appendChild(opt);
+      });
+      select.disabled = false;
+      confirmBtn.disabled = false;
+    } catch (err) {
+      console.error('Failed to load vehicles:', err);
+      select.innerHTML = '<option value="">Couldn’t load vehicles — check connection</option>';
+    }
+  }
+
+  confirmBtn.onclick = () => {
+    const opt = select.selectedOptions[0];
+    if (!opt || !opt.value) return;
+    storeVehicle(opt.value, opt.dataset.label || opt.textContent);
+    showNoDutyCard();
+  };
+
+  backBtn.onclick = () => showNoDutyCard();
+
+  return {
+    // Only offer Back once a vehicle is already set — first-ever commissioning
+    // has nowhere useful to go back to (manual selection needs a vehicle).
+    show() {
+      document.getElementById('duty-card').hidden     = true;
+      document.getElementById('no-duty-card').hidden  = true;
+      document.getElementById('manual-picker').hidden = true;
+      document.getElementById('picker').hidden        = true;
+      document.getElementById('tracker').hidden       = true;
+      document.getElementById('vehicle-setup').hidden = false;
+      backBtn.hidden = !getStoredVehicle();
+      loadVehicles();
+    },
+  };
 }
 
 // ── Manual service selection (fallback when no duty card is assigned) ─────────
@@ -733,7 +796,8 @@ function initManualSelection() {
     startBtn.disabled = true;
     try {
       const departureId = services[serviceSelect.value]?.[periodSelect.value];
-      const result = await selectServiceManually(departureId, serviceSelect.value, periodSelect.value, {
+      const vehicleId = getStoredVehicle()?.id;
+      const result = await selectServiceManually(departureId, serviceSelect.value, periodSelect.value, vehicleId, {
         onComplete: showNoDutyCard,
       });
 
@@ -760,6 +824,8 @@ async function init() {
   acquireWakeLock();
 
   initManualSelection();
+  const vehicleSetup = initVehicleSetup();
+  document.getElementById('ndc-change-vehicle-btn').onclick = () => vehicleSetup.show();
 
   // One-time commissioning step for the Driver -> Pi push feed (see
   // announceLink.js) — harmless no-op on every visit that isn't it.
@@ -767,10 +833,14 @@ async function init() {
 
   const dutiesParam = new URLSearchParams(window.location.search).get('duties');
   if (dutiesParam) {
+    // A duty card already carries its own ops-assigned vehicle per journey —
+    // vehicle commissioning is only for the manual-selection path below.
     const journeyIds = dutiesParam.split(',').map(s => s.trim()).filter(Boolean);
     await initDutyCard(journeyIds);
-  } else {
+  } else if (getStoredVehicle()) {
     showNoDutyCard();
+  } else {
+    vehicleSetup.show();
   }
 }
 

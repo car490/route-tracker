@@ -35,8 +35,30 @@
       <div class="ndc-brand">Phil Haines Coaches</div>
       <div class="ndc-icon">&#128204;</div>
       <div class="ndc-title">No duty assigned</div>
-      <div class="ndc-body">Ask your ops manager to share today's driver link with you before the route starts.</div>
+      <div class="ndc-body">Tap below to select today's service.</div>
       <button id="ndc-manual-btn" class="ndc-secondary-btn">Select a service manually</button>
+      <div class="ndc-vehicle-info">
+        Vehicle: <span id="ndc-vehicle-label"></span>
+        <button id="ndc-change-vehicle-btn" class="ndc-link-btn">Change</button>
+      </div>
+    </div>
+
+    <!-- Vehicle setup screen — one-time per device (or "Change vehicle" from
+         the no-duty screen). Only reachable outside duty-card mode: a duty
+         card already carries its own ops-assigned vehicle per journey. -->
+    <div id="vehicle-setup" hidden>
+      <div class="picker-title">
+        <div class="picker-brand">Phil Haines Coaches</div>
+        <div class="picker-subtitle">Which vehicle is this?</div>
+      </div>
+      <button id="vehicle-setup-back-btn" hidden>&#8592; Back</button>
+      <div class="picker-field">
+        <label for="vehicle-setup-select">Vehicle</label>
+        <div class="select-wrap">
+          <select id="vehicle-setup-select"></select>
+        </div>
+      </div>
+      <button id="vehicle-setup-btn">Confirm</button>
     </div>
 
     <!-- Manual service selection screen (fallback when no duty card is assigned) -->

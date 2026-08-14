@@ -114,4 +114,18 @@ describe('selectServiceManually', () => {
     await expect(selectServiceManually(undefined, 'S999X', 'Afternoon Inbound')).rejects.toThrow();
     expect(global.fetch).not.toHaveBeenCalled();
   });
+
+  test('includes p_vehicle_id in the RPC body when a vehicleId is given', async () => {
+    await selectServiceManually(DEPARTURE_ID, 'S116S', 'Morning Outbound', 'veh-42');
+    const rpcCall = global.fetch.mock.calls.find(([url]) => String(url).includes('/rpc/'));
+    const body = JSON.parse(rpcCall[1].body);
+    expect(body.p_vehicle_id).toBe('veh-42');
+  });
+
+  test('omits p_vehicle_id entirely (not sent as null) when no vehicleId is given — lets the DB default apply', async () => {
+    await selectServiceManually(DEPARTURE_ID, 'S116S', 'Morning Outbound');
+    const rpcCall = global.fetch.mock.calls.find(([url]) => String(url).includes('/rpc/'));
+    const body = JSON.parse(rpcCall[1].body);
+    expect('p_vehicle_id' in body).toBe(false);
+  });
 });

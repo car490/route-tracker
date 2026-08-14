@@ -9,18 +9,23 @@ import { rpc, fetchStopsForDeparture } from './supabaseApi.js';
 // departureId comes from the caller (main.js's dynamically-fetched services
 // map, see supabaseApi.js's fetchAvailableServices) — this function has no
 // lookup of its own, it just needs a valid id. serviceCode/servicePeriod are
-// carried through only for display, not re-derived here.
+// carried through only for display, not re-derived here. vehicleId is this
+// device's once-commissioned vehicle (see src/vehicleSetup.js) — optional
+// here (the RPC defaults it to null) since a stale/pre-commissioning device
+// shouldn't hard-fail, but main.js only reaches this function once a vehicle
+// is set, so it's effectively always present in practice.
 //
 // initialStopIndex is always 0 here — deliberate "start of route" default
 // for a picker-less flow, not a mirror of either existing flow's DOM
 // <select> fallback.
-export async function selectServiceManually(departureId, serviceCode, servicePeriod, { onComplete = () => {} } = {}) {
+export async function selectServiceManually(departureId, serviceCode, servicePeriod, vehicleId, { onComplete = () => {} } = {}) {
   if (!departureId) {
     throw new Error(`No departure selected for ${serviceCode} / ${servicePeriod}`);
   }
 
   const [{ journey_id: journeyId }] = await rpc('get_or_create_manual_journey', {
     p_timetable_departure_id: departureId,
+    ...(vehicleId ? { p_vehicle_id: vehicleId } : {}),
   });
 
   // Mirrors the duty-card path's start_journey call (main.js's

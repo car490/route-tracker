@@ -5,7 +5,7 @@
  * so anything importing supabaseApi.js transitively needs a DOM global —
  * plain Node (this project's default test environment) doesn't have one.
  */
-import { fetchAvailableServices } from '../src/supabaseApi.js';
+import { fetchAvailableServices, fetchLocalBusVehicles } from '../src/supabaseApi.js';
 
 // schedule_view is one row per stop, not per departure — a two-stop
 // departure produces two rows with the same service_code/departure_id/
@@ -53,5 +53,36 @@ describe('fetchAvailableServices', () => {
   test('throws on a non-ok response rather than returning an empty/partial list silently', async () => {
     global.fetch = jest.fn(async () => ({ ok: false, status: 500 }));
     await expect(fetchAvailableServices()).rejects.toThrow(/500/);
+  });
+});
+
+describe('fetchLocalBusVehicles', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  const FAKE_VEHICLES = [
+    { id: 'veh-1', registration: 'AB12 CDE', fleet_number: '7' },
+    { id: 'veh-2', registration: 'XY99 ZZZ', fleet_number: null },
+  ];
+
+  test('queries the vehicles table', async () => {
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => [] }));
+    await fetchLocalBusVehicles();
+    const [url] = global.fetch.mock.calls[0];
+    expect(String(url)).toContain('/rest/v1/vehicles');
+  });
+
+  test('returns the rows as-is — filtering to active/Local Bus is the RLS policy\'s job, not this function\'s', async () => {
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => FAKE_VEHICLES }));
+    const vehicles = await fetchLocalBusVehicles();
+    expect(vehicles).toEqual(FAKE_VEHICLES);
+  });
+
+  test('throws on a non-ok response rather than returning an empty/partial list silently', async () => {
+    global.fetch = jest.fn(async () => ({ ok: false, status: 500 }));
+    await expect(fetchLocalBusVehicles()).rejects.toThrow(/500/);
   });
 });

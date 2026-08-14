@@ -62,6 +62,17 @@ export async function fetchAvailableServices() {
   return services;
 }
 
+// Active, 'Local Bus'-tagged vehicles, for the Driver PWA's one-time
+// vehicle-commissioning picker (src/vehicleSetup.js). The RLS policy
+// (anon_read_local_bus, migration_vehicle_journey_types_manual_journey.sql)
+// already restricts anon to exactly this set — no filtering needed here,
+// this is just the select/order.
+export async function fetchLocalBusVehicles() {
+  const res = await sbFetch(`/rest/v1/vehicles?select=id,registration,fleet_number&order=registration`);
+  if (!res.ok) throw new Error(`vehicles ${res.status}`);
+  return res.json();
+}
+
 export async function fetchStopsForDeparture(departureId) {
   const res = await sbFetch(
     `/rest/v1/schedule_view` +

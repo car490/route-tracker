@@ -436,7 +436,8 @@ body {
 /* ── Picker screen ───────────────────────────── */
 
 #picker,
-#manual-picker {
+#manual-picker,
+#vehicle-setup {
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -517,7 +518,8 @@ body {
 }
 
 #start-btn,
-#manual-start-btn {
+#manual-start-btn,
+#vehicle-setup-btn {
   background: var(--brand-cyan);
   color: #fff;
   border: none;
@@ -534,7 +536,8 @@ body {
 }
 
 #start-btn:active,
-#manual-start-btn:active {
+#manual-start-btn:active,
+#vehicle-setup-btn:active {
   background: #3da038;
 }
 
@@ -1240,7 +1243,8 @@ body {
 
 /* Back button shown in picker when launched from duty card */
 #picker-back-btn,
-#manual-back-btn {
+#manual-back-btn,
+#vehicle-setup-back-btn {
   background: none;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -1255,9 +1259,34 @@ body {
 }
 
 #picker-back-btn:active,
-#manual-back-btn:active {
+#manual-back-btn:active,
+#vehicle-setup-back-btn:active {
   color: var(--text);
   border-color: var(--text);
+}
+
+/* Vehicle line + "Change" link on the no-duty-card screen */
+.ndc-vehicle-info {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 1.5rem;
+}
+
+.ndc-vehicle-info #ndc-vehicle-label {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.ndc-link-btn {
+  background: none;
+  border: none;
+  color: var(--brand-cyan);
+  font-size: 0.85rem;
+  font-family: var(--cm-font);
+  text-decoration: underline;
+  cursor: pointer;
+  margin-left: 0.5rem;
+  padding: 0;
 }
 
 /* ── Manual trip-complete fallback ─────────────── */

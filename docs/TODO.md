@@ -21,28 +21,34 @@ built yet, decide if/when needed:
   operators may want branded/human-voiced announcements instead of the
   browser's Web Speech API voice).
 
-## Manual-selection flow — no vehicle/driver on the journey
+## Manual-selection flow — no driver on the journey
 
 As of 2026-08-14 the Driver PWA's default flow (no duty-card link — see
 `src/manualSelection.js`, `pi-server/TEMP-LAPTOP.md`) is the driver opening
 the plain PWA and picking their service by hand, not an ops-issued duty
-card. `get_or_create_manual_journey()` (schema.sql) only ever inserts
-`company_id`, `timetable_departure_id`, `journey_date`, `status` —
-**`journeys.vehicle_id` and `journeys.driver_id` are never set** for a
-journey created this way. Fine for BusOps Announce itself (it only needs
-stops/service_code/status), but it means every such journey shows a blank
-driver/vehicle everywhere the dashboard surfaces that, and can't feed the
-PSVAIR per-vehicle compliance tracking above or any driver-hours/
-vehicle-utilization reporting.
+card. `journeys.driver_id` is never set for a journey created this way —
+there's no login, so no driver identity exists on the device to attach.
 
-- [ ] Decide how a manually-started journey gets a vehicle/driver attached —
-  options include a vehicle-picker step added to the Driver PWA's manual
-  flow, an ops-side dashboard screen to assign vehicle/driver after the
-  fact, or extending `get_or_create_manual_journey` to accept an optional
-  vehicle_id (and a driver identity, if the device ever carries one).
+**`vehicle_id` is now handled** (2026-08-14): the PWA prompts once per
+device for its vehicle (`src/vehicleSetup.js`, "Change vehicle" available
+from the No Duty screen), sourced from a live Supabase fetch
+(`fetchLocalBusVehicles()`) filtered to vehicles tagged `'Local Bus'` in
+the new `vehicles.journey_types` column (set from the dashboard's Vehicles
+page). `get_or_create_manual_journey()` now takes an optional `p_vehicle_id`
+and sets it on insert (see `migration_vehicle_journey_types_manual_journey.sql`
+— **apply to both dev and production**, this session couldn't reach
+Supabase directly). `driver_id` remains null/unaddressed — still blocks
+driver-hours reporting, though vehicle-side PSVAIR/Live Tracking/Daily
+Journeys display is now fixed.
+
+- [ ] Decide how (or whether) a manually-started journey gets a driver
+  identity attached — the PWA has no login by design (see
+  `feedback_driver_auth` project convention: passwordless, no login
+  screens), so this likely needs a different mechanism than the vehicle
+  picker above (e.g. an ops-side reconciliation screen, not a device prompt).
 - [ ] Audit dashboard pages (Daily Journeys, Duty Cards, Live Tracking,
-  Overview) for how they currently render a null `driver_id`/`vehicle_id` —
-  blank, "Unknown", or does something break?
+  Overview) for how they currently render a null `driver_id` — blank,
+  "Unknown", or does something break?
 
 ## Tech debt / refactors
 

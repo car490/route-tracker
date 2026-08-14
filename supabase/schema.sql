@@ -194,6 +194,13 @@ create table vehicles (
                         'Hybrid',
                         'Hydrogen'
                       )),
+  -- Same shape as employees.journey_types / routes.journey_type — which
+  -- journey types (journey_types.name) this vehicle is used/tagged for, e.g.
+  -- 'Local Bus'. No CHECK against the lookup table, same as the two columns
+  -- it mirrors — validated at the application layer (dashboard pills) only.
+  -- Drives the Driver PWA's vehicle-commissioning picker (src/vehicleSetup.js)
+  -- via the anon_read_local_bus RLS policy below.
+  journey_types     text[]      not null default '{}',
   seating_capacity  int,
   height_metres     float8,                                -- overall vehicle height (m) — used by route planner
   width_metres      float8,                                -- overall vehicle width (m)
@@ -872,9 +879,15 @@ grant execute on function complete_journey(uuid) to anon;
 -- psvair_in_scope is deliberately not computed/returned here — the caller
 -- sources that from schedule_view via fetchStopsForDeparture(), same as
 -- the duty-card path, so it's derived in exactly one place.
+-- p_vehicle_id (optional) is the device's once-commissioned vehicle (see
+-- src/vehicleSetup.js) — validated against the departure's own company
+-- below so anon can't attach an arbitrary vehicle UUID from another company.
+DROP FUNCTION IF EXISTS public.get_or_create_manual_journey(uuid, date);
+
 create or replace function get_or_create_manual_journey(
   p_timetable_departure_id uuid,
-  p_journey_date date default current_date
+  p_journey_date date default current_date,
+  p_vehicle_id uuid default null
 )
 returns table (journey_id uuid)
 language plpgsql
@@ -920,8 +933,14 @@ begin
     raise exception 'service does not run on %', p_journey_date;
   end if;
 
-  insert into journeys (company_id, timetable_departure_id, journey_date, status)
-  values (v_company_id, p_timetable_departure_id, p_journey_date, 'scheduled')
+  if p_vehicle_id is not null and not exists (
+    select 1 from vehicles v where v.id = p_vehicle_id and v.company_id = v_company_id
+  ) then
+    raise exception 'vehicle % not found for this company', p_vehicle_id;
+  end if;
+
+  insert into journeys (company_id, timetable_departure_id, journey_date, status, vehicle_id)
+  values (v_company_id, p_timetable_departure_id, p_journey_date, 'scheduled', p_vehicle_id)
   on conflict (timetable_departure_id, journey_date)
     where status != 'cancelled' and timetable_departure_id is not null
   do nothing
@@ -940,7 +959,7 @@ begin
 end;
 $$;
 
-grant execute on function get_or_create_manual_journey(uuid, date) to anon;
+grant execute on function get_or_create_manual_journey(uuid, date, uuid) to anon;
 
 DROP FUNCTION IF EXISTS public.get_duty_card(uuid[]);
 
@@ -1311,6 +1330,13 @@ create policy "company_all" on vehicles
   for all to authenticated
   using     (company_id = current_company_id())
   with check (company_id = current_company_id());
+
+-- Vehicles: anon may read active 'Local Bus'-tagged vehicles only — powers
+-- the Driver PWA's one-time vehicle-commissioning picker (src/vehicleSetup.js).
+-- No anon policy existed on this table before; nothing else changes.
+create policy "anon_read_local_bus" on vehicles
+  for select to anon
+  using (status = 'active' and 'Local Bus' = any(journey_types));
 
 -- Routes: full access within own company
 create policy "company_all" on routes
