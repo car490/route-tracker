@@ -131,6 +131,21 @@ sudo systemctl enable --now coachmate-sync coachmate-onboard
   into Chrome (Fire OS: disable the default launcher's lockscreen/home
   redirect, or use a boot-to-app config appropriate to the OS version)
 
+### Panel physical size (PSV(AI)R 22mm text sizing)
+
+`onboard.css`'s default text sizing (`--min-text: 17vh`) is only correct for
+the two panels it was originally calibrated against (Fire HD 10, 28" wide
+sign) — browsers have no reliable API for a screen's physical size, so a
+different panel needs its physical diagonal supplied once, via
+**`&panel-diagonal=<inches>`** appended to whatever fixed kiosk URL Option
+A/B below already uses (same pattern as `&announce-token=`, see §6). Omit
+it entirely and the CSS default applies unchanged — safe for existing
+Fire HD/wide-sign deployments. Example for the Dell Pro P2426H used in
+demo/validation builds: `...onboard.html?journey=<id>&panel-diagonal=23.8`.
+See `computeMinTextVh()` in `src/onboard.js` for the underlying math if a
+different panel is ever used — it only needs the diagonal size; resolution
+and aspect ratio are already known automatically at runtime.
+
 ### Option B — HDMI stretch-bar display (Chromium kiosk on Pi)
 The display connects directly to the Pi's micro-HDMI port. Chromium runs on
 the Pi itself and renders `onboard.html` locally — no tablet, no hotspot

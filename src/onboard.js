@@ -22,6 +22,39 @@ const WIDE_LAYOUT_QUERY = '(min-aspect-ratio: 4/1)'; // 16:3 ultra-wide sign, se
 const el = (id) => document.getElementById(id);
 const isWideLayout = () => matchMedia(WIDE_LAYOUT_QUERY).matches;
 
+// ── PSV(AI)R 22mm minimum text height — panel-agnostic sizing ──────────────
+// onboard.css's --min-text default (17vh) is a fixed constant calibrated for
+// two specific known panels (Fire HD 10 and the 28" wide sign) that happen
+// to need near-identical vh values by coincidence — see that variable's own
+// comment. It does NOT generalise: a same-density but taller-in-pixels panel
+// (e.g. a standard 1920x1080 monitor) needs a much smaller vh fraction for
+// the same physical 22mm, because vh is relative to total pixel height, and
+// browsers have no reliable API for a screen's physical size (no EDID
+// access, by design, for privacy/security — this is a real web platform
+// limit, not a workaround-able gap). So the one thing that must be supplied
+// per-panel, once, is its physical diagonal size — everything else
+// (resolution, aspect ratio) is already known automatically at runtime.
+//
+// Commissioned via ?panel-diagonal=<inches> on the same fixed kiosk URL that
+// already carries ?journey= and (optionally) ?announce-token= — same
+// pattern as onboard.js's other per-device settings (see the file header:
+// this device has nothing to persist across visits, everything comes from
+// its own URL each load). Omitted entirely = old behaviour: CSS's own 17vh
+// default applies unchanged, so existing Fire HD/wide-sign deployments that
+// haven't added the param yet aren't affected.
+export function computeMinTextVh(diagonalInches, viewportWidthPx, viewportHeightPx) {
+  if (!diagonalInches || !viewportWidthPx || !viewportHeightPx) return null;
+  const diagonalPx = Math.sqrt(viewportWidthPx ** 2 + viewportHeightPx ** 2);
+  const panelHeightMm = diagonalInches * 25.4 * (viewportHeightPx / diagonalPx);
+  return (22 / panelHeightMm) * 100;
+}
+
+function applyPanelSizing() {
+  const diagonalInches = Number(new URLSearchParams(window.location.search).get('panel-diagonal'));
+  const minTextVh = computeMinTextVh(diagonalInches, window.innerWidth, window.innerHeight);
+  if (minTextVh) document.documentElement.style.setProperty('--min-text', `${minTextVh}vh`);
+}
+
 // Set once a schedule fetch resolves — true when this page is being served
 // by a Pi's local pi-server (not GitHub Pages / the plain dev server.js),
 // so GPS is also read from its /api/position bridge instead of
@@ -504,6 +537,7 @@ function applyOperatorBranding(duty) {
 // ── Entry point ──────────────────────────────────────────────────────────
 
 async function init() {
+  applyPanelSizing();
   startClock();
   if (!WATCH_JOURNEY_ID) {
     console.warn('onboard.js: no ?journey=<id> in the URL — nothing to watch, staying blank.');

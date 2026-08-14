@@ -27,3 +27,6 @@ CHANGELOG.md
 README.md
 CLAUDE.md
 VERSION
+wrangler.jsonc
+.env
+.env.*
