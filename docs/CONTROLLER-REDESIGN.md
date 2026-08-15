@@ -312,33 +312,65 @@ short.
   `signWss` clients at all. That's a branch in the existing handler, not a
   reason to separate transport.
 
-## 9. Hardware shortlist (reference only — not finalized)
+## 9. Hardware pick
 
-Deferred until the software architecture above is settled, since it changes
-the requirements substantially (no WAN needed at all, single WiFi radio,
-possibly needs audio-out). Two tiers discussed:
+Derived fresh from §2–§8 above — deliberately not carried over from the old
+CM5/Pi spec or from this doc's own earlier Tier A/B sketch, both superseded
+by this section.
 
-- **Tier A — consumer fanless mini PC** (Intel N100/N150 class: Beelink
-  EQ12/Mini S12 Pro, GMKtec G3/NucBox, MeLE Quieter3Q, ASUS NUC 14
-  Essential). ~£120–200, fanless, 6–12W idle, HDMI, onboard WiFi, M.2 NVMe.
-  Likely sufficient now that the Controller's job has shrunk to
-  "host an AP, render a pushed feed, maybe play audio."
-- **Tier B — industrial/vehicle-rated fanless mini PC** (Logic Supply,
-  Advantech ARK series, Axiomtek). £300–600+, wide DC input, extended
-  operating temp range, vibration-rated. Worth it mainly if Tier A's
-  operating-temp/vibration tolerance proves inadequate in the ceiling-void
-  install — not clearly justified by the (now much lighter) compute
-  workload alone.
+**Requirements, from the decisions actually made:**
 
-No specific SKU chosen. Exact pick should happen after §8 (audio) is
-confirmed, since it affects whether audio-out hardware needs to be in the
-spec.
+| From | Requirement |
+|---|---|
+| §2 | x86, not ARM/Pi |
+| §3, §5, §6 | No WAN of any kind — no depot WiFi client, no cellular. Ethernet/WiFi-as-client are unused, not required |
+| §5 | One onboard WiFi radio, run as AP only (`hostapd`) |
+| §4 | No load-bearing USB — anything the box depends on must be onboard |
+| §6 | Light compute — it's a JSON-over-WebSocket renderer now, no GPS, no independent DB polling |
+| §8 | A real 3.5mm audio-out jack (interim AUX cable to the head unit) |
+| Carried over from §4's reasoning | Fanless — the same vibration/no-moving-parts logic that ruled out USB dongles applies just as much to a spinning fan |
+| `docs/HARDWARE.md` §6 (unchanged) | Power chain already has a **12V-in USB-C PD point-of-load module** as a standard, already-sourced component (used for the Pi and driver tablet today) — a board that powers over USB-C PD reuses this rather than needing a new power-module type for a fixed-voltage barrel jack |
+
+**Pick: MeLE Quieter4C** (Intel N100, fanless). Checked against the table
+above, spec-sheet-verified (see sources), not carried over from memory:
+
+- Fanless, 18.3mm thick — no moving parts, small footprint for the
+  ceiling-void enclosure.
+- USB-C PD input (12–20V) — plugs straight into the existing PD
+  point-of-load module, no new power-chain component.
+- 3.5mm headphone/mic jack — covers the interim AUX-out decision (§8)
+  directly.
+- Dual HDMI, onboard WiFi 5 + Gigabit Ethernet, N100 CPU — comfortably more
+  than this workload needs now that GPS/Supabase-polling/dual-radio are
+  gone.
+- No microSD dependency for the OS — boots from internal storage.
+
+Sources: [MeLE Quieter4C product page](https://www.mele.cn/product/Quieter4C-en.html),
+[CNX Software launch coverage](https://www.cnx-software.com/2023/12/05/mele-quieter4c-ultrathin-fanless-intel-n100-mini-pc-supports-up-to-three-displays/),
+[CNX Software Quieter3C Linux review](https://www.cnx-software.com/2022/08/30/mele-quieter3c-fanless-mini-pc-review-with-ubuntu-22-04-windows-11/)
+(sibling model, cited for Linux driver behaviour context).
+
+**One real risk, not papered over**: the exact WiFi chipset in the
+Quieter4C couldn't be confirmed from public specs (older MeLE models used
+Realtek; a newer sibling model uses Intel AX201 — unclear which this one
+ships). This matters specifically because §5 depends on that chip running
+reliably in AP mode under Linux `hostapd` — cheap WiFi chips are exactly
+where AP-mode Linux driver support gets patchy. **Do not order a fleet's
+worth on the spec sheet alone** — buy one unit, bench-test `hostapd` AP
+mode on it directly, and only then commit to the rest.
+
+**Also flagged, not a blocker**: this is a consumer-grade board, no stated
+operating-temp/vibration certification. Since the workload is now light
+enough that raw compute headroom isn't a reason to reach for an industrial
+board, only escalate to a Logic Supply/Advantech-class unit if the
+Quieter4C actually fails in the ceiling-void environment during testing —
+not pre-emptively.
 
 ## 10. Summary of doc sections superseded
 
 | `docs/HARDWARE.md` section | Status per this doc |
 |---|---|
-| §1 Bus Controller board | Superseded — CM5 pick replaced by x86 mini PC (§2, §9 above) |
+| §1 Bus Controller board | Superseded — CM5 pick replaced by MeLE Quieter4C (x86, fanless), pending one-unit hardware bench verification (§9) |
 | §2 GPS | Model 1 row (Pi's own GPS module) is dead, not a fallback — Model 2 (Driver tablet GNSS only) is the confirmed target (§6) |
 | §7 Networking | Superseded in full — single onboard radio, AP-only, no WAN path (§5) |
 | §9 PA/audio interim test | Superseded — audio path moves off the Driver tablet entirely (§8) rather than AUX-cabling from it |
@@ -346,5 +378,6 @@ spec.
 | "Two competing architectures, unresolved" header | Resolved — Model 2 confirmed (§6) |
 
 `docs/HARDWARE.md` itself has **not** been edited — this doc stands alongside
-it until the remaining open items (§7's idle-screen content, and §9's mini
-PC pick) are settled, at which point someone should fold the two together.
+it. All decisions in this doc are now settled; the one remaining action item
+is §9's one-unit `hostapd` AP-mode bench test before a fleet order. Once
+that's confirmed, someone should fold the two documents together.
