@@ -7,9 +7,8 @@ Written so a coding agent picking this up later has the decisions, the
 rationale, and the exact code touchpoints, not just conclusions.
 
 **Status of everything below: agreed direction, not yet implemented.** No
-code has changed as a result of this conversation. One item (§6, audio) is
-a recommendation pending explicit confirmation, not a locked decision —
-flagged separately below.
+code has changed as a result of this conversation, including §8 (audio),
+which is now a confirmed decision, not just a recommendation.
 
 ---
 
@@ -186,71 +185,104 @@ logo on today.
   already tracks PSVAIR gaps as unowned; worth deciding together rather than
   bolting on later.
 
-## 8. Open question, recommended direction pending confirmation: move audio to the Controller
+## 8. Decision: move audio issuance to the Controller
 
-**Current state** (unchanged by anything above, confirmed in code):
-announcement audio is issued entirely from the Driver PWA. Pre-rendered
-Azure TTS clips (`audio/announcements/`, manifest-driven, precached by
-`service-worker.js`) play on the driver's own tablet; live `speechSynthesis`
-(`src/announcements.js`) is the fallback for a clip not yet rendered. The
-onboard sign never plays audio — `onboard.html` says so explicitly
-(`#sign-announcing` is a text-only echo of what the Driver is currently
-announcing). Physically, audio reaches the vehicle PA via the Driver
-tablet's headphone jack into the head unit's AUX-IN — logged in
-`docs/HARDWARE.md` §9 explicitly as "a listening test, not a committed
+**Current state** (confirmed in code): announcement audio is issued entirely
+from the Driver PWA. Pre-rendered Azure TTS clips (`audio/announcements/`,
+manifest-driven, precached by `service-worker.js`) play on the driver's own
+tablet; live `speechSynthesis` (`src/announcements.js`) is the fallback for a
+clip not yet rendered. The onboard sign never plays audio — `onboard.html`
+says so explicitly (`#sign-announcing` is a text-only echo of what the
+Driver is currently announcing). Physically, audio reaches the vehicle PA
+via the Driver tablet's headphone jack into the head unit's AUX-IN — logged
+in `docs/HARDWARE.md` §9 explicitly as "a listening test, not a committed
 design."
 
-**Question raised this session**: now that the Controller is "just a
-formatted feed to the monitor" (§6), should audio move there too, since it's
-really part of the same passenger-facing Announce output as the display?
+**Decided**: yes, move it. Reasons — matches the PWA/Controller split this
+whole doc establishes (driver duty + sync vs. passenger-facing output,
+visual *and* audio); the Driver tablet is a worse home for unattended,
+continuous PA audio than a stationary, hardwired, always-on box (mobile
+browser background-tab throttling, phone hardware/battery variance, and
+today's AUX-cable path is already logged as an interim hack, not a
+committed design, while PSVAIR's audio requirements — Appendix A §2.2/§2.3 —
+are a compliance obligation); and it's not new scope — `docs/HARDWARE.md`
+§10 already anticipated the Controller growing a PA/amp role, this pulls it
+forward rather than inventing a new direction.
 
-**Recommendation: yes, move it**, for these reasons:
-- Matches the split this whole doc establishes: PWA = driver duty + sync to
-  Core, Controller = passenger-facing output (visual *and* audio). Splitting
-  audio onto the driver's personal phone while the screen lives on a
-  dedicated box is the inconsistent part of the current design, not the
-  natural boundary.
-- The Driver tablet is a worse place for unattended, continuous PA audio
-  than a stationary, hardwired, always-on box: mobile browser background-tab
-  throttling, phone hardware/battery variance, and the AUX-IN-via-headphone-
-  jack path is already logged as an interim hack, not a committed design.
-  PSVAIR's audio requirements (Appendix A §2.2/§2.3) are a compliance
-  obligation, not a nice-to-have, and want a reliable source.
-- Not new scope — `docs/HARDWARE.md` §10 already anticipated the Controller
-  growing a PA/amp role ("amplifier control, I2S audio out, spare fused 12V
-  branch"). This pulls that forward rather than inventing a new direction.
-- Trigger logic gets simpler, not harder: once §3's expanded push protocol
-  is in place, the Controller already has everything `announceStopEvent.js`
-  needs to decide *when* to announce (`atStop`, `approaching`, `stopStates`,
-  `diversionActive`, `isFinal` — see `buildStatePayload()`). It can derive
-  announcement triggers from the same state driving the visual sign, instead
-  of the Driver deciding and the Controller only echoing a string for
-  display as it does today.
+### Protocol design: the Driver stays the decision-maker, the Controller just plays
 
-**Real costs, not yet resolved — needs a decision before implementation**:
-- Pre-rendered clips need to ship as part of the Controller's own deployed
-  software/image, not streamed live over the local WebSocket link at
-  announce-time — treat it as a build/deploy artifact, same as the Driver's
-  service-worker precache does today, just targeting the Controller instead.
-- The live `speechSynthesis` fallback in `src/announcements.js` is
-  browser-only. Moving audio to a Node-based Controller likely means
-  dropping that fallback entirely (pre-rendered clips only) rather than
-  porting it — needs an explicit decision, not an assumption.
-- Needs audio-out hardware on the Controller BOM (a 3.5mm jack is enough for
-  an interim AUX-IN cable, same physical pattern as today just sourced from
-  the Controller instead of the tablet; a real PA amp is the §10-anticipated
-  longer-term path). Worth deciding whether this ships as an interim
-  AUX-cable step or waits for dedicated PA hardware.
-- The `slug()` clip-key logic already has to be kept in sync by hand between
-  `src/announcements.js` (browser) and `scripts/generate-announcement-audio.mjs`
-  (Node) per existing CLAUDE.md guidance — a Controller-side player would be
-  a *third* place implementing the same slug logic, worth designing against
-  up front (e.g. a shared manifest lookup rather than three independent
-  slug implementations).
+Every announcement already funnels through one function —
+`announce(text, audioKeys)` in `src/announcements.js:222` — *after* all the
+PSVAIR-event logic and `slug()`-based clip-key resolution has already
+happened (`announceAtStop()`, `announceApproaching()`, etc. do that work
+before calling it). `audioKeys` arriving at that point is already a plain,
+ready list of clip filenames (e.g. `['service/x1__town-centre',
+'stop/abc123']`).
 
-**This is not yet a locked decision** — recorded here as the recommended
-direction from this session's discussion, pending explicit sign-off before
-any code changes.
+That means the Controller does **not** need to re-derive triggers from
+pushed state (`atStop`/`approaching`/`stopStates`/etc.) — that would
+duplicate the PSVAIR-event decision logic and the `slug()` scheme in a
+second runtime, which is exactly the kind of drift risk CLAUDE.md already
+flags for the existing browser/Node `slug()` duplication. Instead:
+
+- `announce()` gets one addition: alongside (in place of) calling `speak()`,
+  it broadcasts `{ type: 'announce', text, audioKeys }` to the Controller
+  over the existing local link (`src/announceLink.js` →
+  `pi-server/announceRelay.mjs`'s `/driver-push` endpoint), same channel and
+  pattern as the `type: 'schedule'` message from §3.
+- The Controller becomes a genuinely dumb player: receive `audioKeys`, play
+  the matching mp3s in sequence from local disk, done. No PSVAIR logic, no
+  `slug()`, no TTS fallback, no knowledge of stop IDs or service codes at
+  all on the Controller side.
+- The queue/busy state machine that exists today to stop a new announcement
+  cutting off one still playing (`isBusy`, `queued`, `playNow()` in
+  `announcements.js:31-40,178-190`) has to **move to the Controller, not be
+  duplicated** — once real playback happens there, the Controller is the
+  one that owns real-world timing. The Driver side becomes a fire-and-forget
+  sender.
+- **Mute** stays a Driver-side control (`isMuted()`/`setMuted()` unchanged),
+  but now gates whether the `announce` message is sent at all, rather than
+  gating local playback.
+- **Missing clip on the Controller**: since the live `speechSynthesis`
+  fallback doesn't port to Node, a missing clip means that one announcement
+  is silently skipped and logged, not crashed and not synthesized. Accepted
+  given clip generation is already a controlled build step, not a runtime
+  risk in practice.
+- Pre-rendered clips ship as part of the Controller's own deployed
+  software/image (same `audio/announcements/` set, treated as a build/deploy
+  artifact), not streamed live over the WebSocket link at announce-time.
+
+### The on-screen caption bar (Driver PWA) stays exactly as it is
+
+`#psvair-banner` in `index.html:114` (running caption text, mute button,
+voice-settings button) is a driver-facing convenience, not part of the audio
+path being moved. It's wired via `onAnnouncementChange(text => {...})` in
+`main.js:175`, fed by the `onAnnounce` callback inside `announce()` — which
+fires **before** the function decides what to do with the audio, so it's
+unaffected by switching from local playback to a Controller broadcast. Zero
+changes needed here.
+
+One explicit constraint carried forward from this decision: the banner shows
+**what the app instructed to be announced (intent, resolved locally)**, not
+confirmation that the Controller actually played it. No return channel from
+Controller → Driver should be built for this. Today's `/driver-push`
+connection is one-way (Driver → Controller only); adding inbound traffic
+would mean the Driver device has to accept and parse network messages from
+the Controller — new attack surface on a device that also carries driver
+credentials and talks to Supabase, for a feature that doesn't need it. A
+Controller-side playback fault (e.g. a missing clip file) belongs in a
+Controller-side log, not piped back to the driver's screen.
+
+### Still open, needs deciding before/at implementation time
+
+- Audio-out hardware on the Controller BOM (a 3.5mm jack is enough for an
+  interim AUX-IN cable, same physical pattern as today just sourced from the
+  Controller instead of the tablet; a real PA amp is the §10-anticipated
+  longer-term path) — whether this ships as an interim AUX-cable step or
+  waits for dedicated PA hardware.
+- Exact new-message-type shape/name (`type: 'announce'` used as a working
+  name above) and whether it's carried on the same `/driver-push` socket as
+  `type: 'state'`/`type: 'schedule'` or a separate endpoint.
 
 ## 9. Hardware shortlist (reference only — not finalized)
 
@@ -281,10 +313,11 @@ spec.
 | §1 Bus Controller board | Superseded — CM5 pick replaced by x86 mini PC (§2, §9 above) |
 | §2 GPS | Model 1 row (Pi's own GPS module) is dead, not a fallback — Model 2 (Driver tablet GNSS only) is the confirmed target (§6) |
 | §7 Networking | Superseded in full — single onboard radio, AP-only, no WAN path (§5) |
-| §9 PA/audio interim test | Likely superseded if §8 is confirmed — audio path moves off the Driver tablet entirely rather than AUX-cabling from it |
+| §9 PA/audio interim test | Superseded — audio path moves off the Driver tablet entirely (§8) rather than AUX-cabling from it |
 | §10 Near-term Controller roles | PA/audio role (first bullet) is being pulled forward by §8, not just reserved headroom anymore |
 | "Two competing architectures, unresolved" header | Resolved — Model 2 confirmed (§6) |
 
 `docs/HARDWARE.md` itself has **not** been edited — this doc stands alongside
-it until the open items (mainly §8's audio confirmation, and §9's hardware
-pick) are settled, at which point someone should fold the two together.
+it until the remaining open items (§8's audio-out hardware/message-shape
+details, and §9's mini PC pick) are settled, at which point someone should
+fold the two together.
