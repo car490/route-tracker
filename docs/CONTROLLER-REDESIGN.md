@@ -273,16 +273,39 @@ credentials and talks to Supabase, for a feature that doesn't need it. A
 Controller-side playback fault (e.g. a missing clip file) belongs in a
 Controller-side log, not piped back to the driver's screen.
 
-### Still open, needs deciding before/at implementation time
+### Decided: audio-out hardware ships as interim AUX, amp deferred
 
-- Audio-out hardware on the Controller BOM (a 3.5mm jack is enough for an
-  interim AUX-IN cable, same physical pattern as today just sourced from the
-  Controller instead of the tablet; a real PA amp is the §10-anticipated
-  longer-term path) — whether this ships as an interim AUX-cable step or
-  waits for dedicated PA hardware.
-- Exact new-message-type shape/name (`type: 'announce'` used as a working
-  name above) and whether it's carried on the same `/driver-push` socket as
-  `type: 'state'`/`type: 'schedule'` or a separate endpoint.
+The demo bus has no amp, and buying one now would be speculative. This isn't
+a new call — `docs/HARDWARE.md` §9 already has an "interim test plan": try
+the vehicle's existing speakers via its head unit's AUX-IN, measure SPL
+against the PSVAIR 3dB-above-ambient/84dB-ceiling bar, and only spend on a
+dedicated amp if that test fails. That plan just relocates: the AUX source
+becomes the Controller's own 3.5mm jack instead of the Driver tablet's
+headphone jack — same cable, same test methodology, no new hardware
+commitment now. A PA amp stays a reserved-but-unpurchased line in §10's
+headroom list, revisited only if the AUX/existing-speakers test comes back
+short.
+
+### Decided: one socket, multiplexed by `type`
+
+`type: 'announce'` rides the same `/driver-push` connection as `type:
+'state'` and `type: 'schedule'` — no separate audio endpoint. Reasons:
+
+- `pi-server/announceRelay.mjs`'s receiving side is already a single
+  `message` handler on one connection; adding message types is a branch on
+  `msg.type`, not new plumbing.
+- A second socket would mean a second token-auth check, a second
+  reconnect/backoff cycle in `src/announceLink.js`, and a new class of
+  partial-failure mode (e.g. state connected but audio stuck reconnecting)
+  that nothing today has to reason about.
+- All three payload types are small text/JSON — no realistic head-of-line-
+  blocking case for splitting them across connections.
+- The three types don't even converge on the same handling once received —
+  `state` updates `latestState` and relays to `signWss` clients (as today);
+  `schedule` updates whatever `serveApiSchedule()` reads from; `announce`
+  drives the Controller's local audio-playback queue and never touches
+  `signWss` clients at all. That's a branch in the existing handler, not a
+  reason to separate transport.
 
 ## 9. Hardware shortlist (reference only — not finalized)
 
