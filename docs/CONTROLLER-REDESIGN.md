@@ -366,6 +366,30 @@ board, only escalate to a Logic Supply/Advantech-class unit if the
 Quieter4C actually fails in the ceiling-void environment during testing —
 not pre-emptively.
 
+### Purchasing note: minimum-viable spec for the BETA unit, cost closely managed
+
+Explicit requirement from this session: don't overspec any component for
+the BETA build. Applied to this pick specifically — a £489-listed
+Quieter4C configuration turned out to be 16GB RAM / 512GB storage **with
+Windows 11 Pro bundled**, none of which this workload needs:
+
+- **No OS** — the Controller runs Linux (same as the rest of `pi-server/`),
+  not Windows. Buy a "No OS" / barebone listing and flash Debian/Ubuntu
+  directly rather than paying for an unused Windows licence.
+- **8GB RAM, not 16GB** — `docs/HARDWARE.md` originally judged 4GB
+  "sufficient for kiosk browser + hostapd + one WebSocket link" against the
+  *old*, heavier Pi workload (own GPS daemon, independent Supabase
+  polling). Today's Controller does less than that (§6) — 8GB is
+  comfortable headroom, not a stretch.
+- **128GB storage, not 512GB** — the `audio/announcements/` clip set is a
+  modest collection of short mp3s, not gigabytes of media; OS + Node app +
+  clips fits with room to spare.
+
+This isn't specific to the Quieter4C — treat "buy the minimum spec that
+comfortably covers the actual workload, not the manufacturer's default
+bundle" as a standing principle for BETA-stage hardware decisions on this
+project generally, not just this one purchase.
+
 ## 10. Summary of doc sections superseded
 
 | `docs/HARDWARE.md` section | Status per this doc |
