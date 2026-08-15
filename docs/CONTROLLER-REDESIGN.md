@@ -338,8 +338,9 @@ above, spec-sheet-verified (see sources), not carried over from memory:
   ceiling-void enclosure.
 - USB-C PD input (12–20V) — plugs straight into the existing PD
   point-of-load module, no new power-chain component.
-- 3.5mm headphone/mic jack — covers the interim AUX-out decision (§8)
-  directly.
+- 3.5mm headphone/mic jack, described in its spec sheet as such (not just
+  "3.5mm jack") — **not independently confirmed as functional audio-out,
+  see risk below.**
 - Dual HDMI, onboard WiFi 5 + Gigabit Ethernet, N100 CPU — comfortably more
   than this workload needs now that GPS/Supabase-polling/dual-radio are
   gone.
@@ -350,14 +351,34 @@ Sources: [MeLE Quieter4C product page](https://www.mele.cn/product/Quieter4C-en.
 [CNX Software Quieter3C Linux review](https://www.cnx-software.com/2022/08/30/mele-quieter3c-fanless-mini-pc-review-with-ubuntu-22-04-windows-11/)
 (sibling model, cited for Linux driver behaviour context).
 
-**One real risk, not papered over**: the exact WiFi chipset in the
-Quieter4C couldn't be confirmed from public specs (older MeLE models used
-Realtek; a newer sibling model uses Intel AX201 — unclear which this one
-ships). This matters specifically because §5 depends on that chip running
-reliably in AP mode under Linux `hostapd` — cheap WiFi chips are exactly
-where AP-mode Linux driver support gets patchy. **Do not order a fleet's
-worth on the spec sheet alone** — buy one unit, bench-test `hostapd` AP
-mode on it directly, and only then commit to the rest.
+**Candidate ruled out during BETA sourcing: MeLE Quieter3Q** (N5105, 8GB/128GB
+— otherwise an exact match on RAM/storage/fanless/USB-C-power). User
+confirmed directly with the seller that its 3.5mm jack is a combo
+mic-in/line-in jack — **it does not support audio output at all.** Physical
+presence of a 3.5mm jack in a spec sheet is not evidence it does audio-out
+on this device class — confirmed the hard way here. Ruled out on §8 grounds
+alone; everything else about it matched well.
+
+**Two real risks, not papered over**:
+- **Audio-out on the Quieter4C is not yet independently confirmed**, only
+  described more specifically than the 3Q's listing was ("headphone + mic
+  jack" vs. a bare "3.5mm jack"). Given the 3Q result above, that wording
+  difference is a reason for cautious optimism, not proof. **Before
+  ordering, confirm actual audio-out (not just jack presence) directly with
+  the seller or a hands-on source — the same way the 3Q's limitation was
+  caught** — not from the spec sheet alone. If it turns out this whole
+  fanless N-series class has a habit of shipping input-only combo jacks,
+  the fallback is HDMI audio via an external HDMI-audio-extractor to get an
+  analog line-out — an extra component, not preferred, only pursue if a
+  genuine audio-out mini PC in this class can't be found.
+- The exact WiFi chipset in the Quieter4C couldn't be confirmed from public
+  specs (older MeLE models used Realtek; a newer sibling model uses Intel
+  AX201 — unclear which this one ships). This matters specifically because
+  §5 depends on that chip running reliably in AP mode under Linux
+  `hostapd` — cheap WiFi chips are exactly where AP-mode Linux driver
+  support gets patchy. **Do not order a fleet's worth on the spec sheet
+  alone** — buy one unit, bench-test `hostapd` AP mode on it directly, and
+  only then commit to the rest.
 
 **Also flagged, not a blocker**: this is a consumer-grade board, no stated
 operating-temp/vibration certification. Since the workload is now light
