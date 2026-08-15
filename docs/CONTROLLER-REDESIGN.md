@@ -331,8 +331,9 @@ by this section.
 | Carried over from §4's reasoning | Fanless — the same vibration/no-moving-parts logic that ruled out USB dongles applies just as much to a spinning fan |
 | `docs/HARDWARE.md` §6 (unchanged) | Power chain already has a **12V-in USB-C PD point-of-load module** as a standard, already-sourced component (used for the Pi and driver tablet today) — a board that powers over USB-C PD reuses this rather than needing a new power-module type for a fixed-voltage barrel jack |
 
-**Pick: MeLE Quieter4C** (Intel N100, fanless). Checked against the table
-above, spec-sheet-verified (see sources), not carried over from memory:
+**Pick: MeLE Quieter4C** (Intel N100/N150 — same chassis, see confirmed
+order spec below — fanless). Checked against the table above,
+spec-sheet-verified (see sources), not carried over from memory:
 
 - Fanless, 18.3mm thick — no moving parts, small footprint for the
   ceiling-void enclosure.
@@ -341,10 +342,17 @@ above, spec-sheet-verified (see sources), not carried over from memory:
 - 3.5mm audio jack — **confirmed as genuine audio-out** (not the
   input-only trap the Quieter3Q turned out to be, see below), user-verified
   directly rather than taken from spec-sheet text.
-- Dual HDMI, onboard WiFi 5 + Gigabit Ethernet, N100 CPU — comfortably more
-  than this workload needs now that GPS/Supabase-polling/dual-radio are
-  gone.
+- Dual HDMI, onboard WiFi 5 + Gigabit Ethernet, N100/N150 CPU — comfortably
+  more than this workload needs now that GPS/Supabase-polling/dual-radio
+  are gone.
 - No microSD dependency for the OS — boots from internal storage.
+
+**Confirmed order spec for the BETA unit**: MeLE Quieter4C, **N150** (up to
+3.6GHz — same Alder-Lake-N class as N100, slightly higher clock, no
+practical difference for this workload), **8GB RAM / 128GB storage, No OS**
+(Linux/Ubuntu to be installed directly — same cost-avoidance reasoning as
+§9's purchasing note below), **USB-C PD3.0**, **VESA mount** included. This
+is the exact listing to order — not a generic "Quieter4C-class" placeholder.
 
 Sources: [MeLE Quieter4C product page](https://www.mele.cn/product/Quieter4C-en.html),
 [CNX Software launch coverage](https://www.cnx-software.com/2023/12/05/mele-quieter4c-ultrathin-fanless-intel-n100-mini-pc-supports-up-to-three-displays/),
