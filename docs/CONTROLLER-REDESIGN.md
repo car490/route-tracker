@@ -341,6 +341,5 @@ spec.
 | "Two competing architectures, unresolved" header | Resolved — Model 2 confirmed (§6) |
 
 `docs/HARDWARE.md` itself has **not** been edited — this doc stands alongside
-it until the remaining open items (§8's audio-out hardware/message-shape
-details, and §9's mini PC pick) are settled, at which point someone should
-fold the two together.
+it until the remaining open items (§7's idle-screen content, and §9's mini
+PC pick) are settled, at which point someone should fold the two together.
