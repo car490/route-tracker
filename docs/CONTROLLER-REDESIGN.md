@@ -153,8 +153,7 @@ happens:
   generic `#onboard-brand` wordmark ("BusOps Announce / Powered by
   CoachMate") — no operator identity.
 
-**Requirement**: show the operator's own branding (logo + fixed wording,
-e.g. a PSVAIR-style accessibility statement) as the default/idle state,
+**Requirement**: show the operator's own branding as the default/idle state,
 before any journey exists — not just after one starts.
 
 **Why this is harder than it sounds**: everything that currently resolves
@@ -178,12 +177,18 @@ logo on today.
   current `#onboard-brand` block (always-visible CoachMate wordmark) needs
   to become conditional/replaceable by an operator-branded version when a
   company identity is available.
-- Open question, not yet decided: does the idle screen show *only* the logo,
-  or logo + a fixed PSVAIR-style accessibility statement (e.g. "This vehicle
-  provides audio-visual next-stop announcements")? The latter would pair a
-  branding fix with a small compliance improvement — `docs/HARDWARE.md` §9
-  already tracks PSVAIR gaps as unowned; worth deciding together rather than
-  bolting on later.
+- **Decided: logo + operator name as text, no accessibility statement.**
+  This was checked against `docs/BusOpsDriver_Proposal.source.html`'s
+  Appendix A (the full PSV(AI)R compliance mapping) — there is no
+  requirement anywhere in it about what the display shows before a journey
+  starts; A1–A4 are entirely about in-service behaviour (text height, seat
+  visibility, announcement timing, alert tones). An earlier framing of this
+  as "pair the branding fix with a PSVAIR statement" was speculation, not
+  grounded in the actual regulation text — corrected here. So this is a pure
+  branding/UX call: show the logo plus the operator name as text (in case
+  the logo graphic alone isn't legible/recognisable at typical viewing
+  distance), nothing more. No compliance-flavoured copy to source or get
+  signed off.
 
 ## 8. Decision: move audio issuance to the Controller
 
