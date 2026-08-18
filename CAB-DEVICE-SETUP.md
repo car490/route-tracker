@@ -41,9 +41,10 @@ already targets. No dedicated GPS module needed (the browser's
 Power it from an ignition-switched USB supply (like a dashcam) so it boots
 with the vehicle.
 
-Because the device carries no vehicle identity (nothing on it is bound to a
-specific bus), any unit can be swapped between the 4 vehicles with zero
-reconfiguration.
+Vehicle identity is commissioned once per device via `src/vehicleSetup.js`
+(see "Device setup" below) and persisted to that device's `localStorage`, not
+tied to hardware in any deeper way — swapping a unit to a different vehicle
+is a one-tap **Change** in-app, not a factory reset or server-side change.
 
 ## The kiosk URL
 
@@ -58,31 +59,85 @@ No backend config needed: opening the production GitHub Pages URL already
 resolves to the production Supabase project via the hostname check in
 `src/config.js` (only `localhost`/`127.0.0.1` switch to dev).
 
-## Device setup
+## Device setup (Fully Kiosk Browser — the actual approach in use)
 
-1. Install Chrome (or the device's default browser).
-2. Open the kiosk URL once.
-3. **Add to Home Screen** — installs it as the standalone PWA per
-   `manifest.json` (chrome-less, own icon), same as the driver-phone install.
-4. Set the browser to reopen its last page on launch (Chrome: Settings →
-   "Continue where you left off"), and set the device to auto-launch that
-   browser/shortcut on boot. Exact steps vary by device/launcher — Android
-   kiosk launchers, a boot-to-app config, or simply making the installed
-   PWA icon the thing that opens automatically.
-5. **Settings → Security → Screen Pinning** (built into Android, no paid
-   kiosk app needed — same approach already used for the Fire HD in
-   `pi-server/DEPLOY.md`) — pin the browser/PWA to that page so the driver
-   can't navigate away or reconfigure the device.
+Android's built-in **Screen Pinning** (Settings → Security → Screen Pinning)
+was the first thing tried, but it doesn't survive an ignition-cycled reboot
+without someone re-pinning by hand — a dealbreaker for a device that
+power-cycles every time the vehicle starts. **Fully Kiosk Browser** is what's
+actually deployed instead — free, auto-starts on boot, and survives crashes.
+
+**Get the right app.** Fully Kiosk Browser is a specific app from
+`fully-kiosk.com` — don't confuse it with **"Fully Single App Kiosk"**, a
+different app from the same publisher that showed up first in a search on
+device #1 and cost real setup time before the mixup was caught. Fully Kiosk
+Browser is the one with a Start URL and Kiosk Mode; Fully Single App Kiosk is
+a generic any-app locker with a paid-trial exit PIN and doesn't apply here.
+
+### Automated path (recommended — one device already proved this out)
+
+`cab-device/setup-cab-device.sh` installs Fully Kiosk Browser, grants every
+permission it needs, enables its Accessibility-Service-based Kiosk Lock, sets
+it as the default Home app, and pushes a known-good settings file — all via
+`adb`, no on-device tapping. See the script's header comment for prerequisites
+and usage; it prints the remaining manual steps (screen lock removal, vehicle
+pick) when it finishes.
+
+Why non-interactive `adb` instead of the on-device Settings UI: once Fully
+Kiosk is the default Home app, Android's own Settings screens intermittently
+freeze — the display shows a stale frame of Settings while touch input is
+already routed back to the (invisible) Fully Kiosk window underneath. No
+crash, no ANR, just a focus/redraw desync between two "home-ish" apps
+fighting for focus. Re-launching the target Settings screen fresh
+(`am start -a android.settings.X`) generally clears it; a literal human
+finger swiping the physical screen hits the same issue. The script sidesteps
+the whole problem by using `pm`/`appops`/`dpm`/`settings put` directly instead
+of simulating taps through the flaky UI.
+
+### Manual path (if adb isn't available)
+
+1. Sideload **Fully Kiosk Browser** (Play Store needs a Google account this
+   kiosk device doesn't need otherwise — sideloading the APK via Chrome
+   avoids that; a known-good copy is kept at `cab-device/`). Chrome will
+   prompt to allow installs from itself the first time.
+2. Set **Start URL** to the kiosk URL below.
+3. In Fully's Settings → **Kiosk Mode**: enable **Enable Kiosk Mode** (this
+   *is* Kiosk Lock — Accessibility-Service based, free) and **Disable Home
+   Button** (its description bundles "auto-run Fully in Kiosk Mode on boot").
+   Leave **Single App** off — that's a separate, paid-after-trial,
+   Device-Owner-based lockdown mode and isn't what's wanted here.
+4. Enabling Kiosk Mode triggers an **"Accessibility Service Required"**
+   prompt — tap Enable, then toggle Fully Kiosk on in Android's Accessibility
+   settings list.
+5. If a toggle shows *"Controlled by Restricted Setting"* and won't switch
+   (Android blocks some permissions for sideloaded APKs by default): App
+   info → ⋮ menu → **"Allow restricted settings"** → confirm with the
+   device's screen lock credential. Then the toggle works normally.
 6. Confirm it lands on the **"No duty assigned"** screen with a **"Select a
-   service manually"** button — tapping it should reveal the service/run
-   picker.
+   service manually"** button, and (once `vehicles.journey_types` includes
+   `'Local Bus'` for at least one vehicle) the one-time **"WHICH VEHICLE IS
+   THIS?"** commissioning prompt from `src/vehicleSetup.js` — pick the
+   vehicle this physical unit is mounted in. Re-commission any time via the
+   **Change** button next to the vehicle label on the "No duty assigned"
+   screen — the device carries no fixed vehicle identity, contrary to what
+   this doc used to say; swapping units between vehicles is a one-tap
+   in-app action, not zero-touch.
 
-If a device needs to survive unattended reboots without anyone re-pinning it
-by hand (screen pinning alone doesn't survive a reboot until someone opens
-and re-pins the app), consider **Fully Kiosk Browser** (free Android app) —
-it can auto-start on boot, load a fixed URL, and relaunch itself if it
-crashes, without any paid MDM. Not required for the 6-month bridge, but worth
-it if unattended reboots turn out to be common in practice.
+### Required regardless of path: remove the screen lock
+
+If the device has any screen lock (PIN/pattern/password), every reboot stops
+at Android's lock screen before Fully Kiosk can even attempt to auto-launch
+— completely defeating "boots straight into BusOps, no one touches it" for
+an ignition-cycled device. Remove it: **Settings → Security → Screen lock →
+None** (enter the current credential to confirm), or non-interactively:
+```
+adb shell locksettings clear --old <current PIN>
+```
+With no lock, a reboot still shows Android's one-time
+first-unlock-after-reboot screen (file encryption related, unrelated to any
+PIN) — a single swipe clears it, no credential needed. That's the practical
+floor for "zero-touch reboot" on stock Android; it's not a Fully Kiosk
+limitation.
 
 ## Offline behaviour
 
@@ -103,5 +158,7 @@ self-contained addition — not needed to ship this.
 ## Retiring this
 
 When NextStop-native hardware replaces this bridge, retiring a unit is just
-un-pinning/repurposing the device — there's no server-side registration to
-clean up, since nothing is bound to a specific vehicle or device.
+wiping/repurposing the device — there's no server-side registration to clean
+up. The only device-local state is the commissioned vehicle in
+`localStorage`, which a factory reset or fresh Fully Kiosk install clears
+along with everything else.
