@@ -323,5 +323,11 @@ its own `WizardModal.jsx`) — see `docs/TODO.md` for a known refactor candidate
   test guide for all three surfaces), `TODO.md` (general engineering follow-ups, e.g. PSVAIR
   2026 compliance items and dashboard tech debt), `VOL.md` (a parked, not-yet-built fleet-data
   subsystem — don't assume it's implemented), plus verification write-ups and the BusOps
-  Driver hardware proposal. Root `README.md` is stale (describes an old `public/`-based PWA
-  layout) — prefer this file and `docs/TESTING.md` over it.
+  Driver hardware proposal. `HARDWARE.md` is the consolidated spec for every physical component
+  in the onboard/vehicle system (Bus Controller, GPS, displays, driver device, power, mounting)
+  — start there for any hardware question, but check `CONTROLLER-REDESIGN.md` alongside it: that
+  doc supersedes several of `HARDWARE.md`'s sections (Bus Controller board, GPS ownership,
+  networking model, audio pipeline) with decisions from a 2026-08-14 session that haven't been
+  folded back into `HARDWARE.md` itself yet, and are agreed direction but **not yet implemented
+  in code** — read both, don't assume `HARDWARE.md` alone is current. Root `README.md` is stale
+  (describes an old `public/`-based PWA layout) — prefer this file and `docs/TESTING.md` over it.
