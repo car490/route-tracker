@@ -50,6 +50,39 @@ Journeys display is now fixed.
   Overview) for how they currently render a null `driver_id` — blank,
   "Unknown", or does something break?
 
+## Onboard display — BETA enclosure gap
+
+As of 2026-08-14 the Dell Pro P2426H (VESA 100×100mm, no stand) is
+confirmed as the BETA monitor — see `docs/HARDWARE.md` §3/§8. Bought as a
+consumer-grade stand-in because industrial-spec panels run ~6 weeks
+average lead time, too long for next week's BETA test. Its footprint is
+expected to match the eventual production panel, but it currently has no
+enclosure.
+
+- [ ] **Urgent — BETA fits without an enclosure.** Order the RAM **E-size**
+  VESA mount kit now, bolted straight to the bare P2426H's native VESA
+  holes, so BETA can be fitted before the enclosure exists. **Corrected
+  2026-08-14 from an earlier D-size pick** — D-size is only rated to
+  6 lb/2.72kg dynamic, and the P2426H panel alone weighs 6.88 lb/3.12kg
+  without its stand, already over that before an enclosure is added.
+  Exact parts (`docs/HARDWARE.md` §8): **RAM-E-246U** (or steel-reinforced
+  **RAM-E-246U-IN1**) VESA plate + **RAM-E-202U** (or steel-reinforced
+  **RAM-E-202U-IN1**) round base + **RAM-E-201U-D** short double socket
+  arm, all at [ram-mount.co.uk](https://www.ram-mount.co.uk/).
+- [ ] Source or build the enclosure itself in time for BETA — no
+  supplier/spec picked yet (`docs/HARDWARE.md` §8). **Must** expose a
+  100×100mm VESA passthrough aligned to the panel's own holes on its back
+  panel, so the mount ordered above unbolts from the bare panel and
+  rebolts straight to the enclosure later — buy the mount once, not twice.
+  If the enclosure design instead buries or offsets the VESA holes, this
+  breaks.
+- [ ] Once the enclosure's actual weight/mounting depth are known,
+  double-check the RAM E-size mount (15 lb/6.8kg dynamic rating) is still
+  rated for it — expected to have headroom, but not yet verified.
+- [ ] Separately, the **production** ceiling-drop mount (§8) stays TBD
+  until the final production panel (§3) is sourced — don't conflate the
+  BETA enclosure with solving that.
+
 ## Tech debt / refactors
 
 - [ ] `dashboard/src/features/route-planner/RoutePlannerPage.jsx` (1,051 lines)
