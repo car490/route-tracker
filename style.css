@@ -62,12 +62,15 @@ body {
    Fixed to the viewport corner so it's visible on every screen without
    scrolling — including #duty-card, which reserves a full min-height:100vh
    whether or not its content fills that, so an in-flow mark would land
-   off-screen there. #tracker reserves matching bottom clearance (below)
-   so this doesn't repeat the overlap bug fixed in 47b0f80 — but that
-   clearance only covers the final scroll position; #stop-list is an
-   independently-scrolling box further up the page, so an opaque backdrop
-   here (below) stops its rows from visibly blending into the mark as the
-   page scrolls past it. */
+   off-screen there.
+
+   #tracker is bounded and scrolls internally (below) rather than the page
+   scrolling past this mark — a page-level scroll only clears the mark at
+   the final scroll position (the bug fixed in 47b0f80), and #stop-list's
+   own rows kept passing underneath it at every position in between, since
+   they occupy far more vertical space than fits in one screen. Bounding
+   #tracker's own height to stop short of this mark means no descendant,
+   however tall, can ever be scrolled underneath it. */
 
 #app-brand {
   position: fixed;
@@ -86,9 +89,15 @@ body {
   pointer-events: none;
 }
 
-/* Clearance so tracker content never scrolls under the fixed mark above. */
+/* Bounded to the viewport minus the brand mark's own footprint (1rem body
+   top padding + 4.5rem for the mark itself) so #tracker scrolls internally
+   and none of its content — including #stop-list — can ever land under
+   the fixed mark above. dvh falls back to vh where unsupported. */
 #tracker {
-  padding-bottom: 4.5rem;
+  max-height: calc(100vh - 5.5rem);
+  max-height: calc(100dvh - 5.5rem);
+  overflow-y: auto;
+  padding-bottom: 1rem;
 }
 
 .bo-wordmark {
@@ -1290,19 +1299,25 @@ body {
 }
 
 /* ── Manual trip-complete fallback ─────────────── */
-/* Deliberately understated — the trip completes automatically on arrival
-   at the final stop, this is only a safety net for when that doesn't fire. */
+/* Doubles as the only way to leave a trip once tracking has started, so it
+   needs to read as a real, tappable button — not just a GPS-failure
+   fallback — even though completing automatically on arrival is still the
+   normal path. The confirm() prompt in main.js is the safety net against
+   accidental taps, not understated styling. */
 .manual-complete-link {
   display: block;
   width: 100%;
   margin-top: 12px;
-  padding: 0.5rem;
-  background: none;
-  border: none;
-  color: var(--text-muted);
+  padding: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
   font-family: var(--cm-font);
-  font-size: 0.75rem;
-  text-decoration: underline;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
   cursor: pointer;
 }
 
