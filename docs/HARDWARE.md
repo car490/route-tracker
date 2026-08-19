@@ -201,8 +201,9 @@ or Model 2 above actually gets built).
 
 | Item | Spec | Status |
 |---|---|---|
-| Device | **Any** Android phone/tablet — no specific SKU, no LTE requirement | Deliberately unconstrained — "any unit can be swapped between the 4 vehicles with zero reconfiguration" since nothing on it is bound to a specific vehicle |
-| GPS | Browser's `navigator.geolocation` — same source the existing driver-phone flow already uses | **No dedicated GPS module** — unlike the proposal's tablet, this doesn't require an LTE/GNSS-capable SKU |
+| Device | **Any** Android phone/tablet — no specific SKU | Deliberately unconstrained — "any unit can be swapped between the 4 vehicles with zero reconfiguration" since nothing on it is bound to a specific vehicle |
+| Connectivity | **SIM card required as of 2026-08-19**, one per unit — cellular data for a more reliable Supabase connection than depending on vehicle/depot WiFi. Most carriers auto-provision APN from the SIM; manual APN entry only needed for MVNOs. Must be inserted and confirmed working **before** Fully Kiosk's Kiosk Mode is enabled (see `CAB-DEVICE-SETUP.md` "Required regardless of path: insert and confirm the SIM") — Settings isn't reachable once locked down. `cab-device/setup-cab-device.sh` enforces this with a pre-flight SIM check. | Firm, changed 2026-08-19 — supersedes this row's earlier "no LTE requirement" |
+| GPS | Browser's `navigator.geolocation` — same source the existing driver-phone flow already uses | **No dedicated GPS module** — unlike the proposal's tablet, this doesn't require a GNSS-capable SKU (a SIM is now required regardless, see Connectivity row above, but that's for data, not GPS) |
 | Power | Ignition-switched USB supply, "like a dashcam" | Firm for this bridge; distinct from the vehicle's 24V→12V DC chain in §6 — a simple USB power source, not wired into the Victron converter |
 | Mount | Not specified in the source doc | **Undetermined** — worth flagging as a gap, not assumed solved |
 | Software | The existing driver PWA (`index.html`/`src/main.js`) itself, installed via "Add to Home Screen" + Android Screen Pinning — no new app, no dedicated firmware | Reuses `src/manualSelection.js`'s existing manual service/run picker; driver taps "Select a service manually" once on boot |
