@@ -44,6 +44,23 @@
       </div>
     </div>
 
+    <!--
+      Branded idle/default screen — shown before any journey exists (see
+      docs/CONTROLLER-REDESIGN.md §7). Only populated when this device was
+      commissioned with ?operator-name= (src/onboard.js's initIdleScreen);
+      without it, this stays hidden and the old blank-background-plus-
+      corner-mark look applies unchanged. The logo file itself is never
+      fetched from Supabase at runtime (the Controller has no WAN path —
+      see §5/§6) — it's a local static file placed on the Controller at
+      commissioning time (pi-server/DEPLOY.md), so a missing file (logo
+      never commissioned, or a demo/dev environment) just 404s and
+      idle-logo hides itself, falling back to name-only branding.
+    -->
+    <div id="onboard-idle" hidden>
+      <img id="idle-logo" alt="" hidden />
+      <div id="idle-operator-name"></div>
+    </div>
+
     <div id="onboard-sign" hidden>
       <div id="sign-topbar">
         <div id="sign-route-line">

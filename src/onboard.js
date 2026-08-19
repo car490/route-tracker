@@ -336,6 +336,34 @@ function applyOperatorBranding({ accentColor }) {
   }
 }
 
+// ── Idle/default screen — operator branding shown before any journey
+// exists (docs/CONTROLLER-REDESIGN.md §7). Company identity can't come
+// from get_duty_card (journey-scoped, nothing exists yet at idle), so it's
+// commissioned directly onto this device instead, same URL-param pattern
+// as ?panel-profile=/?panel-diagonal=: ?operator-name=<name>. The logo
+// image is a local file (branding-logo.png, placed at commissioning time —
+// see pi-server/DEPLOY.md) rather than a URL param, since the Controller
+// has no WAN path to fetch it live (§5/§6) — cached once, not per-boot.
+// Omit ?operator-name= entirely and this stays hidden, unchanged from the
+// old blank-background-plus-corner-mark idle look. ──────────────────────
+
+function initIdleScreen() {
+  const operatorName = new URLSearchParams(window.location.search).get('operator-name');
+  if (!operatorName) return;
+
+  const logo = el('idle-logo');
+  logo.alt = `${operatorName} logo`;
+  // Listeners attached before src is set (not a static attribute in
+  // onboard.html) — otherwise a fast same-origin load can fire 'load'
+  // before this function ever runs, leaving the image stuck hidden.
+  logo.addEventListener('load', () => { logo.hidden = false; });
+  logo.addEventListener('error', () => { logo.hidden = true; }); // not commissioned with a logo yet, or a dev/demo environment — name-only branding is still better than nothing
+  logo.src = 'branding-logo.png';
+
+  el('idle-operator-name').textContent = operatorName;
+  el('onboard-idle').hidden = false;
+}
+
 // ── Clock — wide-layout top bar only, but harmless to keep updating while
 // the sign is hidden/in the default layout since #sign-clock just sits
 // unused there. ──────────────────────────────────────────────────────────
@@ -370,6 +398,7 @@ function onSchedule(msg) {
   el('sign-service-code').textContent = msg.serviceCode;
   el('sign-destination').textContent = msg.destination;
   applyOperatorBranding({ accentColor: msg.accentColor });
+  el('onboard-idle').hidden = true;
   el('onboard-sign').hidden = false;
   // Brand mark stays visible once active too — positionBrand() (above) pins
   // it to the track band's actual bottom-left corner now that the track
@@ -438,6 +467,7 @@ function init() {
   // the ones in effect for every profile/URL that doesn't ask for vertical.
   if (trackLayout() === 'vertical') document.documentElement.dataset.trackLayout = 'vertical';
   startClock();
+  initIdleScreen();
   connectSignFeed();
 }
 

@@ -23,3 +23,8 @@ pi-server/schedule-cache.json.tmp
 # Temporary-Pi startup script holds a real DRIVER_PUSH_TOKEN once filled
 # in — never commit it. Copy start-temp-pi.example.ps1 to this name.
 pi-server/start-temp-pi.local.ps1
+
+# Idle-screen operator logo — placed at commissioning time (per Controller
+# device, downloaded from that operator's own Supabase Storage bucket, see
+# pi-server/DEPLOY.md "Idle screen branding"), not source.
+branding-logo.png

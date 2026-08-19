@@ -39,6 +39,37 @@ the browser DevTools colour picker can verify a colour before it is saved.
 `primary_color` (the sidebar/header colour) is applied to the display for
 future use but is not currently consumed by any visible element on the sign.
 
+## Idle screen branding (logo + name)
+
+Before a journey starts, the sign shows the operator's own logo and name
+instead of a blank screen (`docs/CONTROLLER-REDESIGN.md` §7). Unlike the
+colours above, this can't be resolved from a journey push — there is no
+journey yet — so it's commissioned directly onto the device instead, same
+one-time pattern as `&panel-profile=`/`&panel-diagonal=`:
+
+1. **Name** — append `&operator-name=<name>` (URL-encoded) to the fixed
+   kiosk URL, e.g. `...onboard.html?announce-token=<token>&panel-profile=monitor&operator-name=Phil%20Haines%20Coaches`.
+   Omit entirely and the idle screen stays exactly as it was before (blank
+   background, small corner mark only).
+2. **Logo** — the Controller has no WAN path at runtime (§5/§6), so the
+   image can't be fetched live from Supabase Storage. Instead, from any
+   machine with internet access, download the operator's logo from their
+   own public Storage URL:
+   ```
+   curl -o branding-logo.png "https://<project-ref>.supabase.co/storage/v1/object/public/company-logos/<company_id>/logo.<ext>"
+   ```
+   (`company_id`/logo path come from that operator's `companies.logo_path`
+   row — see dashboard Branding settings.) Then copy `branding-logo.png`
+   into the repo root on the Controller itself (`~/route-tracker/branding-logo.png`
+   — e.g. via `scp` while your laptop is joined to the Controller's own
+   hotspot, or a USB stick), alongside `index.html`/`onboard.html`.
+   `pi-server/server.mjs` serves it automatically from there, no server
+   change needed — it's just another static file under the repo root.
+   If the file isn't present, the sign falls back to name-only branding
+   (the `<img>` hides itself on a 404) rather than showing a broken image.
+3. This file is per-device and gitignored (`branding-logo.png` at repo
+   root) — never committed, same treatment as `pi-server/schedule-cache.json`.
+
 ## Hardware
 Full spec, MUST-vs-nice-to-have breakdown, and rationale now live in
 **[`docs/HARDWARE.md`](../docs/HARDWARE.md)** — including the two
