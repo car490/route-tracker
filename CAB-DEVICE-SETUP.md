@@ -123,6 +123,25 @@ of simulating taps through the flaky UI.
    this doc used to say; swapping units between vehicles is a one-tap
    in-app action, not zero-touch.
 
+### Required regardless of path: insert and confirm the SIM
+
+A SIM card is now required in every cab device — cellular data gives a more
+reliable connection to Supabase than depending on the vehicle having usable
+WiFi. Do this **before** running `setup-cab-device.sh` / before Kiosk Mode
+is enabled, same reasoning as the screen-lock removal step below: Settings
+stays reachable pre-lockdown, not after.
+
+1. Insert the SIM (the Blackview Active 5 is dual-SIM, per
+   `docs/HARDWARE.md` §5 — either slot works).
+2. Confirm mobile data connects: **Settings → Network & internet →
+   SIM/Mobile network**. Most carriers auto-provision their APN from the
+   SIM itself; only enter one manually if the carrier needs it (e.g. an
+   MVNO).
+3. `setup-cab-device.sh`'s pre-flight check refuses to proceed without a
+   SIM it can detect as ready (`gsm.sim.state`), so this is enforced by the
+   automated path, not just advisory — see the script for the
+   `SKIP_SIM_CHECK=1` bench-testing override.
+
 ### Required regardless of path: remove the screen lock
 
 If the device has any screen lock (PIN/pattern/password), every reboot stops

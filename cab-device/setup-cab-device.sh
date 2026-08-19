@@ -12,10 +12,14 @@
 # freezes; see CAB-DEVICE-SETUP.md "Known quirks").
 #
 # Usage:
-#   1. Enable Developer Options + USB Debugging on the device, connect via
+#   1. Insert a SIM and confirm mobile data works (Settings -> Network &
+#      internet -> SIM) — required, see CAB-DEVICE-SETUP.md. Must happen
+#      before Kiosk Mode locks Settings away; this script's pre-flight
+#      check refuses to proceed without a SIM it can detect as ready.
+#   2. Enable Developer Options + USB Debugging on the device, connect via
 #      USB, accept the "Allow USB debugging?" prompt on-device.
-#   2. ./setup-cab-device.sh
-#   3. Follow the printed manual steps (screen lock removal, vehicle pick).
+#   3. ./setup-cab-device.sh
+#   4. Follow the printed manual steps (screen lock removal, vehicle pick).
 #
 # Requires: adb (Android platform-tools) on PATH, or set ADB=/path/to/adb.
 
@@ -33,6 +37,21 @@ echo "==> Waiting for an authorized device..."
 STATE=$("$ADB" get-state 2>&1 || true)
 if [ "$STATE" != "device" ]; then
   echo "Device not authorized yet — accept the 'Allow USB debugging?' prompt on-device, then re-run." >&2
+  exit 1
+fi
+
+echo "==> Checking for an active SIM..."
+SIM_STATE=$("$ADB" shell getprop gsm.sim.state | tr -d '\r')
+if [ "${SKIP_SIM_CHECK:-}" = "1" ]; then
+  echo "   SKIP_SIM_CHECK=1 set — skipping SIM check."
+elif echo "$SIM_STATE" | grep -q "READY"; then
+  echo "   SIM detected and ready ($SIM_STATE)."
+else
+  echo "SIM not ready (gsm.sim.state=$SIM_STATE)." >&2
+  echo "Insert a SIM and confirm mobile data works in Settings -> Network &" >&2
+  echo "internet -> SIM before continuing (see CAB-DEVICE-SETUP.md)." >&2
+  echo "Re-run once fixed, or set SKIP_SIM_CHECK=1 to proceed without a SIM" >&2
+  echo "(bench testing only)." >&2
   exit 1
 fi
 
