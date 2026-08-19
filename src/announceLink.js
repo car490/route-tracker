@@ -149,6 +149,21 @@ export function broadcastState(state) {
   socket.send(JSON.stringify(buildStatePayload(state, { announcing })));
 }
 
+// Called from announcements.js's announce() alongside (not instead of —
+// see that file's own comment on why) local playback, so the Controller
+// can play the same PSVAIR announcement over its own PA (docs/CONTROLLER-
+// REDESIGN.md §8). Fire-and-forget, same no-op-when-disconnected shape as
+// broadcastState — a device never commissioned with a Controller (today,
+// most of the fleet) just keeps relying on local playback alone. Unlike
+// state/schedule, never remembered for resend-on-reconnect (no
+// lastAnnounceState) — an announcement that's gone stale by the time a
+// dropped connection comes back isn't worth replaying (see
+// pi-server/announceRelay.mjs's own comment on this).
+export function broadcastAnnounce(text, audioKeys) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  socket.send(JSON.stringify({ type: 'announce', text, audioKeys: audioKeys ?? [] }));
+}
+
 // Call once when a journey starts tracking (alongside connectAnnounceLink()
 // — see main.js). Remembered so it can be resent on every reconnect by
 // sendSchedule() above; a no-op here just means "not open yet", not "lost".

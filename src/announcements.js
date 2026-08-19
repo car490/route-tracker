@@ -10,6 +10,8 @@
 // missing (new stop not yet regenerated, offline before first cache, etc.)
 // so announcements never silently stop working.
 
+import { broadcastAnnounce } from './announceLink.js';
+
 const MUTE_KEY = 'psvair-muted';
 const VOICE_KEY = 'psvair-voice-uri';
 const BANNER_SHOWN_KEY = 'psvair-banner-shown';
@@ -221,6 +223,14 @@ export function previewVoice(voiceURI) {
 
 function announce(text, audioKeys) {
   if (!enabled) return;
+  // Broadcast to a commissioned Controller (docs/CONTROLLER-REDESIGN.md
+  // §8) alongside local playback, not instead of it — most of the fleet
+  // has no Controller deployed yet, so local playback stays the only
+  // audio path for those vehicles; broadcastAnnounce is a no-op there
+  // anyway (see its own comment). Gated on the same mute check speak()
+  // itself applies below, so muting this device also mutes what it sends
+  // onward rather than leaving the Controller to announce independently.
+  if (!isMuted()) broadcastAnnounce(text, audioKeys);
   speak(text, audioKeys);
   if (onAnnounce) onAnnounce(text);
 }

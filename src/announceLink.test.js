@@ -9,7 +9,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   buildConnectionUrl, buildStatePayload, buildSchedulePayload, captureAnnounceSetup,
-  connectAnnounceLink, disconnectAnnounceLink, broadcastState, broadcastSchedule, setAnnouncing,
+  connectAnnounceLink, disconnectAnnounceLink, broadcastState, broadcastSchedule, broadcastAnnounce, setAnnouncing,
 } from './announceLink.js';
 
 describe('buildConnectionUrl', () => {
@@ -292,6 +292,47 @@ describe('live connection (stubbed WebSocket/localStorage)', () => {
       const ws = MockWebSocket.instances[1];
       ws.open();
       expect(ws.sent).toHaveLength(0); // no stale schedule resent
+    });
+  });
+
+  describe('broadcastAnnounce', () => {
+    it('is a no-op (does not throw) when this device was never commissioned', () => {
+      connectAnnounceLink();
+      expect(() => broadcastAnnounce('This is High Street.', ['arrive/abc123'])).not.toThrow();
+    });
+
+    it('sends {type:"announce"} with text and audioKeys when the socket is open', () => {
+      store.set('announceLinkUrl', 'ws://192.168.4.1:8080/driver-push');
+      connectAnnounceLink();
+      const ws = MockWebSocket.instances[0];
+      ws.open();
+
+      broadcastAnnounce('This is High Street.', ['arrive/abc123']);
+      expect(ws.sent).toHaveLength(1);
+      const sent = JSON.parse(ws.sent[0]);
+      expect(sent.type).toBe('announce');
+      expect(sent.text).toBe('This is High Street.');
+      expect(sent.audioKeys).toEqual(['arrive/abc123']);
+    });
+
+    it('defaults audioKeys to an empty array rather than sending null', () => {
+      store.set('announceLinkUrl', 'ws://192.168.4.1:8080/driver-push');
+      connectAnnounceLink();
+      const ws = MockWebSocket.instances[0];
+      ws.open();
+
+      broadcastAnnounce('This is the final stop.', null);
+      expect(JSON.parse(ws.sent[0]).audioKeys).toEqual([]);
+    });
+
+    it('is silently dropped (not queued) when called before the socket opens', () => {
+      store.set('announceLinkUrl', 'ws://192.168.4.1:8080/driver-push');
+      connectAnnounceLink();
+      const ws = MockWebSocket.instances[0];
+
+      broadcastAnnounce('This is High Street.', ['arrive/abc123']); // socket not open yet
+      ws.open();
+      expect(ws.sent).toHaveLength(0); // unlike broadcastSchedule, never resent — see the function's own comment
     });
   });
 });

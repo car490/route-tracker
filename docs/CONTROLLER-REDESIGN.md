@@ -257,6 +257,17 @@ flags for the existing browser/Node `slug()` duplication. Instead:
   software/image (same `audio/announcements/` set, treated as a build/deploy
   artifact), not streamed live over the WebSocket link at announce-time.
 
+**Implementation deviation from the above, decided 2026-08-19**: the Driver
+does *not* stop playing locally. Only one physical Controller exists
+(commissioning imminent, not fleet-wide) — a hard cutover would silence
+PSVAIR audio entirely on every other vehicle, which is a compliance
+regression, not just a UX one. `announce()` now broadcasts to a
+commissioned Controller *alongside* local playback rather than in place of
+it; `broadcastAnnounce()` is a no-op on any device never commissioned with
+one (the vast majority of the fleet today), so nothing changes for them.
+Revisit dropping local playback once Controller hardware is actually
+deployed fleet-wide — tracked in `docs/TODO.md`.
+
 ### The on-screen caption bar (Driver PWA) stays exactly as it is
 
 `#psvair-banner` in `index.html:114` (running caption text, mute button,

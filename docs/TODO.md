@@ -83,6 +83,20 @@ enclosure.
   until the final production panel (§3) is sourced — don't conflate the
   BETA enclosure with solving that.
 
+## Controller audio — drop local Driver fallback once fleet-wide
+
+As of 2026-08-19, `src/announcements.js`'s `announce()` broadcasts to a
+commissioned Controller (`docs/CONTROLLER-REDESIGN.md` §8) *and* still
+plays locally on the Driver tablet — a deliberate deviation from that
+doc's original "Controller only" design, since only one physical
+Controller exists today and a hard cutover would silence PSVAIR audio
+fleet-wide.
+
+- [ ] Once Controller hardware is deployed to every vehicle, drop the
+  local-playback half of `announce()` (and the now-redundant queue/busy
+  state machine in `announcements.js` — it only needs to live on the
+  Controller once nothing else plays audio, per §8's original reasoning).
+
 ## Tech debt / refactors
 
 - [ ] `dashboard/src/features/route-planner/RoutePlannerPage.jsx` (1,051 lines)
