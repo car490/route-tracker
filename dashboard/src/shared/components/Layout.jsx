@@ -209,6 +209,10 @@ export default function Layout({ session }) {
         </div>
       </main>
 
+      <div className="app-brand">
+        CoachMate <span className="app-brand-accent">Operations</span>
+      </div>
+
       {logoModalOpen && employee && (
         <CompanyModal
           companyId={employee.company_id}
