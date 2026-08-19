@@ -144,6 +144,12 @@ nohook wpa_supplicant
 `CoachMate-<name>` shows up as a WiFi network from another device.
 
 ## 4. The app itself
+`mpg123` plays PSVAIR announcement audio locally on the Controller
+(`pi-server/audioPlayer.mjs`, docs/CONTROLLER-REDESIGN.md §8) — install it
+before starting the service:
+```bash
+sudo apt install mpg123
+```
 Clone this repo onto the Controller (anywhere — the systemd unit below
 assumes `/home/pi/route-tracker`, adjust `WorkingDirectory` if different):
 ```bash
@@ -154,9 +160,12 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now coachmate-onboard
 ```
 `coachmate-onboard` (`server.mjs`) runs continuously, serving the app,
-`/api/schedule`, and the `/driver-push`/`/sign-feed` WebSocket endpoints on
-port 8080. There's no separate sync job to install — `/api/schedule` is now
-written whenever the Driver device pushes a fresh schedule (see §6).
+`/api/schedule`, the `/driver-push`/`/sign-feed` WebSocket endpoints, and
+PSVAIR announcement audio playback, on port 8080. There's no separate sync
+job to install — `/api/schedule` is now written whenever the Driver device
+pushes a fresh schedule (see §6). The announcement clips themselves
+(`audio/announcements/*.mp3`) need no separate deploy step either — they're
+already part of the same repo checkout above.
 
 ## 5. Display setup
 
@@ -314,6 +323,28 @@ host (it's served by this same Pi), and reads the token from its own URL —
 add `&announce-token=<same token>` to whatever fixed URL Option A/B above
 already uses to open `onboard.html`.
 
+## 7. Announcement audio (Controller-side playback)
+
+PSVAIR announcement audio plays from the Controller itself, not the Driver
+tablet (`docs/CONTROLLER-REDESIGN.md` §8) — the Driver resolves which clips
+to play and pushes `{type:'announce', text, audioKeys}` over the same
+`/driver-push` connection as §6; `pi-server/audioPlayer.mjs` plays them via
+`mpg123` (installed in §4) from the local `audio/announcements/` clip set
+already part of this repo checkout. No separate commissioning step beyond
+§6's shared token — this rides the same connection.
+
+**Wiring**: interim AUX only, no amp yet (§8's explicit decision) — run a
+3.5mm cable from the Controller's own headphone/audio-out jack into the
+vehicle head unit's AUX-IN, same test methodology `docs/HARDWARE.md` §9
+already describes (listening test against the PSVAIR 3dB-above-ambient/
+84dB-ceiling bar), just sourced from the Controller's jack instead of the
+Driver tablet's.
+
+**Missing clip**: unlike the Driver PWA (which falls back to live
+`speechSynthesis`), there's no synthesis fallback on the Controller — a
+missing or corrupt clip file means that one announcement is silently
+skipped, logged via `journalctl` (below), never partially played.
+
 ## Refreshing the schedule mid-shift
 The Controller never reaches Supabase itself — its only source of schedule
 data is whatever the Driver device last pushed (§6). It refreshes
@@ -336,6 +367,11 @@ journalctl -u coachmate-kiosk -f            # Option B only — tail Chromium's 
 `/api/schedule` returns `[]` until either a Driver has pushed a schedule
 since this boot, or a previous push's disk cache exists — that's expected
 before anyone has started a journey today, not a fault.
+
+For announcement audio (§7), `journalctl -u coachmate-onboard -f` also
+surfaces `[audioPlayer]` warnings for a missing clip or failed playback —
+otherwise silence in the logs during a live announcement just means it
+played normally (there's no success-path logging, only failures).
 
 If an Option B monitor stays blank, check `coachmate-kiosk`'s logs first,
 then confirm the monitor's actually set to the HDMI input the Controller is

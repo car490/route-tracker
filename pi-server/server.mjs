@@ -1,20 +1,26 @@
 // Runs on the Controller, reachable either over its own WiFi hotspot
 // (Option A — a WiFi-client display, none currently deployed) or from a
 // kiosk browser running locally on the box itself (Option B — HDMI display,
-// see DEPLOY.md). Two jobs: serve the onboard app's static files (the display
-// can't reach GitHub Pages from an isolated hotspot, and has no browser of
-// its own in Option B), and serve the schedule cache written by the announce
-// relay's onSchedule callback (see writeScheduleCache below) whenever the
-// Driver device pushes a fresh one. No GPS of its own (see
-// docs/CONTROLLER-REDESIGN.md §6 — the Controller has no GPS hardware; that
-// lives entirely on the Driver device and flows through as pushed state).
-// Zero external dependencies, same style as the repo-root server.js.
+// see DEPLOY.md). Three jobs: serve the onboard app's static files (the
+// display can't reach GitHub Pages from an isolated hotspot, and has no
+// browser of its own in Option B), serve the schedule cache written by the
+// announce relay's onSchedule callback (see writeScheduleCache below)
+// whenever the Driver device pushes a fresh one, and play PSVAIR
+// announcement audio locally (createAudioPlayer, docs/CONTROLLER-
+// REDESIGN.md §8) whenever the Driver pushes a {type:'announce'} message —
+// no GPS of its own (see docs/CONTROLLER-REDESIGN.md §6 — the Controller
+// has no GPS hardware; that lives entirely on the Driver device and flows
+// through as pushed state), and no PSVAIR event-decision logic of its own
+// either — audioPlayer.mjs just plays whatever clip keys the Driver already
+// resolved. Requires `mpg123` installed (see DEPLOY.md); otherwise zero
+// external dependencies, same style as the repo-root server.js.
 import http from 'node:http';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { attachAnnounceRelay } from './announceRelay.mjs';
+import { createAudioPlayer } from './audioPlayer.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.join(__dirname, '..'); // pi-server/ sits alongside index.html, src/, style.css
@@ -94,7 +100,12 @@ const server = http.createServer((req, res) => {
   serveStaticFile(urlPath, res);
 });
 
-const relay = attachAnnounceRelay(server, { token: DRIVER_PUSH_TOKEN, onSchedule: writeScheduleCache });
+const audioPlayer = createAudioPlayer();
+const relay = attachAnnounceRelay(server, {
+  token: DRIVER_PUSH_TOKEN,
+  onSchedule: writeScheduleCache,
+  onAnnounce: (msg) => audioPlayer.enqueueAnnounce(msg.text, msg.audioKeys),
+});
 
 server.listen(PORT, () =>
   console.log(`pi-server running -> http://0.0.0.0:${PORT}/`)

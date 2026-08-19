@@ -169,4 +169,37 @@ describe('announceRelay', () => {
       }
     });
   });
+
+  describe('type: announce', () => {
+    it('calls the onAnnounce callback with the parsed message', async () => {
+      let received = null;
+      const server = http.createServer((_req, res) => { res.writeHead(404); res.end(); });
+      attachAnnounceRelay(server, { token: TOKEN, onAnnounce: (msg) => { received = msg; } });
+      await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+      const localPort = server.address().port;
+      try {
+        const driver = new WebSocket(`ws://127.0.0.1:${localPort}/driver-push?token=${TOKEN}`);
+        await waitFor(driver, 'open');
+        driver.send(JSON.stringify({ type: 'announce', text: 'This is High Street.', audioKeys: ['arrive/abc123'] }));
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        driver.close();
+        expect(received).toMatchObject({ type: 'announce', text: 'This is High Street.', audioKeys: ['arrive/abc123'] });
+      } finally {
+        await new Promise((resolve) => server.close(resolve));
+      }
+    });
+
+    it('never relays an announce message to sign-feed clients', async () => {
+      const driver = connect('/driver-push', TOKEN);
+      await waitFor(driver, 'open');
+      const sign = connect('/sign-feed', TOKEN);
+      await waitFor(sign, 'open');
+
+      let received = false;
+      sign.once('message', () => { received = true; });
+      driver.send(JSON.stringify({ type: 'announce', text: 'This is High Street.', audioKeys: [] }));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(received).toBe(false);
+    });
+  });
 });
