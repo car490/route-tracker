@@ -28,6 +28,31 @@ function stripIndicator(name) {
   return name.replace(/\s*\([^)]*\)\s*$/, '');
 }
 
+// ── Testing-mode time shift (DEBUG only) ────────────────────────────────────
+// Lets a tester run a journey outside its real scheduled hours: the whole
+// stop schedule slides so the first stop's time becomes "now", preserving
+// the real gaps between stops so on-time/late/ETA logic downstream
+// (engine.js, gps.js, ui.js — all of which only ever read stop.time) still
+// behaves meaningfully. Display-only; does not touch what gets uploaded to
+// journey_stop_times, so the ops dashboard's variance calc (which recomputes
+// "scheduled" from the DB's real departure_time) will show a test run as
+// late/early — expected, not a bug.
+function shiftStopTimes(stops, deltaMinutes) {
+  return stops.map(stop => {
+    const [h, m] = stop.time.split(':').map(Number);
+    const shifted = (((h * 60 + m + deltaMinutes) % 1440) + 1440) % 1440;
+    const nh = String(Math.floor(shifted / 60)).padStart(2, '0');
+    const nm = String(shifted % 60).padStart(2, '0');
+    return { ...stop, time: `${nh}:${nm}` };
+  });
+}
+
+function minutesFromNow(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  const now = new Date();
+  return (now.getHours() * 60 + now.getMinutes()) - (h * 60 + m);
+}
+
 // ── Stop time upload ──────────────────────────────────────────────────────────
 
 const UPLOADABLE_STOP_STATUSES = new Set(['arrived', 'departed', 'skipped_signal', 'skipped_detour']);
@@ -638,6 +663,16 @@ async function launchDutyRoute(duties, idx, journeyIds) {
     stopSelect.appendChild(opt);
   });
 
+  const testingField = document.getElementById('testing-time-field');
+  const useCurrentTimeCheckbox = document.getElementById('use-current-time-checkbox');
+  if (DEBUG && allStops[0]) {
+    document.getElementById('testing-departure-time').textContent = allStops[0].time;
+    useCurrentTimeCheckbox.checked = false;
+    testingField.hidden = false;
+  } else {
+    testingField.hidden = true;
+  }
+
   document.getElementById('picker-back-btn').onclick = () => {
     document.getElementById('picker').hidden          = true;
     document.getElementById('picker-back-btn').hidden = true;
@@ -660,8 +695,12 @@ async function launchDutyRoute(duties, idx, journeyIds) {
 
     await acquireWakeLock();
 
+    const stopsForTracker = (DEBUG && useCurrentTimeCheckbox.checked)
+      ? shiftStopTimes(allStops, minutesFromNow(allStops[0].time))
+      : allStops;
+
     runTracker({
-      allStops,
+      allStops: stopsForTracker,
       journeyId: journey.journey_id,
       driverId: journey.driver_id,
       vehicleId: journey.vehicle_id,
@@ -764,6 +803,29 @@ function initManualSelection() {
   // route added today is pickable today with no app update.
   let services = {};
 
+  const testingField  = document.getElementById('manual-testing-time-field');
+  const testingTimeEl = document.getElementById('manual-testing-departure-time');
+  const useCurrentTimeCheckbox = document.getElementById('manual-use-current-time-checkbox');
+
+  // Read-only preview fetch (fetchStopsForDeparture never creates/starts a
+  // journey) so the departure time can be shown before the driver commits by
+  // tapping Start — DEBUG-only since it's an extra round-trip real drivers
+  // don't need.
+  async function updateTestingDepartureTime() {
+    if (!DEBUG) { testingField.hidden = true; return; }
+    const departureId = services[serviceSelect.value]?.[periodSelect.value];
+    if (!departureId) { testingField.hidden = true; return; }
+    try {
+      const { stops } = await fetchStopsForDeparture(departureId);
+      if (!stops.length) { testingField.hidden = true; return; }
+      testingTimeEl.textContent = stops[0].time;
+      useCurrentTimeCheckbox.checked = false;
+      testingField.hidden = false;
+    } catch (_) {
+      testingField.hidden = true;
+    }
+  }
+
   const populatePeriods = () => {
     periodSelect.innerHTML = '';
     Object.keys(services[serviceSelect.value] ?? {}).forEach(period => {
@@ -772,8 +834,10 @@ function initManualSelection() {
       opt.textContent = period;
       periodSelect.appendChild(opt);
     });
+    updateTestingDepartureTime();
   };
   serviceSelect.onchange = populatePeriods;
+  periodSelect.onchange = updateTestingDepartureTime;
 
   async function loadServices() {
     serviceSelect.innerHTML = '<option>Loading services…</option>';
@@ -816,6 +880,10 @@ function initManualSelection() {
       const result = await selectServiceManually(departureId, serviceSelect.value, periodSelect.value, vehicleId, {
         onComplete: showNoDutyCard,
       });
+
+      if (DEBUG && useCurrentTimeCheckbox.checked && result.allStops[0]) {
+        result.allStops = shiftStopTimes(result.allStops, minutesFromNow(result.allStops[0].time));
+      }
 
       document.getElementById('manual-picker').hidden = true;
       await acquireWakeLock();

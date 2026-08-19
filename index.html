@@ -80,6 +80,13 @@
           <select id="manual-period-select"></select>
         </div>
       </div>
+      <div class="picker-field testing-time-field" id="manual-testing-time-field" hidden>
+        <div class="testing-departure-label">Scheduled departure: <strong id="manual-testing-departure-time">--:--</strong></div>
+        <label class="testing-time-checkbox-label">
+          <input type="checkbox" id="manual-use-current-time-checkbox">
+          Use current time (testing)
+        </label>
+      </div>
       <button id="manual-start-btn">Start</button>
     </div>
 
@@ -95,6 +102,13 @@
         <div class="select-wrap">
           <select id="stop-select"></select>
         </div>
+      </div>
+      <div class="picker-field testing-time-field" id="testing-time-field" hidden>
+        <div class="testing-departure-label">Scheduled departure: <strong id="testing-departure-time">--:--</strong></div>
+        <label class="testing-time-checkbox-label">
+          <input type="checkbox" id="use-current-time-checkbox">
+          Use current time (testing)
+        </label>
       </div>
       <button id="start-btn">Start</button>
     </div>
