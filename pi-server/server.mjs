@@ -1,7 +1,7 @@
 // Runs on the Controller, reachable either over its own WiFi hotspot
-// (Option A — a Fire HD or other WiFi-client display) or from a kiosk
-// browser running locally on the box itself (Option B — HDMI display, see
-// DEPLOY.md). Two jobs: serve the onboard app's static files (the display
+// (Option A — a WiFi-client display, none currently deployed) or from a
+// kiosk browser running locally on the box itself (Option B — HDMI display,
+// see DEPLOY.md). Two jobs: serve the onboard app's static files (the display
 // can't reach GitHub Pages from an isolated hotspot, and has no browser of
 // its own in Option B), and serve the schedule cache written by the announce
 // relay's onSchedule callback (see writeScheduleCache below) whenever the

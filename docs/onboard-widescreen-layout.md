@@ -88,7 +88,7 @@ At 16:3 the height is too small for a useful map. Even a 240 px tall Leaflet map
 - The block also needs full overrides for `#tube-track` (today's `height: 15vh` is sized for the horizontal strip — the vertical column needs to fill the right column's height) and its `::before` connector line (today's `left/right` absolute positioning draws a horizontal line — the vertical layout needs `top/bottom` instead), plus `.tube-node` flex-direction row→column. This is more than a font-size swap.
 - Carry forward the `.sign-hero-value` overflow/ellipsis handling (`overflow: hidden; text-overflow: ellipsis; white-space: nowrap`) into the wide-mode hero rules — long stop names still need to clip rather than wrap or overflow the centre column
 - `#onboard-brand` stays exactly as it is today (`position: fixed; left: 2rem; bottom: 1.1rem`, bottom-left of the viewport) — no change needed, since that fixed position already lands in the left column's footprint
-- Keep the existing vertical layout as the default (works for the Fire HD 10 and normal browser preview windows)
+- Keep the existing vertical layout as the default (works for the Monitor profile — Dell Pro P2426H — and normal browser preview windows)
 - No JS detection needed — the layout switches automatically based on actual display geometry
 
 ### `onboard.js`
@@ -105,5 +105,5 @@ At 16:3 the height is too small for a useful map. Even a 240 px tall Leaflet map
 1. Restructure `onboard.html` DOM into the three-column zone structure
 2. Add the `@media (min-aspect-ratio: 4/1)` CSS block in `onboard.css` with the grid layout and vh font sizes
 3. Update `renderTubeTrack` in `onboard.js` to render the vertical dot column when in wide mode
-4. Test at browser window sized to ~2560×480 (zoom out), including a long stop name (e.g. "Grantham, Wetherby Road") to confirm it clips rather than wraps or overflows; then at the normal Fire HD 10 size to confirm the fallback layout is undisturbed
+4. Test at browser window sized to ~2560×480 (zoom out), including a long stop name (e.g. "Grantham, Wetherby Road") to confirm it clips rather than wraps or overflows; then at the normal Monitor size (Dell Pro P2426H, 1920×1080) to confirm the fallback layout is undisturbed
 5. No changes to `src/gps.js`, `src/announcements.js`, `src/engine.js`, or any Supabase schema

@@ -1,12 +1,15 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 /* ── E-paper passenger sign ───────────────────────────────────────────────
-   One layout for every target: the mounted Fire HD 10 (~1920x1200 / 16:10)
-   and the 16:3 ultra-wide destination-board panel both use the same grid,
-   colours and elements — the differences between them are decided in JS
-   via matchMedia, not CSS: how many stops the tube-track shows either side
-   of the current one (more room on the wide panel), and the ETA (wide
-   panel only — no room for it on the Fire HD).
+   One shared layout for every profile: Monitor (Dell Pro P2426H, 1920x1080
+   / 16:9), Bar (16:3 ultra-wide destination-board panel, not yet built),
+   and monitor-vertical (same panel as Monitor, vertical tube-track — see
+   the [data-track-layout="vertical"] rules below, the one deliberate
+   exception to "shared"). Most differences are decided in JS (see
+   PANEL_PROFILES / isWideLayout / trackLayout in onboard.js), not CSS: how
+   many stops the tube-track shows either side of the current one (more
+   room on Bar and monitor-vertical), and the ETA (Bar only — no room for
+   it on either Monitor variant).
    Mostly monochrome and motion-free: no gradients, no shadows, hard
    corners, status normally carried by text and border weight rather than
    colour. Deliberate exceptions to that rule: the brand mark keeps its
@@ -48,11 +51,19 @@
   --ep-purple:      #2E1065;
   --ep-purple-soft: rgba(255, 255, 255, 0.72);
 
-  /* ~22mm minimum text size on both real target devices — Fire HD 10
-     (1920x1200 @ 10.1", ~8.82px/mm) and the 16:3 wide panel (2560x480 @
-     28", ~3.66px/mm) — happen to land within half a vh of each other
-     (16.2vh / 16.8vh), so one shared minimum works for both. Bump this
-     value first if either device's real physical size changes. */
+  /* ~22mm minimum text size for the Bar profile only (16:3 wide panel,
+     2560x480 @ 28", ~3.66px/mm, ~16.8vh) — this is NOT a shared value
+     across profiles. The Monitor profile (Dell P2426H, 1920x1080 @
+     23.8") needs 7.42vh for the same physical 22mm — nearly a third of
+     this default — because vh scales with total pixel height, and a
+     1080px-tall panel needs a much smaller fraction than a 480px-tall one
+     for the same real-world text size. onboard.js's applyPanelSizing()
+     overrides this per-panel via ?panel-diagonal=/?panel-profile=; this
+     default only applies when neither is supplied, so it must stay
+     correct for whichever profile is more likely to be missing the
+     param — Bar, since Monitor already always sends panel-diagonal (see
+     pi-server/DEPLOY.md §5). Bump this value if Bar's real physical size
+     changes. */
   --min-text:     17vh;
 }
 
@@ -109,11 +120,15 @@ body {
 /* Bottom-left of the central track band, not the top-left corner — that
    spot sits directly under the (purple, white-text) topbar's left-aligned
    route line once the sign is active, and the brand mark's own ink-on-paper
-   colours would be invisible painted over purple there. 27vh clears the
-   bottom bar's own rendered height (measured ~25.5vh — 2vh padding either
-   side of --min-text's line box, which runs taller than its 17vh font-size)
-   with a small margin, confirmed empirically via screenshot at both the
-   Fire HD and wide-sign aspect ratios. */
+   colours would be invisible painted over purple there.
+   bottom/left below are only the IDLE-screen default, before #onboard-sign
+   exists to measure — at that point the brand mark is the only thing on
+   screen, so any sane position works and 27vh/1vw is as good as any.
+   Once the sign is active, onboard.js's positionBrand() overrides both via
+   inline style, computed from #sign-main's real rendered box. A fixed vh
+   guess can't do this correctly on its own: the bottom (and top) bar's
+   height scales with --min-text, which now varies a lot by panel profile
+   (Bar ~16.8vh vs Monitor ~7.42vh) — one guess can't clear both. */
 #onboard-brand {
   position: fixed;
   bottom: 27vh;
@@ -267,9 +282,10 @@ body {
    many stops either side to show (matchMedia — more room on the wide
    panel), not CSS; see renderTubeTrack in onboard.js. ─────────────────── */
 
-/* Wraps the tube-track and, on the wide sign only, the upcoming-stops box
-   to its right — see #sign-upcoming below. On the Fire HD, #sign-upcoming
-   stays hidden (onboard.js) and #tube-track's flex:1 fills the row alone. */
+/* Wraps the tube-track and, on the wide (Bar) sign only, the upcoming-stops
+   box to its right — see #sign-upcoming below. On the narrow (Monitor)
+   profile, #sign-upcoming stays hidden (onboard.js) and #tube-track's
+   flex:1 fills the row alone. */
 #sign-main {
   grid-area: track;
   display: flex;
@@ -361,11 +377,60 @@ body {
   50%      { opacity: 0.5; }
 }
 
-/* ── Upcoming-stops box — wide sign only. Sits right of the tube-track,
-   listing the next 3-4 real stops with name + live-adjusted time. Not
-   PSVAIR-regulated, so sized independently of --min-text like the
-   tube-track labels. Hidden entirely on the Fire HD (onboard.js — no
-   room for it there) and once there are no more real stops ahead. ────── */
+/* ── Vertical tube-track — monitor-vertical profile only ─────────────────
+   Set via [data-track-layout="vertical"] on <html> (onboard.js's init());
+   absent for every other profile/URL, so the rules above stay in effect
+   there unchanged. Trades Bar/Monitor's left-to-right line for top-to-
+   bottom, using Monitor's spare vertical headroom (its bars are much
+   shorter than Bar's — see --min-text's comment) to show longer stop names
+   without needing to lean on text-overflow/ellipsis as hard.
+   Each node switches from column-reverse (label above a centred dot) to a
+   fixed-width dot column + flowing label column, via CSS Grid rather than
+   flexbox — grid's justify-self:center keeps the dot centred in its own
+   track regardless of whether it's the normal (7vh) or current-stop (9vh)
+   size, which a flex-basis trick can't do as cleanly. The connector line's
+   left offset is calc()'d to land on that same column's centre. */
+
+[data-track-layout="vertical"] #tube-track {
+  flex-direction: column;
+  justify-content: space-around;
+  align-items: stretch;
+  padding: 4vh 4vw 4vh 6vw;
+}
+
+[data-track-layout="vertical"] #tube-track::before {
+  left: calc(6vw + 4.5vh); /* track's left padding + half the wider (current-stop) dot's width, so the line centres under both dot sizes */
+  right: auto;
+  top: 8%;
+  bottom: 8%;
+  width: 8px;
+  height: auto;
+  transform: none;
+}
+
+[data-track-layout="vertical"] .tube-node {
+  display: grid;
+  grid-template-columns: 9vh 1fr;
+  align-items: center;
+  gap: 0;
+  column-gap: 2vw;
+  flex: 0 0 auto;
+}
+
+[data-track-layout="vertical"] .tube-dot {
+  justify-self: center;
+}
+
+[data-track-layout="vertical"] .tube-label {
+  text-align: left;
+}
+
+/* ── Upcoming-stops box — wide (Bar) sign only. Sits right of the
+   tube-track, listing the next 3-4 real stops with name + live-adjusted
+   time. Not PSVAIR-regulated, so sized independently of --min-text like
+   the tube-track labels. Hidden entirely on the narrow (Monitor) profile
+   (onboard.js — no room for it there) and once there are no more real
+   stops ahead. ─────────────────────────────────────────────────────── */
 
 #sign-upcoming {
   width: 24vw;

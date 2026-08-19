@@ -12,9 +12,9 @@
 Vehicle-mounted PSVAIR announcement display, driven entirely by state and
 schedule data pushed from the Driver device — no GPS of its own, no direct
 Supabase reads. The Controller provides a self-contained WiFi hotspot; the
-passenger display (or Fire HD tablet) just runs a browser against it. See
-`onboard.html`/`src/onboard.js` for the web app itself — this file is
-Controller-side setup only.
+passenger display just runs a browser against it. See `onboard.html`/
+`src/onboard.js` for the web app itself — this file is Controller-side
+setup only.
 
 ## Operator branding (colours)
 
@@ -129,27 +129,38 @@ written whenever the Driver device pushes a fresh schedule (see §6).
 
 ## 5. Display setup
 
-### Option A — Fire HD tablet (WiFi client)
-- Chrome (or Silk Browser), point it at `http://192.168.4.1:8080/`
-- **Settings → Security → Screen pinning** (built into Android/Fire OS, no
-  paid kiosk app needed) — pin the browser to that page so the driver can't
-  navigate away or reconfigure the tablet
-- Set Chrome to reopen the same URL on launch, and have the tablet auto-boot
-  into Chrome (Fire OS: disable the default launcher's lockscreen/home
-  redirect, or use a boot-to-app config appropriate to the OS version)
+Two named display profiles exist — **Bar** (the original ultra-wide
+destination-board panel, 28", not yet sourced/built — kept for later, see
+`docs/CONTROLLER-REDESIGN.md`) and **Monitor** (Dell Pro P2426H, 24"/23.8"
+diagonal, the confirmed unit in use for demo/validation builds today). Both
+are commissioned the same way, via `&panel-profile=bar` or
+`&panel-profile=monitor` appended to the fixed kiosk URL (same pattern as
+`&announce-token=`, see §6) — this sets the correct layout (wide/narrow, see
+`PANEL_PROFILES` in `src/onboard.js`) and PSVAIR text sizing together, so no
+other display param is normally needed. Example for the Dell Pro P2426H:
+`...onboard.html?announce-token=<token>&panel-profile=monitor`.
+
+### Option A — WiFi-client display
+No specific device is deployed this way today — the tablet originally used
+here has been dropped in favour of the HDMI-wired Option B panels below
+(see `docs/CONTROLLER-REDESIGN.md`). The mechanism itself is
+still supported by `pi-server/server.mjs` if a WiFi-client display is ever
+used again: point its browser at `http://192.168.4.1:8080/`, pin/kiosk-lock
+it to that page using whatever mechanism its OS provides, and set it to
+reopen the same URL on boot.
 
 ### Panel physical size (PSV(AI)R 22mm text sizing)
 
 `onboard.css`'s default text sizing (`--min-text: 17vh`) is only correct for
-the two panels it was originally calibrated against (Fire HD 10, 28" wide
-sign) — browsers have no reliable API for a screen's physical size, so a
-different panel needs its physical diagonal supplied once, via
-**`&panel-diagonal=<inches>`** appended to whatever fixed kiosk URL Option
-A/B below already uses (same pattern as `&announce-token=`, see §6). Omit
-it entirely and the CSS default applies unchanged — safe for existing
-Fire HD/wide-sign deployments. Example for the Dell Pro P2426H used in
-demo/validation builds: `...onboard.html?announce-token=<token>&panel-diagonal=23.8`.
-See `computeMinTextVh()` in `src/onboard.js` for the underlying math if a
+the Bar profile it was originally calibrated against — browsers have no
+reliable API for a screen's physical size, so any other panel needs its
+physical diagonal supplied once, via **`&panel-diagonal=<inches>`** (a named
+`&panel-profile=` above already supplies this for Bar/Monitor automatically;
+this param remains as an escape hatch for any future third panel that
+doesn't have a named profile yet). Omit both entirely and the CSS default
+applies unchanged — correct for Bar, **not** for Monitor-class panels (the
+Dell P2426H needs ~7.42vh, well under half the 17vh default). See
+`computeMinTextVh()` in `src/onboard.js` for the underlying math if a
 different panel is ever used — it only needs the diagonal size; resolution
 and aspect ratio are already known automatically at runtime.
 

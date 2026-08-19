@@ -17,29 +17,62 @@
 // messages arrive.
 const WIDE_LAYOUT_QUERY = '(min-aspect-ratio: 4/1)'; // 16:3 ultra-wide sign, see docs/onboard-widescreen-layout.md
 
+// Named display profiles — commissioned via ?panel-profile=<key> (same
+// URL-param pattern as ?panel-diagonal= below). Lets a specific physical
+// target be forced explicitly (which layout, which diagonal for text
+// sizing) instead of relying purely on whatever aspect ratio the current
+// window/screen happens to report — needed for previewing a layout that
+// doesn't match the window you're actually looking at it in (e.g. testing
+// the Monitor rendering in an arbitrary browser window), and for kiosk
+// deployments where stating the target explicitly is more robust than
+// depending on the panel's reported aspect ratio matching WIDE_LAYOUT_QUERY
+// exactly. Bar is the original ultra-wide destination-board plan (not yet
+// built, kept for later); monitor/monitor-vertical are both the Dell Pro
+// P2426H, the confirmed demo/validation unit in use today
+// (pi-server/DEPLOY.md §5) — monitor-vertical swaps only the tube-track's
+// orientation (top-to-bottom instead of left-to-right), trading Monitor's
+// spare vertical headroom (see --min-text's comment below) for longer,
+// unclipped stop-name labels; everything else about it is identical to
+// monitor (narrow layout, no ETA box, same text sizing).
+const PANEL_PROFILES = {
+  bar:               { diagonalInches: 28,   wide: true,  trackLayout: 'horizontal' },
+  monitor:           { diagonalInches: 23.8, wide: false, trackLayout: 'horizontal' },
+  'monitor-vertical': { diagonalInches: 23.8, wide: false, trackLayout: 'vertical'   },
+};
+const panelProfile = PANEL_PROFILES[new URLSearchParams(window.location.search).get('panel-profile')] ?? null;
+
 const el = (id) => document.getElementById(id);
-const isWideLayout = () => matchMedia(WIDE_LAYOUT_QUERY).matches;
+// No panel-profile: unchanged live aspect-ratio auto-detect. Known profile:
+// its wide/narrow choice wins outright, regardless of the actual window
+// shape — see PANEL_PROFILES comment above.
+const isWideLayout = () => panelProfile ? panelProfile.wide : matchMedia(WIDE_LAYOUT_QUERY).matches;
+// No profile (or a horizontal one): unchanged left-to-right tube-track —
+// there's no live-detected equivalent of "vertical" the way aspect ratio
+// stands in for "wide", so this only ever comes from an explicit profile.
+const trackLayout = () => panelProfile?.trackLayout ?? 'horizontal';
 
 // ── PSV(AI)R 22mm minimum text height — panel-agnostic sizing ──────────────
-// onboard.css's --min-text default (17vh) is a fixed constant calibrated for
-// two specific known panels (Fire HD 10 and the 28" wide sign) that happen
-// to need near-identical vh values by coincidence — see that variable's own
-// comment. It does NOT generalise: a same-density but taller-in-pixels panel
-// (e.g. a standard 1920x1080 monitor) needs a much smaller vh fraction for
-// the same physical 22mm, because vh is relative to total pixel height, and
-// browsers have no reliable API for a screen's physical size (no EDID
-// access, by design, for privacy/security — this is a real web platform
-// limit, not a workaround-able gap). So the one thing that must be supplied
-// per-panel, once, is its physical diagonal size — everything else
-// (resolution, aspect ratio) is already known automatically at runtime.
+// onboard.css's --min-text default (17vh) is a fixed constant calibrated
+// for the Bar panel alone (28" ultra-wide, ~16.8vh) — see that variable's
+// own comment. It does NOT generalise: a same-density but taller-in-pixels
+// panel (e.g. the Monitor profile's 1920x1080 Dell P2426H) needs a much
+// smaller vh fraction for the same physical 22mm — 7.42vh, not 17vh —
+// because vh is relative to total pixel height, and browsers have no
+// reliable API for a screen's physical size (no EDID access, by design,
+// for privacy/security — this is a real web platform limit, not a
+// workaround-able gap). So the one thing that must be supplied per-panel,
+// once, is its physical diagonal size — everything else (resolution,
+// aspect ratio) is already known automatically at runtime.
 //
 // Commissioned via ?panel-diagonal=<inches> on the same fixed kiosk URL that
 // already carries ?announce-token= — same per-device-settings-in-the-URL
 // pattern this device uses throughout (see the file header: nothing to
 // persist across visits, everything comes from its own URL each load).
+// A known ?panel-profile= (see PANEL_PROFILES above) supplies this
+// automatically — ?panel-diagonal=, if also present, still wins, as an
+// escape hatch for any future panel that doesn't have a named profile yet.
 // Omitted entirely = old behaviour: CSS's own 17vh default applies
-// unchanged, so existing deployments that haven't added the param yet
-// aren't affected.
+// unchanged (correct for Bar, wrong for anything Monitor-class).
 export function computeMinTextVh(diagonalInches, viewportWidthPx, viewportHeightPx) {
   if (!diagonalInches || !viewportWidthPx || !viewportHeightPx) return null;
   const diagonalPx = Math.sqrt(viewportWidthPx ** 2 + viewportHeightPx ** 2);
@@ -48,7 +81,8 @@ export function computeMinTextVh(diagonalInches, viewportWidthPx, viewportHeight
 }
 
 function applyPanelSizing() {
-  const diagonalInches = Number(new URLSearchParams(window.location.search).get('panel-diagonal'));
+  const explicitDiagonal = Number(new URLSearchParams(window.location.search).get('panel-diagonal'));
+  const diagonalInches = explicitDiagonal || panelProfile?.diagonalInches;
   const minTextVh = computeMinTextVh(diagonalInches, window.innerWidth, window.innerHeight);
   if (minTextVh) document.documentElement.style.setProperty('--min-text', `${minTextVh}vh`);
 }
@@ -81,9 +115,12 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ── Tube-map style progress line ────────────────────────────────────────
-// The wide 16:3 sign has much more horizontal room per node than the Fire
-// HD tablet, so it shows more stops either side of the current one — see
-// docs/onboard-widescreen-layout.md.
+// Bar has much more horizontal room per node than Monitor, so it shows more
+// stops either side of the current one — see docs/onboard-widescreen-layout.md.
+// Monitor-vertical gets the same larger count as Bar despite being a
+// "narrow" profile — its extra room comes from stacking down the screen's
+// height instead of across its width, but the space budget argument is the
+// same one either way.
 
 function renderTubeTrack(allStops, centerIndex, isAtStop) {
   const track = el('tube-track');
@@ -91,11 +128,11 @@ function renderTubeTrack(allStops, centerIndex, isAtStop) {
 
   const first = 0, last = allStops.length - 1;
   // Labels must stay readable from the back of an 11m bus (~22mm min text,
-  // see --min-text in onboard.css), which leaves room for very few stops
-  // either side regardless of the extra width the wide sign has.
+  // see --min-text in onboard.css), which leaves room for only a few stops
+  // either side regardless of how much room a given profile has to spend.
   const isWide = isWideLayout();
   const stopsBack = 1;
-  const stopsForward = isWide ? 2 : 1;
+  const stopsForward = (isWide || trackLayout() === 'vertical') ? 2 : 1;
   const indices = [];
   for (let i = centerIndex - stopsBack; i <= centerIndex + stopsForward; i++) {
     if (i >= first && i <= last) indices.push(i);
@@ -146,6 +183,30 @@ function renderUpcoming(allStops, centerIndex, timing) {
   }).join('');
 }
 
+// ── Brand mark position — pinned to the actual bottom-left corner of the
+// track band (#sign-main), measured live rather than guessed as a fixed
+// vh offset. A fixed-vh guess (the old approach) only worked by accident:
+// it was calibrated once against a bottom bar height that happened to be
+// near-identical across every profile that existed at the time. That
+// stopped holding the moment profiles with genuinely different --min-text
+// values (Bar ~16.8vh vs Monitor ~7.42vh, see onboard.css) coexisted — the
+// bottom (and top) bar's rendered height scales with --min-text, so the
+// same fixed offset overshoots on a short-bar profile and undershoots on a
+// tall-bar one. Measuring #sign-main's real box is correct for any
+// profile, present or future, with no per-panel number to maintain. Also
+// re-run on every render() — the early-wait banner (#early-wait-banner)
+// replaces the bottom bar with a taller two-line block while it's shown,
+// which shifts the track band's own bottom edge for as long as it's up. ──
+function positionBrand() {
+  if (el('onboard-sign').hidden) return; // idle screen — CSS's own fixed default applies, nothing to measure yet
+  const trackRect = el('sign-main').getBoundingClientRect();
+  const marginPx = window.innerHeight * 0.015;
+  const brand = el('onboard-brand');
+  brand.style.left = `${trackRect.left + marginPx}px`;
+  brand.style.bottom = `${window.innerHeight - trackRect.bottom + marginPx}px`;
+}
+window.addEventListener('resize', positionBrand);
+
 // ── Rendering — purely visual: no audio, no Supabase, no GPS — just DOM
 // updates off an already-computed state shape pushed from the Driver. ──────
 
@@ -172,6 +233,7 @@ function render(allStops, initialStopIndex, { nextStopIndex, earlyWait, atStop, 
   } else {
     banner.hidden = true;
   }
+  positionBrand(); // banner toggling above can change the bottom row's height
 }
 
 // "Announcing: X" hint. Audio playback itself stays on the Driver device
@@ -309,9 +371,10 @@ function onSchedule(msg) {
   el('sign-destination').textContent = msg.destination;
   applyOperatorBranding({ accentColor: msg.accentColor });
   el('onboard-sign').hidden = false;
-  // Brand mark stays visible once active too — repositioned in onboard.css
-  // to a corner of the central track band so it no longer sits under the
-  // (now left-aligned) purple topbar.
+  // Brand mark stays visible once active too — positionBrand() (above) pins
+  // it to the track band's actual bottom-left corner now that the track
+  // band exists to measure; it wasn't there a line ago.
+  positionBrand();
   if (!signShown) {
     signShown = true;
     acquireWakeLock();
@@ -371,6 +434,9 @@ function connectSignFeed() {
 
 function init() {
   applyPanelSizing();
+  // Only set when non-default so onboard.css's base (horizontal) rules stay
+  // the ones in effect for every profile/URL that doesn't ask for vertical.
+  if (trackLayout() === 'vertical') document.documentElement.dataset.trackLayout = 'vertical';
   startClock();
   connectSignFeed();
 }

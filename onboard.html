@@ -14,18 +14,20 @@
   <body>
 
     <!--
-      Fixed passenger-facing sign — vehicle-mounted display, either the Fire
-      HD 10 tablet (~1920x1200 landscape) or a 16:3 ultra-wide destination
-      board; same layout and elements for both, see onboard.css. No touch
-      interaction expected. Deliberately silo'd from the driver PWA
-      (index.html/main.js): no login, no duty card, no incident reporting,
-      no stop-time upload — reads schedule_view only.
+      Fixed passenger-facing sign — vehicle-mounted display. Named display
+      profiles (?panel-profile=bar|monitor|monitor-vertical, see
+      PANEL_PROFILES in src/onboard.js) share this same markup and most of
+      the same CSS; monitor-vertical is the one exception, swapping the
+      tube-track's orientation via onboard.css's [data-track-layout]
+      selectors. No touch interaction expected. Deliberately silo'd from the
+      driver PWA (index.html/main.js): no login, no duty card, no incident
+      reporting, no stop-time upload, no writes to Supabase at all.
 
-      No manual intervention: this device is configured (via ?journey=<id>
-      in the URL, or a Pi-side equivalent) to watch one specific journey.
-      It sits on a blank grey screen until that journey's status flips to
-      in_progress (i.e. the driver hits Start on their own phone), then
-      wakes on its own — see src/onboard.js's poll loop.
+      No manual intervention: this device is a pure pushed-state renderer
+      (see docs/CONTROLLER-REDESIGN.md) — it sits on a blank grey screen
+      until an authenticated /sign-feed connection delivers a
+      {type:'schedule'} message (i.e. the driver hits Start on their own
+      phone), then wakes on its own.
 
       Styled as an e-paper sign (onboard.css): mostly monochrome and
       motion-free, hard corners — not just a different colour scheme from

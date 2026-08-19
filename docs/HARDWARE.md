@@ -185,7 +185,7 @@ only two differences are the panel itself and one added component:
 ### Status trail (why this looks unsettled — it genuinely is)
 | Panel | Status | Source |
 |---|---|---|
-| Fire HD 10 tablet | Still a live, supported option (`DEPLOY.md` "Option A") | `pi-server/DEPLOY.md` §5 |
+| Fire HD 10 tablet | **Dropped** — `DEPLOY.md` "Option A" no longer names a specific device; the Bar/Monitor display profiles below are both HDMI-wired (Option B) | `pi-server/DEPLOY.md` §5 |
 | Allsee WS28HD8-B / "VSDISPLAY 28" 1920×360" stretch-bar | **Dropped** — hard to source in time, and the target fleet's wiring can't take a large-format retrofit without a major rewire | Proposal §7.3; `DEPLOY.md`'s own "Option B panel" section calls its own stretch-bar example stale |
 | **Dell Pro P2426H, without stand** (210-BVTG, service tag FZG4ZD4) | **Confirmed BETA unit, purchased 2026-08-14** for next week's BETA test — mains 240V, see two-path note above. 24" FHD IPS, 100×100mm VESA fixing, full-size HDMI + DisplayPort in, ships with a plain IEC mains lead (100–240V AC, 74W max — no external power brick). Chosen deliberately over an industrial-spec panel: industrial units run ~6 weeks average lead time, which BETA's schedule doesn't allow. Consumer-grade, not the final production pick, but its physical footprint is expected to match the eventual production panel. Ships without an enclosure — an enclosure is expected to be in place by BETA (not yet sourced/built, see §8). In active use for the physical fit-out today. | This session, 2026-08-13; confirmed as BETA unit + lead-time rationale 2026-08-14 |
 | Production panel | **TBD, unresolved sourcing gap** — "compact, low-power, standard aspect ratio, fits the existing wiring," and no off-the-shelf industrial candidate found meeting all three as of 2026-08-13 (industrial-spec panels run ~6 weeks average lead time once a candidate is picked, per 2026-08-14 sourcing note above) | Proposal §7.3 |
@@ -306,7 +306,7 @@ See the architecture-conflict note at the top — this table gives both models r
 |---|---|---|
 | Depot sync | `wlan0`, normal WiFi client, joins depot WiFi each morning | Same |
 | Hotspot for other devices | **Second radio**: USB WiFi dongle (e.g. Edimax EW-7811Un) running `wlan1` as a permanent AP, static IP `192.168.4.1/24` | **Pi's own onboard radio** hosts the AP directly — no second dongle. WiFi interface marked `unmanaged` in NetworkManager so it doesn't fight the manually-run `hostapd`. |
-| Who joins the hotspot | An external display device (Fire HD, if Option A) | The Driver PWA tablet, as a standard low-privilege client, one-time pairing at commissioning |
+| Who joins the hotspot | An external display device (a WiFi-client display, if Option A — none currently deployed) | The Driver PWA tablet, as a standard low-privilege client, one-time pairing at commissioning |
 | Recent stability | This has already flip-flopped once in this repo's history: commit `7f1a342` removed the hotspot entirely (assumed no longer needed), commit `a60d075` restored it days later after a `develop` merge showed it was still required | — |
 
 ## 8. Mounting / enclosure
