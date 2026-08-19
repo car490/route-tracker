@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [1.5.1] - 2026-08-19
+
+- Fix driver display: stop-list hidden behind brand mark, make trip-leave button visible
+- docs: correct onboard display mount from RAM D-size to E-size, add ordered parts
+- docs: require VESA passthrough on onboard display enclosure so BETA mount reuses without a second purchase
+- docs: flag RAM D-size VESA mount system for onboard display (BETA + production), exact parts TBD
+- docs: add onboard display BETA enclosure gap to TODO
+- docs: confirm Dell Pro P2426H as BETA monitor unit, note enclosure gap
+- fix: replace em-dashes with hyphens in start-temp-pi.example.ps1
+
 ## [1.5.0] - 2026-08-14
 
 - Harden the onboard hotspot config against in-vehicle attackers
