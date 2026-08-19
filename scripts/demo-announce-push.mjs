@@ -9,14 +9,12 @@
 //
 // What to look for once both windows have started:
 //   - The RIGHT (Announce) window should update in lockstep with the LEFT
-//     one WITHOUT ever requesting its own GPS permission — it's rendering
-//     pushed state, not running its own gps.js engine or polling Supabase.
+//     one WITHOUT ever requesting its own GPS permission — it's a pure
+//     pushed-state renderer now (see docs/CONTROLLER-REDESIGN.md), with no
+//     GPS or Supabase access of its own at all, not a fallback path.
 //   - This terminal (piped from the spawned pi-server) should print
 //     "[announceRelay] driver connected" once you hit Start, and
 //     "[announceRelay] sign display connected" shortly after.
-//   - You'll also see periodic "[gpsd] connection error" warnings from the
-//     spawned pi-server — harmless; this demo has no real GPS hardware
-//     attached and doesn't need pi-server's own gpsd path at all.
 //
 // Usage:
 //   node scripts/demo-announce-push.mjs [secondsPerStop]
@@ -178,11 +176,14 @@ process.on('SIGTERM', shutdown);
   serverChild = await ensureServerRunning();
 
   console.log("Resolving today's manual-mode journey row…");
-  const journeyId = await resolveManualJourneyId();
+  // Creates/finds the row so it exists once Start is clicked — the id
+  // itself isn't needed here; the Announce window is a pure pushed-state
+  // renderer now and learns everything from the driver's schedule push,
+  // not from watching a specific journey id in its own URL.
+  await resolveManualJourneyId();
 
   const driverUrl = `${BASE_URL}/index.html`; // not "/" — pi-server aliases "/" to onboard.html
   const onboardUrl = new URL('/onboard.html', BASE_URL);
-  onboardUrl.searchParams.set('journey', journeyId);
   onboardUrl.searchParams.set('announce-token', DEMO_TOKEN);
 
   const [driver, announce] = await Promise.all([
@@ -205,8 +206,8 @@ process.on('SIGTERM', shutdown);
   console.log('LEFT  (driver PWA):  click "Select a service manually", choose');
   console.log(`                     Service: ${MANUAL_SERVICE}, Period: ${MANUAL_PERIOD}, then hit Start.`);
   console.log('RIGHT (Announce):    nothing to click — connects to the pushed feed on its own');
-  console.log('                     once the driver hits Start (falls back to its own GPS/polling');
-  console.log('                     if the feed is unreachable — that fallback is NOT exercised here).');
+  console.log('                     and wakes once the driver hits Start. No fallback exists —');
+  console.log('                     it is a pure pushed-state renderer, see docs/CONTROLLER-REDESIGN.md.');
   console.log('\nWaiting for both to start…');
 
   await Promise.all([

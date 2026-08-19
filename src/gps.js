@@ -5,8 +5,7 @@ import { log } from './logger.js';
 
 // Default position source: the browser's own GPS via the Geolocation API.
 // A caller can pass a different `positionSource` (same (onFix, onError) =>
-// {stop()} shape) to feed fixes from elsewhere — e.g. onboard.js polling a
-// Raspberry Pi's local GPS bridge instead of navigator.geolocation.
+// {stop()} shape) to feed fixes from elsewhere.
 function browserGeolocationSource(onFix, onError) {
   if (!navigator.geolocation) {
     onError(new Error('Geolocation API not available'));

@@ -8,8 +8,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
-  buildConnectionUrl, buildStatePayload, captureAnnounceSetup,
-  connectAnnounceLink, disconnectAnnounceLink, broadcastState, setAnnouncing,
+  buildConnectionUrl, buildStatePayload, buildSchedulePayload, captureAnnounceSetup,
+  connectAnnounceLink, disconnectAnnounceLink, broadcastState, broadcastSchedule, setAnnouncing,
 } from './announceLink.js';
 
 describe('buildConnectionUrl', () => {
@@ -65,6 +65,44 @@ describe('buildStatePayload', () => {
   it('carries the announcing field when provided', () => {
     const payload = buildStatePayload(baseState, { announcing: 'High Street' });
     expect(payload.announcing).toBe('High Street');
+  });
+});
+
+describe('buildSchedulePayload', () => {
+  const baseArgs = {
+    journeyId: 'jrn-1',
+    serviceCode: 'S125S',
+    destination: 'Boston College',
+    allStops: [
+      { name: 'Weston', lat: 52.8, lon: -0.08, time: '08:00', stop_type: 'timing_point', timetable_stop_id: 'ts-1', stop_id: 's-1' },
+      { name: 'Boston College', lat: 52.97, lon: -0.02, time: '08:40', stop_type: 'timing_point', timetable_stop_id: 'ts-2', stop_id: 's-2' },
+    ],
+  };
+
+  it('forwards allStops verbatim as stops, not a hand-picked subset', () => {
+    const payload = buildSchedulePayload(baseArgs);
+    expect(payload.type).toBe('schedule');
+    expect(payload.stops).toEqual(baseArgs.allStops);
+    expect(typeof payload.ts).toBe('number');
+  });
+
+  it('carries serviceCode/destination/journeyId through unchanged', () => {
+    const payload = buildSchedulePayload(baseArgs);
+    expect(payload.journeyId).toBe('jrn-1');
+    expect(payload.serviceCode).toBe('S125S');
+    expect(payload.destination).toBe('Boston College');
+  });
+
+  it('defaults accentColor/primaryColor to null rather than omitting them', () => {
+    const payload = buildSchedulePayload(baseArgs);
+    expect(payload.accentColor).toBeNull();
+    expect(payload.primaryColor).toBeNull();
+  });
+
+  it('carries accentColor/primaryColor when provided', () => {
+    const payload = buildSchedulePayload({ ...baseArgs, accentColor: '#123456', primaryColor: '#abcdef' });
+    expect(payload.accentColor).toBe('#123456');
+    expect(payload.primaryColor).toBe('#abcdef');
   });
 });
 
@@ -184,5 +222,76 @@ describe('live connection (stubbed WebSocket/localStorage)', () => {
 
     vi.advanceTimersByTime(5000);
     expect(MockWebSocket.instances).toHaveLength(1); // no reconnect attempted
+  });
+
+  describe('broadcastSchedule', () => {
+    const schedule = { journeyId: 'j1', serviceCode: 'S125S', destination: 'Boston College', allStops: [{ name: 'A' }] };
+
+    it('is a no-op (does not throw) when never called before a socket opens', () => {
+      store.set('announceLinkUrl', 'ws://192.168.4.1:8080/driver-push');
+      connectAnnounceLink();
+      const ws = MockWebSocket.instances[0];
+      expect(() => ws.open()).not.toThrow();
+      expect(ws.sent).toHaveLength(0);
+    });
+
+    it('sends immediately when the socket is already open', () => {
+      store.set('announceLinkUrl', 'ws://192.168.4.1:8080/driver-push');
+      connectAnnounceLink();
+      const ws = MockWebSocket.instances[0];
+      ws.open();
+
+      broadcastSchedule(schedule);
+      expect(ws.sent).toHaveLength(1);
+      const sent = JSON.parse(ws.sent[0]);
+      expect(sent.type).toBe('schedule');
+      expect(sent.journeyId).toBe('j1');
+    });
+
+    it('is held and sent once the socket opens, when called before open', () => {
+      store.set('announceLinkUrl', 'ws://192.168.4.1:8080/driver-push');
+      connectAnnounceLink();
+      const ws = MockWebSocket.instances[0];
+
+      broadcastSchedule(schedule); // socket not open yet
+      expect(ws.sent).toHaveLength(0);
+
+      ws.open(); // fires the 'open' listener, which resends the remembered schedule
+      expect(ws.sent).toHaveLength(1);
+      expect(JSON.parse(ws.sent[0]).journeyId).toBe('j1');
+    });
+
+    it('is resent automatically on reconnect, without calling broadcastSchedule again', () => {
+      vi.useFakeTimers();
+      store.set('announceLinkUrl', 'ws://192.168.4.1:8080/driver-push');
+      connectAnnounceLink();
+      const first = MockWebSocket.instances[0];
+      first.open();
+      broadcastSchedule(schedule);
+      expect(first.sent).toHaveLength(1);
+
+      first.close(); // simulates a Controller reboot mid-shift
+      vi.advanceTimersByTime(3000);
+      expect(MockWebSocket.instances).toHaveLength(2);
+      const second = MockWebSocket.instances[1];
+      expect(second.sent).toHaveLength(0);
+
+      second.open();
+      expect(second.sent).toHaveLength(1);
+      expect(JSON.parse(second.sent[0]).journeyId).toBe('j1');
+    });
+
+    it('is cleared by disconnectAnnounceLink — a fresh journey does not leak a prior one', () => {
+      store.set('announceLinkUrl', 'ws://192.168.4.1:8080/driver-push');
+      connectAnnounceLink();
+      MockWebSocket.instances[0].open();
+      broadcastSchedule(schedule);
+      disconnectAnnounceLink();
+
+      connectAnnounceLink();
+      const ws = MockWebSocket.instances[1];
+      ws.open();
+      expect(ws.sent).toHaveLength(0); // no stale schedule resent
+    });
   });
 });

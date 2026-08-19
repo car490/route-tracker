@@ -1,8 +1,10 @@
 // src/announceStopEvent.js
 //
 // Slice 2: Driver-Triggered Diversion Alert
-// Single gate that main.js and onboard.js call instead of announceAtStop/
+// Single gate that main.js calls instead of announceAtStop/
 // announceApproaching directly, so diversion suppression lives in one place.
+// (Announcement audio, and this gate with it, stays Driver-side only — the
+// onboard sign is a pure pushed-state renderer, see src/onboard.js.)
 
 import { announceApproaching, announceAtStop, announceDiversion } from './announcements.js';
 

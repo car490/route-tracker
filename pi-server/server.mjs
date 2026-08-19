@@ -1,35 +1,33 @@
-// Runs on the Pi, reachable either over its own WiFi hotspot (Option A —
-// a Fire HD or other WiFi-client display) or from a kiosk browser running
-// locally on the Pi itself (Option B — HDMI display, see DEPLOY.md). Three
-// jobs: serve the onboard app's static files (the display can't reach
-// GitHub Pages from an isolated hotspot, and has no browser of its own in
-// Option B), serve the schedule cache written by sync-schedule.mjs, and
-// bridge gpsd's GPS fix out as a tiny polled endpoint. Zero external
-// dependencies, same style as the repo-root server.js.
+// Runs on the Controller, reachable either over its own WiFi hotspot
+// (Option A — a Fire HD or other WiFi-client display) or from a kiosk
+// browser running locally on the box itself (Option B — HDMI display, see
+// DEPLOY.md). Two jobs: serve the onboard app's static files (the display
+// can't reach GitHub Pages from an isolated hotspot, and has no browser of
+// its own in Option B), and serve the schedule cache written by the announce
+// relay's onSchedule callback (see writeScheduleCache below) whenever the
+// Driver device pushes a fresh one. No GPS of its own (see
+// docs/CONTROLLER-REDESIGN.md §6 — the Controller has no GPS hardware; that
+// lives entirely on the Driver device and flows through as pushed state).
+// Zero external dependencies, same style as the repo-root server.js.
 import http from 'node:http';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { startGpsdClient } from './gpsd-client.mjs';
 import { attachAnnounceRelay } from './announceRelay.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.join(__dirname, '..'); // pi-server/ sits alongside index.html, src/, style.css
 const CACHE_PATH = path.join(__dirname, 'schedule-cache.json');
 const PORT = Number(process.env.PORT) || 8080;
-const GPSD_HOST = process.env.GPSD_HOST || '127.0.0.1';
-const GPSD_PORT = Number(process.env.GPSD_PORT) || 2947;
 // Shared secret for the /driver-push and /sign-feed WebSocket endpoints
 // (see announceRelay.mjs) — set via the systemd unit's Environment= line.
-// Old gpsd/polling behavior above is untouched either way; this is purely
-// additive, so an unset token just means the push path stays unreachable.
+// These are the Controller's only source of schedule/state data; an unset
+// token means it stays permanently blank, not degraded.
 const DRIVER_PUSH_TOKEN = process.env.DRIVER_PUSH_TOKEN || null;
 if (!DRIVER_PUSH_TOKEN) {
   console.warn('[announceRelay] DRIVER_PUSH_TOKEN not set — /driver-push and /sign-feed will reject all connections.');
 }
-// A fix older than this is treated as stale (GPS lost) rather than served as current.
-const FIX_MAX_AGE_MS = 15_000;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -41,30 +39,39 @@ const MIME = {
   '.webmanifest': 'application/manifest+json',
 };
 
-const gpsd = startGpsdClient({ host: GPSD_HOST, port: GPSD_PORT });
+// Written by the announce relay's onSchedule callback whenever the Driver
+// pushes a fresh {type:'schedule', ...} message — see attachAnnounceRelay()
+// below. Same atomic tmp+rename pattern the old sync-schedule.mjs used, so
+// a Controller reboot mid-shift still has something to serve from disk
+// until the Driver reconnects and re-pushes.
+async function writeScheduleCache(msg) {
+  const tmpPath = `${CACHE_PATH}.tmp`;
+  try {
+    await fsp.writeFile(tmpPath, JSON.stringify(msg));
+    await fsp.rename(tmpPath, CACHE_PATH);
+  } catch (err) {
+    console.error('[schedule cache] failed to write:', err);
+  }
+}
 
-async function serveApiSchedule(res) {
+async function serveApiSchedule(res, relay) {
+  const latest = relay.getLatestSchedule();
+  if (latest) {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(latest));
+    return;
+  }
   try {
     const raw = await fsp.readFile(CACHE_PATH, 'utf8');
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(raw);
   } catch (_) {
-    // No cache yet (never synced) — respond with an empty list rather than
-    // a hard error so the picker just shows "no routes" instead of crashing.
+    // No cache yet (no Driver has ever pushed one) — respond with an empty
+    // list rather than a hard error so the picker just shows "no routes"
+    // instead of crashing.
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end('[]');
   }
-}
-
-function serveApiPosition(res) {
-  const fix = gpsd.getLatestFix();
-  if (!fix || Date.now() - fix.ts > FIX_MAX_AGE_MS) {
-    res.writeHead(503, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'no_fix' }));
-    return;
-  }
-  res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ lat: fix.lat, lon: fix.lon, speed: fix.speed }));
 }
 
 function serveStaticFile(urlPath, res) {
@@ -83,13 +90,12 @@ function serveStaticFile(urlPath, res) {
 
 const server = http.createServer((req, res) => {
   const urlPath = req.url.split('?')[0];
-  if (urlPath === '/api/schedule') return void serveApiSchedule(res);
-  if (urlPath === '/api/position') return void serveApiPosition(res);
+  if (urlPath === '/api/schedule') return void serveApiSchedule(res, relay);
   serveStaticFile(urlPath, res);
 });
 
-attachAnnounceRelay(server, { token: DRIVER_PUSH_TOKEN });
+const relay = attachAnnounceRelay(server, { token: DRIVER_PUSH_TOKEN, onSchedule: writeScheduleCache });
 
 server.listen(PORT, () =>
-  console.log(`pi-server running -> http://0.0.0.0:${PORT}/  (gpsd @ ${GPSD_HOST}:${GPSD_PORT})`)
+  console.log(`pi-server running -> http://0.0.0.0:${PORT}/`)
 );

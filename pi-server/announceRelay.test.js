@@ -113,4 +113,60 @@ describe('announceRelay', () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(received).toBe(false);
   });
+
+  describe('type: schedule', () => {
+    it('relays a driver-pushed schedule message to a connected sign-feed client', async () => {
+      const driver = connect('/driver-push', TOKEN);
+      await waitFor(driver, 'open');
+      const sign = connect('/sign-feed', TOKEN);
+      await waitFor(sign, 'open');
+
+      const received = new Promise((resolve) => sign.once('message', (data) => resolve(JSON.parse(data.toString()))));
+      driver.send(JSON.stringify({ type: 'schedule', journeyId: 'j1', stops: [{ name: 'A' }] }));
+
+      const msg = await received;
+      expect(msg.journeyId).toBe('j1');
+      expect(msg.stops).toEqual([{ name: 'A' }]);
+    });
+
+    it('sends the latest known schedule (before the latest known state) to a newly-connected sign-feed client', async () => {
+      const driver = connect('/driver-push', TOKEN);
+      await waitFor(driver, 'open');
+      driver.send(JSON.stringify({ type: 'schedule', journeyId: 'j2', stops: [] }));
+      driver.send(JSON.stringify({ type: 'state', journeyId: 'j2', nextStopIndex: 0 }));
+      // Give the relay a tick to process both messages before the new subscriber connects.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Both pushes happen synchronously on connect, so both `message`
+      // events can arrive/fire before an `await`-separated pair of
+      // `.once()` calls would get a chance to attach the second listener —
+      // collect via one persistent listener instead of awaiting sequentially.
+      const messages = [];
+      const sign = connect('/sign-feed', TOKEN);
+      sign.on('message', (data) => messages.push(JSON.parse(data.toString())));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(messages).toHaveLength(2);
+      expect(messages[0].type).toBe('schedule');
+      expect(messages[1].type).toBe('state');
+    });
+
+    it('calls the onSchedule callback with the parsed message', async () => {
+      let received = null;
+      const server = http.createServer((_req, res) => { res.writeHead(404); res.end(); });
+      attachAnnounceRelay(server, { token: TOKEN, onSchedule: (msg) => { received = msg; } });
+      await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+      const localPort = server.address().port;
+      try {
+        const driver = new WebSocket(`ws://127.0.0.1:${localPort}/driver-push?token=${TOKEN}`);
+        await waitFor(driver, 'open');
+        driver.send(JSON.stringify({ type: 'schedule', journeyId: 'j3', stops: [] }));
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        driver.close();
+        expect(received).toMatchObject({ type: 'schedule', journeyId: 'j3' });
+      } finally {
+        await new Promise((resolve) => server.close(resolve));
+      }
+    });
+  });
 });

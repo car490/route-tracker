@@ -226,9 +226,9 @@ function announce(text, audioKeys) {
 }
 
 // destination is the last stop's (display) name, exactly as passed by
-// main.js/onboard.js — must match what the generator stripped/slugged for
-// the same route, or the clip lookup misses and falls back to synthesis
-// (not a bug, just a wasted clip until names line up again).
+// main.js — must match what the generator stripped/slugged for the same
+// route, or the clip lookup misses and falls back to synthesis (not a bug,
+// just a wasted clip until names line up again).
 //
 // PSVAIR event 1 (Start pressed): announces route+destination, then the
 // starting stop, then the stop after it — all three as one spoken block.

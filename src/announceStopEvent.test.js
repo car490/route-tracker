@@ -2,7 +2,7 @@
 // (implementation: src/announceStopEvent.js)
 //
 // Slice 2: Driver-Triggered Diversion Alert
-// TDD group 2 — the single gate that main.js and onboard.js call instead of
+// TDD group 2 — the single gate that main.js calls instead of
 // announceAtStop/announceApproaching directly, so diversion suppression is
 // enforced in one place rather than duplicated at both callsites.
 //

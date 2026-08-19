@@ -1,12 +1,13 @@
-# Temporary "Pi controller" - runs the exact same pi-server code the real
-# Raspberry Pi will run, directly on this laptop, while the Pi hardware
-# order is delayed. See TEMP-LAPTOP.md for the full setup/teardown steps.
+# Temporary "Controller" - runs the exact same pi-server code the real
+# Controller box will run, directly on this laptop, while dedicated hardware
+# isn't set up yet. See TEMP-LAPTOP.md for the full setup/teardown steps.
 #
 # One-time: copy this file to start-temp-pi.local.ps1 (gitignored - never
 # commit a real token) and set $Token below to a long random string.
-# Every day: run start-temp-pi.local.ps1. It syncs the schedule, prints
-# the two URLs you need (driver commissioning + today's kiosk URL), then
-# starts the server and blocks until you Ctrl+C it.
+# Every day: run start-temp-pi.local.ps1. It prints the two URLs you need
+# (driver commissioning + today's kiosk URL), then starts the server and
+# blocks until you Ctrl+C it. No separate schedule sync step - the schedule
+# now arrives pushed from the Driver device once it starts a journey.
 
 $Token = "REPLACE-WITH-A-LONG-RANDOM-STRING"
 $Port = 8080
@@ -20,9 +21,6 @@ $env:DRIVER_PUSH_TOKEN = $Token
 $env:PORT = "$Port"
 
 $scriptDir = $PSScriptRoot
-
-Write-Host "Syncing today's schedule from Supabase..." -ForegroundColor Cyan
-node (Join-Path $scriptDir "sync-schedule.mjs")
 
 $hotspotIp = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
     Where-Object { $_.IPAddress -like "192.168.137.*" } |
@@ -41,8 +39,9 @@ Write-Host "Open on the driver's phone (Chrome), once, connected to this laptop'
 Write-Host "http://<driver-pwa-url>/?announce-setup=ws://$($hotspotIp):$Port/driver-push&announce-token=$Token"
 Write-Host ""
 Write-Host "=== Today's kiosk URL - open this in the browser on the Monitor ===" -ForegroundColor Green
-Write-Host "(fill in <journey-id> from the dashboard's Daily Journeys page)"
-Write-Host "http://localhost:$Port/onboard.html?journey=<journey-id>&announce-token=$Token"
+Write-Host "(same URL every day - no journey-id to fill in; the sign wakes on its own"
+Write-Host "once the driver starts a journey)"
+Write-Host "http://localhost:$Port/onboard.html?announce-token=$Token"
 Write-Host ""
 Write-Host "Starting server on port $Port... (Ctrl+C to stop)" -ForegroundColor Cyan
 node (Join-Path $scriptDir "server.mjs")

@@ -12,7 +12,7 @@ Supabase backend:
 |---|---|---|---|
 | Driver PWA (BusOps Driver) | repo root (`index.html`, `src/`) | Vanilla JS, ES modules, no build step | GitHub Pages today; migrating to Cloudflare Workers at `driver.coachmate.uk` (`wrangler.jsonc` + `.assetsignore` are already in place for that, not yet cut over) |
 | Ops dashboard (CoachMate Ops Dashboard) | `dashboard/` | React + Vite | Vercel, auto on push |
-| Onboard passenger sign (BusOps Announce) | `onboard.html`, `src/onboard.js`; Pi-side setup in `pi-server/` | Vanilla JS + Node (gpsd client) | Raspberry Pi + Fire HD tablet, see `pi-server/DEPLOY.md` |
+| Onboard passenger sign (BusOps Announce) | `onboard.html`, `src/onboard.js`; Controller-side setup in `pi-server/` | Vanilla JS + Node (WebSocket relay, no GPS/DB access) | Bus Controller box (see `docs/CONTROLLER-REDESIGN.md`) + Fire HD tablet, see `pi-server/DEPLOY.md` |
 
 Supabase schema lives at `supabase/schema.sql`. Everything else (`graphhopper/`, `lib/`,
 `scripts/`, `audio/`) is shared infra used by more than one surface.
@@ -289,13 +289,18 @@ fallback for a clip that isn't rendered/cached yet.
 
 ### Onboard passenger sign (BusOps Announce)
 A separate vanilla-JS app (`onboard.html` + `src/onboard.js`) meant to run full-screen on a
-Fire HD tablet mounted in the vehicle, driven by a Raspberry Pi over its own local WiFi
-hotspot (see `pi-server/DEPLOY.md` for the two-radio WiFi setup, `pi-server/gpsd-client.mjs`
-for the GPS bridge, `pi-server/sync-schedule.mjs` for depot-WiFi schedule sync). Deliberately
-siloed from `main.js` — no login, no duty-card UI, no incident reporting, no writes to
-Supabase at all; it only reads `schedule_view`/`get_duty_card` and tracks GPS live, watching a
-single `journey_id` passed via `?journey=` in the URL. Designed to work fully offline once
-synced at the depot each morning. A separate ultra-wide (16:3) layout exists alongside the
+Fire HD tablet (or HDMI panel) mounted in the vehicle, driven by a Bus Controller box over its
+own local WiFi hotspot (see `pi-server/DEPLOY.md` for setup, `pi-server/announceRelay.mjs` for
+the WebSocket relay). Deliberately siloed from `main.js` — no login, no duty-card UI, no
+incident reporting, no writes to Supabase at all. As of the Controller redesign
+(`docs/CONTROLLER-REDESIGN.md`) it also has **no reads of its own**: no `get_duty_card`
+polling, no GPS (the Controller has no GPS hardware — that lives entirely on the driver
+device), no `schedule_view` queries. It's a pure renderer, driven only by what the Driver PWA
+pushes to it (`src/announceLink.js` → `pi-server/announceRelay.mjs` → this device's
+`/sign-feed` connection): a `{type:'schedule', ...}` message once per journey start (stops,
+service code, branding), then `{type:'state', ...}` messages as the journey progresses. Stays
+blank until an authenticated push connection delivers a schedule — there's no `?journey=` URL
+param or depot-WiFi sync step anymore. A separate ultra-wide (16:3) layout exists alongside the
 Fire HD layout — see `docs/onboard-widescreen-layout.md`.
 
 ### Dashboard (Vertical Slice Architecture)

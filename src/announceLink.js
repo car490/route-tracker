@@ -44,6 +44,29 @@ export function buildStatePayload(state, { announcing = null } = {}) {
   };
 }
 
+// Sent once per journey start (and resent on every reconnect — see
+// sendSchedule() below) so the Controller knows which journey/stops any
+// subsequent {type:'state'} messages refer to, without ever querying
+// Supabase itself. allStops is forwarded verbatim (name/lat/lon/time/
+// stop_type/timetable_stop_id/stop_id) — same "carry the full shape, not a
+// hand-picked subset" precedent as buildStatePayload's stopStates.
+// accentColor/primaryColor default to null (not omitted) so a manually-
+// started journey — which has no company branding lookup today — still
+// produces a well-formed payload the Controller can render against the
+// platform default accent.
+export function buildSchedulePayload({ journeyId, serviceCode, destination, allStops, accentColor, primaryColor }) {
+  return {
+    type: 'schedule',
+    ts: Date.now(),
+    journeyId,
+    serviceCode,
+    destination,
+    stops: allStops,
+    accentColor: accentColor ?? null,
+    primaryColor: primaryColor ?? null,
+  };
+}
+
 // ── Commissioning (one-time, persisted) ─────────────────────────────────────
 
 // One-time setup: visiting index.html?announce-setup=<pi-ws-url>&announce-token=<token>
@@ -61,6 +84,17 @@ export function captureAnnounceSetup(params, storage = globalThis.localStorage) 
 let socket = null;
 let stopped = true;
 let announcing = null;
+let lastScheduleState = null;
+
+// Resends the current journey's schedule whenever the socket (re)opens —
+// covers both the initial connect racing broadcastSchedule() (socket not
+// OPEN yet when it's first called) and a Controller restarting mid-shift
+// (its in-memory latestSchedule is gone; the Driver silently reconnecting
+// is what repopulates it, no user action needed).
+function sendSchedule() {
+  if (!lastScheduleState || !socket || socket.readyState !== WebSocket.OPEN) return;
+  socket.send(JSON.stringify(buildSchedulePayload(lastScheduleState)));
+}
 
 function connect() {
   if (stopped) return;
@@ -73,6 +107,7 @@ function connect() {
     scheduleReconnect();
     return;
   }
+  socket.addEventListener('open', sendSchedule);
   socket.addEventListener('close', scheduleReconnect);
   socket.addEventListener('error', () => {}); // 'close' always follows 'error' on WebSocket, no separate handling needed
 }
@@ -96,6 +131,7 @@ export function disconnectAnnounceLink() {
   socket?.close();
   socket = null;
   announcing = null;
+  lastScheduleState = null;
 }
 
 // Lets main.js flag what's currently being announced (PSVAIR audio stays on
@@ -111,4 +147,12 @@ export function setAnnouncing(name) {
 export function broadcastState(state) {
   if (!socket || socket.readyState !== WebSocket.OPEN) return;
   socket.send(JSON.stringify(buildStatePayload(state, { announcing })));
+}
+
+// Call once when a journey starts tracking (alongside connectAnnounceLink()
+// — see main.js). Remembered so it can be resent on every reconnect by
+// sendSchedule() above; a no-op here just means "not open yet", not "lost".
+export function broadcastSchedule(state) {
+  lastScheduleState = state;
+  sendSchedule();
 }

@@ -1,9 +1,20 @@
-# Onboard display — Raspberry Pi + passenger display
+# Onboard display — Bus Controller + passenger display
 
-Vehicle-mounted GPS + PSVAIR announcement display. The Pi provides real GPS
-hardware and a self-contained WiFi hotspot; the passenger display (or Fire HD
-tablet) just runs a browser against it. See `onboard.html`/`src/onboard.js` for the
-web app itself — this file is Pi-side setup only.
+> **Board/architecture note (2026-08):** the Bus Controller is moving from a
+> Raspberry Pi to an x86 mini PC (MeLE Quieter4C), and the Controller no
+> longer runs its own GPS or independently polls Supabase — see
+> `docs/CONTROLLER-REDESIGN.md` for the full picture. This file still
+> describes the Pi-era hardware/WiFi setup steps (§1–§3, §5) that haven't
+> been re-verified against the new board yet; the *software* sections (§4,
+> §6, "Refreshing the schedule", "Verifying it's working") are updated to
+> match the current code (push-only, no gpsd/sync-schedule.mjs).
+
+Vehicle-mounted PSVAIR announcement display, driven entirely by state and
+schedule data pushed from the Driver device — no GPS of its own, no direct
+Supabase reads. The Controller provides a self-contained WiFi hotspot; the
+passenger display (or Fire HD tablet) just runs a browser against it. See
+`onboard.html`/`src/onboard.js` for the web app itself — this file is
+Controller-side setup only.
 
 ## Operator branding (colours)
 
@@ -68,18 +79,13 @@ The Pi 5's onboard WiFi chip is a single radio (one interface at a time in
 AP+client mode is unreliable on-chip). Use a cheap USB WiFi dongle (e.g.
 Edimax EW-7811Un) as `wlan1` for the hotspot — same advice as Pi 4.
 
-## 1. GPS — gpsd
-```bash
-sudo apt install gpsd gpsd-clients
-```
-Point it at the GPS module's device (commonly `/dev/ttyUSB0` or
-`/dev/ttyAMA0`) in `/etc/default/gpsd`:
-```
-DEVICES="/dev/ttyUSB0"
-GPSD_OPTIONS="-n"
-```
-Verify with `cgps -s` before moving on — confirm it gets a fix outdoors
-before assuming anything downstream is broken.
+## 1. GPS — not needed on the Controller
+
+**Removed.** GPS lives entirely on the Driver device now (its own GNSS
+chip) and reaches the Controller as already-derived state over the push
+feed (§6) — see `docs/CONTROLLER-REDESIGN.md` §6. `pi-server/gpsd-client.mjs`
+and the `/api/position` endpoint are gone; don't install `gpsd` or wire up
+a GPS module for this box.
 
 ## 2. wlan0 — depot WiFi client
 Standard Raspberry Pi OS WiFi client setup (`raspi-config` or
@@ -107,18 +113,19 @@ nohook wpa_supplicant
 `CoachMate-<name>` shows up as a WiFi network from another device.
 
 ## 4. The app itself
-Clone this repo onto the Pi (anywhere — the systemd units below assume
-`/home/pi/route-tracker`, adjust `WorkingDirectory` if different):
+Clone this repo onto the Controller (anywhere — the systemd unit below
+assumes `/home/pi/route-tracker`, adjust `WorkingDirectory` if different):
 ```bash
 git clone <repo-url> ~/route-tracker
 cd ~/route-tracker/pi-server
-sudo cp config/coachmate-sync.service config/coachmate-onboard.service /etc/systemd/system/
+sudo cp config/coachmate-onboard.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now coachmate-sync coachmate-onboard
+sudo systemctl enable --now coachmate-onboard
 ```
-`coachmate-sync` runs once at boot (schedule fetch, see `sync-schedule.mjs`),
-`coachmate-onboard` (`server.mjs`) runs continuously, serving the app +
-`/api/schedule` + `/api/position` on port 8080.
+`coachmate-onboard` (`server.mjs`) runs continuously, serving the app,
+`/api/schedule`, and the `/driver-push`/`/sign-feed` WebSocket endpoints on
+port 8080. There's no separate sync job to install — `/api/schedule` is now
+written whenever the Driver device pushes a fresh schedule (see §6).
 
 ## 5. Display setup
 
@@ -141,7 +148,7 @@ different panel needs its physical diagonal supplied once, via
 A/B below already uses (same pattern as `&announce-token=`, see §6). Omit
 it entirely and the CSS default applies unchanged — safe for existing
 Fire HD/wide-sign deployments. Example for the Dell Pro P2426H used in
-demo/validation builds: `...onboard.html?journey=<id>&panel-diagonal=23.8`.
+demo/validation builds: `...onboard.html?announce-token=<token>&panel-diagonal=23.8`.
 See `computeMinTextVh()` in `src/onboard.js` for the underlying math if a
 different panel is ever used — it only needs the diagonal size; resolution
 and aspect ratio are already known automatically at runtime.
@@ -223,19 +230,18 @@ The `VSDISPLAY 28" 1920×360` example above is **stale** — see
 full status trail (why that panel was dropped, what's TBD for production,
 and the still-open beta pick question), and don't order against this file.
 
-## 6. Driver → Pi push feed (optional, additive)
+## 6. Driver → Controller push feed (required — the only source of data)
 
-By default the Pi still runs its own `gpsd` GPS and `onboard.js` polls
-Supabase directly — nothing above changes. This section adds an *additional*
-path: the Driver device pushes its already-computed tracking state
-(next stop, ETA, diversion/final-stop flags — never raw GPS) to this Pi over
-a local WebSocket, and `onboard.js` prefers that pushed state when a
-connection is live, falling back to today's polling/GPS behavior otherwise.
-See `pi-server/announceRelay.mjs` and `src/announceLink.js`.
+The Controller has no GPS and no direct Supabase access at all — everything
+it shows comes from what the Driver device pushes to it over a local
+WebSocket: schedule/stops once per journey start, then tracking state
+(next stop, ETA, diversion/final-stop flags — never raw GPS) on every
+update. `onboard.js` shows nothing until this connection has delivered at
+least a schedule message. See `pi-server/announceRelay.mjs` and
+`src/announceLink.js`.
 
 **Set a shared token** (a commissioning-time secret, not "on this network =
-trusted") before enabling this — both endpoints reject every connection
-until it's set:
+trusted") — both endpoints reject every connection until it's set:
 ```ini
 # add to coachmate-onboard.service's [Service] section
 Environment=DRIVER_PUSH_TOKEN=<a long random string, same on both ends>
@@ -256,9 +262,10 @@ remembered WiFi network.
 http://<driver-pwa-url>/?announce-setup=ws://192.168.4.1:8080/driver-push&announce-token=<same token>
 ```
 This saves both values to `localStorage` — the Driver PWA never needs the
-query param again, and pushes state automatically for every journey started
-from that device from then on. A device that was never commissioned this way
-simply never connects — the whole feature is a silent no-op for it.
+query param again, and pushes schedule/state automatically for every journey
+started from that device from then on. A device that was never commissioned
+this way simply never connects — the Controller stays blank for that
+vehicle's journeys, not degraded, since there's no other data source left.
 
 **onboard.js side** needs no separate commissioning: it already knows its own
 host (it's served by this same Pi), and reads the token from its own URL —
@@ -266,39 +273,39 @@ add `&announce-token=<same token>` to whatever fixed URL Option A/B above
 already uses to open `onboard.html`.
 
 ## Refreshing the schedule mid-shift
-The display's "Refresh routes" button only re-reads the Pi's *existing*
-cache — it can't reach Supabase itself (that's the whole point of the
-hotspot-only design) so it can't pull anything newer than what the Pi
-already has. If stops change and the vehicle is already out:
-- Simplest: it'll pick up the change automatically next morning at the
-  depot, when `coachmate-sync` runs again at boot.
-- To force it sooner without a depot trip: SSH into the Pi (needs wlan0 in
-  range of *some* network) and run `node sync-schedule.mjs` by hand from
-  `pi-server/`, or `sudo systemctl restart coachmate-sync`. No browser
-  reload is needed either way — `onboard.js` already polls on a loop, so the
-  refreshed cache shows up on its own.
+The Controller never reaches Supabase itself — its only source of schedule
+data is whatever the Driver device last pushed (§6). It refreshes
+automatically whenever the Driver's push connection (re)opens (e.g. it
+reconnects after a WiFi drop, or the driver ends and restarts tracking), not
+on any fixed schedule. **Known gap, not built**: nothing today re-triggers a
+push mid-journey if stops change *while* a journey is already in progress
+and the connection hasn't dropped — the Driver PWA doesn't currently expose
+a manual "resend schedule" action. Ending and restarting the trip is the
+only way to force it right now.
 
 ## Verifying it's working
 ```bash
-curl http://192.168.4.1:8080/api/schedule   # from another device on the hotspot
-curl http://localhost:8080/api/schedule     # from the Pi itself (Option B/kiosk)
-curl http://localhost:8080/api/position     # 503 {"error":"no_fix"} until gpsd gets a fix, then 200 {lat,lon,speed}
+curl http://192.168.4.1:8080/api/schedule   # from another device on the hotspot (diagnostic only — onboard.js doesn't poll this)
+curl http://localhost:8080/api/schedule     # from the Controller itself (Option B/kiosk)
 journalctl -u coachmate-onboard -f          # tail the server's logs
-journalctl -u coachmate-sync                # check this morning's sync result
 systemctl status coachmate-kiosk            # Option B only — confirm the kiosk browser is running
 journalctl -u coachmate-kiosk -f            # Option B only — tail Chromium's (or cage's) logs
 ```
-If an Option B monitor stays blank, check `coachmate-kiosk`'s logs first,
-then confirm the monitor's actually set to the HDMI input the Pi is plugged
-into — a monitor with no OS of its own won't show anything if it's just
-idling on a different input.
+`/api/schedule` returns `[]` until either a Driver has pushed a schedule
+since this boot, or a previous push's disk cache exists — that's expected
+before anyone has started a journey today, not a fault.
 
-If the push feed (section 6) is set up, verify it separately with any
-WebSocket client, e.g. `npx wscat`:
+If an Option B monitor stays blank, check `coachmate-kiosk`'s logs first,
+then confirm the monitor's actually set to the HDMI input the Controller is
+plugged into — a monitor with no OS of its own won't show anything if it's
+just idling on a different input.
+
+Verify the push feed (section 6 — required, not optional) separately with
+any WebSocket client, e.g. `npx wscat`:
 ```bash
 npx wscat -c "ws://192.168.4.1:8080/sign-feed?token=<token>"   # should connect and stay open
 npx wscat -c "ws://192.168.4.1:8080/sign-feed?token=wrong"     # should be rejected (401)
 ```
 A driver on a commissioned device should show up as one more open connection
-in `coachmate-onboard`'s logs, and `onboard.js`'s status line should stop
-requesting its own GPS permission once it's receiving pushed state instead.
+in `coachmate-onboard`'s logs, and `onboard.js` should un-hide `#onboard-sign`
+once it receives the schedule message that starting a journey sends.

@@ -1,7 +1,5 @@
 [Unit]
 Description=CoachMate onboard display server
-After=coachmate-sync.service gpsd.service
-Wants=coachmate-sync.service gpsd.service
 
 [Service]
 Type=simple

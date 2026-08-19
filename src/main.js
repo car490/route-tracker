@@ -15,7 +15,7 @@ import { selectServiceManually } from './manualSelection.js';
 import { getStoredVehicle, storeVehicle } from './vehicleSetup.js';
 import {
   captureAnnounceSetup, connectAnnounceLink, disconnectAnnounceLink,
-  broadcastState, setAnnouncing,
+  broadcastState, broadcastSchedule, setAnnouncing,
 } from './announceLink.js';
 
 const DEBUG = new URLSearchParams(window.location.search).has('debug');
@@ -111,7 +111,7 @@ function showTripCompleteBanner(onDismiss) {
 
 // ── Tracker ───────────────────────────────────────────────────────────────────
 
-function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex, serviceCode, servicePeriod, psvairEnabled, onComplete }) {
+function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex, serviceCode, servicePeriod, psvairEnabled, accentColor, primaryColor, onComplete }) {
   document.getElementById('picker').hidden  = true;
   document.getElementById('tracker').hidden = false;
   document.getElementById('route-header').scrollIntoView();
@@ -129,6 +129,20 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   document.getElementById('header-service-code').textContent = serviceCode;
   document.getElementById('header-line1').textContent =
     `${stripIndicator(firstStop.name)} → ${stripIndicator(lastStop.name)}`;
+
+  // Tells the Controller which journey/stops this run's state updates refer
+  // to — it has no Supabase access of its own to look this up (see
+  // docs/CONTROLLER-REDESIGN.md §3/§6). accentColor/primaryColor are absent
+  // on the manual-selection path (no company branding lookup there today);
+  // broadcastSchedule/buildSchedulePayload already default both to null.
+  broadcastSchedule({
+    journeyId,
+    serviceCode,
+    destination: stripIndicator(lastStop.name),
+    allStops,
+    accentColor,
+    primaryColor,
+  });
 
   log('info', `Started: ${serviceCode}${servicePeriod ? ' ' + servicePeriod : ''} from "${allStops[initialStopIndex].name}"`);
 
@@ -655,6 +669,8 @@ async function launchDutyRoute(duties, idx, journeyIds) {
       serviceCode: journey.service_code,
       servicePeriod: journey.timetable_name,
       psvairEnabled: journey.psvairInScope,
+      accentColor: journey.accent_color,
+      primaryColor: journey.primary_color,
       onComplete: () => {
         journey.status = 'completed';
         renderDutyCard(duties, journeyIds);

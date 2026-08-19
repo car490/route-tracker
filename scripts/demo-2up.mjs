@@ -38,14 +38,21 @@
 // window's own PSVAIR announcements are muted via localStorage so the two
 // don't talk over each other.
 //
+// The Announce window is a pure pushed-state renderer (see
+// docs/CONTROLLER-REDESIGN.md) — it shows nothing until the driver window's
+// push feed delivers a schedule, so this script spawns pi-server/server.mjs
+// (not the plain server.js) and commissions the driver window's push-feed
+// localStorage before it loads, same technique as
+// scripts/demo-announce-push.mjs.
+//
 // Usage:
 //   node scripts/demo-2up.mjs duty   [secondsPerStop]
 //   node scripts/demo-2up.mjs manual [secondsPerStop]
 //
-// Starts the local dev server (server.js, :8080) itself if nothing is
-// already answering there — see ensureServerRunning() — and stops it again
-// on exit, but only if this script was the one that started it (a server
-// you already had running, e.g. via dev-all.mjs, is left alone).
+// Starts pi-server/server.mjs itself if nothing is already answering on its
+// port — see ensureServerRunning() — and stops it again on exit, but only
+// if this script was the one that started it (a server you already had
+// running is left alone).
 
 import { chromium } from 'playwright';
 import { mkdtempSync } from 'node:fs';
@@ -73,41 +80,50 @@ if (MODE !== 'duty' && MODE !== 'manual') {
   process.exit(1);
 }
 
-const BASE_URL = 'http://localhost:8080';
+// Deliberately not 8080/8081 — leaves the plain dev server.js (8080, e.g.
+// from dev-all.mjs) and scripts/demo-announce-push.mjs (8081) free to run
+// alongside this.
+const PORT = 8082;
+const BASE_URL = `http://localhost:${PORT}`;
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const IS_WIN = process.platform === 'win32';
+const DEMO_TOKEN = 'demo-2up-token';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function isServerUp() {
   try {
-    const res = await fetch(BASE_URL, { signal: AbortSignal.timeout(1000) });
+    const res = await fetch(`${BASE_URL}/api/schedule`, { signal: AbortSignal.timeout(1000) });
     return res.ok;
   } catch {
     return false;
   }
 }
 
-// Starts server.js only if nothing is already answering on :8080 — reusing
-// an already-running server (e.g. from dev-all.mjs, or a previous demo run
-// you left open) rather than fighting over the port. Returns the child
-// process if this call is the one that started it, so the caller knows
-// whether it's responsible for stopping it again — null means "leave it
-// alone, it wasn't ours."
+// Starts pi-server/server.mjs only if nothing is already answering on PORT
+// — reusing an already-running server (e.g. a previous demo run you left
+// open) rather than fighting over the port. Returns the child process if
+// this call is the one that started it, so the caller knows whether it's
+// responsible for stopping it again — null means "leave it alone, it
+// wasn't ours."
 async function ensureServerRunning() {
   if (await isServerUp()) {
-    console.log('Dev server already running on :8080 — reusing it.');
+    console.log(`pi-server already running on :${PORT} — reusing it (its DRIVER_PUSH_TOKEN must already be "${DEMO_TOKEN}").`);
     return null;
   }
-  console.log('Starting local dev server (node server.js)…');
-  const child = spawn('node', ['server.js'], { cwd: ROOT, shell: IS_WIN });
-  child.stdout.on('data', (d) => process.stdout.write(`[server] ${d}`));
-  child.stderr.on('data', (d) => process.stderr.write(`[server] ${d}`));
+  console.log(`Starting pi-server (node pi-server/server.mjs) on :${PORT}…`);
+  const child = spawn('node', ['pi-server/server.mjs'], {
+    cwd: ROOT,
+    shell: IS_WIN,
+    env: { ...process.env, PORT: String(PORT), DRIVER_PUSH_TOKEN: DEMO_TOKEN },
+  });
+  child.stdout.on('data', (d) => process.stdout.write(`[pi-server] ${d}`));
+  child.stderr.on('data', (d) => process.stderr.write(`[pi-server] ${d}`));
   for (let i = 0; i < 30; i++) {
     if (await isServerUp()) return child;
     await sleep(200);
   }
-  throw new Error('server.js did not come up on :8080 within 6s');
+  throw new Error(`pi-server/server.mjs did not come up on :${PORT} within 6s`);
 }
 
 function stopServer(child) {
@@ -227,7 +243,7 @@ async function waitForRealPage(context, expectedUrl) {
   return context.pages()[0] ?? await context.waitForEvent('page');
 }
 
-async function openWindow({ url, windowPosition, windowSize, mute }) {
+async function openWindow({ url, windowPosition, windowSize, mute, commissionAnnounce }) {
   // launchPersistentContext + --app=<url> gives a bare window: no tabs, no
   // address bar, just the page content and a thin native title bar.
   // viewport: null means "no emulation, use the real window" — plain
@@ -258,6 +274,16 @@ async function openWindow({ url, windowPosition, windowSize, mute }) {
     // Set before the app's own init reads it, so no announcement gets
     // spoken even for the very first stop.
     await page.evaluate(() => localStorage.setItem('psvair-muted', '1')).catch(() => {});
+  }
+  if (commissionAnnounce) {
+    // One-time push-feed commissioning (src/announceLink.js's
+    // captureAnnounceSetup) — without this the driver window never pushes
+    // schedule/state, and the Announce window (a pure pushed-state renderer
+    // now) stays permanently blank.
+    await page.evaluate(({ url: wsUrl, token }) => {
+      localStorage.setItem('announceLinkUrl', wsUrl);
+      localStorage.setItem('announceLinkToken', token);
+    }, { url: `ws://localhost:${PORT}/driver-push`, token: DEMO_TOKEN }).catch(() => {});
   }
   // --app=<url> starts navigating the instant Chromium's process starts,
   // racing ahead of the geolocation permission grant and (if set) the mute
@@ -291,23 +317,24 @@ process.on('SIGTERM', shutdown);
 (async () => {
   serverChild = await ensureServerRunning();
 
-  let pwaUrl, journeyId;
+  // /index.html, not "/" — pi-server/server.mjs aliases bare "/" to
+  // onboard.html (see its serveStaticFile()).
+  let pwaUrl;
 
   if (MODE === 'duty') {
-    pwaUrl = `${BASE_URL}/?duties=${DUTY_JOURNEY_ID}`;
-    journeyId = DUTY_JOURNEY_ID;
+    pwaUrl = `${BASE_URL}/index.html?duties=${DUTY_JOURNEY_ID}`;
   } else {
-    pwaUrl = BASE_URL;
+    pwaUrl = `${BASE_URL}/index.html`;
     console.log('Resolving today\'s manual-mode journey row…');
-    journeyId = await resolveManualJourneyId();
+    await resolveManualJourneyId(); // creates/finds the row so it exists once Start is clicked; the id itself isn't needed here anymore — the Announce window learns it from the driver's schedule push instead of watching a specific journey id
   }
 
   const onboardUrl = new URL('/onboard.html', BASE_URL);
-  onboardUrl.searchParams.set('journey', journeyId);
+  onboardUrl.searchParams.set('announce-token', DEMO_TOKEN);
 
   const [driver, announce] = await Promise.all([
     openWindow({
-      url: pwaUrl, mute: true,
+      url: pwaUrl, mute: true, commissionAnnounce: true,
       windowPosition: `${PWA_X},${PWA_Y}`, windowSize: `${PWA_W},${PWA_H}`,
     }),
     openWindow({
@@ -329,8 +356,9 @@ process.on('SIGTERM', shutdown);
     console.log(`                     MANUAL_DEPARTURE_ID (${MANUAL_DEPARTURE_ID}) above — the BusOps`);
     console.log('                     Announce window is already watching the journey it resolves to.');
   }
-  console.log('RIGHT (Announce):    nothing to click — it polls for the journey to start and');
-  console.log('                     wakes on its own within a few seconds of you hitting Start.');
+  console.log('RIGHT (Announce):    nothing to click — connects to the driver window\'s pushed');
+  console.log('                     feed and wakes the instant you hit Start (it\'s a pure');
+  console.log('                     pushed-state renderer now, no GPS/Supabase of its own).');
   console.log('                     It has voice; the driver PWA is muted so they don\'t overlap.');
   console.log('\nWaiting for both to start…');
 

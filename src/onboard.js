@@ -1,22 +1,20 @@
 // Fixed passenger-facing onboard sign. Deliberately siloed from main.js —
-// no login, no duty card UI, no incident reporting, no stop-time upload,
-// no writes to Supabase at all. It only reads schedule_view/get_duty_card
-// and tracks GPS live.
+// no login, no duty card UI, no incident reporting, no stop-time upload, no
+// writes to Supabase at all. As of the Controller redesign
+// (docs/CONTROLLER-REDESIGN.md §3/§4/§5/§6) it also has NO reads of its
+// own: no independent get_duty_card polling, no GPS (neither its own
+// hardware nor a local /api/position bridge), no schedule_view queries.
+// It is a pure renderer, driven entirely by what the Driver device pushes
+// to it over a local WebSocket (see src/announceLink.js — the sender —
+// and pi-server/announceRelay.mjs — the relay this device connects to).
 //
-// No manual intervention: this device is told which single journey to
-// watch via ?journey=<id> in the URL (a Pi-side deployment would inject
-// this the same way it already injects a fixed departure into
-// sync-schedule.mjs). It sits on a blank screen, polling get_duty_card
-// for that journey_id, until status flips to in_progress — i.e. the
-// moment the driver hits Start on their own phone — then wakes on its
-// own and starts showing/announcing stops.
-import { startGpsTracking } from './gps.js';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
-import { setAnnouncementsEnabled, announceJourneyStart, announceDiversion } from './announcements.js';
-import { announceApproachEvent, announceStopEvent } from './announceStopEvent.js';
-
-const WATCH_JOURNEY_ID = new URLSearchParams(window.location.search).get('journey');
-const POLL_INTERVAL_MS = 5000;
+// No manual intervention: this device is told nothing about which journey
+// to watch via its own URL beyond ?announce-token=<token> (the shared
+// secret for the relay — see pi-server/DEPLOY.md). It sits blank until an
+// authenticated /sign-feed connection receives a {type:'schedule'}
+// message — i.e. the moment a Driver device starts tracking a journey —
+// then wakes on its own and starts showing stops as {type:'state'}
+// messages arrive.
 const WIDE_LAYOUT_QUERY = '(min-aspect-ratio: 4/1)'; // 16:3 ultra-wide sign, see docs/onboard-widescreen-layout.md
 
 const el = (id) => document.getElementById(id);
@@ -36,12 +34,12 @@ const isWideLayout = () => matchMedia(WIDE_LAYOUT_QUERY).matches;
 // (resolution, aspect ratio) is already known automatically at runtime.
 //
 // Commissioned via ?panel-diagonal=<inches> on the same fixed kiosk URL that
-// already carries ?journey= and (optionally) ?announce-token= — same
-// pattern as onboard.js's other per-device settings (see the file header:
-// this device has nothing to persist across visits, everything comes from
-// its own URL each load). Omitted entirely = old behaviour: CSS's own 17vh
-// default applies unchanged, so existing Fire HD/wide-sign deployments that
-// haven't added the param yet aren't affected.
+// already carries ?announce-token= — same per-device-settings-in-the-URL
+// pattern this device uses throughout (see the file header: nothing to
+// persist across visits, everything comes from its own URL each load).
+// Omitted entirely = old behaviour: CSS's own 17vh default applies
+// unchanged, so existing deployments that haven't added the param yet
+// aren't affected.
 export function computeMinTextVh(diagonalInches, viewportWidthPx, viewportHeightPx) {
   if (!diagonalInches || !viewportWidthPx || !viewportHeightPx) return null;
   const diagonalPx = Math.sqrt(viewportWidthPx ** 2 + viewportHeightPx ** 2);
@@ -55,109 +53,15 @@ function applyPanelSizing() {
   if (minTextVh) document.documentElement.style.setProperty('--min-text', `${minTextVh}vh`);
 }
 
-// Set once a schedule fetch resolves — true when this page is being served
-// by a Pi's local pi-server (not GitHub Pages / the plain dev server.js),
-// so GPS is also read from its /api/position bridge instead of
-// navigator.geolocation.
-let usingLocalApi = false;
-
-async function rpc(fn, args) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
-    method: 'POST',
-    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(args),
-  });
-  if (!res.ok) throw new Error(`RPC ${fn}: ${res.status}`);
-  return res.json();
-}
-
-function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
-
-// ── Wait for the driver to start this journey ──────────────────────────────
-
-async function waitForJourneyStart(journeyId) {
-  for (;;) {
-    try {
-      const [duty] = await rpc('get_duty_card', { journey_ids: [journeyId] });
-      if (duty && duty.status === 'in_progress') return duty;
-    } catch (err) {
-      console.error('get_duty_card poll failed:', err);
-    }
-    await sleep(POLL_INTERVAL_MS);
-  }
-}
-
-// ── Stops for the watched journey's departure ──────────────────────────────
-
-async function fetchStops(departureId) {
-  // Try a Pi's local pi-server first (relative URL — only present when this
-  // page is actually being served by one; 404s harmlessly on GitHub Pages
-  // or the plain dev server.js, which don't have an /api/* route at all).
-  try {
-    const res = await fetch('/api/schedule');
-    if (res.ok) {
-      usingLocalApi = true;
-      const rows = (await res.json()).filter((r) => r.departure_id === departureId);
-      return rowsToStops(rows);
-    }
-  } catch (_) { /* no local server reachable — fall through to Supabase */ }
-
-  usingLocalApi = false;
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/schedule_view` +
-    `?departure_id=eq.${departureId}` +
-    `&select=timetable_stop_id,stop_id,stop_type,scheduled_time,display_name,lat,lon,sequence` +
-    `&order=sequence`,
-    { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
-  );
-  if (!res.ok) throw new Error(`schedule_view ${res.status}`);
-  return rowsToStops(await res.json());
-}
-
 // display_name() (schema.sql) appends a NaPTAN indicator in parentheses —
 // "Weston, The Chequers PH (adj)", "Grantham, Bus Station (Stand 5)" — for
 // route-planning precision (which pole/bay/side of the road). Passengers
 // don't need that, and every character counts against the 22mm text
 // minimum, so it's stripped here for this passenger-facing display only —
-// the driver PWA and dashboard still get the full name with indicator.
+// the pushed stops arrive with the full name (the driver PWA and dashboard
+// need the indicator), stripped is applied on receipt, in onSchedule below.
 function stripIndicator(name) {
   return name.replace(/\s*\([^)]*\)\s*$/, '');
-}
-
-function rowsToStops(rows) {
-  return rows
-    .sort((a, b) => a.sequence - b.sequence)
-    .map((r) => ({ name: stripIndicator(r.display_name), lat: r.lat, lon: r.lon, time: r.scheduled_time.substring(0, 5), stop_type: r.stop_type, stop_id: r.stop_id }));
-}
-
-// Polls a Pi's local GPS bridge (pi-server/server.mjs's /api/position,
-// itself fed by gpsd) instead of navigator.geolocation. Matches the
-// (onFix, onError) => {stop()} shape gps.js expects from any positionSource.
-function localPiPositionSource(onFix, onError) {
-  let stopped = false;
-  let consecutiveMisses = 0;
-
-  async function poll() {
-    if (stopped) return;
-    try {
-      const res = await fetch('/api/position');
-      if (res.ok) {
-        consecutiveMisses = 0;
-        const fix = await res.json();
-        onFix({ coords: { latitude: fix.lat, longitude: fix.lon, speed: fix.speed ?? 0, accuracy: fix.accuracy ?? null } });
-      } else if (res.status !== 503) {
-        // 503 = pi-server is up but gpsd has no fix yet (e.g. cold start) — not an error, just wait.
-        consecutiveMisses++;
-      }
-    } catch (_) {
-      consecutiveMisses++;
-    }
-    if (consecutiveMisses === 5) onError(new Error('Lost contact with onboard GPS unit'));
-    if (!stopped) setTimeout(poll, 2000);
-  }
-
-  poll();
-  return { stop: () => { stopped = true; } };
 }
 
 // ── Wake lock — keep the mounted screen on ─────────────────────────────────
@@ -242,10 +146,8 @@ function renderUpcoming(allStops, centerIndex, timing) {
   }).join('');
 }
 
-// ── Rendering — shared between the local-GPS path and the pushed-state path
-// (see runSignLocal/runSignPush below). Purely visual: no audio, no
-// Supabase, no GPS — just DOM updates off an already-computed state shape,
-// whichever path produced it. ──────────────────────────────────────────────
+// ── Rendering — purely visual: no audio, no Supabase, no GPS — just DOM
+// updates off an already-computed state shape pushed from the Driver. ──────
 
 function render(allStops, initialStopIndex, { nextStopIndex, earlyWait, atStop, timing }) {
   const centerIndex = atStop ? atStop.stopIndex : Math.max(nextStopIndex - 1, initialStopIndex);
@@ -272,11 +174,12 @@ function render(allStops, initialStopIndex, { nextStopIndex, earlyWait, atStop, 
   }
 }
 
-// "Announcing: X" hint — push-feed mode only (see runSignPush). Audio
-// playback itself always stays on the Driver device (PSVAIR reliability —
-// it must keep working even if this feed drops); this is a display-only
-// echo of the announcing field the Driver includes in its push messages.
-// #sign-announcing is optional markup — harmless no-op if it's not present.
+// "Announcing: X" hint. Audio playback itself stays on the Driver device
+// (PSVAIR reliability — it must keep working even if this feed drops; see
+// docs/CONTROLLER-REDESIGN.md §8 for the not-yet-built plan to change
+// that); this is a display-only echo of the announcing field the Driver
+// includes in its push messages. #sign-announcing is optional markup —
+// harmless no-op if it's not present.
 function renderAnnouncing(name) {
   const box = el('sign-announcing');
   if (!box) return;
@@ -284,44 +187,10 @@ function renderAnnouncing(name) {
   if (name) box.textContent = `Announcing: ${name}`;
 }
 
-// ── Pushed-state feed (Driver -> Pi -> this sign) ───────────────────────────
-// See src/announceLink.js (sender) and pi-server/announceRelay.mjs (relay).
-// This device reads its own push-feed token from its own URL rather than
-// commissioning localStorage the way the Driver device does — onboard.html
-// is always opened via one fixed per-vehicle URL (see pi-server/DEPLOY.md),
-// so there's nothing to persist across visits.
-const SIGN_FEED_TIMEOUT_MS = 3000;
-
-function connectSignFeed() {
-  const token = new URLSearchParams(window.location.search).get('announce-token');
-  if (!token) return Promise.resolve(null); // this display isn't set up for the push feed — go straight to the fallback
-
-  return new Promise((resolve) => {
-    let settled = false;
-    const settle = (result) => { if (!settled) { settled = true; clearTimeout(timer); resolve(result); } };
-
-    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    let ws;
-    try {
-      ws = new WebSocket(`${proto}//${location.host}/sign-feed?token=${encodeURIComponent(token)}`);
-    } catch (_) {
-      return void settle(null);
-    }
-    const timer = setTimeout(() => { ws.close(); settle(null); }, SIGN_FEED_TIMEOUT_MS);
-
-    ws.addEventListener('open', () => settle({
-      onMessage: (cb) => ws.addEventListener('message', (e) => cb(JSON.parse(e.data))),
-    }));
-    ws.addEventListener('error', () => settle(null));
-  });
-}
-
 // Dates cross JSON as ISO strings — revive them back into Date objects the
-// same render()/renderUpcoming() code that consumes gps.js's onUpdate
-// payload already expects. stopStates isn't consumed by anything yet (see
-// render() below — same as local-GPS mode, which never used it either), but
-// its arrivedAt/departedAt are revived too so it's not a trap for whatever
-// reads it next.
+// same render()/renderUpcoming() code expects. stopStates isn't consumed by
+// anything yet, but its arrivedAt/departedAt are revived too so it's not a
+// trap for whatever reads it next.
 function reviveState(msg) {
   return {
     ...msg,
@@ -339,139 +208,6 @@ function reviveState(msg) {
   };
 }
 
-function runSignPush(feed, allStops, initialStopIndex) {
-  feed.onMessage((msg) => {
-    if (msg.type !== 'state') return;
-    const state = reviveState(msg);
-    render(allStops, initialStopIndex, state);
-    renderAnnouncing(state.announcing);
-  });
-}
-
-// ── Local GPS + Supabase-polling path (today's behavior, unchanged) —
-// fallback for any sign not connected to a Driver's push feed. ─────────────
-
-function runSignLocal(duty, allStops, initialStopIndex, destination) {
-  setAnnouncementsEnabled(true);
-  // initialStopIndex is always 0 here (see runSign), so allStops[0]/[1] are
-  // always the first two real stops — same reasoning as main.js's runTracker.
-  announceJourneyStart({
-    serviceCode: duty.service_code,
-    destination,
-    firstStopId: allStops[0].stop_id,
-    firstStopName: allStops[0].name,
-    nextStopId: allStops[1].stop_id,
-    nextStopName: allStops[1].name,
-  });
-
-  // See main.js's runTracker for why this starts at initialStopIndex, not
-  // null — otherwise a vehicle already at the starting stop when BusOps
-  // Announce wakes gets that arrival (re-)announced on top of announceJourneyStart.
-  let lastAnnouncedStopIdx = initialStopIndex;
-
-  // ── Diversion status polling ────────────────────────────────────────────
-  // This device has no driver identity of its own (see file header), so it
-  // can't use diversion_alert_event's ownership-scoped RLS directly — it
-  // polls the anon-safe is_diversion_active() boolean instead. Announces
-  // immediately on the false→true transition (not just suppressing the next
-  // stop call) so passengers hear it promptly rather than waiting for the
-  // next scheduled stop.
-  let diversionActive = false;
-  (async function pollDiversionStatus() {
-    for (;;) {
-      try {
-        const active = await rpc('is_diversion_active', { p_journey_id: duty.journey_id });
-        if (active && !diversionActive) announceDiversion();
-        diversionActive = active;
-      } catch (err) {
-        console.error('is_diversion_active poll failed:', err);
-      }
-      await sleep(POLL_INTERVAL_MS);
-    }
-  })();
-
-  startGpsTracking({
-    schedule: allStops,
-    lateAllowanceMin: 2,
-    initialStopIndex,
-    positionSource: usingLocalApi ? localPiPositionSource : undefined,
-    onUpdate: ({ nextStopIndex, earlyWait, atStop, approaching, timing }) => {
-      render(allStops, initialStopIndex, { nextStopIndex, earlyWait, atStop, timing });
-
-      // PSVAIR event 2 — approaching (fires once per stop off gps.js's
-      // stopStates 'approaching' status). Silent for the final stop
-      // (announceApproachEvent itself suppresses that case).
-      if (approaching) {
-        const approachIsFinal = approaching.stopIndex === allStops.length - 1;
-        announceApproachEvent({
-          stopId: allStops[approaching.stopIndex].stop_id,
-          stopName: allStops[approaching.stopIndex].name,
-          isFinal: approachIsFinal,
-          diversionActive,
-        });
-      }
-
-      // Announce on arrival (atStop set), not departure, so "this stop" is
-      // true when said (PSVAIR events 3 & 4).
-      if (atStop && atStop.stopIndex !== lastAnnouncedStopIdx) {
-        lastAnnouncedStopIdx = atStop.stopIndex;
-        const stopIsFinal = atStop.stopIndex === allStops.length - 1;
-        announceStopEvent({
-          nextStopId: stopIsFinal ? null : allStops[atStop.stopIndex + 1].stop_id,
-          nextStopName: stopIsFinal ? null : allStops[atStop.stopIndex + 1].name,
-          isFinal: stopIsFinal,
-          diversionActive,
-          serviceCode: duty.service_code,
-          destination,
-        });
-      }
-    },
-  });
-}
-
-// ── Sign ─────────────────────────────────────────────────────────────────
-
-async function runSign(duty) {
-  const stops = await fetchStops(duty.timetable_departure_id);
-  if (!stops.length) { console.error('No stops for departure', duty.timetable_departure_id); return; }
-  const allStops = stops;
-  const initialStopIndex = 0; // start of route; geofence catch-up handles wherever the vehicle actually is
-
-  const destination = stripIndicator(duty.last_stop_name);
-  el('sign-service-code').textContent = duty.service_code;
-  el('sign-destination').textContent = destination;
-  el('onboard-sign').hidden = false;
-  // Brand mark stays visible once active too — repositioned in
-  // onboard.css to a corner of the central track band so it no longer
-  // sits under the (now left-aligned) purple topbar.
-
-  await acquireWakeLock();
-
-  // Prefers a live push feed from the Driver device (see runSignPush); a
-  // sign not commissioned for one, or unable to reach the Pi within
-  // SIGN_FEED_TIMEOUT_MS, falls straight back to today's exact behavior
-  // (runSignLocal) — nothing currently working is affected either way.
-  const feed = await connectSignFeed();
-  if (feed) {
-    runSignPush(feed, allStops, initialStopIndex);
-  } else {
-    runSignLocal(duty, allStops, initialStopIndex, destination);
-  }
-}
-
-// ── Clock — wide-layout top bar only, but harmless to keep updating while
-// the sign is hidden/in the default layout since #sign-clock just sits
-// unused there. ──────────────────────────────────────────────────────────
-
-function startClock() {
-  const clock = el('sign-clock');
-  const tick = () => {
-    clock.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-  };
-  tick();
-  setInterval(tick, 1000);
-}
-
 // ── Operator branding ─────────────────────────────────────────────────────
 // Mirrors the ThemeProvider pattern used in the dashboard: inject
 // --operator-accent as a CSS var on <html>, consumed by onboard.css for the
@@ -482,18 +218,23 @@ function startClock() {
 // components (>= 3:1 contrast) against the white paper it's used on/with.
 //
 // companies.accent_color is `not null default '#00B4D8'` (schema.sql), and
-// get_duty_card() returns it as-is — so there is no way to tell "operator
-// genuinely picked this colour" apart from "column was never customised"
-// once it reaches this function; both look identical. '#00B4D8' itself also
-// fails the 3:1-against-white check (~2.5:1), so treating it like any other
+// the Driver's schedule push carries it through as-is (get_duty_card()
+// returns it unchanged) — so there is no way to tell "operator genuinely
+// picked this colour" apart from "column was never customised" once it
+// reaches this function; both look identical. '#00B4D8' itself also fails
+// the 3:1-against-white check (~2.5:1), so treating it like any other
 // accent would permanently blank out the bars for every company that has
 // never touched Branding settings. Special-cased below: that exact default
 // value is treated as "no customisation" and skipped entirely, same as a
-// missing accent_color would be. The one edge case this can't distinguish:
+// missing accentColor would be. The one edge case this can't distinguish:
 // an operator who deliberately sets their own accent_color to that same
 // teal — they'd get the onboard sign's purple default instead. Acceptable
 // today; a real fix needs a separate nullable column or a "customised"
 // flag if it ever matters.
+//
+// Manual-selection journeys never fetch company branding at all (no
+// accentColor on that path — see src/main.js's runTracker), so they show
+// the platform default here too — same code path, no special-casing needed.
 
 function _sRGBToLinear(c) {
   const v = c / 255;
@@ -518,34 +259,120 @@ function wcagContrastRatio(hex1, hex2) {
 const EP_PAPER = '#FFFFFF'; // white paper the accent sits on/against — accent is tested against this
 const PLATFORM_DEFAULT_ACCENT = '#00B4D8'; // companies.accent_color's DB default — see comment above
 
-function applyOperatorBranding(duty) {
-  const accent = duty.accent_color;
-  if (!accent || accent.toLowerCase() === PLATFORM_DEFAULT_ACCENT.toLowerCase()) return;
+function applyOperatorBranding({ accentColor }) {
+  if (!accentColor || accentColor.toLowerCase() === PLATFORM_DEFAULT_ACCENT.toLowerCase()) return;
 
-  const ratio = wcagContrastRatio(accent, EP_PAPER);
+  const ratio = wcagContrastRatio(accentColor, EP_PAPER);
   if (ratio >= 3) {
-    document.documentElement.style.setProperty('--operator-accent', accent);
+    document.documentElement.style.setProperty('--operator-accent', accentColor);
   } else {
     console.warn(
-      `onboard: operator accent colour ${accent} rejected — contrast ratio ${ratio.toFixed(2)}:1 ` +
+      `onboard: operator accent colour ${accentColor} rejected — contrast ratio ${ratio.toFixed(2)}:1 ` +
       `against ${EP_PAPER} is below the required 3:1 (WCAG AA large text/UI component). ` +
       `Falling back to default. Update accent_color in the dashboard Branding settings.`
     );
   }
 }
 
-// ── Entry point ──────────────────────────────────────────────────────────
+// ── Clock — wide-layout top bar only, but harmless to keep updating while
+// the sign is hidden/in the default layout since #sign-clock just sits
+// unused there. ──────────────────────────────────────────────────────────
 
-async function init() {
-  applyPanelSizing();
-  startClock();
-  if (!WATCH_JOURNEY_ID) {
-    console.warn('onboard.js: no ?journey=<id> in the URL — nothing to watch, staying blank.');
-    return;
-  }
-  const duty = await waitForJourneyStart(WATCH_JOURNEY_ID);
-  applyOperatorBranding(duty);
-  await runSign(duty);
+function startClock() {
+  const clock = el('sign-clock');
+  const tick = () => {
+    clock.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  };
+  tick();
+  setInterval(tick, 1000);
 }
 
-init().catch(console.error);
+// ── Pushed feed (Driver -> Controller -> this sign) — the only source of
+// truth this device has. See src/announceLink.js (sender) and
+// pi-server/announceRelay.mjs (relay). This device reads its own push-feed
+// token from its own URL rather than commissioning localStorage the way the
+// Driver device does — onboard.html is always opened via one fixed
+// per-vehicle URL (see pi-server/DEPLOY.md), so there's nothing to persist
+// across visits. Persistent, auto-reconnecting (same flat 3s-retry shape as
+// announceLink.js's own connect()) — there is no fallback to give up into
+// if the connection can't be established. ──────────────────────────────────
+const RECONNECT_DELAY_MS = 3000;
+
+let socket = null;
+let allStops = null;
+const initialStopIndex = 0; // start of route; geofence catch-up (on the Driver side) handles wherever the vehicle actually is
+let signShown = false;
+
+function onSchedule(msg) {
+  allStops = (msg.stops ?? []).map((s) => ({ ...s, name: stripIndicator(s.name) }));
+  el('sign-service-code').textContent = msg.serviceCode;
+  el('sign-destination').textContent = msg.destination;
+  applyOperatorBranding({ accentColor: msg.accentColor });
+  el('onboard-sign').hidden = false;
+  // Brand mark stays visible once active too — repositioned in onboard.css
+  // to a corner of the central track band so it no longer sits under the
+  // (now left-aligned) purple topbar.
+  if (!signShown) {
+    signShown = true;
+    acquireWakeLock();
+  }
+}
+
+function onState(msg) {
+  if (!allStops) {
+    // Shouldn't happen given the relay sends schedule before state on
+    // connect (see announceRelay.mjs), but guards a freshly-restarted relay
+    // with a stale latestState and no latestSchedule yet.
+    console.warn('onboard.js: state message received before any schedule — ignoring');
+    return;
+  }
+  const state = reviveState(msg);
+  render(allStops, initialStopIndex, state);
+  renderAnnouncing(state.announcing);
+}
+
+function connect(token) {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  try {
+    socket = new WebSocket(`${proto}//${location.host}/sign-feed?token=${encodeURIComponent(token)}`);
+  } catch (_) {
+    scheduleReconnect(token);
+    return;
+  }
+  socket.addEventListener('message', (e) => {
+    let msg;
+    try {
+      msg = JSON.parse(e.data);
+    } catch (_) {
+      return; // malformed — ignore
+    }
+    if (msg.type === 'schedule') onSchedule(msg);
+    else if (msg.type === 'state') onState(msg);
+  });
+  socket.addEventListener('close', () => scheduleReconnect(token));
+  socket.addEventListener('error', () => {}); // 'close' always follows 'error' on WebSocket, no separate handling needed
+}
+
+function scheduleReconnect(token) {
+  socket = null;
+  setTimeout(() => connect(token), RECONNECT_DELAY_MS);
+}
+
+function connectSignFeed() {
+  const token = new URLSearchParams(window.location.search).get('announce-token');
+  if (!token) {
+    console.warn('onboard.js: no ?announce-token=<token> in the URL — nothing to watch, staying blank.');
+    return;
+  }
+  connect(token);
+}
+
+// ── Entry point ──────────────────────────────────────────────────────────
+
+function init() {
+  applyPanelSizing();
+  startClock();
+  connectSignFeed();
+}
+
+init();
