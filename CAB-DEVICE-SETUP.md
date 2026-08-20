@@ -196,6 +196,31 @@ adb shell device_config put privacy safety_center_notifications_enabled true
 adb shell device_config set_sync_disabled_for_tests none
 ```
 
+### Known quirk: "Waiting for Connection" blocks the PWA from loading on boot
+
+Fully Kiosk's `waitInternetOnReload` setting ("Wait for Internet Connection"
+in Other Settings) made it hold up on a **"Waiting for Connection"** splash
+before it would even attempt to load the Start URL — on a slow ignition-boot
+connect (cold SIM/cellular handshake), this could sit indefinitely, never
+handing control to the PWA at all. Since the PWA's own service worker is
+already cache-first and handles a real connectivity gap fine on its own (see
+"Offline behaviour" below), waiting for Fully Kiosk's own internet check
+first was pure downside — it blocks the one thing (loading from cache) that
+would work regardless of connectivity. Fixed by setting
+`waitInternetOnReload: false` in `cab-device/fully-auto-settings.json`
+(2026-08-20).
+
+**Already-provisioned devices won't pick this up automatically** —
+`autoImportSettings` only re-imports from the copy of the file already
+pushed to `/sdcard/Download/fully-auto-settings.json` on that device, not
+from the repo. Re-push the updated file and restart Fully Kiosk once to
+apply:
+```
+adb push cab-device/fully-auto-settings.json /sdcard/Download/fully-auto-settings.json
+adb shell am force-stop de.ozerov.fully
+adb shell am start -n de.ozerov.fully/de.ozerov.fully.MainActivity
+```
+
 ## Offline behaviour
 
 The PWA's existing cache-first service worker applies unchanged — a brief

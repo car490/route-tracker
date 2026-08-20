@@ -384,7 +384,7 @@
   "volumeLevels": "",
   "volumeLicenseKey": "",
   "volumeLimits": "",
-  "waitInternetOnReload": true,
+  "waitInternetOnReload": false,
   "wakeupOnPowerConnect": false,
   "webHostFilter": false,
   "webOverlayGravity": "0",
