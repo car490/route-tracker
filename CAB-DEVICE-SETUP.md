@@ -158,6 +158,44 @@ PIN) — a single swipe clears it, no credential needed. That's the practical
 floor for "zero-touch reboot" on stock Android; it's not a Fully Kiosk
 limitation.
 
+### Known quirks: boot-time system popups
+
+Confirmed on device #1 via `adb shell dumpsys notification` plus live
+reboot testing (2026-08-20, not guessed): even with the screen lock removed
+and Fully Kiosk set as Home, two Android notifications show up on the lock
+screen during boot, before Fully Kiosk takes over —
+
+- **"Finish setting up your device — just a few more steps"**, posted by
+  `com.google.android.setupwizard` (channel `suw_consolidate_notification`)
+- **"Set a screen lock — now, for added security..."**, posted by the
+  system itself (`pkg=android`, channel `safety_center_recommendation`) —
+  Android's Safety Center nagging about the exact thing "Required
+  regardless of path: remove the screen lock" above requires *not* having,
+  so this one can never resolve itself on its own.
+
+`setup-cab-device.sh` now fixes both non-interactively as part of the
+automated path — no separate step needed:
+```
+adb shell pm disable-user --user 0 com.google.android.setupwizard
+adb shell device_config set_sync_disabled_for_tests persistent
+adb shell device_config put privacy safety_center_notifications_enabled false
+```
+Disabling `setupwizard` outright is safe once a device is past initial
+setup (which every provisioned kiosk unit is) — nothing else on the device
+needs it. The Safety Center flag needs `set_sync_disabled_for_tests`
+called first: tested setting the flag alone, and it silently reverted to
+`true` on the very next reboot (Android's device-config sync service
+overwrites local overrides); freezing sync first makes it stick. Only the
+proactive notification is disabled — Settings → Security & Privacy still
+works normally if anyone opens it pre-lockdown. **Both require a reboot to
+take effect**, not live — confirmed clean on device #1 after reboot, via
+screenshot, not just the settings readback. Reversible:
+```
+adb shell pm enable com.google.android.setupwizard
+adb shell device_config put privacy safety_center_notifications_enabled true
+adb shell device_config set_sync_disabled_for_tests none
+```
+
 ## Offline behaviour
 
 The PWA's existing cache-first service worker applies unchanged — a brief

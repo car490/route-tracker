@@ -72,6 +72,24 @@ echo "==> Granting OS-level permissions non-interactively..."
 # setting it directly here skips that whole confirm-your-PIN dance.
 "$ADB" shell appops set "$PKG" ACCESS_RESTRICTED_SETTINGS allow
 
+echo "==> Suppressing boot-time nags (\"Finish setting up your device\","
+echo "    \"Set a screen lock\")..."
+# Confirmed via `dumpsys notification` + live reboot testing on device #1
+# (2026-08-20): "Finish setting up your device" is posted by
+# com.google.android.setupwizard (channel suw_consolidate_notification) —
+# disabling that package outright is safe post-OOBE, nothing else on a
+# kiosk device needs it. "Set a screen lock" is posted by the system
+# itself (pkg=android, channel safety_center_recommendation) — Android's
+# Safety Center nagging about the exact screen-lock-to-None step this doc
+# requires for kiosk mode, so it can never be satisfied; disabled via its
+# own device_config flag. That flag gets silently reverted by Android's
+# config-sync service on next boot unless sync is frozen first — order
+# matters here (freeze, then set), confirmed by testing: setting the flag
+# alone did NOT survive a reboot, freezing sync first did.
+"$ADB" shell pm disable-user --user 0 com.google.android.setupwizard
+"$ADB" shell device_config set_sync_disabled_for_tests persistent
+"$ADB" shell device_config put privacy safety_center_notifications_enabled false
+
 echo "==> Activating Device Admin (needed for 'Lock the screen' kiosk feature)..."
 "$ADB" shell dpm set-active-admin "$PKG/de.ozerov.fully.MyDeviceAdmin" || \
   echo "   (already active, or device admin add failed — check manually if Kiosk Mode misbehaves)"
