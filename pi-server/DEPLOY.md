@@ -102,15 +102,24 @@ Ethernet + SSH from a laptop).
    [Ventoy](https://www.ventoy.net/) (Windows-friendly — no ISO
    remastering): run `Ventoy2Disk.exe` against a spare USB stick, then drag
    the Ubuntu Server ISO onto it like a normal file copy.
-4. **Inject the autoinstall data**: copy `user-data.local` (renamed to
-   `user-data`) and `meta-data` onto the USB drive's root, then edit
-   `\boot\grub\grub.cfg` on that same drive — find the `linux` line for the
-   main install entry and append ` autoinstall ds=nocloud;s=/cdrom/;` before
-   the terminating `---`. This is Ubuntu's own documented "locally hosted
-   user-data with no web server" method (see Canonical's autoinstall
-   "Quick start" docs if the grub entry looks different from expected —
-   exact layout can shift between point releases, worth a quick diff
-   against the official doc before relying on this from memory).
+4. **Inject the autoinstall data — Ventoy's own mechanism, not a grub
+   edit.** Ventoy ships a Debian/Ubuntu boot hook
+   (`IMG/cpio/ventoy/hook/debian/default-hook.sh` /
+   `ventoy-cloud-init.sh` in the [Ventoy source](https://github.com/ventoy/Ventoy))
+   that looks for a single file at **`/ventoy/autoinstall`** on the USB
+   drive's Ventoy partition (i.e. `<drive>:\ventoy\autoinstall` in Windows
+   Explorer — create the `ventoy` folder if `Ventoy2Disk.exe` didn't
+   already). If present, it builds a CIDATA seed image from it and
+   auto-adds the `autoinstall` kernel parameter itself — no `ventoy.json`,
+   no Plugson plugin config, no grub.cfg editing needed at all. Build that
+   one file by concatenating `user-data.local` and `meta-data` with a
+   literal `VENTOY_META_DATA_SPLIT` line between them (the hook splits on
+   that exact marker):
+   ```bash
+   cat user-data.local > /path/to/usb/ventoy/autoinstall
+   echo "VENTOY_META_DATA_SPLIT" >> /path/to/usb/ventoy/autoinstall
+   cat meta-data >> /path/to/usb/ventoy/autoinstall
+   ```
 5. **Boot the MeLE from the USB**, plug in Ethernet (for package downloads
    during install — see CONTROLLER-REDESIGN.md §5 for why the box needs no
    WAN path at *runtime*, which is a separate question from needing one
