@@ -1,13 +1,13 @@
 # Onboard display — Bus Controller + passenger display
 
-> **Board/architecture note (2026-08):** the Bus Controller is moving from a
-> Raspberry Pi to an x86 mini PC (MeLE Quieter4C), and the Controller no
-> longer runs its own GPS or independently polls Supabase — see
-> `docs/CONTROLLER-REDESIGN.md` for the full picture. This file still
-> describes the Pi-era hardware/WiFi setup steps (§1–§3, §5) that haven't
-> been re-verified against the new board yet; the *software* sections (§4,
-> §6, "Refreshing the schedule", "Verifying it's working") are updated to
-> match the current code (push-only, no gpsd/sync-schedule.mjs).
+> **Board/architecture note (2026-08-20):** the Bus Controller has moved to
+> an x86 mini PC (MeLE Quieter4C, Ubuntu Server, single onboard WiFi radio,
+> AP-only, no depot WiFi/cellular) per `docs/CONTROLLER-REDESIGN.md` — §0
+> and §3 below now describe that setup and are the current path for a new
+> unit. The Raspberry Pi/two-radio steps this file previously described are
+> kept at the bottom under "Legacy: Raspberry Pi hardware" for reference
+> only — don't build against them. §4–§7 and "Refreshing the schedule"/
+> "Verifying it's working" describe the app itself and are board-agnostic.
 
 Vehicle-mounted PSVAIR announcement display, driven entirely by state and
 schedule data pushed from the Driver device — no GPS of its own, no direct
@@ -71,44 +71,66 @@ one-time pattern as `&panel-profile=`/`&panel-diagonal=`:
    root) — never committed, same treatment as `pi-server/schedule-cache.json`.
 
 ## Hardware
-Full spec, MUST-vs-nice-to-have breakdown, and rationale now live in
-**[`docs/HARDWARE.md`](../docs/HARDWARE.md)** — including the two
-WiFi/GPS architecture models (a second-radio hotspot dongle vs. the
-proposal doc's single-radio model), which are not yet reconciled. Read
-that first if you're planning a build. The setup steps below assume
-whichever hardware you land on is already in hand.
+Full spec, MUST-vs-nice-to-have breakdown, and rationale live in
+**[`docs/HARDWARE.md`](../docs/HARDWARE.md)** — but check
+**[`docs/CONTROLLER-REDESIGN.md`](../docs/CONTROLLER-REDESIGN.md)**
+alongside it, since it supersedes `HARDWARE.md`'s Bus Controller board
+(§1, now MeLE Quieter4C not CM5) and networking model (§7, now single
+onboard radio, AP-only, no WAN). Read both before planning a build. The
+setup steps below assume the hardware is already in hand.
 
 ## Storage
-**No microSD in a vehicle-deployed Pi** — see `docs/HARDWARE.md` §1 for
-why (vibration, write endurance, unclean-shutdown corruption). Setup:
-- Fit an NVMe HAT to the Pi 5's PCIe slot (e.g. Pimoroni NVMe Base, ~£15)
-- Insert any M.2 2230 or 2242 NVMe SSD (32GB+; ~£15–£20)
-- Flash Raspberry Pi OS to the NVMe using `rpi-imager` or `dd` from another machine
-- In `raspi-config → Advanced → Boot Order`, set NVMe/USB as first boot device
-- No microSD card needed at all once the bootloader is set
+None needed — the Quieter4C boots directly from its internal storage
+(ordered as 128GB, no OS). §0's autoinstall handles partitioning. (Pi-era
+NVMe/microSD advice moved to the legacy appendix at the bottom.)
 
-If you must use a Pi 4 (e.g. existing stock), boot from a USB 3.0 SSD
-(e.g. Samsung T7) instead — same principle, just via USB rather than PCIe.
+## 0. First boot — flashing the OS
 
-## Why two WiFi radios (Model 1 only — see `docs/HARDWARE.md`)
+Produces a headless, SSH-reachable Ubuntu Server box — no monitor/keyboard
+ever needed, matching how this unit is actually commissioned (over
+Ethernet + SSH from a laptop).
 
-The steps below assume the second-radio hotspot model (`pi-server/config/
-hostapd.conf.example` + `dnsmasq.conf.example`) rather than the proposal
-doc's single-radio model — that conflict is tracked in `docs/HARDWARE.md`
-§6, not resolved here. If your build uses the single-radio model instead,
-skip step 3 below and configure `hostapd` on the Pi's onboard radio per
-the proposal's §6.3 commissioning steps.
-
-`wlan0` stays a normal WiFi *client*, joining the depot's WiFi each morning
-to sync the schedule. `wlan1` runs its own access point permanently, all
-day, for the display device to join (or for Chromium running locally on the Pi
-to reach the server on `localhost`). No mode-switching between the two — they
-run independently and simultaneously, which is what makes the "syncs at the
-depot, then fully offline all day" model work without any custom logic.
-
-The Pi 5's onboard WiFi chip is a single radio (one interface at a time in
-AP+client mode is unreliable on-chip). Use a cheap USB WiFi dongle (e.g.
-Edimax EW-7811Un) as `wlan1` for the hotspot — same advice as Pi 4.
+1. **Download Ubuntu Server 24.04 LTS** (the plain amd64 ISO, not Desktop)
+   from ubuntu.com/download/server.
+2. **Fill in the autoinstall config**: copy
+   `pi-server/autoinstall/user-data.example` to `user-data.local`
+   (gitignored) and replace the two placeholders — your SSH public key, and
+   a password hash from `openssl passwd -6 '<some password>'` (only used if
+   a monitor is ever attached directly; SSH password login is disabled).
+   `meta-data` next to it needs no changes.
+3. **Build the install USB** using
+   [Ventoy](https://www.ventoy.net/) (Windows-friendly — no ISO
+   remastering): run `Ventoy2Disk.exe` against a spare USB stick, then drag
+   the Ubuntu Server ISO onto it like a normal file copy.
+4. **Inject the autoinstall data**: copy `user-data.local` (renamed to
+   `user-data`) and `meta-data` onto the USB drive's root, then edit
+   `\boot\grub\grub.cfg` on that same drive — find the `linux` line for the
+   main install entry and append ` autoinstall ds=nocloud;s=/cdrom/;` before
+   the terminating `---`. This is Ubuntu's own documented "locally hosted
+   user-data with no web server" method (see Canonical's autoinstall
+   "Quick start" docs if the grub entry looks different from expected —
+   exact layout can shift between point releases, worth a quick diff
+   against the official doc before relying on this from memory).
+5. **Boot the MeLE from the USB**, plug in Ethernet (for package downloads
+   during install — see CONTROLLER-REDESIGN.md §5 for why the box needs no
+   WAN path at *runtime*, which is a separate question from needing one
+   during setup) and power. It partitions, installs, and reboots
+   unattended — no prompts, nothing to confirm on a screen.
+6. **Find its IP and SSH in**: check your router's DHCP client list for
+   `coachmate-controller`, then `ssh pi@<that-ip>`. If nothing shows up
+   after ~10 minutes, the most useful next step is a one-off monitor
+   connection to see where it's stuck — a silent failure is very hard to
+   diagnose blind over the network.
+7. **Run the bootstrap script**: `pi-server/bootstrap-controller.sh` (from
+   this repo — `curl` it directly, or clone the repo first, either works
+   since the script itself does the clone/`npm install` for the app) does
+   the rest of this file's §2–§4 for you: installs Node.js/hostapd/dnsmasq,
+   configures the WiFi radio as a static-IP AP interface, and installs the
+   `coachmate-onboard` systemd service with a freshly generated
+   `DRIVER_PUSH_TOKEN`. It prints the AP passphrase and the push token once
+   — record both, they aren't stored anywhere else. Safe to re-run; it
+   leaves an already-configured hostapd/token alone rather than rotating
+   them on every run.
 
 ## 1. GPS — not needed on the Controller
 
@@ -118,29 +140,52 @@ feed (§6) — see `docs/CONTROLLER-REDESIGN.md` §6. `pi-server/gpsd-client.mjs
 and the `/api/position` endpoint are gone; don't install `gpsd` or wire up
 a GPS module for this box.
 
-## 2. wlan0 — depot WiFi client
-Standard Raspberry Pi OS WiFi client setup (`raspi-config` or
-`/etc/wpa_supplicant/wpa_supplicant.conf`) with the depot's SSID/password.
-Nothing CoachMate-specific here.
+## 2. WiFi — Controller hotspot (single radio, AP-only)
 
-## 3. wlan1 — onboard hotspot
+Per `docs/CONTROLLER-REDESIGN.md` §3/§5, the Controller never joins a
+network as a client at all — no depot WiFi sync, no cellular. Its one
+onboard WiFi radio runs permanently as an access point (`hostapd`) for the
+Driver device to join; Ethernet (used for setup/updates, per §0) stays a
+separate, independent uplink. `pi-server/bootstrap-controller.sh` (§0 step
+7) does everything below automatically — this is the manual/by-hand
+version if you need to redo a piece of it:
+
 ```bash
 sudo apt install hostapd dnsmasq
 sudo systemctl unmask hostapd
 ```
-Copy the example configs from `pi-server/config/` and edit the SSID/passphrase:
+Find the radio's interface name (Ubuntu on x86 rarely calls it `wlan0` —
+expect something like `wlp2s0`):
+```bash
+iw dev
+```
+Copy the example configs from `pi-server/config/` and edit
+`interface=`/`ssid=`/`wpa_passphrase=` for your interface name and a
+freshly generated passphrase (`openssl rand -base64 16` — unique per
+vehicle, see the security comments in `hostapd.conf.example`):
 ```bash
 sudo cp config/hostapd.conf.example /etc/hostapd/hostapd.conf
 sudo cp config/dnsmasq.conf.example /etc/dnsmasq.d/coachmate-ap.conf
+echo 'DAEMON_CONF="/etc/hostapd/hostapd.conf"' | sudo tee /etc/default/hostapd
 ```
-Set `/etc/default/hostapd`: `DAEMON_CONF="/etc/hostapd/hostapd.conf"`.
-Give `wlan1` a static IP in `/etc/dhcpcd.conf`:
+Give the interface a static IP — Ubuntu Server uses `systemd-networkd`
+(via netplan), not `dhcpcd`, and netplan's own `wifis:` stanza would start
+`wpa_supplicant` on the interface and fight `hostapd` for the same radio
+(the same class of conflict Raspberry Pi OS's NetworkManager has with a
+manually-run `hostapd` — avoided here by not routing this interface
+through netplan at all):
+```bash
+sudo tee /etc/systemd/network/10-coachmate-ap.network <<EOF
+[Match]
+Name=<your-interface-name>
+
+[Network]
+DHCP=no
+Address=192.168.4.1/24
+EOF
+sudo systemctl enable --now systemd-networkd
 ```
-interface wlan1
-static ip_address=192.168.4.1/24
-nohook wpa_supplicant
-```
-`sudo systemctl enable hostapd dnsmasq && sudo reboot`, then confirm
+`sudo systemctl enable --now hostapd dnsmasq`, then confirm
 `CoachMate-<name>` shows up as a WiFi network from another device.
 
 ## 4. The app itself
@@ -204,11 +249,23 @@ Dell P2426H needs ~7.42vh, well under half the 17vh default). See
 different panel is ever used — it only needs the diagonal size; resolution
 and aspect ratio are already known automatically at runtime.
 
-### Option B — HDMI stretch-bar display (Chromium kiosk on Pi)
-The display connects directly to the Pi's micro-HDMI port. Chromium runs on
-the Pi itself and renders `onboard.html` locally — no tablet, no hotspot
-needed for the display (you still want `wlan1` as a hotspot for other devices
-or for SSH access).
+### Option B — HDMI display (Chromium kiosk on the Controller)
+
+> **Not yet re-verified on the Quieter4C/Ubuntu Server** — everything below
+> (Chromium install, autologin, kiosk service) was written and tested
+> against Raspberry Pi OS. Ubuntu Server ships Chromium as a snap, not an
+> apt package (`chromium-browser` below won't resolve as-is), and has no
+> `raspi-config`/`/boot/firmware/config.txt`. Revisit this section once a
+> display is actually connected to the Quieter4C — until then, treat it as
+> a description of the mechanism (systemd unit driving a kiosk browser
+> against `localhost:8080/onboard.html`), not copy-pasteable commands.
+> Pi-specific specifics (desktop autologin, `config.txt` HDMI timing) moved
+> to the legacy appendix at the bottom.
+
+The display connects directly to the Controller's HDMI port. Chromium runs
+on the Controller itself and renders `onboard.html` locally — no tablet, no
+hotspot needed for the display itself (you still want the AP from §2 for
+other devices or for SSH access).
 
 Install Chromium and set it up as a kiosk service:
 ```bash
@@ -241,17 +298,8 @@ WantedBy=graphical.target
 sudo systemctl daemon-reload
 sudo systemctl enable --now coachmate-kiosk
 ```
-Set the Pi to boot to desktop (not console) via `raspi-config → System →
-Boot / Auto Login → Desktop Autologin`. Chromium will launch in full-screen
-kiosk mode on the stretch bar automatically on every boot.
-
-> **Resolution note**: the VSDISPLAY 28" bar is 1920×360. Set this explicitly
-> in `/boot/firmware/config.txt` if the Pi doesn't detect it automatically:
-> ```
-> hdmi_group=2
-> hdmi_mode=87
-> hdmi_cvt=1920 360 60 6 0 0 0
-> ```
+Pi-specific autologin/resolution-forcing steps for this approach moved to
+the legacy appendix at the bottom.
 
 #### Alternative: `cage` instead of a full desktop
 The X11/desktop-autologin approach above works, but it boots a full desktop
@@ -302,8 +350,8 @@ sudo systemctl daemon-reload
 sudo systemctl restart coachmate-onboard
 ```
 
-**Connect the Driver tablet to this Pi's hotspot once** — no native app or
-auto-join yet, just join `CoachMate-<name>` (the `wlan1` SSID from step 3)
+**Connect the Driver tablet to the Controller's hotspot once** — no native
+app or auto-join yet, just join `CoachMate-<name>` (the SSID from step 2)
 from the tablet's normal Android WiFi settings, the same as joining any WiFi
 network. It stays connected/reconnects automatically after that, same as any
 remembered WiFi network.
@@ -387,3 +435,51 @@ npx wscat -c "ws://192.168.4.1:8080/sign-feed?token=wrong"     # should be rejec
 A driver on a commissioned device should show up as one more open connection
 in `coachmate-onboard`'s logs, and `onboard.js` should un-hide `#onboard-sign`
 once it receives the schedule message that starting a journey sends.
+
+---
+
+## Legacy: Raspberry Pi hardware (superseded)
+
+Kept for audit trail / in case a Pi build ever recurs — not the current
+path (§0–§2 above, MeLE Quieter4C, are current). See
+`docs/CONTROLLER-REDESIGN.md` §2/§9 for why the board changed.
+
+**Storage** — no microSD in a vehicle-deployed Pi (vibration, write
+endurance, unclean-shutdown corruption):
+- Fit an NVMe HAT to the Pi 5's PCIe slot (e.g. Pimoroni NVMe Base, ~£15)
+- Insert any M.2 2230 or 2242 NVMe SSD (32GB+; ~£15–£20)
+- Flash Raspberry Pi OS to the NVMe using `rpi-imager` or `dd` from another machine
+- In `raspi-config → Advanced → Boot Order`, set NVMe/USB as first boot device
+- If using a Pi 4 instead, boot from a USB 3.0 SSD (e.g. Samsung T7) instead
+
+**Why two WiFi radios**: the Pi 5's onboard WiFi chip is a single radio
+(one interface at a time in AP+client mode is unreliable on-chip), and the
+old architecture needed the Controller to be a WiFi client too (morning
+depot-WiFi schedule sync — dropped entirely in the redesign, see
+`docs/CONTROLLER-REDESIGN.md` §3). `wlan0` stayed a normal WiFi client for
+that sync; `wlan1`, a cheap USB dongle (e.g. Edimax EW-7811Un), ran the
+permanent hotspot. No mode-switching — both ran simultaneously.
+
+**wlan0 — depot WiFi client**: standard Raspberry Pi OS WiFi client setup
+(`raspi-config` or `/etc/wpa_supplicant/wpa_supplicant.conf`) with the
+depot's SSID/password.
+
+**wlan1 — onboard hotspot**, `dhcpcd`-based static IP (Ubuntu's
+`systemd-networkd` equivalent is in §2 above):
+```
+interface wlan1
+static ip_address=192.168.4.1/24
+nohook wpa_supplicant
+```
+in `/etc/dhcpcd.conf`, alongside the same `hostapd`/`dnsmasq` config as §2.
+
+**Kiosk display (Option B)**: boot the Pi to desktop (not console) via
+`raspi-config → System → Boot / Auto Login → Desktop Autologin` so Chromium
+launches in full-screen kiosk mode automatically. For the VSDISPLAY 28" bar
+(1920×360), force the resolution in `/boot/firmware/config.txt` if the Pi
+doesn't detect it automatically:
+```
+hdmi_group=2
+hdmi_mode=87
+hdmi_cvt=1920 360 60 6 0 0 0
+```

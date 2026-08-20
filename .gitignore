@@ -24,6 +24,11 @@ pi-server/schedule-cache.json.tmp
 # in — never commit it. Copy start-temp-pi.example.ps1 to this name.
 pi-server/start-temp-pi.local.ps1
 
+# Controller autoinstall config holds a real SSH public key + password
+# hash once filled in — never commit it. Copy user-data.example to this
+# name (see pi-server/DEPLOY.md "0. First boot").
+pi-server/autoinstall/user-data.local
+
 # Idle-screen operator logo — placed at commissioning time (per Controller
 # device, downloaded from that operator's own Supabase Storage bucket, see
 # pi-server/DEPLOY.md "Idle screen branding"), not source.

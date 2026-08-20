@@ -1,14 +1,23 @@
-# WiFi AP hosted on the second (USB) WiFi adapter, wlan1 — a WiFi-client
-# display device joins this. Leaves the Pi's onboard wlan0 free to join depot WiFi as a
-# normal client for the morning schedule sync; no mode-switching needed,
-# the two radios run independently and simultaneously all day.
+# WiFi AP hosted on the Controller's single onboard radio — the Driver
+# device joins this. As of docs/CONTROLLER-REDESIGN.md the Controller never
+# joins any network as a client (no depot WiFi sync, no cellular) — this is
+# the radio's only job, run permanently, no mode-switching, no second USB
+# dongle (§4/§5 of that doc — no load-bearing USB peripherals at all).
 #
-# Install: sudo cp hostapd.conf.example /etc/hostapd/hostapd.conf
-# Then point /etc/default/hostapd at it (DAEMON_CONF="/etc/hostapd/hostapd.conf")
-# and set a static IP for wlan1 in /etc/dhcpcd.conf, e.g.:
-#   interface wlan1
-#   static ip_address=192.168.4.1/24
-#   nohook wpa_supplicant
+# `pi-server/bootstrap-controller.sh` applies this automatically (detects
+# the interface name, fills in `interface=`/`ssid=`/`wpa_passphrase=`,
+# copies it to /etc/hostapd/hostapd.conf). To do it by hand instead:
+#   sudo cp hostapd.conf.example /etc/hostapd/hostapd.conf
+# then edit `interface=` below to match your radio's actual name (find it
+# with `iw dev` — on x86 it's typically `wlPxsY`, not `wlan0`), point
+# /etc/default/hostapd at it (DAEMON_CONF="/etc/hostapd/hostapd.conf"), and
+# give that interface a static IP. Ubuntu Server uses systemd-networkd, not
+# dhcpcd — see bootstrap-controller.sh step 4 for the
+# /etc/systemd/network/*.network drop-in this project uses instead of
+# netplan's `wifis:` stanza (netplan's wifi support invokes wpa_supplicant,
+# which would fight hostapd for the same radio — the same class of conflict
+# Raspberry Pi OS's NetworkManager had, avoided here by not routing this
+# interface through netplan at all).
 #
 # ── Security (hardened 2026-08-14) ──────────────────────────────────────────
 # This hotspot has no internet uplink for its clients at all — that's the
@@ -26,7 +35,7 @@
 # offline-dictionary-attackable regardless of WPA2 vs WPA3 below. Keep it
 # in your commissioning records, not written anywhere inside the vehicle.
 
-interface=wlan1
+interface=wlan0
 driver=nl80211
 ssid=CoachMate-CHANGEME
 hw_mode=g
