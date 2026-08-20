@@ -329,7 +329,10 @@ its own `WizardModal.jsx`) — see `docs/TODO.md` for a known refactor candidate
 - `docs/` holds reference and spec material not tied to any one code path: `TESTING.md` (manual
   test guide for all three surfaces), `TODO.md` (general engineering follow-ups, e.g. PSVAIR
   2026 compliance items and dashboard tech debt), `VOL.md` (a parked, not-yet-built fleet-data
-  subsystem — don't assume it's implemented), plus verification write-ups and the BusOps
+  subsystem — don't assume it's implemented), `DRIVER_DUTIES.md` (spec for rule-aware
+  driver/vehicle duty allocation and drivers'-hours compliance — not yet built; has an open
+  blocker on TruTac tacho-vendor access, don't assume that integration exists), plus
+  verification write-ups and the BusOps
   Driver hardware proposal. `HARDWARE.md` is the consolidated spec for every physical component
   in the onboard/vehicle system (Bus Controller, GPS, displays, driver device, power, mounting)
   — start there for any hardware question, but check `CONTROLLER-REDESIGN.md` alongside it: that

@@ -1,7 +1,8 @@
 # TODO
 
 General engineering follow-ups that aren't tied to a specific feature spec.
-(For the parked vehicle data subsystem work, see `VOL.md`.)
+(For the parked vehicle data subsystem work, see `VOL.md`. For driver duties /
+drivers'-hours compliance work, see `DRIVER_DUTIES.md`.)
 
 ## PSVAIR 2026 compliance — follow-ups
 
