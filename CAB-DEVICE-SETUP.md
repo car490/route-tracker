@@ -221,6 +221,29 @@ adb shell am force-stop de.ozerov.fully
 adb shell am start -n de.ozerov.fully/de.ozerov.fully.MainActivity
 ```
 
+### Known open issue: Kiosk Lock (Accessibility Service) doesn't stay enabled
+
+Found 2026-08-20 while testing the `waitInternetOnReload` fix above on device
+#1 (bench, not yet in a vehicle): forcing `enabled_accessibility_services` /
+`accessibility_enabled` on via `adb shell settings put secure ...` works and
+sticks — right up until Fully Kiosk itself restarts, at which point it
+silently reverts to disabled and Fully posts a notification: **"Android
+Accessibility Service was disabled for Fully Kiosk Browser. Please
+check..."**. Net effect: **Kiosk Lock is not actually enforced** whenever
+this happens — nothing stops exiting to the home screen or Settings.
+
+`appops get de.ozerov.fully ACCESS_RESTRICTED_SETTINGS` already reports
+`allow` (the override `setup-cab-device.sh` applies), so the usual
+"Controlled by Restricted Setting" fix alone isn't sufficient here — the
+service still doesn't stay bound. Not yet root-caused or fixed; suspect it
+needs the on-device confirm-with-screen-lock-credential path done by hand at
+least once (App info → ⋮ → "Allow restricted settings" → confirm with
+credential), which can't be driven over `adb`. **Before shipping any device
+to a vehicle long-term, verify Kiosk Lock actually survives a Fully Kiosk
+restart** (check Settings → Security → Accessibility-service list on-device,
+or watch for the "was disabled" notification) — don't assume the script's
+`adb` step alone is durable.
+
 ## Offline behaviour
 
 The PWA's existing cache-first service worker applies unchanged — a brief
