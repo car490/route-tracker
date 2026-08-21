@@ -10,6 +10,17 @@ const APP_VERSION = readFileSync(
   'utf8',
 ).trim()
 
+function readBrandToken(name) {
+  const css = readFileSync(new URL('../brand-tokens.css', import.meta.url), 'utf8')
+  const match = css.match(new RegExp(`${name}:\\s*([^;]+);`))
+  if (!match) throw new Error(`brand-tokens.css: token ${name} not found`)
+  return match[1].trim()
+}
+
+// Raw palette value, not the --pcv-color-ink role token — a manifest colour
+// field needs a literal hex, not a var() reference.
+const PCV_CHARCOAL = readBrandToken('--pcv-color-charcoal')
+
 function firstNonEmpty(...values) {
   return values.find(v => typeof v === 'string' && v.trim().length > 0)
 }
@@ -320,8 +331,8 @@ export default defineConfig(({ mode }) => {
           start_url: '/',
           scope: '/',
           display: 'standalone',
-          theme_color: '#242F35',
-          background_color: '#242F35',
+          theme_color: PCV_CHARCOAL,
+          background_color: PCV_CHARCOAL,
           icons: [
             { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
             { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },

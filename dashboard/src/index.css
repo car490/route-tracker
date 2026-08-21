@@ -1,8 +1,10 @@
+@import '../../brand-tokens.css';
+
 /* ── Variables ─────────────────────────────────────────────── */
 :root {
-  /* CoachMate core brand (immutable) */
-  --cm-cyan:      #00B4D8;
-  --cm-charcoal:  #242F35;
+  /* CoachMate core brand (immutable) — from brand-tokens.css */
+  --cm-cyan:      var(--pcv-color-primary-action);
+  --cm-charcoal:  var(--pcv-color-ink);
   --cm-platinum:  #F4F6F8;
   --cm-font:      'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
 
@@ -32,7 +34,7 @@
      only reaches ~3.1:1 against it (fails WCAG AA), vs ~5.6:1 it gets
      against charcoal. */
   --sidebar-bg:      #475569;
-  --sidebar-accent:  #8CDDED;
+  --sidebar-accent:  var(--pcv-color-sidebar-accent-tint);
 
   /* Backward-compat aliases — inline styles in feature components reference these */
   --navy-brand:  var(--operator-accent);
@@ -472,7 +474,7 @@ tr:hover td { background: #F5F7FA; }
 .btn:disabled { opacity: 0.5; pointer-events: none; }
 
 .btn-primary { background: var(--operator-accent); color: #fff; }
-.btn-primary:hover { background: #009BBF; }
+.btn-primary:hover { background: var(--pcv-color-primary-action-hover); }
 
 .btn-success { background: var(--success); color: #fff; }
 .btn-success:hover { background: #0D9268; }

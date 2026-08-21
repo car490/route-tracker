@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('brand-tokens.css');
 
 /* ── E-paper passenger sign ───────────────────────────────────────────────
    One shared layout for every profile: Monitor (Dell Pro P2426H, 1920x1080
@@ -29,7 +30,7 @@
   --ep-line:      #1A1A18;
 
   --ep-slate:     #475569;
-  --ep-teal:      #00B4D8;
+  --ep-teal:      var(--pcv-color-primary-action);
   --ep-at-stop:   #10B981;
   --ep-late:      #EF4444;
 

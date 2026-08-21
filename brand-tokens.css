@@ -1,0 +1,36 @@
+/*
+ * PCV Technologies design tokens.
+ * Source of truth: docs/BRAND.md
+ *
+ * Copy/import-ready for any current or future PCV Technologies product.
+ * Lives at the repo root (not docs/) because it's real, shipped code — the
+ * driver PWA's Cloudflare Workers deploy (wrangler.jsonc + .assetsignore)
+ * excludes docs/ as dev/reference material, so a token file the PWA
+ * actually imports at runtime can't live there.
+ *
+ * supabase/schema.sql's pcv_default_primary_color()/pcv_default_accent_color()
+ * SQL functions duplicate the two raw palette values below by necessity
+ * (Postgres can't import a CSS file) — keep them in sync by hand.
+ */
+
+:root {
+  /* raw palette */
+  --pcv-color-cyan: #00B4D8;
+  --pcv-color-charcoal: #242F35;
+  --pcv-font-sans: 'Plus Jakarta Sans', sans-serif;
+
+  /* semantic roles — extend only when a real product need defines a new role;
+     add it here and to the table in BRAND.md together */
+  --pcv-color-primary-action: var(--pcv-color-cyan);
+  --pcv-color-ink: var(--pcv-color-charcoal);
+
+  /* Primary-action hover shade — darker cyan used for button hover states.
+     Was dashboard/src/index.css's .btn-primary:hover literal. */
+  --pcv-color-primary-action-hover: #009BBF;
+
+  /* Sidebar accent tint — a lighter cyan tuned for ~5.6:1 contrast against
+     the dashboard sidebar's slate background (--sidebar-bg: #475569); the
+     base --pcv-color-primary-action only reaches ~3.1:1 there, which fails
+     WCAG AA. Was dashboard/src/index.css's --sidebar-accent literal. */
+  --pcv-color-sidebar-accent-tint: #8CDDED;
+}

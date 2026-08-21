@@ -30,7 +30,7 @@ components. If the colour fails this check it is rejected at runtime (a
 console warning is logged) and the display falls back to the default dark ink
 (`#1A1A18`).
 
-The default CoachMate Signal Cyan (`#00B4D8`) has a contrast ratio of ~2.1:1
+The default PCV Cyan (`#00B4D8`) has a contrast ratio of ~2.1:1
 against the e-paper background and will fall back — by design, operators are
 expected to set a brand colour that meets the threshold. Tools such as
 [WebAIM Contrast Checker](https://webaim.org/resources/contrastchecker/) or

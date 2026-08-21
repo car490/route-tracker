@@ -1,9 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('brand-tokens.css');
 
 :root {
-  /* CoachMate core brand */
-  --cm-cyan:      #00B4D8;
-  --cm-charcoal:  #242F35;
+  /* CoachMate core brand — from brand-tokens.css */
+  --cm-cyan:      var(--pcv-color-primary-action);
+  --cm-charcoal:  var(--pcv-color-ink);
   --cm-font:      'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
 
   /* Dark surface tokens */

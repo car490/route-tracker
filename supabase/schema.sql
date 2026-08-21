@@ -5,6 +5,25 @@
 -- ============================================================
 
 
+-- ── PCV Technologies brand defaults ───────────────────────────────────────────
+-- Canonical source is brand-tokens.css (repo root) — Postgres can't import a
+-- CSS file, so these two literal values must be kept in sync with it by hand.
+-- Used as companies.primary_color/accent_color's column defaults and as the
+-- fallback in get_duty_card() below, so both draw from one place instead of
+-- repeating the literals at each call site.
+
+create or replace function public.pcv_default_primary_color()
+returns text
+language sql
+immutable
+as $$ select '#242F35' $$;
+
+create or replace function public.pcv_default_accent_color()
+returns text
+language sql
+immutable
+as $$ select '#00B4D8' $$;
+
 -- ── Companies ────────────────────────────────────────────────────────────────
 -- Top of the ownership tree. Every other record is scoped to a company.
 
@@ -47,10 +66,10 @@ create table companies (
   -- Multi-tenant branding ("The Wrap")
   -- slug: URL-safe identifier used in future public tracking pages (e.g. 'phil-haines-coaches')
   slug                      text        unique,
-  -- Sidebar/header colour — defaults to CoachMate Tarmac Charcoal
-  primary_color             text        not null default '#242F35',
-  -- Button/highlight colour — defaults to CoachMate Signal Cyan
-  accent_color              text        not null default '#00B4D8',
+  -- Sidebar/header colour — defaults to PCV Charcoal
+  primary_color             text        not null default public.pcv_default_primary_color(),
+  -- Button/highlight colour — defaults to PCV Cyan
+  accent_color              text        not null default public.pcv_default_accent_color(),
   created_at                timestamptz not null default now()
 );
 
@@ -1006,8 +1025,8 @@ AS $function$
      join stops st on st.id = ts3.stop_id
      where ts3.timetable_id = t.id order by ts3.sequence desc limit 1) as last_stop_name,
     j.notes,
-    coalesce(c.primary_color, '#242F35')                     as primary_color,
-    coalesce(c.accent_color,  '#00B4D8')                     as accent_color
+    coalesce(c.primary_color, public.pcv_default_primary_color()) as primary_color,
+    coalesce(c.accent_color,  public.pcv_default_accent_color())  as accent_color
   from journeys j
   left join employees           e  on e.id  = j.driver_id
   left join vehicles            v  on v.id  = j.vehicle_id

@@ -10,7 +10,7 @@ const MAP_ZOOM   = 11
 function makeBusIcon(label) {
   return L.divIcon({
     className: '',
-    html: `<div style="background:#10B981;color:#242F35;font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.5);white-space:nowrap">${label}</div>`,
+    html: `<div style="background:#10B981;color:var(--cm-charcoal);font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.5);white-space:nowrap">${label}</div>`,
     iconAnchor: [0, 0],
   })
 }

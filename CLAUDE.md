@@ -14,6 +14,13 @@ Supabase backend:
 | Ops dashboard (CoachMate Ops Dashboard) | `dashboard/` | React + Vite | Vercel, auto on push |
 | Onboard passenger sign (BusOps Announce) | `onboard.html`, `src/onboard.js`; Controller-side setup in `pi-server/` | Vanilla JS + Node (WebSocket relay, no GPS/DB access) | Bus Controller box (see `docs/CONTROLLER-REDESIGN.md`) + HDMI display, see `pi-server/DEPLOY.md` |
 
+**Company brand note:** PCV Technologies is the vendor company (`pcvtechnologies.co.uk`); the
+ops dashboard above is planned to be repositioned as **PCV Dashboard**, a mandatory umbrella
+product every customer gets regardless of which product modules (CoachMate today) they've
+signed up for. This is agreed direction, **not yet implemented** in code — the app is still
+titled/branded "CoachMate Ops Dashboard" throughout. See `docs/BRAND.md` for the full company/
+product brand hierarchy.
+
 Supabase schema lives at `supabase/schema.sql`. Everything else (`graphhopper/`, `lib/`,
 `scripts/`, `audio/`) is shared infra used by more than one surface.
 
@@ -326,7 +333,10 @@ its own `WizardModal.jsx`) — see `docs/TODO.md` for a known refactor candidate
   elsewhere. Only ever put **anon/publishable** keys there — RLS policies are what actually
   gate access, so they're safe to commit. A `service_role` key or `SUPABASE_JWT_SECRET` must
   **never** appear here — those are server-only (`dashboard/api/*.js` pattern).
-- `docs/` holds reference and spec material not tied to any one code path: `TESTING.md` (manual
+- `docs/` holds reference and spec material not tied to any one code path: `BRAND.md` (the
+  canonical PCV Technologies / product brand hub — company identity, colours, typography,
+  the PCV Dashboard/CoachMate product hierarchy; see its companion tokens at
+  `docs/brand/pcv-tokens.css`), `TESTING.md` (manual
   test guide for all three surfaces), `TODO.md` (general engineering follow-ups, e.g. PSVAIR
   2026 compliance items and dashboard tech debt), `VOL.md` (a parked, not-yet-built fleet-data
   subsystem — don't assume it's implemented), `DRIVER_DUTIES.md` (spec for rule-aware

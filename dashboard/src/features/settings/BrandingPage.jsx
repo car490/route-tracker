@@ -3,8 +3,9 @@ import { supabase } from '../../shared/supabase'
 import { useCurrentEmployee } from '../../shared/hooks/useCurrentEmployee'
 
 const BUCKET = 'operator-assets'
-const CM_PRIMARY = '#242F35'
-const CM_ACCENT  = '#00B4D8'
+// Read from brand-tokens.css (imported via index.css) rather than duplicated as literals here.
+const CM_PRIMARY = getComputedStyle(document.documentElement).getPropertyValue('--cm-charcoal').trim()
+const CM_ACCENT  = getComputedStyle(document.documentElement).getPropertyValue('--cm-cyan').trim()
 
 /** Only allow https: and blob: URL schemes for image src attributes to prevent javascript: injection. */
 function safeSrc(url) {

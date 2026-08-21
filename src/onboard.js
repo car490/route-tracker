@@ -319,7 +319,10 @@ function wcagContrastRatio(hex1, hex2) {
 }
 
 const EP_PAPER = '#FFFFFF'; // white paper the accent sits on/against — accent is tested against this
-const PLATFORM_DEFAULT_ACCENT = '#00B4D8'; // companies.accent_color's DB default — see comment above
+// companies.accent_color's DB default — see comment above. Read from brand-tokens.css
+// (imported via onboard.css) rather than duplicated as a literal here.
+const PLATFORM_DEFAULT_ACCENT = getComputedStyle(document.documentElement)
+  .getPropertyValue('--pcv-color-primary-action').trim();
 
 function applyOperatorBranding({ accentColor }) {
   if (!accentColor || accentColor.toLowerCase() === PLATFORM_DEFAULT_ACCENT.toLowerCase()) return;
