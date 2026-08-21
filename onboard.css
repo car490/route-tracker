@@ -421,11 +421,21 @@ body {
   flex-direction: column;
   justify-content: space-around;
   align-items: stretch;
-  padding: 4vh 4vw 4vh 6vw;
+  /* Capped and auto-centred rather than filling #sign-main's full width —
+     at 100% width the fixed-width dot column plus left-aligned labels left
+     the whole track hugging the screen's left edge with a huge dead zone
+     on the right for anything shorter than the longest curated stop name.
+     70vw still leaves ample room for a curated stops.announcement_name
+     (the 22mm-minimum override already keeps these short — see CLAUDE.md)
+     to sit on one line without shrinking toward ellipsis, while the ~15vw
+     margin either side reads as a deliberate centred layout. */
+  max-width: 70vw;
+  margin: 0 auto;
+  padding: 4vh 3vw;
 }
 
 [data-track-layout="vertical"] #tube-track::before {
-  left: calc(6vw + 4.5vh); /* track's left padding + half the wider (current-stop) dot's width, so the line centres under both dot sizes */
+  left: calc(3vw + 4.5vh); /* track's left padding + half the wider (current-stop) dot's width, so the line centres under both dot sizes */
   right: auto;
   top: 8%;
   bottom: 8%;
