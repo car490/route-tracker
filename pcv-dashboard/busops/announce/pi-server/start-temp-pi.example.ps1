@@ -41,7 +41,7 @@ Write-Host ""
 Write-Host "=== Today's kiosk URL - open this in the browser on the Monitor ===" -ForegroundColor Green
 Write-Host "(same URL every day - no journey-id to fill in; the sign wakes on its own"
 Write-Host "once the driver starts a journey)"
-Write-Host "http://localhost:$Port/onboard.html?announce-token=$Token"
+Write-Host "http://localhost:$Port/announce/onboard.html?announce-token=$Token"
 Write-Host ""
 Write-Host "Starting server on port $Port... (Ctrl+C to stop)" -ForegroundColor Cyan
 node (Join-Path $scriptDir "server.mjs")

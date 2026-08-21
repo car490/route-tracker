@@ -23,7 +23,13 @@ import { attachAnnounceRelay } from './announceRelay.mjs';
 import { createAudioPlayer } from './audioPlayer.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.join(__dirname, '..'); // pi-server/ sits alongside index.html, src/, style.css
+// pi-server/ sits at busops/announce/pi-server/; REPO_ROOT is busops/ itself
+// (two levels up) because onboard.html's relative links to shared assets
+// (../shared/brand-tokens.css, ../shared/icons/...) and its service worker
+// registration (../service-worker.js) resolve, once the browser normalises
+// them against the served URL, to /shared/... and /service-worker.js —
+// paths that only exist under busops/, not busops/announce/.
+const REPO_ROOT = path.join(__dirname, '../..');
 const CACHE_PATH = path.join(__dirname, 'schedule-cache.json');
 const PORT = Number(process.env.PORT) || 8080;
 // Shared secret for the /driver-push and /sign-feed WebSocket endpoints
@@ -81,7 +87,7 @@ async function serveApiSchedule(res, relay) {
 }
 
 function serveStaticFile(urlPath, res) {
-  if (urlPath === '/') urlPath = '/onboard.html';
+  if (urlPath === '/') urlPath = '/announce/onboard.html';
   const filePath = path.join(REPO_ROOT, urlPath);
   // Guard against path traversal escaping the repo root.
   if (!filePath.startsWith(REPO_ROOT)) { res.writeHead(403); res.end('Forbidden'); return; }

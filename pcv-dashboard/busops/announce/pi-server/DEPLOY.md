@@ -48,7 +48,7 @@ journey yet — so it's commissioned directly onto the device instead, same
 one-time pattern as `&panel-profile=`/`&panel-diagonal=`:
 
 1. **Name** — append `&operator-name=<name>` (URL-encoded) to the fixed
-   kiosk URL, e.g. `...onboard.html?announce-token=<token>&panel-profile=monitor&operator-name=Acme%20Coaches`.
+   kiosk URL, e.g. `...announce/onboard.html?announce-token=<token>&panel-profile=monitor&operator-name=Acme%20Coaches`.
    Omit entirely and the idle screen stays exactly as it was before (blank
    background, small corner mark only).
 2. **Logo** — the Controller has no WAN path at runtime (§5/§6), so the
@@ -60,15 +60,17 @@ one-time pattern as `&panel-profile=`/`&panel-diagonal=`:
    ```
    (`company_id`/logo path come from that operator's `companies.logo_path`
    row — see dashboard Branding settings.) Then copy `branding-logo.png`
-   into the repo root on the Controller itself (`~/route-tracker/branding-logo.png`
+   into `busops/announce/` on the Controller itself
+   (`~/route-tracker/pcv-dashboard/busops/announce/branding-logo.png`
    — e.g. via `scp` while your laptop is joined to the Controller's own
-   hotspot, or a USB stick), alongside `index.html`/`onboard.html`.
+   hotspot, or a USB stick), alongside `onboard.html`.
    `pi-server/server.mjs` serves it automatically from there, no server
-   change needed — it's just another static file under the repo root.
+   change needed — it's just another static file under `busops/`.
    If the file isn't present, the sign falls back to name-only branding
    (the `<img>` hides itself on a 404) rather than showing a broken image.
-3. This file is per-device and gitignored (`branding-logo.png` at repo
-   root) — never committed, same treatment as `pi-server/schedule-cache.json`.
+3. This file is per-device and gitignored (`branding-logo.png` under
+   `busops/announce/`) — never committed, same treatment as
+   `pi-server/schedule-cache.json`.
 
 ## Hardware
 Full spec, MUST-vs-nice-to-have breakdown, and rationale live in
@@ -208,7 +210,7 @@ Clone this repo onto the Controller (anywhere — the systemd unit below
 assumes `/home/pi/route-tracker`, adjust `WorkingDirectory` if different):
 ```bash
 git clone <repo-url> ~/route-tracker
-cd ~/route-tracker/pi-server
+cd ~/route-tracker/pcv-dashboard/busops/announce/pi-server
 sudo cp config/coachmate-onboard.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now coachmate-onboard
@@ -232,7 +234,7 @@ are commissioned the same way, via `&panel-profile=bar` or
 `&announce-token=`, see §6) — this sets the correct layout (wide/narrow, see
 `PANEL_PROFILES` in `src/onboard.js`) and PSVAIR text sizing together, so no
 other display param is normally needed. Example for the Dell Pro P2426H:
-`...onboard.html?announce-token=<token>&panel-profile=monitor`.
+`...announce/onboard.html?announce-token=<token>&panel-profile=monitor`.
 
 ### Option A — WiFi-client display
 No specific device is deployed this way today — the tablet originally used
@@ -267,7 +269,7 @@ and aspect ratio are already known automatically at runtime.
 > `raspi-config`/`/boot/firmware/config.txt`. Revisit this section once a
 > display is actually connected to the Quieter4C — until then, treat it as
 > a description of the mechanism (systemd unit driving a kiosk browser
-> against `localhost:8080/onboard.html`), not copy-pasteable commands.
+> against `localhost:8080/announce/onboard.html`), not copy-pasteable commands.
 > Pi-specific specifics (desktop autologin, `config.txt` HDMI timing) moved
 > to the legacy appendix at the bottom.
 
@@ -297,7 +299,7 @@ ExecStart=/usr/bin/chromium-browser \
   --disable-infobars \
   --no-first-run \
   --disable-translate \
-  http://localhost:8080/onboard.html
+  http://localhost:8080/announce/onboard.html
 Restart=on-failure
 
 [Install]

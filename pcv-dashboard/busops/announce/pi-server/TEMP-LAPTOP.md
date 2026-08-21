@@ -68,7 +68,7 @@ switching those URLs back — see "Removing this" at the bottom.
    open the plain Driver PWA URL without those params.
 3. **Today's kiosk URL** — the second line, e.g.:
    ```
-   http://localhost:8080/onboard.html?announce-token=<token>
+   http://localhost:8080/announce/onboard.html?announce-token=<token>
    ```
    Same URL every day, nothing to fill in — open it full-screen (F11, or
    Chrome `--kiosk`) in the browser on the Monitor plugged into the laptop.

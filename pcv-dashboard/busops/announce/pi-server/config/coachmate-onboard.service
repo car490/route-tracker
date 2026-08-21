@@ -3,7 +3,7 @@ Description=CoachMate onboard display server
 
 [Service]
 Type=simple
-WorkingDirectory=/home/pi/route-tracker/pi-server
+WorkingDirectory=/home/pi/route-tracker/pcv-dashboard/busops/announce/pi-server
 ExecStart=/usr/bin/node server.mjs
 Restart=on-failure
 RestartSec=3

@@ -48,7 +48,7 @@ if [ -d "$REPO_DIR/.git" ]; then
 else
   git clone "$REPO_URL" "$REPO_DIR"
 fi
-cd "$REPO_DIR/pi-server"
+cd "$REPO_DIR/pcv-dashboard/busops/announce/pi-server"
 npm install --omit=dev
 
 echo "== 4. Static IP for $WIFI_IFACE (systemd-networkd, bypasses netplan/wpa_supplicant) =="
