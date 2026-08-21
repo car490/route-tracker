@@ -98,6 +98,21 @@ fleet-wide.
   state machine in `announcements.js` — it only needs to live on the
   Controller once nothing else plays audio, per §8's original reasoning).
 
+## Brand — placeholder app icon needs real design
+
+`icons/icon-{192,512}.png` (driver PWA) and `dashboard/public/pwa-{192,512}x512.png` (dashboard)
+were, until 2026-08-21, the actual Phil Haines Coaches logo — a single operator's branding baked
+into shared source code, used as every install's home-screen/PWA icon regardless of which
+operator's deployment it is. Replaced with a plain placeholder (PCV Charcoal background, "CM" in
+PCV Cyan, generated programmatically — see chat history, not a designed asset) so nothing
+operator-specific ships in the repo. Per `docs/BRAND.md`, no real PCV Technologies/CoachMate logo
+exists yet.
+
+- [ ] Commission or design a real app icon and replace these four files (plus the favicons added
+  at the same time: `index.html`/`onboard.html`/`dashboard/index.html`'s `<link rel="icon">`,
+  currently pointing at the same placeholders).
+- [ ] Once a real logo exists, revisit `docs/BRAND.md`'s "Logo — not yet designed" section.
+
 ## Tech debt / refactors
 
 - [ ] `dashboard/src/features/route-planner/RoutePlannerPage.jsx` (1,051 lines)

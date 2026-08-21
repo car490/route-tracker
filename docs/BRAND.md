@@ -70,9 +70,11 @@ and `brand-tokens.css` together when that happens, don't let them diverge.
 
 ### Logo
 
-**Not yet designed — no asset exists.** Flagging this as an open gap rather than skipping it
-silently. Until a logo exists, product UIs should use text wordmarks per the attribution
-convention below.
+**Not yet designed as a real asset.** The app icons (`icons/*.png`, `dashboard/public/pwa-*.png`)
+are a plain generated placeholder (PCV Charcoal background, "CM" in PCV Cyan) — not a designed
+logo, just enough to stop a specific operator's own logo shipping in shared source code (see
+`docs/TODO.md`). Until a real logo exists, product UIs should use text wordmarks per the
+attribution convention below.
 
 ## Attribution convention
 

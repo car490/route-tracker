@@ -57,3 +57,19 @@ describe('index.html theme-color meta matches brand-tokens.css', () => {
     expect(match[1].toUpperCase()).toBe(pcvCharcoal.toUpperCase());
   });
 });
+
+// --ep-bg (the e-paper sign's background) isn't a brand-tokens.css role —
+// it's onboard-specific, not reused elsewhere — but onboard.html's meta and
+// onboard.css's var are still two independent copies of the same literal,
+// same anti-pattern as the brand colours above, just scoped to one app.
+describe('onboard.html theme-color meta matches onboard.css --ep-bg', () => {
+  const html = fs.readFileSync(path.join(root, 'onboard.html'), 'utf8');
+  const css = fs.readFileSync(path.join(root, 'onboard.css'), 'utf8');
+
+  test('meta theme-color matches --ep-bg', () => {
+    const epBg = css.match(/--ep-bg:\s*([^;]+);/)[1].trim();
+    const match = html.match(/<meta name="theme-color" content="([^"]+)"/);
+    expect(match).not.toBeNull();
+    expect(match[1].toUpperCase()).toBe(epBg.toUpperCase());
+  });
+});
