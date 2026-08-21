@@ -64,13 +64,13 @@ one-time pattern as `&panel-profile=`/`&panel-diagonal=`:
    (`~/route-tracker/pcv-dashboard/busops/announce/branding-logo.png`
    — e.g. via `scp` while your laptop is joined to the Controller's own
    hotspot, or a USB stick), alongside `onboard.html`.
-   `pi-server/server.mjs` serves it automatically from there, no server
+   `mele-server/server.mjs` serves it automatically from there, no server
    change needed — it's just another static file under `busops/`.
    If the file isn't present, the sign falls back to name-only branding
    (the `<img>` hides itself on a 404) rather than showing a broken image.
 3. This file is per-device and gitignored (`branding-logo.png` under
    `busops/announce/`) — never committed, same treatment as
-   `pi-server/schedule-cache.json`.
+   `mele-server/schedule-cache.json`.
 
 ## Hardware
 Full spec, MUST-vs-nice-to-have breakdown, and rationale live in
@@ -95,7 +95,7 @@ Ethernet + SSH from a laptop).
 1. **Download Ubuntu Server 24.04 LTS** (the plain amd64 ISO, not Desktop)
    from ubuntu.com/download/server.
 2. **Fill in the autoinstall config**: copy
-   `pi-server/autoinstall/user-data.example` to `user-data.local`
+   `mele-server/autoinstall/user-data.example` to `user-data.local`
    (gitignored) and replace the two placeholders — your SSH public key, and
    a password hash from `openssl passwd -6 '<some password>'` (only used if
    a monitor is ever attached directly; SSH password login is disabled).
@@ -128,11 +128,11 @@ Ethernet + SSH from a laptop).
    during setup) and power. It partitions, installs, and reboots
    unattended — no prompts, nothing to confirm on a screen.
 6. **Find its IP and SSH in**: check your router's DHCP client list for
-   `coachmate-controller`, then `ssh pi@<that-ip>`. If nothing shows up
+   `coachmate-controller`, then `ssh mele@<that-ip>`. If nothing shows up
    after ~10 minutes, the most useful next step is a one-off monitor
    connection to see where it's stuck — a silent failure is very hard to
    diagnose blind over the network.
-7. **Run the bootstrap script**: `pi-server/bootstrap-controller.sh` (from
+7. **Run the bootstrap script**: `mele-server/bootstrap-controller.sh` (from
    this repo — `curl` it directly, or clone the repo first, either works
    since the script itself does the clone/`npm install` for the app) does
    the rest of this file's §2–§4 for you: installs Node.js/hostapd/dnsmasq,
@@ -147,7 +147,7 @@ Ethernet + SSH from a laptop).
 
 **Removed.** GPS lives entirely on the Driver device now (its own GNSS
 chip) and reaches the Controller as already-derived state over the push
-feed (§6) — see `docs/CONTROLLER-REDESIGN.md` §6. `pi-server/gpsd-client.mjs`
+feed (§6) — see `docs/CONTROLLER-REDESIGN.md` §6. `mele-server/gpsd-client.mjs`
 and the `/api/position` endpoint are gone; don't install `gpsd` or wire up
 a GPS module for this box.
 
@@ -157,7 +157,7 @@ Per `docs/CONTROLLER-REDESIGN.md` §3/§5, the Controller never joins a
 network as a client at all — no depot WiFi sync, no cellular. Its one
 onboard WiFi radio runs permanently as an access point (`hostapd`) for the
 Driver device to join; Ethernet (used for setup/updates, per §0) stays a
-separate, independent uplink. `pi-server/bootstrap-controller.sh` (§0 step
+separate, independent uplink. `mele-server/bootstrap-controller.sh` (§0 step
 7) does everything below automatically — this is the manual/by-hand
 version if you need to redo a piece of it:
 
@@ -170,7 +170,7 @@ expect something like `wlp2s0`):
 ```bash
 iw dev
 ```
-Copy the example configs from `pi-server/config/` and edit
+Copy the example configs from `mele-server/config/` and edit
 `interface=`/`ssid=`/`wpa_passphrase=` for your interface name and a
 freshly generated passphrase (`openssl rand -base64 16` — unique per
 vehicle, see the security comments in `hostapd.conf.example`):
@@ -201,16 +201,16 @@ sudo systemctl enable --now systemd-networkd
 
 ## 4. The app itself
 `mpg123` plays PSVAIR announcement audio locally on the Controller
-(`pi-server/audioPlayer.mjs`, docs/CONTROLLER-REDESIGN.md §8) — install it
+(`mele-server/audioPlayer.mjs`, docs/CONTROLLER-REDESIGN.md §8) — install it
 before starting the service:
 ```bash
 sudo apt install mpg123
 ```
 Clone this repo onto the Controller (anywhere — the systemd unit below
-assumes `/home/pi/route-tracker`, adjust `WorkingDirectory` if different):
+assumes `/home/mele/route-tracker`, adjust `WorkingDirectory` if different):
 ```bash
 git clone <repo-url> ~/route-tracker
-cd ~/route-tracker/pcv-dashboard/busops/announce/pi-server
+cd ~/route-tracker/pcv-dashboard/busops/announce/mele-server
 sudo cp config/coachmate-onboard.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now coachmate-onboard
@@ -240,7 +240,7 @@ other display param is normally needed. Example for the Dell Pro P2426H:
 No specific device is deployed this way today — the tablet originally used
 here has been dropped in favour of the HDMI-wired Option B panels below
 (see `docs/CONTROLLER-REDESIGN.md`). The mechanism itself is
-still supported by `pi-server/server.mjs` if a WiFi-client display is ever
+still supported by `mele-server/server.mjs` if a WiFi-client display is ever
 used again: point its browser at `http://192.168.4.1:8080/`, pin/kiosk-lock
 it to that page using whatever mechanism its OS provides, and set it to
 reopen the same URL on boot.
@@ -290,9 +290,9 @@ After=coachmate-onboard.service graphical.target
 Requires=coachmate-onboard.service
 
 [Service]
-User=pi
+User=mele
 Environment=DISPLAY=:0
-Environment=XAUTHORITY=/home/pi/.Xauthority
+Environment=XAUTHORITY=/home/mele/.Xauthority
 ExecStart=/usr/bin/chromium-browser \
   --kiosk \
   --noerrdialogs \
@@ -327,10 +327,10 @@ sudo cp config/coachmate-kiosk.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now coachmate-kiosk
 ```
-`pi-server/config/coachmate-kiosk.service` in this repo is the `cage`
+`mele-server/config/coachmate-kiosk.service` in this repo is the `cage`
 version — install *either* that file *or* the X11 unit above, not both, they
 both claim the `coachmate-kiosk` service name. Adjust its `XDG_RUNTIME_DIR`
-UID if `pi`'s UID isn't 1000 (`id -u pi`), and re-verify PSVAIR announcement
+UID if `mele`'s UID isn't 1000 (`id -u mele`), and re-verify PSVAIR announcement
 audio autoplay on real hardware either way
 (`--autoplay-policy=no-user-gesture-required` is already in its `ExecStart`).
 
@@ -347,7 +347,7 @@ it shows comes from what the Driver device pushes to it over a local
 WebSocket: schedule/stops once per journey start, then tracking state
 (next stop, ETA, diversion/final-stop flags — never raw GPS) on every
 update. `onboard.js` shows nothing until this connection has delivered at
-least a schedule message. See `pi-server/announceRelay.mjs` and
+least a schedule message. See `mele-server/announceRelay.mjs` and
 `src/announceLink.js`.
 
 **Set a shared token** (a commissioning-time secret, not "on this network =
@@ -387,7 +387,7 @@ already uses to open `onboard.html`.
 PSVAIR announcement audio plays from the Controller itself, not the Driver
 tablet (`docs/CONTROLLER-REDESIGN.md` §8) — the Driver resolves which clips
 to play and pushes `{type:'announce', text, audioKeys}` over the same
-`/driver-push` connection as §6; `pi-server/audioPlayer.mjs` plays them via
+`/driver-push` connection as §6; `mele-server/audioPlayer.mjs` plays them via
 `mpg123` (installed in §4) from the local `audio/announcements/` clip set
 already part of this repo checkout. No separate commissioning step beyond
 §6's shared token — this rides the same connection.

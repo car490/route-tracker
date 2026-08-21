@@ -6,11 +6,11 @@
 // hardware nor a local /api/position bridge), no schedule_view queries.
 // It is a pure renderer, driven entirely by what the Driver device pushes
 // to it over a local WebSocket (see src/announceLink.js — the sender —
-// and pi-server/announceRelay.mjs — the relay this device connects to).
+// and mele-server/announceRelay.mjs — the relay this device connects to).
 //
 // No manual intervention: this device is told nothing about which journey
 // to watch via its own URL beyond ?announce-token=<token> (the shared
-// secret for the relay — see pi-server/DEPLOY.md). It sits blank until an
+// secret for the relay — see mele-server/DEPLOY.md). It sits blank until an
 // authenticated /sign-feed connection receives a {type:'schedule'}
 // message — i.e. the moment a Driver device starts tracking a journey —
 // then wakes on its own and starts showing stops as {type:'state'}
@@ -29,7 +29,7 @@ const WIDE_LAYOUT_QUERY = '(min-aspect-ratio: 4/1)'; // 16:3 ultra-wide sign, se
 // exactly. Bar is the original ultra-wide destination-board plan (not yet
 // built, kept for later); monitor/monitor-vertical are both the Dell Pro
 // P2426H, the confirmed demo/validation unit in use today
-// (pi-server/DEPLOY.md §5) — monitor-vertical swaps only the tube-track's
+// (mele-server/DEPLOY.md §5) — monitor-vertical swaps only the tube-track's
 // orientation (top-to-bottom instead of left-to-right), trading Monitor's
 // spare vertical headroom (see --min-text's comment below) for longer,
 // unclipped stop-name labels; everything else about it is identical to
@@ -345,7 +345,7 @@ function applyOperatorBranding({ accentColor }) {
 // commissioned directly onto this device instead, same URL-param pattern
 // as ?panel-profile=/?panel-diagonal=: ?operator-name=<name>. The logo
 // image is a local file (branding-logo.png, placed at commissioning time —
-// see pi-server/DEPLOY.md) rather than a URL param, since the Controller
+// see mele-server/DEPLOY.md) rather than a URL param, since the Controller
 // has no WAN path to fetch it live (§5/§6) — cached once, not per-boot.
 // Omit ?operator-name= entirely and this stays hidden, unchanged from the
 // old blank-background-plus-corner-mark idle look. ──────────────────────
@@ -382,10 +382,10 @@ function startClock() {
 
 // ── Pushed feed (Driver -> Controller -> this sign) — the only source of
 // truth this device has. See src/announceLink.js (sender) and
-// pi-server/announceRelay.mjs (relay). This device reads its own push-feed
+// mele-server/announceRelay.mjs (relay). This device reads its own push-feed
 // token from its own URL rather than commissioning localStorage the way the
 // Driver device does — onboard.html is always opened via one fixed
-// per-vehicle URL (see pi-server/DEPLOY.md), so there's nothing to persist
+// per-vehicle URL (see mele-server/DEPLOY.md), so there's nothing to persist
 // across visits. Persistent, auto-reconnecting (same flat 3s-retry shape as
 // announceLink.js's own connect()) — there is no fallback to give up into
 // if the connection can't be established. ──────────────────────────────────

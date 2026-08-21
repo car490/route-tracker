@@ -33,9 +33,9 @@ system.
 
 ## 3. Decision: drop "depot WiFi" as a concept entirely
 
-**Old model** (`docs/HARDWARE.md` §7, `pi-server/DEPLOY.md`): the Controller
+**Old model** (`docs/HARDWARE.md` §7, `mele-server/DEPLOY.md`): the Controller
 joins the depot's WiFi once each morning (`wlan0`, standard client mode) to
-run `pi-server/sync-schedule.mjs`, which pulls the day's schedule down from
+run `mele-server/sync-schedule.mjs`, which pulls the day's schedule down from
 Supabase into a local `schedule-cache.json`. This is gated on the vehicle
 being in range of a depot WiFi network that actually works.
 
@@ -51,23 +51,23 @@ unnecessary:
   production target device has its own cellular (`docs/HARDWARE.md` §5,
   Blackview Active 5, dual-SIM 4G LTE).
 - It already opens a WebSocket to the Controller every journey
-  (`src/announceLink.js` → `pi-server/announceRelay.mjs`'s `/driver-push`
+  (`src/announceLink.js` → `mele-server/announceRelay.mjs`'s `/driver-push`
   endpoint) to push live tracking state.
 
 The fix is to make the Driver PWA the **sole** sync path to CoachMate Core,
 for schedule/duty data as well as live state, and relay it down to the
 Controller over the local link it already opens. Concretely:
 
-- `pi-server/sync-schedule.mjs` and its once-a-day boot job
+- `mele-server/sync-schedule.mjs` and its once-a-day boot job
   (`coachmate-sync.service`) are no longer needed and become candidates for
   removal once this ships.
 - The `/driver-push` protocol (currently `type: 'state'` only, see
   `buildStatePayload()` in `src/announceLink.js`) needs a new message type —
   e.g. `type: 'schedule'` — carrying the duty/timetable data the Controller
   needs, sent once when the Driver connects (or on schedule change).
-  Receiving side: `pi-server/announceRelay.mjs`'s `driverWss` handler
+  Receiving side: `mele-server/announceRelay.mjs`'s `driverWss` handler
   (currently only forwards `type: 'state'` to sign clients, see line ~52) and
-  `pi-server/server.mjs`'s `serveApiSchedule()`, which currently reads
+  `mele-server/server.mjs`'s `serveApiSchedule()`, which currently reads
   `schedule-cache.json` written by the old sync job — that needs to become
   "whatever the Driver most recently pushed," held in memory or written to
   the same cache path so it survives a Controller restart mid-shift.
@@ -81,7 +81,7 @@ Controller over the local link it already opens. Concretely:
 
 **Supersedes**: `docs/HARDWARE.md` §7 (both "Model 1" and "Model 2" columns
 — neither described this), and the depot-sync-at-boot description throughout
-`pi-server/DEPLOY.md`.
+`mele-server/DEPLOY.md`.
 
 ## 4. Decision: no USB peripherals on the Controller, at all
 
@@ -124,7 +124,7 @@ no WAN path" per this section.
 Follows directly from §3 and §5: the Controller no longer independently
 polls Supabase (`onboard.js`'s current `waitForJourneyStart()`/`get_duty_card`
 polling loop goes away), no longer runs its own GPS
-(`pi-server/gpsd-client.mjs` and the Model-1 "Pi's own GPS module" row in
+(`mele-server/gpsd-client.mjs` and the Model-1 "Pi's own GPS module" row in
 `docs/HARDWARE.md` §2 are dead — Model 2, GPS lives on the Driver tablet
 only, is now the confirmed target, not an open question), and no longer
 syncs its own schedule cache independently. Its entire job is: host the AP,
@@ -166,7 +166,7 @@ logo on today.
 - Company identity needs to be known to the Controller independent of any
   journey — most natural fit is a `company_id` (or the logo/name directly)
   baked in at commissioning time, same pattern as the existing
-  `?panel-diagonal=` param (`pi-server/DEPLOY.md` "Panel physical size").
+  `?panel-diagonal=` param (`mele-server/DEPLOY.md` "Panel physical size").
   This is a fixed, one-time, per-vehicle setting, not something that changes
   journey to journey, so commissioning-time is the right point to set it.
 - The logo itself (`companies.logo_path`, stored in Supabase Storage bucket
@@ -233,7 +233,7 @@ flags for the existing browser/Node `slug()` duplication. Instead:
 - `announce()` gets one addition: alongside (in place of) calling `speak()`,
   it broadcasts `{ type: 'announce', text, audioKeys }` to the Controller
   over the existing local link (`src/announceLink.js` →
-  `pi-server/announceRelay.mjs`'s `/driver-push` endpoint), same channel and
+  `mele-server/announceRelay.mjs`'s `/driver-push` endpoint), same channel and
   pattern as the `type: 'schedule'` message from §3.
 - The Controller becomes a genuinely dumb player: receive `audioKeys`, play
   the matching mp3s in sequence from local disk, done. No PSVAIR logic, no
@@ -307,7 +307,7 @@ short.
 `type: 'announce'` rides the same `/driver-push` connection as `type:
 'state'` and `type: 'schedule'` — no separate audio endpoint. Reasons:
 
-- `pi-server/announceRelay.mjs`'s receiving side is already a single
+- `mele-server/announceRelay.mjs`'s receiving side is already a single
   `message` handler on one connection; adding message types is a branch on
   `msg.type`, not new plumbing.
 - A second socket would mean a second token-auth check, a second
@@ -407,7 +407,7 @@ the BETA build. Applied to this pick specifically — a £489-listed
 Quieter4C configuration turned out to be 16GB RAM / 512GB storage **with
 Windows 11 Pro bundled**, none of which this workload needs:
 
-- **No OS** — the Controller runs Linux (same as the rest of `pi-server/`),
+- **No OS** — the Controller runs Linux (same as the rest of `mele-server/`),
   not Windows. Buy a "No OS" / barebone listing and flash Debian/Ubuntu
   directly rather than paying for an unused Windows licence.
 - **8GB RAM, not 16GB** — `docs/HARDWARE.md` originally judged 4GB

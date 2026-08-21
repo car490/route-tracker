@@ -18,7 +18,7 @@
 //                   stop-index references against known stops, not just
 //                   avoid being blank. announce messages never reach this
 //                   endpoint — they drive this box's own local audio
-//                   playback (see onAnnounce below / pi-server/
+//                   playback (see onAnnounce below / mele-server/
 //                   audioPlayer.mjs), not the sign display.
 //
 // Both endpoints require ?token=<DRIVER_PUSH_TOKEN> on the connection URL

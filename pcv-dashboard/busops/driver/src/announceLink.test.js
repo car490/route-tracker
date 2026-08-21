@@ -1,6 +1,6 @@
 // src/announceLink.test.js
 //
-// Driver -> Pi push client (see pi-server/announceRelay.mjs for the
+// Driver -> Pi push client (see mele-server/announceRelay.mjs for the
 // receiving side). Split into pure-helper tests (no globals touched) and
 // live-connection tests (WebSocket/localStorage stubbed via vi.stubGlobal —
 // vitest.config.js runs src/**/*.test.js under environment: 'node', which

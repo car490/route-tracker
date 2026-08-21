@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Bus Controller (MeLE Quieter4C) first-boot setup — run this ON the
 # Controller itself, over SSH, after the autoinstall (see
-# pi-server/autoinstall/) has produced a fresh, SSH-reachable Ubuntu Server
+# mele-server/autoinstall/) has produced a fresh, SSH-reachable Ubuntu Server
 # box. Idempotent — safe to re-run.
 #
 # What this does, per docs/CONTROLLER-REDESIGN.md:
@@ -14,7 +14,7 @@
 #     generated DRIVER_PUSH_TOKEN
 #
 # What this does NOT do (do these once a display is actually connected):
-#   - kiosk browser setup (pi-server/DEPLOY.md §5, Option B)
+#   - kiosk browser setup (mele-server/DEPLOY.md §5, Option B)
 #   - idle-screen branding commissioning (DEPLOY.md "Idle screen branding")
 set -euo pipefail
 
@@ -48,7 +48,7 @@ if [ -d "$REPO_DIR/.git" ]; then
 else
   git clone "$REPO_URL" "$REPO_DIR"
 fi
-cd "$REPO_DIR/pcv-dashboard/busops/announce/pi-server"
+cd "$REPO_DIR/pcv-dashboard/busops/announce/mele-server"
 npm install --omit=dev
 
 echo "== 4. Static IP for $WIFI_IFACE (systemd-networkd, bypasses netplan/wpa_supplicant) =="

@@ -5,8 +5,8 @@ Wants=coachmate-onboard.service
 
 [Service]
 Type=simple
-User=pi
-# Adjust if the pi user's UID isn't 1000 (check with `id -u pi`).
+User=mele
+# Adjust if the mele user's UID isn't 1000 (check with `id -u mele`).
 Environment=XDG_RUNTIME_DIR=/run/user/1000
 ExecStart=/usr/bin/cage -- /usr/bin/chromium-browser --kiosk --noerrdialogs --disable-session-crashed-bubble --disable-infobars --autoplay-policy=no-user-gesture-required http://localhost:8080/announce/onboard.html
 Restart=on-failure

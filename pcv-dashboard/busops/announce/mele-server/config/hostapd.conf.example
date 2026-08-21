@@ -4,7 +4,7 @@
 # the radio's only job, run permanently, no mode-switching, no second USB
 # dongle (§4/§5 of that doc — no load-bearing USB peripherals at all).
 #
-# `pi-server/bootstrap-controller.sh` applies this automatically (detects
+# `mele-server/bootstrap-controller.sh` applies this automatically (detects
 # the interface name, fills in `interface=`/`ssid=`/`wpa_passphrase=`,
 # copies it to /etc/hostapd/hostapd.conf). To do it by hand instead:
 #   sudo cp hostapd.conf.example /etc/hostapd/hostapd.conf

@@ -64,7 +64,7 @@
      default only applies when neither is supplied, so it must stay
      correct for whichever profile is more likely to be missing the
      param — Bar, since Monitor already always sends panel-diagonal (see
-     pi-server/DEPLOY.md §5). Bump this value if Bar's real physical size
+     mele-server/DEPLOY.md §5). Bump this value if Bar's real physical size
      changes. */
   --min-text:     17vh;
 }

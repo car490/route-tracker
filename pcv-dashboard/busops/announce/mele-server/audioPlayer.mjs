@@ -21,13 +21,13 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Same audio/ tree the Driver PWA ships (audio/announcements/*.mp3),
 // cloned onto the Controller as part of its own repo checkout — treated as
-// a build/deploy artifact, never fetched live (see pi-server/DEPLOY.md).
+// a build/deploy artifact, never fetched live (see mele-server/DEPLOY.md).
 export const DEFAULT_AUDIO_DIR = path.join(__dirname, '..', 'audio', 'announcements');
 
 // Real playback — spawns an external player process per clip, resolves
 // once it exits (true) or fails to (false). mpg123 chosen for being a tiny,
 // near-universally-packaged Debian/Ubuntu CLI mp3 player — see
-// pi-server/DEPLOY.md for the `apt install` step. Swappable via
+// mele-server/DEPLOY.md for the `apt install` step. Swappable via
 // createAudioPlayer's spawnPlayer option so tests don't need a real audio
 // device or mpg123 installed.
 function defaultSpawnPlayer(filePath) {

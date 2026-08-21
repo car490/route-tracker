@@ -1,8 +1,8 @@
-// pi-server/announceRelay.test.js
+// mele-server/announceRelay.test.js
 //
 // Exercises the real `ws` library end-to-end against a real (ephemeral-port)
 // http.createServer + attachAnnounceRelay — see announceRelay.mjs's header
-// comment for the protocol. Co-located under pi-server/ per its own
+// comment for the protocol. Co-located under mele-server/ per its own
 // convention; picked up by the same vitest run as src/**/*.test.js (see
 // vitest.config.js).
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';

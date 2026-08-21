@@ -2,7 +2,7 @@
 # an address so it can reach the Controller at 192.168.4.1 (set as the AP
 # interface's static IP — see hostapd.conf.example).
 #
-# `pi-server/bootstrap-controller.sh` applies this automatically. To do it
+# `mele-server/bootstrap-controller.sh` applies this automatically. To do it
 # by hand: sudo cp dnsmasq.conf.example /etc/dnsmasq.d/coachmate-ap.conf
 # and fix `interface=` to match your radio's actual name (`iw dev`).
 # Add `bind-interfaces` too if this box has more than one network interface

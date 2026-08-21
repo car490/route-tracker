@@ -1,10 +1,10 @@
-# Temporary "Controller" - runs the exact same pi-server code the real
+# Temporary "Controller" - runs the exact same mele-server code the real
 # Controller box will run, directly on this laptop, while dedicated hardware
 # isn't set up yet. See TEMP-LAPTOP.md for the full setup/teardown steps.
 #
-# One-time: copy this file to start-temp-pi.local.ps1 (gitignored - never
+# One-time: copy this file to start-temp-mele.local.ps1 (gitignored - never
 # commit a real token) and set $Token below to a long random string.
-# Every day: run start-temp-pi.local.ps1. It prints the two URLs you need
+# Every day: run start-temp-mele.local.ps1. It prints the two URLs you need
 # (driver commissioning + today's kiosk URL), then starts the server and
 # blocks until you Ctrl+C it. No separate schedule sync step - the schedule
 # now arrives pushed from the Driver device once it starts a journey.
@@ -13,7 +13,7 @@ $Token = "REPLACE-WITH-A-LONG-RANDOM-STRING"
 $Port = 8080
 
 if ($Token -eq "REPLACE-WITH-A-LONG-RANDOM-STRING") {
-    Write-Host "Set `$Token in start-temp-pi.local.ps1 before running it (copy this .example.ps1 file first if you haven't)." -ForegroundColor Red
+    Write-Host "Set `$Token in start-temp-mele.local.ps1 before running it (copy this .example.ps1 file first if you haven't)." -ForegroundColor Red
     exit 1
 }
 

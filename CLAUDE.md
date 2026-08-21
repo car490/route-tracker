@@ -12,7 +12,7 @@ Supabase backend:
 |---|---|---|---|
 | Driver PWA (BusOps Driver) | `pcv-dashboard/busops/driver/` (`index.html`, `src/`) | Vanilla JS, ES modules, no build step | GitHub Pages today; migrating to Cloudflare Workers at `driver.coachmate.uk` (`wrangler.jsonc` + `.assetsignore`, both at `pcv-dashboard/busops/`, are already in place for that, not yet cut over) |
 | Ops dashboard (PCV Dashboard) | `pcv-dashboard/` | React + Vite | Vercel, auto on push |
-| Onboard passenger sign (BusOps Announce) | `pcv-dashboard/busops/announce/` (`onboard.html`, `src/onboard.js`); Controller-side setup in `pi-server/` | Vanilla JS + Node (WebSocket relay, no GPS/DB access) | Bus Controller box (see `docs/CONTROLLER-REDESIGN.md`) + HDMI display, see `pi-server/DEPLOY.md` |
+| Onboard passenger sign (BusOps Announce) | `pcv-dashboard/busops/announce/` (`onboard.html`, `src/onboard.js`); Controller-side setup in `mele-server/` | Vanilla JS + Node (WebSocket relay, no GPS/DB access) | Bus Controller box (see `docs/CONTROLLER-REDESIGN.md`) + HDMI display, see `mele-server/DEPLOY.md` |
 
 **Company brand note:** PCV Technologies is the vendor company (`pcvtechnologies.co.uk`); the
 ops dashboard above is **PCV Dashboard**, a mandatory umbrella product every customer gets
@@ -66,7 +66,7 @@ pcv-dashboard/                  # PCV Dashboard — Vercel app root
     └── announce/                # BusOps Announce (onboard sign)
         ├── onboard.html, onboard.css
         ├── src/onboard.js       # zero local imports — pure WebSocket-driven renderer
-        └── pi-server/           # Bus Controller-side companion app
+        └── mele-server/           # Bus Controller-side companion app
 ```
 
 `src/` was split along the actual import graph, not folder guesswork: `onboard.js` has no local
@@ -355,13 +355,13 @@ fallback for a clip that isn't rendered/cached yet.
 ### Onboard passenger sign (BusOps Announce)
 A separate vanilla-JS app (`busops/announce/onboard.html` + `busops/announce/src/onboard.js`)
 meant to run full-screen on an HDMI panel mounted in the vehicle, driven by a Bus Controller box
-over its own local WiFi hotspot (see `pi-server/DEPLOY.md` for setup,
-`pi-server/announceRelay.mjs` for the WebSocket relay). Deliberately siloed from `main.js` — no
+over its own local WiFi hotspot (see `mele-server/DEPLOY.md` for setup,
+`mele-server/announceRelay.mjs` for the WebSocket relay). Deliberately siloed from `main.js` — no
 login, no duty-card UI, no incident reporting, no writes to Supabase at all. As of the Controller
 redesign (`docs/CONTROLLER-REDESIGN.md`) it also has **no reads of its own**: no `get_duty_card`
 polling, no GPS (the Controller has no GPS hardware — that lives entirely on the driver device),
 no `schedule_view` queries. It's a pure renderer, driven only by what the Driver PWA pushes to it
-(`busops/driver/src/announceLink.js` → `pi-server/announceRelay.mjs` → this device's
+(`busops/driver/src/announceLink.js` → `mele-server/announceRelay.mjs` → this device's
 `/sign-feed` connection): a `{type:'schedule', ...}` message once per journey start (stops,
 service code, branding), then `{type:'state', ...}` messages as the journey progresses. Stays
 blank until an authenticated push connection delivers a schedule — there's no `?journey=` URL

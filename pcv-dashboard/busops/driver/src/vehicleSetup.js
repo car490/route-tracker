@@ -1,7 +1,7 @@
 // One-time (until changed) commissioning step: which vehicle this device is
 // mounted in. Needed because the manual-selection flow (manualSelection.js —
 // the default flow now that duty-card links aren't used, see
-// pi-server/TEMP-LAPTOP.md) creates journeys with no ops-assigned vehicle
+// mele-server/TEMP-LAPTOP.md) creates journeys with no ops-assigned vehicle
 // otherwise. See docs/TODO.md "Manual-selection flow — no vehicle/driver on
 // the journey".
 //

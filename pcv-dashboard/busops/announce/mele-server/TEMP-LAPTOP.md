@@ -3,7 +3,7 @@
 Interim setup for while dedicated Controller hardware isn't set up. Uses your
 laptop as the Controller and an external Monitor plugged into it as BusOps
 Announce's screen. **No app code is different** — this runs the exact same
-`pi-server/server.mjs` and `announceRelay.mjs` that [`DEPLOY.md`](DEPLOY.md)
+`mele-server/server.mjs` and `announceRelay.mjs` that [`DEPLOY.md`](DEPLOY.md)
 documents for the real hardware. Only the hardware and a couple of URLs
 change. When dedicated hardware is ready, decommissioning this is just
 switching those URLs back — see "Removing this" at the bottom.
@@ -12,7 +12,7 @@ switching those URLs back — see "Removing this" at the bottom.
 
 - **No GPS needed on the laptop, same as the real Controller.** The Driver
   phone computes its own tracking state from its own GPS and pushes it over
-  the local WebSocket (`src/announceLink.js` → `pi-server/announceRelay.mjs`
+  the local WebSocket (`src/announceLink.js` → `mele-server/announceRelay.mjs`
   → `onboard.js`'s `connectSignFeed`) — the Controller (laptop or real
   hardware) has no GPS of its own at all, by design, not as a fallback.
 - **One box does two jobs.** A dedicated Controller box would have one WiFi
@@ -46,13 +46,13 @@ switching those URLs back — see "Removing this" at the bottom.
    in a PowerShell prompt). This is the same kind of commissioning-time
    shared secret `DEPLOY.md` §6 describes for the real Pi — not a password
    you need to remember, just something long and hard to guess.
-5. **Copy the script**: `pi-server/start-temp-pi.example.ps1` →
-   `pi-server/start-temp-pi.local.ps1` (gitignored — it'll hold your real
+5. **Copy the script**: `mele-server/start-temp-mele.example.ps1` →
+   `mele-server/start-temp-mele.local.ps1` (gitignored — it'll hold your real
    token). Paste your token into `$Token` at the top.
 
 ## Every day
 
-1. Run `pi-server/start-temp-pi.local.ps1`. It prints two URLs and starts
+1. Run `mele-server/start-temp-mele.local.ps1`. It prints two URLs and starts
    the server — no separate sync step, the schedule arrives pushed from the
    Driver device once it starts a journey.
 2. **Driver phone commissioning — once per phone, not every day.** The first
@@ -90,7 +90,7 @@ taps Start on their phone — that's the schedule push arriving over
 ## Removing this
 
 No rollback needed on the laptop side — just stop running
-`start-temp-pi.local.ps1`. Two things need re-pointing at the real Pi once
+`start-temp-mele.local.ps1`. Two things need re-pointing at the real Pi once
 it's commissioned per `DEPLOY.md`:
 
 1. **Re-commission the driver phone** by opening the same kind of
@@ -102,5 +102,5 @@ it's commissioned per `DEPLOY.md`:
    directly per `DEPLOY.md` Option B).
 
 Nothing in this file's setup touches `git`-tracked app code, so there's
-nothing to revert there either — `start-temp-pi.local.ps1` can just stay
+nothing to revert there either — `start-temp-mele.local.ps1` can just stay
 unused in the repo (it's gitignored) or be deleted.

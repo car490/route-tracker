@@ -14,7 +14,7 @@ autoinstall:
     layout: gb
   identity:
     hostname: coachmate-controller
-    username: pi
+    username: mele
     # Generate with: openssl passwd -6 '<some password>'
     # Console/password login is disabled below (ssh.allow-pw: false) — this
     # hash only matters if you ever attach a monitor+keyboard directly.
@@ -43,5 +43,5 @@ autoinstall:
   late-commands:
     # Appliance box, single operator user — passwordless sudo over SSH is a
     # deliberate convenience call here, not a shared multi-user server.
-    - "echo 'pi ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/90-pi-nopasswd"
-    - "chmod 440 /target/etc/sudoers.d/90-pi-nopasswd"
+    - "echo 'mele ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/90-mele-nopasswd"
+    - "chmod 440 /target/etc/sudoers.d/90-mele-nopasswd"

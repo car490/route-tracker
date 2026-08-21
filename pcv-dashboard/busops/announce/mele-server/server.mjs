@@ -23,7 +23,7 @@ import { attachAnnounceRelay } from './announceRelay.mjs';
 import { createAudioPlayer } from './audioPlayer.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// pi-server/ sits at busops/announce/pi-server/; REPO_ROOT is busops/ itself
+// mele-server/ sits at busops/announce/mele-server/; REPO_ROOT is busops/ itself
 // (two levels up) because onboard.html's relative links to shared assets
 // (../shared/brand-tokens.css, ../shared/icons/...) and its service worker
 // registration (../service-worker.js) resolve, once the browser normalises
@@ -114,5 +114,5 @@ const relay = attachAnnounceRelay(server, {
 });
 
 server.listen(PORT, () =>
-  console.log(`pi-server running -> http://0.0.0.0:${PORT}/`)
+  console.log(`mele-server running -> http://0.0.0.0:${PORT}/`)
 );

@@ -1,5 +1,5 @@
 {
-  "name": "coachmate-onboard-pi-server",
+  "name": "coachmate-onboard-mele-server",
   "private": true,
   "version": "1.0.0",
   "description": "Bus Controller-side WebSocket relay and static server for BusOps Announce (the onboard sign).",
