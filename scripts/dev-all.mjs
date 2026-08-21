@@ -50,7 +50,7 @@ const SERVICES = [
     name: 'dashboard',
     color: 36, // cyan
     ports: [5173],
-    cwd: path.join(ROOT, 'dashboard'),
+    cwd: path.join(ROOT, 'pcv-dashboard'),
     cmd: IS_WIN ? 'npm.cmd' : 'npm',
     args: ['run', 'dev'],
   },

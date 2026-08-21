@@ -35,8 +35,8 @@ else next = `${maj}.${min}.${pat + 1}`
 
 writeFileSync(versionPath, `${next}\n`)
 
-// dashboard/package.json
-const pkgPath = path.join(ROOT, 'dashboard/package.json')
+// pcv-dashboard/package.json
+const pkgPath = path.join(ROOT, 'pcv-dashboard/package.json')
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
 pkg.version = next
 writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`)
@@ -90,7 +90,7 @@ const changelogNext = changelog.replace(
 writeFileSync(changelogPath, changelogNext)
 
 console.log(`Bumped version ${current} -> ${next}`)
-console.log('Updated: VERSION, dashboard/package.json, service-worker.js, index.html, CHANGELOG.md')
+console.log('Updated: VERSION, pcv-dashboard/package.json, service-worker.js, index.html, CHANGELOG.md')
 console.log('')
 console.log('Next steps:')
 console.log('  1. Edit CHANGELOG.md — tidy up the auto-generated commit list under the new heading')
