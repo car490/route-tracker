@@ -18,11 +18,12 @@ PCV Technologies  (company — pcvtechnologies.co.uk)
                `accent_color` / `logo_path`, applied via `ThemeProvider.jsx`)
 ```
 
-**Status note:** "PCV Dashboard" is the existing `dashboard/` app (currently titled/branded
-"CoachMate Ops Dashboard" in `dashboard/vite.config.js` and `dashboard/index.html`) under a
-planned repositioning — it is not yet renamed or restructured in code. This document
-describes the intended direction so future work builds toward it consistently; it does not
-mean the rename has happened. See `CLAUDE.md` for current implementation status.
+**Status note:** "PCV Dashboard" is the existing `dashboard/` app. Its user-facing wordmarks
+(browser tab title, PWA manifest name/short_name/description in `dashboard/vite.config.js` and
+`dashboard/index.html`, the login screen, the sidebar mark in `Layout.jsx`) were repositioned
+from "CoachMate Ops Dashboard" to "PCV Dashboard" on 2026-08-21. The npm package name
+(`coachmate-dashboard`) and the `dashboard/` folder name are internal identifiers, deliberately
+left unchanged. See `CLAUDE.md` for current implementation status.
 
 Company/employee/vehicle management, settings, and other product-agnostic ops functionality
 belong in PCV Dashboard. CoachMate and future product modules are surfaced *inside* it, not
@@ -78,14 +79,16 @@ attribution convention below.
 
 ## Attribution convention
 
-Product-facing surfaces (footers, about screens, login/reset screens, etc.) should credit the
-company using the pattern:
+Product-facing surfaces (footers, about screens, login/reset screens, etc.) credit the company
+as a small strapline beneath the product wordmark, reading:
 
-> **[Product Name] by PCV Technologies**
+> From PCV Technologies
 
-e.g. "CoachMate by PCV Technologies". This is the target convention — it is not yet applied
-anywhere in this repo (see `coachmate-branding-summary.md` for the current hardcoded strings
-that still need updating, e.g. "Phil Haines Coaches").
+Applied today on all three brand marks: the driver PWA's `#app-brand` (`index.html`/`style.css`),
+the onboard sign's `#onboard-brand` (`onboard.html`/`onboard.css`), and the dashboard's
+`.app-brand` (`Layout.jsx`/`dashboard/src/index.css`) — plus their mirror in `demo.html`. See
+`coachmate-branding-summary.md` for other hardcoded strings that still need updating (e.g.
+"Phil Haines Coaches").
 
 ## Token file
 

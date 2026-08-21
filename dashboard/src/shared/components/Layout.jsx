@@ -211,9 +211,9 @@ export default function Layout({ session }) {
 
       <div className="app-brand">
         <div className="app-brand-wordmark">
-          CoachMate <span className="app-brand-accent">Operations</span>
+          PCV <span className="app-brand-accent">Dashboard</span>
         </div>
-        <div className="app-brand-attribution">by PCV Technologies</div>
+        <div className="app-brand-attribution">From PCV Technologies</div>
       </div>
 
       {logoModalOpen && employee && (

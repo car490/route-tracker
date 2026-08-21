@@ -1,7 +1,7 @@
 {
   "name": "BusOps Driver",
   "short_name": "BusOps",
-  "description": "CoachMate's real-time bus route timing PWA for drivers",
+  "description": "Real-time bus route timing PWA for drivers, from PCV Technologies",
   "display": "standalone",
   "orientation": "portrait",
   "theme_color": "#242F35",

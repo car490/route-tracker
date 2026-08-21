@@ -11,15 +11,17 @@ Supabase backend:
 | Surface | Path | Stack | Deploys to |
 |---|---|---|---|
 | Driver PWA (BusOps Driver) | repo root (`index.html`, `src/`) | Vanilla JS, ES modules, no build step | GitHub Pages today; migrating to Cloudflare Workers at `driver.coachmate.uk` (`wrangler.jsonc` + `.assetsignore` are already in place for that, not yet cut over) |
-| Ops dashboard (CoachMate Ops Dashboard) | `dashboard/` | React + Vite | Vercel, auto on push |
+| Ops dashboard (PCV Dashboard) | `dashboard/` | React + Vite | Vercel, auto on push |
 | Onboard passenger sign (BusOps Announce) | `onboard.html`, `src/onboard.js`; Controller-side setup in `pi-server/` | Vanilla JS + Node (WebSocket relay, no GPS/DB access) | Bus Controller box (see `docs/CONTROLLER-REDESIGN.md`) + HDMI display, see `pi-server/DEPLOY.md` |
 
 **Company brand note:** PCV Technologies is the vendor company (`pcvtechnologies.co.uk`); the
-ops dashboard above is planned to be repositioned as **PCV Dashboard**, a mandatory umbrella
-product every customer gets regardless of which product modules (CoachMate today) they've
-signed up for. This is agreed direction, **not yet implemented** in code — the app is still
-titled/branded "CoachMate Ops Dashboard" throughout. See `docs/BRAND.md` for the full company/
-product brand hierarchy.
+ops dashboard above is **PCV Dashboard**, a mandatory umbrella product every customer gets
+regardless of which product modules (CoachMate today) they've signed up for. The user-facing
+wordmarks (browser tab title, PWA manifest, login screen, sidebar mark) were repositioned from
+"CoachMate Ops Dashboard" to "PCV Dashboard" on 2026-08-21 — the npm package name
+(`coachmate-dashboard` in `dashboard/package.json`) and the `dashboard/` folder name are internal
+identifiers and were deliberately left as-is. See `docs/BRAND.md` for the full company/product
+brand hierarchy.
 
 Supabase schema lives at `supabase/schema.sql`. Everything else (`graphhopper/`, `lib/`,
 `scripts/`, `audio/`) is shared infra used by more than one surface.

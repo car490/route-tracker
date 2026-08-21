@@ -325,9 +325,9 @@ export default defineConfig(({ mode }) => {
         includeAssets: ['pwa-192x192.png', 'pwa-512x512.png'],
         devOptions: { enabled: true, type: 'module' },
         manifest: {
-          name: 'CoachMate Ops Dashboard',
-          short_name: 'CoachMate',
-          description: 'Ops back-office dashboard for CoachMate',
+          name: 'PCV Dashboard',
+          short_name: 'PCV Dashboard',
+          description: 'Ops back-office dashboard from PCV Technologies',
           start_url: '/',
           scope: '/',
           display: 'standalone',

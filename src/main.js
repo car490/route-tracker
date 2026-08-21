@@ -904,7 +904,7 @@ async function init() {
   // Real operator name for the picker/duty-card screens' brand heading —
   // best-effort and non-blocking (doesn't delay showing the actual
   // functional screens below); on failure (e.g. offline before any cache
-  // exists) the generic "CoachMate" default already in index.html stands.
+  // exists) the generic "BusOps Driver" default already in index.html stands.
   fetchCompanyName()
     .then(name => {
       if (!name) return;

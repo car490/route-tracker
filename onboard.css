@@ -95,8 +95,9 @@ body {
 }
 
 /* ── Sign layout — top bar / tube-track + ETA panel / bottom line ────────
-   Brand mark (BusOps Announce over a smaller CoachMate attribution, in
-   real brand colours rather than greyscale) lives here too — at idle it's
+   Brand mark (BusOps Announce over a smaller "From PCV Technologies"
+   attribution, in real brand colours rather than greyscale) lives here
+   too — at idle it's
    the ONLY thing on screen, over a blank grey background.
    #onboard-brand stays a position: fixed sibling of #onboard-sign (not a
    grid child) because it must also render on the idle screen, before
@@ -175,16 +176,8 @@ body {
 .cm-wordmark {
   font-family: var(--ep-font);
   font-size: 2.2vh;
+  font-weight: 600;
   letter-spacing: -0.02em;
-}
-
-.cm-coach {
-  font-weight: 800;
-  color: var(--ep-slate);
-}
-
-.cm-mate {
-  font-weight: 400;
   color: var(--ep-teal);
 }
 
@@ -307,9 +300,9 @@ body {
 }
 
 /* ── Tube-map style progress line — paper-white background, slate
-   line/dots/labels (a second, cooler accent from the same brand mark's
-   two-tone wordmark — see #onboard-brand's .cm-coach — deliberately
-   distinct from the purple top/bottom bars), current stop in green.
+   line/dots/labels (the same slate/teal pairing used by #onboard-brand's
+   wordmark accents, deliberately distinct from the purple top/bottom
+   bars), current stop in green.
    Sized to read from the back of an 11m bus. Past/future read identically; only "current" and
    "confirmed arrival" (pulsing) are visually different. JS decides how
    many stops either side to show (matchMedia — more room on the wide
