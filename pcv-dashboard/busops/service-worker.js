@@ -2,32 +2,32 @@ const CACHE_NAME = 'busops-driver-v1.5.1';
 
 const STATIC_ASSETS = [
   './',
-  './index.html',
-  './onboard.html',
-  './style.css',
-  './onboard.css',
-  './manifest.json',
+  './driver/index.html',
+  './announce/onboard.html',
+  './driver/style.css',
+  './announce/onboard.css',
+  './driver/manifest.json',
   // CoachMate brand assets — always cached so the brand renders offline
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './lib/leaflet.min.js',
-  './lib/leaflet.min.css',
-  './src/main.js',
-  './src/onboard.js',
-  './src/announcements.js',
-  './src/directions.js',
-  './src/engine.js',
-  './src/geo.js',
-  './src/geofence.js',
-  './src/gps.js',
-  './src/map.js',
-  './src/ui.js',
-  './src/logger.js',
-  './src/config.js',
-  './src/schedule.json',
-  './src/supabaseApi.js',
-  './src/manualSelection.js',
-  './src/vehicleSetup.js',
+  './shared/icons/icon-192.png',
+  './shared/icons/icon-512.png',
+  './driver/lib/leaflet.min.js',
+  './driver/lib/leaflet.min.css',
+  './driver/src/main.js',
+  './announce/src/onboard.js',
+  './driver/src/announcements.js',
+  './driver/src/directions.js',
+  './driver/src/engine.js',
+  './driver/src/geo.js',
+  './driver/src/geofence.js',
+  './driver/src/gps.js',
+  './driver/src/map.js',
+  './driver/src/ui.js',
+  './driver/src/logger.js',
+  './driver/src/config.js',
+  './driver/src/schedule.json',
+  './driver/src/supabaseApi.js',
+  './driver/src/manualSelection.js',
+  './driver/src/vehicleSetup.js',
 ];
 
 const TILE_CACHE = [
@@ -97,11 +97,11 @@ const TILE_CACHE = [
 // silent no-op, not an install failure — announcements.js falls back to
 // speechSynthesis for anything not cached.
 function cacheAnnouncementAudio(cache) {
-  return fetch('./audio/announcements/manifest.json')
+  return fetch('./driver/audio/announcements/manifest.json')
     .then((res) => (res.ok ? res.json() : null))
     .then((manifest) => {
       if (!manifest) return;
-      const urls = Object.values(manifest).map((entry) => `./audio/announcements/${entry.path}`);
+      const urls = Object.values(manifest).map((entry) => `./driver/audio/announcements/${entry.path}`);
       return cache.addAll(urls);
     })
     .catch(() => {});

@@ -1,4 +1,4 @@
-import { computeTiming } from '../src/engine.js';
+import { computeTiming } from '../driver/src/engine.js';
 
 const NEXT_STOP = { name: 'High Street', time: '08:00' };
 const LATE_ALLOWANCE_MIN = 5;

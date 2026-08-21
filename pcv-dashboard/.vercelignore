@@ -1,0 +1,7 @@
+# busops/ and coachmate/ are separate products nested here to match the
+# brand hierarchy (see docs/BRAND.md) but are not part of this Vercel
+# deployment — busops/ deploys to Cloudflare Workers, coachmate/ has no
+# code yet. Keep them out of the Vercel build (large unrelated assets:
+# a kiosk APK, TTS audio clips, busops/'s own node_modules).
+busops/
+coachmate/

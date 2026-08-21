@@ -6,7 +6,7 @@
  * global — plain Node (this project's default test environment) doesn't
  * have one.
  */
-import { selectServiceManually } from '../src/manualSelection.js';
+import { selectServiceManually } from '../driver/src/manualSelection.js';
 
 const RPC_NAME = 'get_or_create_manual_journey';
 

@@ -10,7 +10,7 @@ import { describe, test, expect } from 'vitest';
 import fs from 'fs';
 
 function readToken(name) {
-  const css = fs.readFileSync(new URL('../../../brand-tokens.css', import.meta.url), 'utf8');
+  const css = fs.readFileSync(new URL('../../busops/shared/brand-tokens.css', import.meta.url), 'utf8');
   const match = css.match(new RegExp(`${name}:\\s*([^;]+);`));
   if (!match) throw new Error(`brand-tokens.css: token ${name} not found`);
   return match[1].trim();

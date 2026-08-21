@@ -58,7 +58,7 @@ const SERVICES = [
     name: 'pwa',
     color: 32, // green
     ports: [8080],
-    cwd: ROOT,
+    cwd: path.join(ROOT, 'pcv-dashboard/busops'),
     cmd: 'node',
     args: ['server.js'],
   },

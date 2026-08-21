@@ -12,7 +12,7 @@ import path from 'path';
 const root = path.join(__dirname, '..');
 
 describe('manifest.json start_url/scope', () => {
-  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'driver', 'manifest.json'), 'utf8'));
 
   test('start_url is root-relative, not tied to a subpath', () => {
     expect(manifest.start_url).toBe('./');
@@ -23,14 +23,20 @@ describe('manifest.json start_url/scope', () => {
   });
 });
 
-describe.each(['index.html', 'onboard.html'])('%s service worker registration', (file) => {
-  const html = fs.readFileSync(path.join(root, file), 'utf8');
+describe.each([
+  ['driver/index.html', 'index.html'],
+  ['announce/onboard.html', 'onboard.html'],
+])('%s service worker registration', (relPath, file) => {
+  const html = fs.readFileSync(path.join(root, relPath), 'utf8');
 
   test('registers with a bare relative path, no leading slash or subpath prefix', () => {
     const match = html.match(/serviceWorker\.register\(\s*['"]([^'"]+)['"]/);
     expect(match).not.toBeNull();
     const registeredPath = match[1];
-    expect(registeredPath).toBe('service-worker.js');
+    // Both driver/index.html and announce/onboard.html sit one level below
+    // busops/, where service-worker.js lives — its scope must cover both,
+    // hence the shared '../service-worker.js' registration path.
+    expect(registeredPath).toBe('../service-worker.js');
     expect(registeredPath.startsWith('/')).toBe(false);
   });
 

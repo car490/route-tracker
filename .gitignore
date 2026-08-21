@@ -33,3 +33,7 @@ pi-server/autoinstall/user-data.local
 # device, downloaded from that operator's own Supabase Storage bucket, see
 # pi-server/DEPLOY.md "Idle screen branding"), not source.
 branding-logo.png
+
+# wrangler dev's local Miniflare state (cache, tmp bundles) — regenerated
+# on every `wrangler dev` run, never source.
+.wrangler/

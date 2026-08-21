@@ -15,8 +15,11 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+          cache-dependency-path: pcv-dashboard/busops/package-lock.json
       - run: npm ci
+        working-directory: pcv-dashboard/busops
       - run: npm test
+        working-directory: pcv-dashboard/busops
 
   dashboard-lint:
     name: Dashboard — lint

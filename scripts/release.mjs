@@ -42,7 +42,7 @@ pkg.version = next
 writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`)
 
 // service-worker.js cache name
-const swPath = path.join(ROOT, 'service-worker.js')
+const swPath = path.join(ROOT, 'pcv-dashboard/busops/service-worker.js')
 const sw = readFileSync(swPath, 'utf8')
 const swNext = sw.replace(
   /const CACHE_NAME = '[^']*'/,
@@ -51,7 +51,7 @@ const swNext = sw.replace(
 writeFileSync(swPath, swNext)
 
 // index.html footer version string
-const htmlPath = path.join(ROOT, 'index.html')
+const htmlPath = path.join(ROOT, 'pcv-dashboard/busops/driver/index.html')
 const html = readFileSync(htmlPath, 'utf8')
 const htmlNext = html.replace(
   />v[^<]*?<\/p>/,

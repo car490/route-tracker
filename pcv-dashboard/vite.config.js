@@ -11,7 +11,7 @@ const APP_VERSION = readFileSync(
 ).trim()
 
 function readBrandToken(name) {
-  const css = readFileSync(new URL('../brand-tokens.css', import.meta.url), 'utf8')
+  const css = readFileSync(new URL('./busops/shared/brand-tokens.css', import.meta.url), 'utf8')
   const match = css.match(new RegExp(`${name}:\\s*([^;]+);`))
   if (!match) throw new Error(`brand-tokens.css: token ${name} not found`)
   return match[1].trim()

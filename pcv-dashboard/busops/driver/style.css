@@ -1,4 +1,4 @@
-@import url('brand-tokens.css');
+@import url('../shared/brand-tokens.css');
 /* Font itself is loaded by index.html's <link> to Google Fonts — this file
    only names the family (via --pcv-font-sans), not redundantly re-fetch it. */
 

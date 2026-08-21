@@ -18,7 +18,7 @@ const MIME = {
 
 http.createServer((req, res) => {
   let urlPath = req.url.split('?')[0];
-  if (urlPath === '/') urlPath = '/index.html';
+  if (urlPath === '/') urlPath = '/driver/index.html';
 
   const filePath = path.join(__dirname, urlPath);
 

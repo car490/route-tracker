@@ -5,7 +5,7 @@
  * so anything importing supabaseApi.js transitively needs a DOM global —
  * plain Node (this project's default test environment) doesn't have one.
  */
-import { fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyName } from '../src/supabaseApi.js';
+import { fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyName } from '../driver/src/supabaseApi.js';
 
 // schedule_view is one row per stop, not per departure — a two-stop
 // departure produces two rows with the same service_code/departure_id/

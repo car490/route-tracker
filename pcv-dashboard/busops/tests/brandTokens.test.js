@@ -12,7 +12,7 @@ import path from 'path';
 const root = path.join(__dirname, '..');
 
 function readToken(name) {
-  const css = fs.readFileSync(path.join(root, 'brand-tokens.css'), 'utf8');
+  const css = fs.readFileSync(path.join(root, 'shared', 'brand-tokens.css'), 'utf8');
   const match = css.match(new RegExp(`${name}:\\s*([^;]+);`));
   if (!match) throw new Error(`brand-tokens.css: token ${name} not found`);
   return match[1].trim();
@@ -26,8 +26,11 @@ const pcvFontUrlName = readToken('--pcv-font-sans')
   .match(/'([^']+)'/)[1]
   .replace(/ /g, '+');
 
-describe.each(['index.html', 'onboard.html'])('%s Google Fonts link matches brand-tokens.css', (file) => {
-  const html = fs.readFileSync(path.join(root, file), 'utf8');
+describe.each([
+  ['driver/index.html', 'index.html'],
+  ['announce/onboard.html', 'onboard.html'],
+])('%s Google Fonts link matches brand-tokens.css', (relPath) => {
+  const html = fs.readFileSync(path.join(root, relPath), 'utf8');
 
   test('font <link> href names the same family as --pcv-font-sans', () => {
     const match = html.match(/<link href="(https:\/\/fonts\.googleapis\.com\/css2\?family=[^"]+)"/);
@@ -37,7 +40,7 @@ describe.each(['index.html', 'onboard.html'])('%s Google Fonts link matches bran
 });
 
 describe('manifest.json colours match brand-tokens.css', () => {
-  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'driver', 'manifest.json'), 'utf8'));
 
   test('theme_color matches --pcv-color-charcoal', () => {
     expect(manifest.theme_color.toUpperCase()).toBe(pcvCharcoal.toUpperCase());
@@ -49,7 +52,7 @@ describe('manifest.json colours match brand-tokens.css', () => {
 });
 
 describe('index.html theme-color meta matches brand-tokens.css', () => {
-  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'driver', 'index.html'), 'utf8');
 
   test('meta theme-color matches --pcv-color-charcoal', () => {
     const match = html.match(/<meta name="theme-color" content="([^"]+)"/);
@@ -63,8 +66,8 @@ describe('index.html theme-color meta matches brand-tokens.css', () => {
 // onboard.css's var are still two independent copies of the same literal,
 // same anti-pattern as the brand colours above, just scoped to one app.
 describe('onboard.html theme-color meta matches onboard.css --ep-bg', () => {
-  const html = fs.readFileSync(path.join(root, 'onboard.html'), 'utf8');
-  const css = fs.readFileSync(path.join(root, 'onboard.css'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'announce', 'onboard.html'), 'utf8');
+  const css = fs.readFileSync(path.join(root, 'announce', 'onboard.css'), 'utf8');
 
   test('meta theme-color matches --ep-bg', () => {
     const epBg = css.match(/--ep-bg:\s*([^;]+);/)[1].trim();
