@@ -10,27 +10,69 @@ Supabase backend:
 
 | Surface | Path | Stack | Deploys to |
 |---|---|---|---|
-| Driver PWA (BusOps Driver) | repo root (`index.html`, `src/`) | Vanilla JS, ES modules, no build step | GitHub Pages today; migrating to Cloudflare Workers at `driver.coachmate.uk` (`wrangler.jsonc` + `.assetsignore` are already in place for that, not yet cut over) |
-| Ops dashboard (PCV Dashboard) | `dashboard/` | React + Vite | Vercel, auto on push |
-| Onboard passenger sign (BusOps Announce) | `onboard.html`, `src/onboard.js`; Controller-side setup in `pi-server/` | Vanilla JS + Node (WebSocket relay, no GPS/DB access) | Bus Controller box (see `docs/CONTROLLER-REDESIGN.md`) + HDMI display, see `pi-server/DEPLOY.md` |
+| Driver PWA (BusOps Driver) | `pcv-dashboard/busops/driver/` (`index.html`, `src/`) | Vanilla JS, ES modules, no build step | GitHub Pages today; migrating to Cloudflare Workers at `driver.coachmate.uk` (`wrangler.jsonc` + `.assetsignore`, both at `pcv-dashboard/busops/`, are already in place for that, not yet cut over) |
+| Ops dashboard (PCV Dashboard) | `pcv-dashboard/` | React + Vite | Vercel, auto on push |
+| Onboard passenger sign (BusOps Announce) | `pcv-dashboard/busops/announce/` (`onboard.html`, `src/onboard.js`); Controller-side setup in `pi-server/` | Vanilla JS + Node (WebSocket relay, no GPS/DB access) | Bus Controller box (see `docs/CONTROLLER-REDESIGN.md`) + HDMI display, see `pi-server/DEPLOY.md` |
 
 **Company brand note:** PCV Technologies is the vendor company (`pcvtechnologies.co.uk`); the
 ops dashboard above is **PCV Dashboard**, a mandatory umbrella product every customer gets
-regardless of which product modules (CoachMate today) they've signed up for. The user-facing
+regardless of which product modules (BusOps today; CoachMate is a reserved, empty placeholder
+for a future module — see `pcv-dashboard/coachmate/`) they've signed up for. The user-facing
 wordmarks (browser tab title, PWA manifest, login screen, sidebar mark) were repositioned from
-"CoachMate Ops Dashboard" to "PCV Dashboard" on 2026-08-21 — the npm package name
-(`coachmate-dashboard` in `dashboard/package.json`) and the `dashboard/` folder name are internal
-identifiers and were deliberately left as-is. See `docs/BRAND.md` for the full company/product
+"CoachMate Ops Dashboard" to "PCV Dashboard" on 2026-08-21. The repo's folder structure was
+restructured the same day to mirror this hierarchy directly: `dashboard/` was renamed to
+`pcv-dashboard/`, and `busops/`/`coachmate/` now live inside it as product folders (see "Repo
+layout" below). The npm package name (`coachmate-dashboard` in `pcv-dashboard/package.json`)
+remains an internal identifier, left unchanged. See `docs/BRAND.md` for the full company/product
 brand hierarchy.
 
-Supabase schema lives at `supabase/schema.sql`. Everything else (`graphhopper/`, `lib/`,
-`scripts/`, `audio/`) is shared infra used by more than one surface.
+Supabase schema lives at `supabase/schema.sql`. `graphhopper/` and `scripts/` are shared infra
+used by more than one surface. `pcv-dashboard/busops/shared/` holds what BusOps' two surfaces
+(Driver, Announce) genuinely share with each other — icons, `brand-tokens.css` — while
+`lib/` (Leaflet) and `audio/` (PSVAIR clips) are driver-only, living under
+`pcv-dashboard/busops/driver/`.
 
-**Important:** the driver PWA source is served directly from the repo root — there is no
-`public/` folder (the root `README.md` still describes an old `public/`-based layout; it is
-stale — do not follow it). `server.js` serves `__dirname` as-is, and `index.html` loads
-`src/main.js` straight from the repo root. Do not create or reference a `public/` directory
-for the PWA.
+**Important:** the driver PWA source is served from `pcv-dashboard/busops/driver/` — there is
+no `public/` folder (the root `README.md` still describes an old `public/`-based layout; it is
+stale — do not follow it). `pcv-dashboard/busops/server.js` serves `__dirname` (i.e. `busops/`)
+as-is, mapping a bare `/` request to `/driver/index.html`; `driver/index.html` loads
+`src/main.js` from its own `src/` folder. Do not create or reference a `public/` directory for
+the PWA.
+
+## Repo layout
+
+Folder structure mirrors the brand hierarchy in `docs/BRAND.md`: repo root is the implicit PCV
+Technologies tier, `pcv-dashboard/` is the PCV Dashboard product (and literally *is* the Vercel
+app — its own `package.json`/`src/` sit directly in it), and `busops`/`coachmate` are product
+folders nested inside it.
+
+```
+pcv-dashboard/                  # PCV Dashboard — Vercel app root
+├── src/, package.json, vite.config.js, ...   # the dashboard app itself
+├── .vercelignore                # excludes busops/ and coachmate/ from the Vercel build
+├── coachmate/                   # empty — reserved for a future product
+└── busops/                      # BusOps product (Driver + Announce)
+    ├── package.json, wrangler.jsonc, .assetsignore, server.js
+    ├── service-worker.js        # sits here, not shared/ — its default scope must cover
+    │                             # both driver/ and announce/, which only works if it's
+    │                             # in their common parent directory
+    ├── tests/                   # cross-cutting Jest suite (staticDeployPaths, brandTokens, ...)
+    ├── shared/                  # genuinely shared between driver/ and announce/
+    │   ├── icons/
+    │   └── brand-tokens.css
+    ├── driver/                  # BusOps Driver (the PWA)
+    │   ├── index.html, manifest.json, style.css, lib/, audio/, cab-device/
+    │   └── src/                 # main.js's whole import closure
+    └── announce/                # BusOps Announce (onboard sign)
+        ├── onboard.html, onboard.css
+        ├── src/onboard.js       # zero local imports — pure WebSocket-driven renderer
+        └── pi-server/           # Bus Controller-side companion app
+```
+
+`src/` was split along the actual import graph, not folder guesswork: `onboard.js` has no local
+imports at all, so it's the entirety of `announce/src/`; everything else `main.js` transitively
+imports (`gps.js`, `engine.js`, `supabaseApi.js`, `announcements.js`, etc.) moved to
+`driver/src/` unchanged.
 
 `wifi-direct-poc/` is a standalone, throwaway Android hardware bench-test app for a possible
 future WiFi-Direct-based redesign of how Driver and Announce talk to each other. It is **not**
@@ -45,51 +87,60 @@ above — treat it as exploratory only.
 ```sh
 node scripts/dev-all.mjs
 ```
-Starts the driver PWA (`server.js`, :8080), dashboard dev server (`dashboard/`, :5173), and
-local GraphHopper (`graphhopper/`, :8989) together, killing anything already bound to those
-ports first. Ctrl-C stops all three. Safe to re-run after a crash.
+Starts the driver PWA (`pcv-dashboard/busops/server.js`, :8080), dashboard dev server
+(`pcv-dashboard/`, :5173), and local GraphHopper (`graphhopper/`, :8989) together, killing
+anything already bound to those ports first. Ctrl-C stops all three. Safe to re-run after a
+crash.
 
 ### Run individually
 ```sh
-node server.js              # driver PWA        → http://localhost:8080
-cd dashboard && npm run dev # ops dashboard      → http://localhost:5173
+cd pcv-dashboard/busops && node server.js   # driver PWA        → http://localhost:8080
+cd pcv-dashboard && npm run dev             # ops dashboard      → http://localhost:5173
 ```
-`http://localhost:8080/?debug` enables the PWA's debug mode (adds a Log tab, hides Directions).
+`http://localhost:8080/?debug` enables the PWA's debug mode (adds a Log tab, hides Directions) —
+bare `/` maps to `/driver/index.html` server-side, and the browser still carries the query string
+through to the client.
 
 ### Tests
-Two independent test setups exist for the driver PWA — know which one a file belongs to:
-- **`tests/*.test.js`** (older, standalone) → run via **Jest**: `npm test`
-- **`src/*.test.js`** (co-located with the module they test, e.g. `src/geofence.test.js`)
-  → run via **Vitest**: `npm run test:vitest`
+Two independent test setups exist for the driver PWA — know which one a file belongs to (both
+run from `pcv-dashboard/busops/`):
+- **`tests/*.test.js`** (older, standalone, cross-cutting — spans `driver/`, `announce/`,
+  `shared/`) → run via **Jest**: `npm test`
+- **`driver/src/*.test.js`** (co-located with the module they test, e.g.
+  `driver/src/geofence.test.js`) → run via **Vitest**: `npm run test:vitest`
 
-Run a single test file:
+Run a single test file (from `pcv-dashboard/busops/`):
 ```sh
 npx jest tests/engine.test.js
-npx vitest run src/geofence.test.js
+npx vitest run driver/src/geofence.test.js
 ```
 
-`tests/staticDeployPaths.test.js` guards `manifest.json` and both `index.html`/`onboard.html`'s
-service-worker registration against hardcoded subpaths (e.g. `/route-tracker/`) — this matters
-because the PWA is moving from a GitHub Pages subpath to owning its own origin
-(`driver.coachmate.uk`); don't reintroduce an absolute or subpath-prefixed registration.
+`tests/staticDeployPaths.test.js` guards `driver/manifest.json` and both
+`driver/index.html`/`announce/onboard.html`'s service-worker registration against hardcoded
+subpaths (e.g. `/route-tracker/`) — this matters because the PWA is moving from a GitHub Pages
+subpath to owning its own origin (`driver.coachmate.uk`); don't reintroduce an absolute or
+subpath-prefixed registration.
 
-Dashboard tests (Vitest, co-located `dashboard/src/**/*.test.js`):
+Dashboard tests (Vitest, co-located `pcv-dashboard/src/**/*.test.js`):
 ```sh
-cd dashboard && npm test
+cd pcv-dashboard && npm test
 ```
 
 ### Lint / build (dashboard only — the PWA has no build step)
 ```sh
-cd dashboard
-npm run lint    # eslint, ratcheted at --max-warnings 7 (see dashboard/eslint.config.js)
+cd pcv-dashboard
+npm run lint    # eslint, ratcheted at --max-warnings 7 (see pcv-dashboard/eslint.config.js)
 npm run build   # vite build
 ```
-CI (`.github/workflows/ci.yml`) runs: root `npm test` (PWA), `dashboard` lint, `dashboard`
-build — on every push and PR.
+CI (`.github/workflows/ci.yml`) runs: `pcv-dashboard/busops` `npm test` (PWA), `pcv-dashboard`
+lint, `pcv-dashboard` build — on every push and PR.
 
 ### Demo drives (simulate a run without GPS/hardware)
 ```sh
 node scripts/demo-drive.mjs        # single driver PWA, scripted GPS route
+```
+Run from `pcv-dashboard/busops/` (they're npm scripts on that `package.json`):
+```sh
 npm run demo:2up:duty              # two windows: driver PWA + BusOps Announce, duty-card start
 npm run demo:2up:manual            # same, but via the manual-selection fallback flow
 ```
@@ -102,9 +153,9 @@ used for quick client-facing demos.
 ```sh
 AZURE_SPEECH_KEY=... AZURE_SPEECH_REGION=... npm run generate:audio
 ```
-Regenerates pre-rendered Azure Neural TTS clips into `audio/announcements/`. See "PSVAIR
-announcement audio" under Architecture below before running this — order of operations matters
-(schedule regen must happen first).
+Run from `pcv-dashboard/busops/`. Regenerates pre-rendered Azure Neural TTS clips into
+`busops/driver/audio/announcements/`. See "PSVAIR announcement audio" under Architecture below
+before running this — order of operations matters (schedule regen must happen first).
 
 ### Release (version bump across PWA + dashboard together)
 ```sh
@@ -182,24 +233,27 @@ Always follow GRANTs with the appropriate RLS policy.
 | Layer | Develop | Production |
 |---|---|---|
 | **Dashboard** | Vercel preview URL (auto on every push to `develop`) | `route-tracker-iota.vercel.app` (auto on merge to `master`) |
-| **PWA** | Local server (`server.js`) — hits dev Supabase automatically | GitHub Pages (deploy from `master`); Cloudflare Workers migration in progress, see Project overview |
+| **PWA** | Local server (`pcv-dashboard/busops/server.js`) — hits dev Supabase automatically | GitHub Pages (deploy from `master`); Cloudflare Workers migration in progress, see Project overview |
 | **Supabase** | `cgcbfgceputvdvhzrgio` (`route-tracker-dev`) | `nwhayupsvcelyiwltdqo` (production) |
 
 ### Environment switching
-- **Dashboard**: `dashboard/.env.development` holds dev Supabase URL/key; Vite's dev server picks
-  it up automatically. Vercel production build ignores this file and uses Vercel's own env vars.
-- **PWA**: `src/config.js` detects `localhost`/`127.0.0.1` at runtime (`IS_DEV`) and switches
-  Supabase project URL/key accordingly. No build step needed.
+- **Dashboard**: `pcv-dashboard/.env.development` holds dev Supabase URL/key; Vite's dev server
+  picks it up automatically. Vercel production build ignores this file and uses Vercel's own
+  env vars.
+- **PWA**: `pcv-dashboard/busops/driver/src/config.js` detects `localhost`/`127.0.0.1` at
+  runtime (`IS_DEV`) and switches Supabase project URL/key accordingly. No build step needed.
 
 ### Committing
 - Commit at logical checkpoints — when a feature or fix is complete and working.
 - Always commit before applying a DB migration.
 - Always commit at end of session, even if WIP (prefix message with `wip:`).
-- The Git repo root **is** the driver PWA root — `index.html`, `src/`, `service-worker.js`,
-  `style.css` all live directly at the repo root, alongside `dashboard/` and `supabase/` as
-  sibling directories. There is no separate `public/` folder to sync from.
-- Dashboard is a separate Vite project in `dashboard/`; Vercel deploys from that directory
-  automatically on push.
+- Folder structure mirrors the brand hierarchy (see "Repo layout" above) — the driver PWA
+  (`index.html`, `src/`, `service-worker.js`, `style.css`) lives at
+  `pcv-dashboard/busops/driver/`, not the repo root. There is no separate `public/` folder to
+  sync from.
+- Dashboard is a separate Vite project in `pcv-dashboard/`, and literally *is* that folder
+  (product folders `busops/`/`coachmate/` nest inside it); Vercel deploys from `pcv-dashboard/`
+  automatically on push, ignoring `busops/`/`coachmate/` via `.vercelignore`.
 - `.git` persists between sessions — no need to re-init.
 
 ### DB migrations
@@ -215,14 +269,14 @@ together on the `develop` → `master` merge. Source of truth is the root
 (last released v1.4.0) — check `git log origin/master..origin/develop` before assuming
 what's live matches what's in the working tree.
 - When merging `develop` → `master`, run `node scripts/release.mjs <major|minor|patch>`.
-  This bumps `VERSION`, `dashboard/package.json`, the `service-worker.js`
-  `CACHE_NAME`, and the version footer in `index.html`, and stamps a new
+  This bumps `VERSION`, `pcv-dashboard/package.json`, `busops/service-worker.js`'s
+  `CACHE_NAME`, and the version footer in `busops/driver/index.html`, and stamps a new
   `CHANGELOG.md` entry from the commits since the last tag.
 - Review/tidy the auto-generated `CHANGELOG.md` entry, then commit, `git tag vX.Y.Z`,
   and push (`git push && git push --tags`).
 - The dashboard reads `VERSION` at build time via Vite `define` (`__APP_VERSION__`
   in `vite.config.js`) and shows it in the sidebar footer. The PWA version is a
-  plain string in `index.html`'s footer `<p>`, kept in sync by the release script.
+  plain string in `driver/index.html`'s footer `<p>`, kept in sync by the release script.
 - To check what's actually deployed where without guessing: `git tag --sort=-creatordate`
   for release history, and `git log origin/master..origin/develop` to see what's
   pending release.
@@ -252,76 +306,78 @@ driver-triggered diversion alerts, wired into both the PWA and the onboard sign.
 **OSRM/directions must always use scheduled stop coordinates, never the live GPS position** —
 this keeps route drawing and turn-by-turn stable regardless of GPS drift.
 
-The PWA falls back to `src/schedule.json` (a static, keyed-by-service-number schedule) when
-Supabase is unreachable — see the offline-fallback test flow in `docs/TESTING.md`.
-`scripts/generate-schedule.mjs` regenerates this file.
+The PWA falls back to `busops/driver/src/schedule.json` (a static, keyed-by-service-number
+schedule) when Supabase is unreachable — see the offline-fallback test flow in
+`docs/TESTING.md`. `scripts/generate-schedule.mjs` regenerates this file.
 
 ### PSVAIR announcement audio
 Live `speechSynthesis` voice quality varies by device/OS and can sound digital. The primary
 announcement path is **pre-rendered Azure Neural TTS clips**, generated offline and played
-back as audio files; live `speechSynthesis` (`src/announcements.js`) is kept only as the
+back as audio files; live `speechSynthesis` (`busops/driver/src/announcements.js`) is kept only as the
 fallback for a clip that isn't rendered/cached yet.
 
 - Every announcement sentence has exactly one variable slot (a stop name, or a
   service+destination pair) — so clips are rendered **per stop** and **per service/destination**,
   not per route-leg. Keyed by `stops.id` (global, reused across every route/timetable that
   visits that stop), never by `timetable_stop_id`.
-- `schedule_view` (and `src/schedule.json`) carry `stop_id` for exactly this reason — if you
+- `schedule_view` (and `busops/driver/src/schedule.json`) carry `stop_id` for exactly this reason — if you
   add a column to `schedule_view`, it must go at the **end** of the select list
   (`CREATE OR REPLACE VIEW` requires existing columns to keep their name/order/type).
 - Regenerate after any stop rename or route change, in this order:
   1. Apply any pending `schedule_view` migration to Supabase — **to both dev and production**
      if the change (e.g. a `stops.announcement_name` edit) needs to actually ship, not just be
      previewed locally.
-  2. `node scripts/generate-schedule.mjs` (refreshes `src/schedule.json`, including `stop_id`).
+  2. `node scripts/generate-schedule.mjs` (refreshes `busops/driver/src/schedule.json`, including `stop_id`).
      `schedule.json` is one static file shipped to both environments (no per-environment build
      step), so this defaults to reading production — pass `--dev` only to preview a change
      that's on dev alone so far; re-run without it (against prod) once the same change is
      applied there too and you're ready to ship.
   3. `AZURE_SPEECH_KEY=... AZURE_SPEECH_REGION=... npm run generate:audio` (writes clips +
-     `audio/announcements/manifest.json`; skips any clip whose text **or voice** hash hasn't
-     changed — the manifest hashes `${AZURE_SPEECH_VOICE}|${text}`).
+     `busops/driver/audio/announcements/manifest.json`; skips any clip whose text **or voice**
+     hash hasn't changed — the manifest hashes `${AZURE_SPEECH_VOICE}|${text}`).
 - `stops.announcement_name` (nullable) overrides `display_name()`'s ATCO-composed name for a
   stop whose real name is too long for the onboard sign's 22mm minimum or unclear when spoken.
   No admin UI yet — set it directly via SQL, on both dev and production, then regenerate per above.
 - Requires an Azure AI Speech resource (key + region, e.g. `uksouth`). These are **build-time
-  secrets** for a script run locally — never commit them, never put them in `src/config.js`
-  (that file is public/client-only). `AZURE_SPEECH_VOICE` overrides the script's default
-  (`en-GB-SoniaNeural`); the currently-committed clips were generated with `en-GB-RyanNeural`.
+  secrets** for a script run locally — never commit them, never put them in
+  `busops/driver/src/config.js` (that file is public/client-only). `AZURE_SPEECH_VOICE`
+  overrides the script's default (`en-GB-SoniaNeural`); the currently-committed clips were
+  generated with `en-GB-RyanNeural`.
 - `speak()` in `announcements.js` **queues** a new announcement behind whatever's currently
   playing rather than interrupting it. Only the single most recent queued announcement is kept.
-- `service-worker.js` precaches every clip listed in `audio/announcements/manifest.json` on
-  install, so announcements still work offline mid-route.
-- The clip-key slug logic in `src/announcements.js` (`slug()`) must stay identical to the one
-  in `scripts/generate-announcement-audio.mjs` — no shared import between a browser module and
-  a Node script here, so keep them in sync by hand.
+- `busops/service-worker.js` precaches every clip listed in
+  `busops/driver/audio/announcements/manifest.json` on install, so announcements still work
+  offline mid-route.
+- The clip-key slug logic in `busops/driver/src/announcements.js` (`slug()`) must stay identical
+  to the one in `scripts/generate-announcement-audio.mjs` — no shared import between a browser
+  module and a Node script here, so keep them in sync by hand.
 
 ### Onboard passenger sign (BusOps Announce)
-A separate vanilla-JS app (`onboard.html` + `src/onboard.js`) meant to run full-screen on an
-HDMI panel mounted in the vehicle, driven by a Bus Controller box over its own local WiFi
-hotspot (see `pi-server/DEPLOY.md` for setup, `pi-server/announceRelay.mjs` for the WebSocket
-relay). Deliberately siloed from `main.js` — no login, no duty-card UI, no incident reporting,
-no writes to Supabase at all. As of the Controller redesign (`docs/CONTROLLER-REDESIGN.md`) it
-also has **no reads of its own**: no `get_duty_card` polling, no GPS (the Controller has no GPS
-hardware — that lives entirely on the driver device), no `schedule_view` queries. It's a pure
-renderer, driven only by what the Driver PWA pushes to it (`src/announceLink.js` →
-`pi-server/announceRelay.mjs` → this device's `/sign-feed` connection): a `{type:'schedule', ...}`
-message once per journey start (stops, service code, branding), then `{type:'state', ...}`
-messages as the journey progresses. Stays blank until an authenticated push connection delivers
-a schedule — there's no `?journey=` URL param or depot-WiFi sync step anymore. Two named display
-profiles exist (`PANEL_PROFILES` in `src/onboard.js`, commissioned via `?panel-profile=`):
-**Bar** (28" ultra-wide destination-board panel, not yet built — see
-`docs/onboard-widescreen-layout.md`) and **Monitor** (Dell Pro P2426H, the confirmed
-demo/validation display).
+A separate vanilla-JS app (`busops/announce/onboard.html` + `busops/announce/src/onboard.js`)
+meant to run full-screen on an HDMI panel mounted in the vehicle, driven by a Bus Controller box
+over its own local WiFi hotspot (see `pi-server/DEPLOY.md` for setup,
+`pi-server/announceRelay.mjs` for the WebSocket relay). Deliberately siloed from `main.js` — no
+login, no duty-card UI, no incident reporting, no writes to Supabase at all. As of the Controller
+redesign (`docs/CONTROLLER-REDESIGN.md`) it also has **no reads of its own**: no `get_duty_card`
+polling, no GPS (the Controller has no GPS hardware — that lives entirely on the driver device),
+no `schedule_view` queries. It's a pure renderer, driven only by what the Driver PWA pushes to it
+(`busops/driver/src/announceLink.js` → `pi-server/announceRelay.mjs` → this device's
+`/sign-feed` connection): a `{type:'schedule', ...}` message once per journey start (stops,
+service code, branding), then `{type:'state', ...}` messages as the journey progresses. Stays
+blank until an authenticated push connection delivers a schedule — there's no `?journey=` URL
+param or depot-WiFi sync step anymore. Two named display profiles exist (`PANEL_PROFILES` in
+`busops/announce/src/onboard.js`, commissioned via `?panel-profile=`): **Bar** (28" ultra-wide
+destination-board panel, not yet built — see `docs/onboard-widescreen-layout.md`) and **Monitor**
+(Dell Pro P2426H, the confirmed demo/validation display).
 
 ### Dashboard (Vertical Slice Architecture)
-`dashboard/src/features/<slice>/` — each slice owns its own pages/components; shared code
-(Supabase client, layout, modals, hooks) lives in `dashboard/src/shared/`. Current slices:
+`pcv-dashboard/src/features/<slice>/` — each slice owns its own pages/components; shared code
+(Supabase client, layout, modals, hooks) lives in `pcv-dashboard/src/shared/`. Current slices:
 `auth`, `overview`, `employees`, `vehicles`, `routes`, `route-planner`, `journeys`, `schedule`,
 `tracking`, `settings`, `company`, `audio-config`. `route-planner` is the largest/most complex
 slice (route + timetable + stop + map + BODS-field + departures editing in one flow, including
 its own `WizardModal.jsx`) — see `docs/TODO.md` for a known refactor candidate there
-(`RoutePlannerPage.jsx`, ~1000 lines). `dashboard/api/*.js` holds Vercel serverless functions
+(`RoutePlannerPage.jsx`, ~1000 lines). `pcv-dashboard/api/*.js` holds Vercel serverless functions
 (the only place `service_role`/JWT secrets are read, via `process.env`).
 
 ### Domain conventions
@@ -331,14 +387,15 @@ its own `WizardModal.jsx`) — see `docs/TODO.md` for a known refactor candidate
   identifier column is `atco_code` (renamed from `naptan_code` — see
   `migration_rename_stops_atco_code.sql`).
 - Public client config (PWA): no build step means no Vite-style env-var injection, so all
-  dev/prod Supabase URLs and keys live in `src/config.js`, never inline in `main.js` or
-  elsewhere. Only ever put **anon/publishable** keys there — RLS policies are what actually
-  gate access, so they're safe to commit. A `service_role` key or `SUPABASE_JWT_SECRET` must
-  **never** appear here — those are server-only (`dashboard/api/*.js` pattern).
+  dev/prod Supabase URLs and keys live in `busops/driver/src/config.js`, never inline in
+  `main.js` or elsewhere. Only ever put **anon/publishable** keys there — RLS policies are what
+  actually gate access, so they're safe to commit. A `service_role` key or
+  `SUPABASE_JWT_SECRET` must **never** appear here — those are server-only
+  (`pcv-dashboard/api/*.js` pattern).
 - `docs/` holds reference and spec material not tied to any one code path: `BRAND.md` (the
   canonical PCV Technologies / product brand hub — company identity, colours, typography,
-  the PCV Dashboard/CoachMate product hierarchy; see its companion tokens at
-  `docs/brand/pcv-tokens.css`), `TESTING.md` (manual
+  the PCV Dashboard/BusOps/CoachMate product hierarchy; see its companion tokens at
+  `pcv-dashboard/busops/shared/brand-tokens.css`), `TESTING.md` (manual
   test guide for all three surfaces), `TODO.md` (general engineering follow-ups, e.g. PSVAIR
   2026 compliance items and dashboard tech debt), `VOL.md` (a parked, not-yet-built fleet-data
   subsystem — don't assume it's implemented), `DRIVER_DUTIES.md` (spec for rule-aware

@@ -60,7 +60,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, execSync } from 'node:child_process';
-import { haversine } from '../src/geo.js';
+import { haversine } from '../pcv-dashboard/busops/driver/src/geo.js';
 
 const MODE = process.argv[2];
 // Slower than demo-drive.mjs's default (7s) — this script exists to
@@ -111,8 +111,8 @@ async function ensureServerRunning() {
     console.log(`pi-server already running on :${PORT} — reusing it (its DRIVER_PUSH_TOKEN must already be "${DEMO_TOKEN}").`);
     return null;
   }
-  console.log(`Starting pi-server (node pi-server/server.mjs) on :${PORT}…`);
-  const child = spawn('node', ['pi-server/server.mjs'], {
+  console.log(`Starting pi-server (node pcv-dashboard/busops/announce/pi-server/server.mjs) on :${PORT}…`);
+  const child = spawn('node', ['pcv-dashboard/busops/announce/pi-server/server.mjs'], {
     cwd: ROOT,
     shell: IS_WIN,
     env: { ...process.env, PORT: String(PORT), DRIVER_PUSH_TOKEN: DEMO_TOKEN },
@@ -123,7 +123,7 @@ async function ensureServerRunning() {
     if (await isServerUp()) return child;
     await sleep(200);
   }
-  throw new Error(`pi-server/server.mjs did not come up on :${PORT} within 6s`);
+  throw new Error(`pcv-dashboard/busops/announce/pi-server/server.mjs did not come up on :${PORT} within 6s`);
 }
 
 function stopServer(child) {
@@ -317,19 +317,19 @@ process.on('SIGTERM', shutdown);
 (async () => {
   serverChild = await ensureServerRunning();
 
-  // /index.html, not "/" — pi-server/server.mjs aliases bare "/" to
-  // onboard.html (see its serveStaticFile()).
+  // /driver/index.html, not "/" — pi-server/server.mjs aliases bare "/" to
+  // /announce/onboard.html (see its serveStaticFile()).
   let pwaUrl;
 
   if (MODE === 'duty') {
-    pwaUrl = `${BASE_URL}/index.html?duties=${DUTY_JOURNEY_ID}`;
+    pwaUrl = `${BASE_URL}/driver/index.html?duties=${DUTY_JOURNEY_ID}`;
   } else {
-    pwaUrl = `${BASE_URL}/index.html`;
+    pwaUrl = `${BASE_URL}/driver/index.html`;
     console.log('Resolving today\'s manual-mode journey row…');
     await resolveManualJourneyId(); // creates/finds the row so it exists once Start is clicked; the id itself isn't needed here anymore — the Announce window learns it from the driver's schedule push instead of watching a specific journey id
   }
 
-  const onboardUrl = new URL('/onboard.html', BASE_URL);
+  const onboardUrl = new URL('/announce/onboard.html', BASE_URL);
   onboardUrl.searchParams.set('announce-token', DEMO_TOKEN);
 
   const [driver, announce] = await Promise.all([

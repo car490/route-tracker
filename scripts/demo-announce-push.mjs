@@ -60,8 +60,8 @@ async function ensureServerRunning() {
     console.log(`pi-server already running on :${PORT} — reusing it (its DRIVER_PUSH_TOKEN must already be "${DEMO_TOKEN}").`);
     return null;
   }
-  console.log(`Starting pi-server (node pi-server/server.mjs) on :${PORT}…`);
-  const child = spawn('node', ['pi-server/server.mjs'], {
+  console.log(`Starting pi-server (node pcv-dashboard/busops/announce/pi-server/server.mjs) on :${PORT}…`);
+  const child = spawn('node', ['pcv-dashboard/busops/announce/pi-server/server.mjs'], {
     cwd: ROOT,
     shell: IS_WIN,
     env: { ...process.env, PORT: String(PORT), DRIVER_PUSH_TOKEN: DEMO_TOKEN },
@@ -72,7 +72,7 @@ async function ensureServerRunning() {
     if (await isServerUp()) return child;
     await sleep(200);
   }
-  throw new Error(`pi-server/server.mjs did not come up on :${PORT} within 6s`);
+  throw new Error(`pcv-dashboard/busops/announce/pi-server/server.mjs did not come up on :${PORT} within 6s`);
 }
 
 function stopServer(child) {
@@ -203,9 +203,9 @@ process.on('SIGTERM', shutdown);
   // not from watching a specific journey id in its own URL.
   await resolveManualJourneyId();
 
-  const driverUrl = `${BASE_URL}/index.html`; // not "/" — pi-server aliases "/" to onboard.html
+  const driverUrl = `${BASE_URL}/driver/index.html`; // not "/" — pi-server aliases "/" to /announce/onboard.html
   const onboardUrl = (panelProfile) => {
-    const u = new URL('/onboard.html', BASE_URL);
+    const u = new URL('/announce/onboard.html', BASE_URL);
     u.searchParams.set('announce-token', DEMO_TOKEN);
     u.searchParams.set('panel-profile', panelProfile);
     return u.toString();

@@ -6,7 +6,7 @@
 
 
 -- ── PCV Technologies brand defaults ───────────────────────────────────────────
--- Canonical source is brand-tokens.css (repo root) — Postgres can't import a
+-- Canonical source is brand-tokens.css (pcv-dashboard/busops/shared/) — Postgres can't import a
 -- CSS file, so these two literal values must be kept in sync with it by hand.
 -- Used as companies.primary_color/accent_color's column defaults and as the
 -- fallback in get_duty_card() below, so both draw from one place instead of

@@ -2,7 +2,7 @@
 -- literals '#242F35' / '#00B4D8', independently repeated across schema.sql,
 -- migration_add_company_branding.sql, and migration_duty_card_colors.sql)
 -- into two functions, so there's one place to update if the brand default
--- ever changes. Canonical source is brand-tokens.css (repo root) — Postgres
+-- ever changes. Canonical source is brand-tokens.css (pcv-dashboard/busops/shared/) — Postgres
 -- can't import a CSS file, so these two literal values must still be kept in
 -- sync with it by hand.
 
