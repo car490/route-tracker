@@ -42,8 +42,13 @@ tier.
 
 ### Typography
 
-- **Plus Jakarta Sans** — the brand typeface, current weights as used in `style.css` /
-  `dashboard/src/index.css`.
+- **Plus Jakarta Sans** — the brand typeface, weights 400–800, stacked as
+  `'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif` (`--pcv-font-sans` in
+  `brand-tokens.css`). Loaded via each app's own Google Fonts `<link>`
+  (`index.html`/`onboard.html`/`dashboard/index.html`) — `brand-tokens.css` only names the
+  family, it doesn't fetch it; `tests/brandTokens.test.js` /
+  `dashboard/src/shared/brandTokens.test.js` guard those three links against naming a
+  different family than the token.
 
 ### Semantic role tokens
 
@@ -89,5 +94,6 @@ real, shipped code: the driver PWA's Cloudflare Workers deploy excludes `docs/` 
 material only) via `.assetsignore`, so a token file the PWA actually imports at runtime can't be
 parked there. It is wired into `style.css`, `onboard.css`, and `dashboard/src/index.css` via
 `@import`; `dashboard/vite.config.js` and `supabase/schema.sql` read/duplicate its values where a
-CSS import isn't possible (build-time manifest generation, SQL column defaults) — see the comment
-at the top of `brand-tokens.css` for details on keeping those in sync.
+CSS import isn't possible (build-time manifest generation, SQL column defaults, the Google Fonts
+`<link>` URLs) — see the comment at the top of `brand-tokens.css` for details on keeping those
+in sync.

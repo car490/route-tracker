@@ -1,5 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @import url('brand-tokens.css');
+/* Font itself is loaded by onboard.html's <link> to Google Fonts — this file
+   only names the family (via --pcv-font-sans), not redundantly re-fetch it. */
 
 /* ── E-paper passenger sign ───────────────────────────────────────────────
    One shared layout for every profile: Monitor (Dell Pro P2426H, 1920x1080
@@ -21,7 +22,7 @@
    confirmed by the geofence (the only motion on this screen). */
 
 :root {
-  --ep-font:      'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --ep-font:      var(--pcv-font-sans);
   --ep-mono:      ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 
   --ep-bg:        #ECEAE2;

@@ -25,9 +25,10 @@
     :root {
       --pcv-cyan:     #00B4D8;
       --pcv-charcoal: #242F35;
+      --pcv-font:     'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     }
     body {
-      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: var(--pcv-font);
       background: #111;
       color: #fff;
       display: flex;
@@ -380,7 +381,7 @@
       flex: 1;
       background: var(--ep-bg);
       color: var(--ep-ink);
-      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: var(--pcv-font);
       display: flex;
       flex-direction: column;
       overflow: hidden;

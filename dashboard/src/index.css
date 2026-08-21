@@ -6,7 +6,7 @@
   --cm-cyan:      var(--pcv-color-primary-action);
   --cm-charcoal:  var(--pcv-color-ink);
   --cm-platinum:  #F4F6F8;
-  --cm-font:      'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --cm-font:      var(--pcv-font-sans);
 
   /* Operator overrides — default to CoachMate brand */
   --operator-primary: var(--cm-charcoal);

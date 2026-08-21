@@ -17,7 +17,11 @@
   /* raw palette */
   --pcv-color-cyan: #00B4D8;
   --pcv-color-charcoal: #242F35;
-  --pcv-font-sans: 'Plus Jakarta Sans', sans-serif;
+  /* This only names the font family — it doesn't load it. Each app's
+     index.html/onboard.html <link>s the Google Fonts stylesheet for
+     'Plus Jakarta Sans' directly (tests/brandTokens.test.js guards those
+     links against drifting from this name). */
+  --pcv-font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
 
   /* semantic roles — extend only when a real product need defines a new role;
      add it here and to the table in BRAND.md together */

@@ -1,10 +1,10 @@
 // tests/brandTokens.test.js
 //
 // brand-tokens.css is the single source of truth for PCV Technologies'
-// brand colours (see docs/BRAND.md). manifest.json and index.html's
-// <meta name="theme-color"> are static files with no build step, so they
-// can't import the CSS token — this guards them from drifting out of sync
-// with it instead.
+// brand colours and typeface (see docs/BRAND.md). manifest.json and the two
+// root HTML files' <meta name="theme-color"> / Google Fonts <link> are
+// static, with no build step, so they can't import the CSS token — this
+// guards them from drifting out of sync with it instead.
 
 import fs from 'fs';
 import path from 'path';
@@ -19,6 +19,22 @@ function readToken(name) {
 }
 
 const pcvCharcoal = readToken('--pcv-color-charcoal');
+
+// --pcv-font-sans's first (quoted) font name, Google-Fonts-URL-encoded, e.g.
+// "'Plus Jakarta Sans', ..." → "Plus+Jakarta+Sans".
+const pcvFontUrlName = readToken('--pcv-font-sans')
+  .match(/'([^']+)'/)[1]
+  .replace(/ /g, '+');
+
+describe.each(['index.html', 'onboard.html'])('%s Google Fonts link matches brand-tokens.css', (file) => {
+  const html = fs.readFileSync(path.join(root, file), 'utf8');
+
+  test('font <link> href names the same family as --pcv-font-sans', () => {
+    const match = html.match(/<link href="(https:\/\/fonts\.googleapis\.com\/css2\?family=[^"]+)"/);
+    expect(match).not.toBeNull();
+    expect(match[1]).toContain(pcvFontUrlName);
+  });
+});
 
 describe('manifest.json colours match brand-tokens.css', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
