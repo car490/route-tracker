@@ -83,6 +83,19 @@ export async function fetchLocalBusVehicles() {
   return res.json();
 }
 
+// The operator's display name, shown on the picker/duty-card screens
+// (src/main.js's init()) instead of a hardcoded company name. anon_read on
+// companies is `using (true)` (schema.sql) — deliberately unscoped, since
+// this deployment model is one Supabase project per operator, so "the
+// company" is unambiguous. Best-effort/cosmetic only: callers should treat
+// a thrown error the same as "keep whatever's already in the DOM".
+export async function fetchCompanyName() {
+  const res = await sbFetch(`/rest/v1/companies?select=name&limit=1`);
+  if (!res.ok) throw new Error(`companies ${res.status}`);
+  const rows = await res.json();
+  return rows[0]?.name ?? null;
+}
+
 export async function fetchStopsForDeparture(departureId) {
   const res = await sbFetch(
     `/rest/v1/schedule_view` +

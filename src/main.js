@@ -8,7 +8,7 @@ import {
   announceDiversion, isMuted, setMuted, isBannerShown, setBannerShown,
   listVoices, getSelectedVoiceURI, setSelectedVoiceURI, previewVoice,
 } from './announcements.js';
-import { sbFetch, rpc, fetchStopsForDeparture, fetchAvailableServices, fetchLocalBusVehicles } from './supabaseApi.js';
+import { sbFetch, rpc, fetchStopsForDeparture, fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyName } from './supabaseApi.js';
 import { announceApproachEvent, announceStopEvent } from './announceStopEvent.js';
 import { triggerDiversionAlert, clearDiversionAlert } from './diversionAlert.js';
 import { selectServiceManually } from './manualSelection.js';
@@ -901,6 +901,17 @@ function initManualSelection() {
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 async function init() {
+  // Real operator name for the picker/duty-card screens' brand heading —
+  // best-effort and non-blocking (doesn't delay showing the actual
+  // functional screens below); on failure (e.g. offline before any cache
+  // exists) the generic "CoachMate" default already in index.html stands.
+  fetchCompanyName()
+    .then(name => {
+      if (!name) return;
+      document.querySelectorAll('.picker-brand, .ndc-brand').forEach(el => { el.textContent = name; });
+    })
+    .catch(() => {});
+
   // Dedicated tablet mount, not a driver's own phone — keep the screen awake
   // from boot (duty-card/picker screens included), not just once tracking
   // starts, so the wakelock-warning banner only ever appears on a genuine

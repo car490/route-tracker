@@ -48,7 +48,7 @@ journey yet — so it's commissioned directly onto the device instead, same
 one-time pattern as `&panel-profile=`/`&panel-diagonal=`:
 
 1. **Name** — append `&operator-name=<name>` (URL-encoded) to the fixed
-   kiosk URL, e.g. `...onboard.html?announce-token=<token>&panel-profile=monitor&operator-name=Phil%20Haines%20Coaches`.
+   kiosk URL, e.g. `...onboard.html?announce-token=<token>&panel-profile=monitor&operator-name=Acme%20Coaches`.
    Omit entirely and the idle screen stays exactly as it was before (blank
    background, small corner mark only).
 2. **Logo** — the Controller has no WAN path at runtime (§5/§6), so the

@@ -273,7 +273,7 @@ export default function BrandingPage({ session }) {
               className="form-input"
               value={slug}
               onChange={e => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-              placeholder="e.g. phil-haines-coaches"
+              placeholder="e.g. acme-coaches"
               maxLength={80}
             />
             <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>

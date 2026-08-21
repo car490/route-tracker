@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../shared/supabase'
+import { LoginBrandHeader } from '../../shared/components/LoginBrandHeader'
 
 export default function ResetPassword() {
   const [password, setPassword] = useState('')
@@ -29,10 +30,7 @@ export default function ResetPassword() {
   return (
     <div className="login-page">
       <div className="login-card">
-        <div className="login-brand">
-          <div className="login-brand-name">Phil Haines Coaches</div>
-          <div className="login-brand-sub">Operations Dashboard</div>
-        </div>
+        <LoginBrandHeader />
         <p style={{ marginBottom: 20, color: 'var(--text-secondary, #666)' }}>
           Choose a new password for your account.
         </p>

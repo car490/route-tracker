@@ -5,7 +5,7 @@
  * so anything importing supabaseApi.js transitively needs a DOM global —
  * plain Node (this project's default test environment) doesn't have one.
  */
-import { fetchAvailableServices, fetchLocalBusVehicles } from '../src/supabaseApi.js';
+import { fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyName } from '../src/supabaseApi.js';
 
 // schedule_view is one row per stop, not per departure — a two-stop
 // departure produces two rows with the same service_code/departure_id/
@@ -93,5 +93,35 @@ describe('fetchLocalBusVehicles', () => {
   test('throws on a non-ok response rather than returning an empty/partial list silently', async () => {
     global.fetch = jest.fn(async () => ({ ok: false, status: 500 }));
     await expect(fetchLocalBusVehicles()).rejects.toThrow(/500/);
+  });
+});
+
+describe('fetchCompanyName', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  test('queries the companies table', async () => {
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => [] }));
+    await fetchCompanyName();
+    const [url] = global.fetch.mock.calls[0];
+    expect(String(url)).toContain('/rest/v1/companies');
+  });
+
+  test('returns the first row\'s name', async () => {
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => [{ name: 'Acme Coaches' }] }));
+    expect(await fetchCompanyName()).toBe('Acme Coaches');
+  });
+
+  test('returns null when no company row exists', async () => {
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => [] }));
+    expect(await fetchCompanyName()).toBeNull();
+  });
+
+  test('throws on a non-ok response rather than returning a stale/empty name silently', async () => {
+    global.fetch = jest.fn(async () => ({ ok: false, status: 500 }));
+    await expect(fetchCompanyName()).rejects.toThrow(/500/);
   });
 });

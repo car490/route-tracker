@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../shared/supabase'
+import { LoginBrandHeader } from '../../shared/components/LoginBrandHeader'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -44,10 +45,7 @@ export default function Login() {
   return (
     <div className="login-page">
       <div className="login-card">
-        <div className="login-brand">
-          <div className="login-brand-name">Phil Haines Coaches</div>
-          <div className="login-brand-sub">Operations Dashboard</div>
-        </div>
+        <LoginBrandHeader />
         {info && <div style={{ marginBottom: 12, color: 'var(--green-dark)', fontSize: 13 }}>{info}</div>}
         {error && <div className="error-msg">{error}</div>}
         <form onSubmit={handleSubmit}>
