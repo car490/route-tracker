@@ -13,6 +13,7 @@ pi-server/
 wifi-direct-poc/
 docs/
 graphhopper/
+cab-device/
 node_modules/
 .git/
 .github/
