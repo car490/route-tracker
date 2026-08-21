@@ -46,7 +46,7 @@ const swPath = path.join(ROOT, 'service-worker.js')
 const sw = readFileSync(swPath, 'utf8')
 const swNext = sw.replace(
   /const CACHE_NAME = '[^']*'/,
-  `const CACHE_NAME = 'route-tracker-v${next}'`,
+  `const CACHE_NAME = 'busops-driver-v${next}'`,
 )
 writeFileSync(swPath, swNext)
 

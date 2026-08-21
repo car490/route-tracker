@@ -1,7 +1,7 @@
 {
-  "name": "Route Timing Tracker",
-  "short_name": "RouteTracker",
-  "description": "Real-time bus route timing tracker",
+  "name": "BusOps Driver",
+  "short_name": "BusOps",
+  "description": "CoachMate's real-time bus route timing PWA for drivers",
   "display": "standalone",
   "orientation": "portrait",
   "theme_color": "#242F35",

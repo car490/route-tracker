@@ -1,4 +1,4 @@
-const CACHE_NAME = 'route-tracker-v1.5.1';
+const CACHE_NAME = 'busops-driver-v1.5.1';
 
 const STATIC_ASSETS = [
   './',

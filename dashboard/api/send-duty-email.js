@@ -22,7 +22,7 @@ export default async function handler(req, res) {
 
   const longDate = fmtLongDate(date)
   const fromField = company_name ? `${company_name} <${from}>` : from
-  const sender = company_name ?? 'RouteTracker'
+  const sender = company_name ?? 'CoachMate'
   const r = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },

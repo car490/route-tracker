@@ -315,11 +315,15 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 }
 
 /* ── App brand mark ────────────────────────────────────────── */
-/* Mirrors the driver PWA's #app-brand mark (route-tracker/style.css) —
-   same sizing, weight and colours (--danger here is the same #EF4444 as
-   the PWA's --late). Fixed to the main content area's corner (offset past
-   the sidebar) so it stays visible on every dashboard page regardless of
-   scroll, the same way the PWA mark stays visible on every screen. */
+/* Mirrors the driver PWA's #app-brand mark (style.css) — same sizing,
+   weight and colours (--danger here is the same #EF4444 as the PWA's
+   --late), plus the same small "Powered by"-style attribution sub-line
+   (style.css's .cm-powered-by) — here crediting PCV Technologies per
+   BRAND.md's attribution convention, since this is the one brand mark on
+   this app that had none at all. Fixed to the main content area's corner
+   (offset past the sidebar) so it stays visible on every dashboard page
+   regardless of scroll, the same way the PWA mark stays visible on every
+   screen. */
 .app-brand {
   position: fixed;
   left: calc(var(--sidebar-w) + 1rem);
@@ -331,6 +335,9 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
   border-radius: 10px;
   box-shadow: var(--shadow-lg);
   pointer-events: none;
+}
+
+.app-brand-wordmark {
   font-family: var(--cm-font);
   font-size: 1rem;
   font-weight: 800;
@@ -340,6 +347,17 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 
 .app-brand-accent {
   color: var(--danger);
+}
+
+.app-brand-attribution {
+  margin-top: 0.15rem;
+  font-family: var(--cm-font);
+  font-size: 0.5rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  opacity: 0.55;
 }
 
 /* ── Page Header ───────────────────────────────────────────── */

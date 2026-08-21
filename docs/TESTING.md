@@ -352,7 +352,8 @@ Tests that the PWA loads schedule data from `schedule.json` when Supabase is unr
 ### Verify service worker is registered
 1. DevTools → **Application** tab → **Service Workers**
 2. You should see `service-worker.js` listed as **Activated and running**
-3. The cache name should be `route-tracker-v7` (visible under **Cache Storage**)
+3. The cache name should be `busops-driver-v1.5.1` (visible under **Cache Storage**) — matches
+   the current `VERSION` file
 
 ---
 
