@@ -27,10 +27,19 @@ AP_SSID="CoachMate-$(hostname)"
 AP_IP="192.168.4.1"
 
 echo "== 1. Detecting WiFi interface =="
-WIFI_IFACE="$(iw dev 2>/dev/null | awk '$1=="Interface"{print $2; exit}')"
+# /sys/class/net/*/wireless requires no extra package (unlike 'iw', which
+# isn't installed on a minimal Ubuntu Server image) — every wifi interface
+# has this subdirectory, nothing else does.
+WIFI_IFACE=""
+for iface_path in /sys/class/net/*/wireless; do
+  [ -d "$iface_path" ] || continue
+  WIFI_IFACE="$(basename "$(dirname "$iface_path")")"
+  break
+done
 if [ -z "$WIFI_IFACE" ]; then
-  echo "ERROR: no WiFi interface found via 'iw dev'. Is the onboard WiFi chip"
-  echo "present and not rfkill-blocked? Check 'rfkill list' and 'lspci | grep -i network'."
+  echo "ERROR: no WiFi interface found under /sys/class/net/*/wireless. Is the"
+  echo "onboard WiFi chip present and not rfkill-blocked? Check 'rfkill list'"
+  echo "and 'lspci | grep -i network'."
   exit 1
 fi
 echo "WiFi interface: $WIFI_IFACE"
