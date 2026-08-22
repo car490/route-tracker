@@ -350,6 +350,70 @@ update. `onboard.js` shows nothing until this connection has delivered at
 least a schedule message. See `mele-server/announceRelay.mjs` and
 `src/announceLink.js`.
 
+**TLS is required, not optional — `wss://`, never `ws://`.** The Driver PWA
+is always served over HTTPS (GitHub Pages today, `driver.coachmate.uk`
+eventually), and Android WebView (unlike desktop Chrome, which only warns)
+throws a synchronous `SecurityError` on `new WebSocket('ws://...')` from an
+HTTPS page — the connection is never even attempted. This isn't a
+theoretical concern: it's the actual reason a real commissioned device can
+sit connected to the Controller's hotspot indefinitely and never show up in
+`coachmate-onboard`'s logs, with zero visible errors anywhere except the
+browser's own devtools console (confirmed 2026-08-22 via `chrome://inspect`
+against a live WebView). Generate a self-signed cert **on the Controller
+itself** (it has no public DNS/WAN path for a real CA to validate against —
+see `docs/CONTROLLER-REDESIGN.md`), valid for its static AP IP:
+
+```bash
+mkdir -p certs && cd certs
+cat > openssl.cnf <<'EOF'
+[req]
+distinguished_name = req_distinguished_name
+x509_extensions = v3_req
+prompt = no
+[req_distinguished_name]
+CN = busops-controller
+[v3_req]
+subjectAltName = @alt_names
+keyUsage = critical, digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
+[alt_names]
+IP.1 = 192.168.4.1
+DNS.1 = busops-controller
+EOF
+openssl req -x509 -nodes -newkey rsa:2048 -keyout controller-key.pem \
+  -out controller-cert.pem -days 3650 -config openssl.cnf -extensions v3_req
+```
+
+`server.mjs` picks these up automatically from `mele-server/certs/` (no env
+var needed unless you place them elsewhere — see `TLS_CERT_PATH`/
+`TLS_KEY_PATH`). Restart `coachmate-onboard` after generating the cert; its
+startup log line switches from `http://` to `https://` once it finds one.
+**Falling back to plain HTTP happens silently in the log only** — the
+Driver will still look "commissioned" and simply never connect, so always
+check for `https://` in `journalctl -u coachmate-onboard`, not just that the
+service is active.
+
+**Trust the cert on every Driver device once, at commissioning** (self-signed
+certs aren't trusted by default — this is the equivalent step to setting the
+shared token, done once per physical device):
+1. Copy `controller-cert.pem` off the Controller (e.g. `scp` while your
+   laptop is joined to its hotspot).
+2. On the Driver device: **Settings → Security → Install a certificate → CA
+   certificate** (path varies by Android version/OEM skin), pick the file.
+   Android will warn that a "network monitor" cert is being installed — this
+   is expected for a locally-trusted CA and does not mean the device is
+   compromised.
+3. Non-interactively via `adb` (Fully Kiosk devices — see `cab-device/
+   setup-cab-device.sh`): push the cert to `/sdcard/Download/`, then trigger
+   Android's own certificate-install flow — there is no fully silent path
+   here, Android requires an on-device confirmation tap for CA trust by
+   design, even from `adb`.
+
+Any Option B display running Chromium against `https://localhost:8080/...`
+also needs to either trust this same cert, or launch with
+`--ignore-certificate-errors` (acceptable for a fully local, isolated kiosk
+display — not exposed to the open internet).
+
 **Set a shared token** (a commissioning-time secret, not "on this network =
 trusted") — both endpoints reject every connection until it's set:
 ```ini
@@ -367,10 +431,13 @@ from the tablet's normal Android WiFi settings, the same as joining any WiFi
 network. It stays connected/reconnects automatically after that, same as any
 remembered WiFi network.
 
-**Commission the Driver device once** by opening (on that tablet, once):
+**Commission the Driver device once** — after trusting the Controller's cert
+(above) — by opening (on that tablet, once):
 ```
-http://<driver-pwa-url>/?announce-setup=ws://192.168.4.1:8080/driver-push&announce-token=<same token>
+http://<driver-pwa-url>/?announce-setup=wss://192.168.4.1:8080/driver-push&announce-token=<same token>
 ```
+`wss://`, not `ws://` — see the TLS note above; the plain `ws://` form will
+never connect on a real device.
 This saves both values to `localStorage` — the Driver PWA never needs the
 query param again, and pushes schedule/state automatically for every journey
 started from that device from then on. A device that was never commissioned
@@ -438,11 +505,17 @@ plugged into — a monitor with no OS of its own won't show anything if it's
 just idling on a different input.
 
 Verify the push feed (section 6 — required, not optional) separately with
-any WebSocket client, e.g. `npx wscat`:
+any WebSocket client, e.g. `npx wscat` (`-x` skips cert validation, standing
+in for the Driver device's one-time cert-trust step):
 ```bash
-npx wscat -c "ws://192.168.4.1:8080/sign-feed?token=<token>"   # should connect and stay open
-npx wscat -c "ws://192.168.4.1:8080/sign-feed?token=wrong"     # should be rejected (401)
+npx wscat -x -c "wss://192.168.4.1:8080/sign-feed?token=<token>"   # should connect and stay open
+npx wscat -x -c "wss://192.168.4.1:8080/sign-feed?token=wrong"     # should be rejected (401)
 ```
+A plain Node.js WebSocket client (no browser mixed-content policy) will
+happily connect over `ws://` too — that only proves the relay/token logic
+works, **not** that a real Driver device can connect. Test against the
+actual device (or a real browser's devtools console) before trusting this
+alone.
 A driver on a commissioned device should show up as one more open connection
 in `coachmate-onboard`'s logs, and `onboard.js` should un-hide `#onboard-sign`
 once it receives the schedule message that starting a journey sends.
