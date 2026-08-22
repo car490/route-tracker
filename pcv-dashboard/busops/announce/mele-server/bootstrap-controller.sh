@@ -97,8 +97,28 @@ echo 'DAEMON_CONF="/etc/hostapd/hostapd.conf"' | sudo tee /etc/default/hostapd >
 echo "== 6. dnsmasq config =="
 sudo sed -e "s/^interface=.*/interface=$WIFI_IFACE/" \
   config/dnsmasq.conf.example | sudo tee /etc/dnsmasq.d/coachmate-ap.conf >/dev/null
-# Only bind to the AP interface, never the Ethernet uplink used for setup.
-echo "bind-interfaces" | sudo tee -a /etc/dnsmasq.d/coachmate-ap.conf >/dev/null
+# bind-dynamic (not bind-interfaces) — only binds the AP interface, same as
+# bind-interfaces, but tolerates the interface not existing/having an address
+# yet at dnsmasq's own startup instant. Confirmed needed live on the first
+# real unit: hostapd and dnsmasq both start around the same moment at boot,
+# and dnsmasq's static bind-interfaces check can lose that race ("unknown
+# interface") since the wireless interface isn't really live until hostapd
+# has initialized it — bind-dynamic retries/adjusts instead of failing once.
+echo "bind-dynamic" | sudo tee -a /etc/dnsmasq.d/coachmate-ap.conf >/dev/null
+
+# Belt-and-braces for the same race: make systemd order dnsmasq after
+# hostapd explicitly, and retry if it still loses the race occasionally.
+sudo mkdir -p /etc/systemd/system/dnsmasq.service.d
+sudo tee /etc/systemd/system/dnsmasq.service.d/override.conf >/dev/null <<'EOF'
+[Unit]
+After=hostapd.service
+Wants=hostapd.service
+
+[Service]
+Restart=on-failure
+RestartSec=3
+EOF
+sudo systemctl daemon-reload
 
 sudo systemctl enable --now hostapd dnsmasq
 
