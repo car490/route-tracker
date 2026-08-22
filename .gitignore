@@ -29,6 +29,12 @@ pcv-dashboard/busops/announce/mele-server/start-temp-mele.local.ps1
 # name (see mele-server/DEPLOY.md "0. First boot").
 pcv-dashboard/busops/announce/mele-server/autoinstall/user-data.local
 
+# Controller's self-signed TLS cert/key for wss:// (see mele-server/
+# DEPLOY.md "Driver -> Controller push feed") — generated per-device on the
+# Controller itself, never committed. *.pem above already covers the files;
+# this makes the whole directory's purpose explicit.
+pcv-dashboard/busops/announce/mele-server/certs/
+
 # Idle-screen operator logo — placed at commissioning time (per Controller
 # device, downloaded from that operator's own Supabase Storage bucket, see
 # mele-server/DEPLOY.md "Idle screen branding"), not source.

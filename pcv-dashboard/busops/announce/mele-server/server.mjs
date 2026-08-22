@@ -15,6 +15,7 @@
 // resolved. Requires `mpg123` installed (see DEPLOY.md); otherwise zero
 // external dependencies, same style as the repo-root server.js.
 import http from 'node:http';
+import https from 'node:https';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
@@ -39,6 +40,32 @@ const PORT = Number(process.env.PORT) || 8080;
 const DRIVER_PUSH_TOKEN = process.env.DRIVER_PUSH_TOKEN || null;
 if (!DRIVER_PUSH_TOKEN) {
   console.warn('[announceRelay] DRIVER_PUSH_TOKEN not set — /driver-push and /sign-feed will reject all connections.');
+}
+
+// TLS is required, not optional: the Driver PWA is always served over
+// HTTPS (GitHub Pages today, driver.coachmate.uk eventually), and mobile
+// WebView (unlike desktop Chrome, which only warns) throws a synchronous
+// SecurityError on `new WebSocket('ws://...')` from an HTTPS page — the
+// connection is never even attempted, no exception in the codebase catches
+// this as a distinguishable case. Plain ws:// therefore cannot work here at
+// all, on any real deployed device — confirmed 2026-08-22 by testing the
+// live WebView via chrome://inspect against this actual Controller.
+// Self-signed since the Controller has no public DNS/WAN path for a real
+// CA to validate against (see docs/CONTROLLER-REDESIGN.md); the cert must
+// be installed as trusted on each Driver device once at commissioning
+// (see mele-server/DEPLOY.md §6). onboard.js already derives ws:/wss:
+// dynamically from location.protocol, so no change needed there.
+const TLS_CERT_PATH = process.env.TLS_CERT_PATH || path.join(__dirname, 'certs/controller-cert.pem');
+const TLS_KEY_PATH = process.env.TLS_KEY_PATH || path.join(__dirname, 'certs/controller-key.pem');
+let tlsOptions = null;
+try {
+  tlsOptions = {
+    cert: fs.readFileSync(TLS_CERT_PATH),
+    key: fs.readFileSync(TLS_KEY_PATH),
+  };
+} catch (err) {
+  console.warn(`[tls] Could not read cert/key (${TLS_CERT_PATH} / ${TLS_KEY_PATH}): ${err.message}`);
+  console.warn('[tls] Falling back to plain HTTP — /driver-push will be unreachable from any HTTPS-served Driver PWA (mixed-content block). Generate a cert per DEPLOY.md before relying on this in a vehicle.');
 }
 
 const MIME = {
@@ -100,11 +127,14 @@ function serveStaticFile(urlPath, res) {
   });
 }
 
-const server = http.createServer((req, res) => {
+const requestHandler = (req, res) => {
   const urlPath = req.url.split('?')[0];
   if (urlPath === '/api/schedule') return void serveApiSchedule(res, relay);
   serveStaticFile(urlPath, res);
-});
+};
+const server = tlsOptions
+  ? https.createServer(tlsOptions, requestHandler)
+  : http.createServer(requestHandler);
 
 const audioPlayer = createAudioPlayer();
 const relay = attachAnnounceRelay(server, {
@@ -114,5 +144,5 @@ const relay = attachAnnounceRelay(server, {
 });
 
 server.listen(PORT, () =>
-  console.log(`mele-server running -> http://0.0.0.0:${PORT}/`)
+  console.log(`mele-server running -> ${tlsOptions ? 'https' : 'http'}://0.0.0.0:${PORT}/`)
 );
