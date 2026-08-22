@@ -20,6 +20,9 @@ set -euo pipefail
 
 REPO_URL="https://github.com/car490/route-tracker.git"
 REPO_DIR="$HOME/route-tracker"
+# TODO: point this at develop/master once restructure/brand-hierarchy merges —
+# it's the only branch with the current mele-server/ layout as of 2026-08-22.
+REPO_BRANCH="restructure/brand-hierarchy"
 AP_SSID="CoachMate-$(hostname)"
 AP_IP="192.168.4.1"
 
@@ -42,11 +45,13 @@ sudo apt-get install -y hostapd dnsmasq
 sudo systemctl unmask hostapd
 sudo systemctl stop hostapd dnsmasq || true
 
-echo "== 3. Cloning/updating the repo =="
+echo "== 3. Cloning/updating the repo (branch: $REPO_BRANCH) =="
 if [ -d "$REPO_DIR/.git" ]; then
-  git -C "$REPO_DIR" pull
+  git -C "$REPO_DIR" fetch origin "$REPO_BRANCH"
+  git -C "$REPO_DIR" checkout "$REPO_BRANCH"
+  git -C "$REPO_DIR" pull origin "$REPO_BRANCH"
 else
-  git clone "$REPO_URL" "$REPO_DIR"
+  git clone -b "$REPO_BRANCH" "$REPO_URL" "$REPO_DIR"
 fi
 cd "$REPO_DIR/pcv-dashboard/busops/announce/mele-server"
 npm install --omit=dev
