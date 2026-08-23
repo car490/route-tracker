@@ -23,6 +23,14 @@ const SCHOOL_RUN_ROW = { service_code: 'GilesA', timetable_name: 'Morning Outbou
 describe('fetchAvailableServices', () => {
   const originalFetch = global.fetch;
 
+  // The cache fallback (src/localStore.js) writes to the real localStorage
+  // this jsdom environment provides, which otherwise persists across every
+  // test in this file — clear it so "no cache yet" tests below aren't
+  // seeing a previous test's successfully-cached result.
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   afterEach(() => {
     global.fetch = originalFetch;
   });
@@ -62,6 +70,20 @@ describe('fetchAvailableServices', () => {
     global.fetch = jest.fn(async () => ({ ok: true, json: async () => [...S116S_AM_ROWS, SCHOOL_RUN_ROW] }));
     const services = await fetchAvailableServices();
     expect(Object.keys(services)).toEqual(['S116S']);
+  });
+
+  test('falls back to the last successful result when Supabase is unreachable', async () => {
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => S116S_AM_ROWS }));
+    const liveServices = await fetchAvailableServices();
+
+    global.fetch = jest.fn(async () => { throw new TypeError('Failed to fetch'); });
+    const fallbackServices = await fetchAvailableServices();
+    expect(fallbackServices).toEqual(liveServices);
+  });
+
+  test('still throws when there is no cache to fall back to', async () => {
+    global.fetch = jest.fn(async () => { throw new TypeError('Failed to fetch'); });
+    await expect(fetchAvailableServices()).rejects.toThrow(/failed to fetch/i);
   });
 });
 
