@@ -150,13 +150,11 @@ CI (`.github/workflows/ci.yml`) runs: `pcv-dashboard/busops` `npm test` (PWA), `
 lint, `pcv-dashboard` build — on every push and PR.
 
 ### Demo drives (simulate a run without GPS/hardware)
-```sh
-node scripts/demo-drive.mjs        # single driver PWA, scripted GPS route
-```
 Run from `pcv-dashboard/busops/` (they're npm scripts on that `package.json`):
 ```sh
 npm run demo:2up:duty              # two windows: driver PWA + BusOps Announce, duty-card start
 npm run demo:2up:manual            # same, but via the manual-selection fallback flow
+npm run demo:announce-push         # driver PWA + all three Announce display profiles, push-feed proof
 ```
 All drive the real app code with mocked Geolocation (not a fake simulation) — useful for
 testing timing, announcements, and the onboard display end-to-end without being in a moving

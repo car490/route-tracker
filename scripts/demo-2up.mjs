@@ -5,13 +5,12 @@
 //
 // Unlike demo.html (a scripted, entirely fake simulation), this drives the
 // actual app code with mocked Geolocation — same technique as
-// scripts/demo-drive.mjs, but two windows instead of three, and two
-// selectable starting scenarios instead of one fixed duty-card URL:
+// scripts/demo-announce-push.mjs, but two windows instead of four, and two
+// selectable starting scenarios instead of manual-only:
 //
 // Every run also bypasses one random intermediate stop — a request stop
 // nobody needed on the day, as distinct from a GPS dropout or a driver-
-// triggered diversion alert (see demo-drive.mjs for the full rationale).
-// The GPS path still crosses that stop's 250m approach radius (EVENT 2
+// triggered diversion alert. The GPS path still crosses that stop's 250m approach radius (EVENT 2
 // still fires) but stays just outside its 50m arrival radius, so EVENT 3
 // never fires there — gps.js's findForwardMatch rejoin confirms the skip
 // once the vehicle reaches the following stop instead (which then arrives
@@ -63,7 +62,7 @@ import { spawn, execSync } from 'node:child_process';
 import { haversine } from '../pcv-dashboard/busops/driver/src/geo.js';
 
 const MODE = process.argv[2];
-// Slower than demo-drive.mjs's default (7s) — this script exists to
+// Deliberately slow (14s/stop) — this script exists to
 // demonstrate the 4 PSVAIR announcement events distinctly (see APPROACHING_
 // RADIUS_M below), and back-to-back events need enough room each to finish
 // playing before the next one starts, or stopCurrentPlayback() in
@@ -137,8 +136,7 @@ function stopServer(child) {
 }
 
 // PSVAIR demo journey (see memory: must be reset — journey_events deleted,
-// status back to 'scheduled' — before re-running duty mode the same day,
-// same as scripts/demo-drive.mjs).
+// status back to 'scheduled' — before re-running duty mode the same day).
 const DUTY_JOURNEY_ID = '2d2f26b1-31b9-434b-a858-e614a53599b5';
 
 // S125S Morning Outbound (Weston → Boston College) — same route as the duty
@@ -187,8 +185,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 // Must clear geofence.js's GEOFENCE_RADIUS_M (50m) with margin, while
 // staying well inside APPROACHING_RADIUS_M (250m) — the vehicle still
 // triggers the approach announcement as it passes the stop, it just never
-// registers as arrived there, same as a real drive-by. Kept identical to
-// scripts/demo-drive.mjs's constant of the same name.
+// registers as arrived there, same as a real drive-by.
 const SKIP_BYPASS_OFFSET_M = 100;
 const SKIP_ENABLED = process.env.DEMO_SKIP_STOP !== '0';
 
