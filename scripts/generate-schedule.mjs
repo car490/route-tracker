@@ -64,14 +64,14 @@ for (const { service_code, timetable_name, direction, departure_id, departure_ti
 }
 
 const __dir = dirname(fileURLToPath(import.meta.url))
-const srcPath = join(__dir, '..', 'src', 'schedule.json')
+const srcPath = join(__dir, '..', 'pcv-dashboard', 'busops', 'driver', 'src', 'schedule.json')
 
 const json = JSON.stringify(schedule, null, 2)
 writeFileSync(srcPath, json)
 
 const services = Object.keys(schedule)
 const totalDeps = services.reduce((n, s) => n + Object.keys(schedule[s]).length, 0)
-console.log(`Written src/schedule.json — ${services.length} services, ${totalDeps} departures`)
+console.log(`Written busops/driver/src/schedule.json — ${services.length} services, ${totalDeps} departures`)
 services.forEach(s => {
   const deps = Object.values(schedule[s])
   deps.forEach(d => console.log(`  ${s}  ${d.departure_time}  ${d.label}  (${d.stops.length} stops)`))

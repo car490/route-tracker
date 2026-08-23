@@ -35,14 +35,14 @@ else next = `${maj}.${min}.${pat + 1}`
 
 writeFileSync(versionPath, `${next}\n`)
 
-// dashboard/package.json
-const pkgPath = path.join(ROOT, 'dashboard/package.json')
+// pcv-dashboard/package.json
+const pkgPath = path.join(ROOT, 'pcv-dashboard/package.json')
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
 pkg.version = next
 writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`)
 
 // service-worker.js cache name
-const swPath = path.join(ROOT, 'service-worker.js')
+const swPath = path.join(ROOT, 'pcv-dashboard/busops/service-worker.js')
 const sw = readFileSync(swPath, 'utf8')
 const swNext = sw.replace(
   /const CACHE_NAME = '[^']*'/,
@@ -51,7 +51,7 @@ const swNext = sw.replace(
 writeFileSync(swPath, swNext)
 
 // index.html footer version string
-const htmlPath = path.join(ROOT, 'index.html')
+const htmlPath = path.join(ROOT, 'pcv-dashboard/busops/driver/index.html')
 const html = readFileSync(htmlPath, 'utf8')
 const htmlNext = html.replace(
   />v[^<]*?<\/p>/,
@@ -90,7 +90,7 @@ const changelogNext = changelog.replace(
 writeFileSync(changelogPath, changelogNext)
 
 console.log(`Bumped version ${current} -> ${next}`)
-console.log('Updated: VERSION, dashboard/package.json, service-worker.js, index.html, CHANGELOG.md')
+console.log('Updated: VERSION, pcv-dashboard/package.json, service-worker.js, index.html, CHANGELOG.md')
 console.log('')
 console.log('Next steps:')
 console.log('  1. Edit CHANGELOG.md — tidy up the auto-generated commit list under the new heading')

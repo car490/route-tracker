@@ -1,8 +1,8 @@
 // Local end-to-end proof for the Driver -> Pi push path (src/announceLink.js
-// -> pi-server/announceRelay.mjs -> src/onboard.js's runSignPush), without
+// -> mele-server/announceRelay.mjs -> src/onboard.js's runSignPush), without
 // any real Pi/Android hardware. Same technique as scripts/demo-drive.mjs /
 // demo-2up.mjs — drives the real app code with mocked Geolocation — but
-// instead of the plain root server.js, this spawns pi-server/server.mjs
+// instead of the plain root server.js, this spawns mele-server/server.mjs
 // itself (it already serves the whole repo statically, same as server.js,
 // plus the new /driver-push and /sign-feed WebSocket endpoints), and
 // commissions both windows for the push feed before they load.
@@ -16,7 +16,7 @@
 //     own at all, not a fallback path. All three subscribe to the same
 //     /sign-feed token, so one Driver push drives all three previews at
 //     once.
-//   - This terminal (piped from the spawned pi-server) should print
+//   - This terminal (piped from the spawned mele-server) should print
 //     "[announceRelay] driver connected" once you hit Start, and
 //     "[announceRelay] sign display connected" three times shortly after
 //     (once per Announce window).
@@ -57,27 +57,27 @@ async function isServerUp() {
 
 async function ensureServerRunning() {
   if (await isServerUp()) {
-    console.log(`pi-server already running on :${PORT} — reusing it (its DRIVER_PUSH_TOKEN must already be "${DEMO_TOKEN}").`);
+    console.log(`mele-server already running on :${PORT} — reusing it (its DRIVER_PUSH_TOKEN must already be "${DEMO_TOKEN}").`);
     return null;
   }
-  console.log(`Starting pi-server (node pi-server/server.mjs) on :${PORT}…`);
-  const child = spawn('node', ['pi-server/server.mjs'], {
+  console.log(`Starting mele-server (node pcv-dashboard/busops/announce/mele-server/server.mjs) on :${PORT}…`);
+  const child = spawn('node', ['pcv-dashboard/busops/announce/mele-server/server.mjs'], {
     cwd: ROOT,
     shell: IS_WIN,
     env: { ...process.env, PORT: String(PORT), DRIVER_PUSH_TOKEN: DEMO_TOKEN },
   });
-  child.stdout.on('data', (d) => process.stdout.write(`[pi-server] ${d}`));
-  child.stderr.on('data', (d) => process.stderr.write(`[pi-server] ${d}`));
+  child.stdout.on('data', (d) => process.stdout.write(`[mele-server] ${d}`));
+  child.stderr.on('data', (d) => process.stderr.write(`[mele-server] ${d}`));
   for (let i = 0; i < 30; i++) {
     if (await isServerUp()) return child;
     await sleep(200);
   }
-  throw new Error(`pi-server/server.mjs did not come up on :${PORT} within 6s`);
+  throw new Error(`pcv-dashboard/busops/announce/mele-server/server.mjs did not come up on :${PORT} within 6s`);
 }
 
 function stopServer(child) {
   if (!child) return;
-  console.log('Stopping the pi-server this script started…');
+  console.log('Stopping the mele-server this script started…');
   if (IS_WIN) {
     try { execSync(`taskkill /PID ${child.pid} /T /F`, { stdio: 'ignore' }); } catch {}
   } else {
@@ -203,9 +203,9 @@ process.on('SIGTERM', shutdown);
   // not from watching a specific journey id in its own URL.
   await resolveManualJourneyId();
 
-  const driverUrl = `${BASE_URL}/index.html`; // not "/" — pi-server aliases "/" to onboard.html
+  const driverUrl = `${BASE_URL}/driver/index.html`; // not "/" — mele-server aliases "/" to /announce/onboard.html
   const onboardUrl = (panelProfile) => {
-    const u = new URL('/onboard.html', BASE_URL);
+    const u = new URL('/announce/onboard.html', BASE_URL);
     u.searchParams.set('announce-token', DEMO_TOKEN);
     u.searchParams.set('panel-profile', panelProfile);
     return u.toString();

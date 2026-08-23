@@ -4,7 +4,7 @@ Single source of truth for every piece of physical hardware in the
 onboard/vehicle system (Bus Controller, GPS, passenger display, driver
 tablet/cab device, power, networking, mounting). Supersedes the
 `## Hardware`, `## Storage`, `## Why two WiFi radios`, and `### Option B
-panel` sections that used to live in `pi-server/DEPLOY.md` — that file now
+panel` sections that used to live in `mele-server/DEPLOY.md` — that file now
 just points here and keeps its step-by-step install instructions.
 
 Two other source documents feed into this one and are **not edited by
@@ -29,10 +29,10 @@ does it need a second WiFi radio?), so don't silently pick one while
 reading the rest of this doc — the sections below flag which model each
 item belongs to.
 
-**Model 1 — what's actually built** (`pi-server/*`, `onboard.js`, current
+**Model 1 — what's actually built** (`mele-server/*`, `onboard.js`, current
 `DEPLOY.md`):
 - The Pi has its **own physical GPS module** (USB/UART, e.g. u-blox),
-  read by `gpsd` and bridged out at `/api/position` (`pi-server/gpsd-client.mjs`).
+  read by `gpsd` and bridged out at `/api/position` (`mele-server/gpsd-client.mjs`).
 - The passenger display (`onboard.js`) **independently polls Supabase**
   (`get_duty_card` RPC) for journey state — it doesn't receive anything
   pushed to it from the driver's device.
@@ -70,7 +70,7 @@ the since-superseded 2026-07-22 WiFi Direct design — see
 `project_nextstop_architecture` memory) should displace it. It doesn't —
 confirmed given the CM5 hardware already procured (§1) and to avoid the
 MDM/Device-Owner or WiFi-Direct-fragility exposure either alternative
-carries. `pi-server/announceRelay.mjs` (Pi-hosted WebSocket relay) and
+carries. `mele-server/announceRelay.mjs` (Pi-hosted WebSocket relay) and
 `src/announceLink.js` (Driver-side client that dials out to it) already
 match this — no code rework needed. The GPS-ownership/independent-polling
 question (Model 1 vs Model 2 otherwise) is unaffected by this and remains
@@ -123,7 +123,7 @@ Sourced from PSV(AI)R Appendix A and the fleet-wiring finding:
 - **Text ≥22mm in height on a contrasting background** (§1.4). **Resolved
   2026-08-13**: `onboard.js` now computes the correct `--min-text` vh value
   at runtime from a per-panel physical diagonal supplied once via
-  `?panel-diagonal=<inches>` (`computeMinTextVh()`, see `pi-server/DEPLOY.md`
+  `?panel-diagonal=<inches>` (`computeMinTextVh()`, see `mele-server/DEPLOY.md`
   "Panel physical size"), rather than relying on the old fixed 17vh
   constant that only happened to be correct for two specific panels. Any
   future panel just needs its diagonal size added to the kiosk URL — no
@@ -185,7 +185,7 @@ only two differences are the panel itself and one added component:
 ### Status trail (why this looks unsettled — it genuinely is)
 | Panel | Status | Source |
 |---|---|---|
-| Fire HD 10 tablet | **Dropped** — `DEPLOY.md` "Option A" no longer names a specific device; the Bar/Monitor display profiles below are both HDMI-wired (Option B) | `pi-server/DEPLOY.md` §5 |
+| Fire HD 10 tablet | **Dropped** — `DEPLOY.md` "Option A" no longer names a specific device; the Bar/Monitor display profiles below are both HDMI-wired (Option B) | `mele-server/DEPLOY.md` §5 |
 | Allsee WS28HD8-B / "VSDISPLAY 28" 1920×360" stretch-bar | **Dropped** — hard to source in time, and the target fleet's wiring can't take a large-format retrofit without a major rewire | Proposal §7.3; `DEPLOY.md`'s own "Option B panel" section calls its own stretch-bar example stale |
 | **Dell Pro P2426H, without stand** (210-BVTG, service tag FZG4ZD4) | **Confirmed BETA unit, purchased 2026-08-14** for next week's BETA test — mains 240V, see two-path note above. 24" FHD IPS, 100×100mm VESA fixing, full-size HDMI + DisplayPort in, ships with a plain IEC mains lead (100–240V AC, 74W max — no external power brick). Chosen deliberately over an industrial-spec panel: industrial units run ~6 weeks average lead time, which BETA's schedule doesn't allow. Consumer-grade, not the final production pick, but its physical footprint is expected to match the eventual production panel. Ships without an enclosure — an enclosure is expected to be in place by BETA (not yet sourced/built, see §8). In active use for the physical fit-out today. | This session, 2026-08-13; confirmed as BETA unit + lead-time rationale 2026-08-14 |
 | Production panel | **TBD, unresolved sourcing gap** — "compact, low-power, standard aspect ratio, fits the existing wiring," and no off-the-shelf industrial candidate found meeting all three as of 2026-08-13 (industrial-spec panels run ~6 weeks average lead time once a candidate is picked, per 2026-08-14 sourcing note above) | Proposal §7.3 |
@@ -277,7 +277,7 @@ Recommended layered approach, cheapest/most-important first:
    Makes the OS image itself immune to corruption regardless of when power
    cuts. Software-only, no extra hardware/cabling. First line of defense
    and probably sufficient on its own for most of this box's workload.
-2. **Keep genuinely-persistent state** (`pi-server`'s schedule cache,
+2. **Keep genuinely-persistent state** (`mele-server`'s schedule cache,
    logs) **off the read-only root**, on a small writable partition,
    written via write-temp-then-atomic-rename so a torn write never leaves
    a half-written file. Software design detail for whoever builds that

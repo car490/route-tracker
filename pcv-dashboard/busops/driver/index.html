@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="theme-color" content="#242F35" />
+    <title>BusOps Driver</title>
+    <link rel="icon" type="image/png" href="../shared/icons/icon-192.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="manifest" href="manifest.json" />
+    <link rel="stylesheet" href="lib/leaflet.min.css" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+
+    <!-- Duty card screen (shown when ?duties= param present) -->
+    <div id="duty-card" hidden>
+      <div class="dc-header">
+        <div class="picker-brand">BusOps Driver</div>
+        <div class="dc-greeting">
+          <span id="dc-greeting-prefix">Good morning,</span>
+          <span id="dc-driver-name"></span>
+        </div>
+        <div id="dc-date" class="dc-date"></div>
+      </div>
+      <div id="dc-routes"></div>
+    </div>
+
+    <!-- No duty card screen -->
+    <div id="no-duty-card" hidden>
+      <div class="ndc-brand">BusOps Driver</div>
+      <div class="ndc-icon">&#128204;</div>
+      <div class="ndc-title">No duty assigned</div>
+      <div class="ndc-body">Tap below to select today's service.</div>
+      <button id="ndc-manual-btn" class="ndc-secondary-btn">Select a service manually</button>
+      <div class="ndc-vehicle-info">
+        Vehicle: <span id="ndc-vehicle-label"></span>
+        <button id="ndc-change-vehicle-btn" class="ndc-link-btn">Change</button>
+      </div>
+    </div>
+
+    <!-- Vehicle setup screen — one-time per device (or "Change vehicle" from
+         the no-duty screen). Only reachable outside duty-card mode: a duty
+         card already carries its own ops-assigned vehicle per journey. -->
+    <div id="vehicle-setup" hidden>
+      <div class="picker-title">
+        <div class="picker-brand">BusOps Driver</div>
+        <div class="picker-subtitle">Which vehicle is this?</div>
+      </div>
+      <button id="vehicle-setup-back-btn" hidden>&#8592; Back</button>
+      <div class="picker-field">
+        <label for="vehicle-setup-select">Vehicle</label>
+        <div class="select-wrap">
+          <select id="vehicle-setup-select"></select>
+        </div>
+      </div>
+      <button id="vehicle-setup-btn">Confirm</button>
+    </div>
+
+    <!-- Manual service selection screen (fallback when no duty card is assigned) -->
+    <div id="manual-picker" hidden>
+      <div class="picker-title">
+        <div class="picker-brand">BusOps Driver</div>
+        <div class="picker-subtitle">Select Service</div>
+      </div>
+      <button id="manual-back-btn">&#8592; Back</button>
+      <div class="picker-field">
+        <label for="manual-service-select">Service</label>
+        <div class="select-wrap">
+          <select id="manual-service-select"></select>
+        </div>
+      </div>
+      <div class="picker-field">
+        <label for="manual-period-select">Period</label>
+        <div class="select-wrap">
+          <select id="manual-period-select"></select>
+        </div>
+      </div>
+      <div class="picker-field testing-time-field" id="manual-testing-time-field" hidden>
+        <div class="testing-departure-label">Scheduled departure: <strong id="manual-testing-departure-time">--:--</strong></div>
+        <label class="testing-time-checkbox-label">
+          <input type="checkbox" id="manual-use-current-time-checkbox">
+          Use current time (testing)
+        </label>
+      </div>
+      <button id="manual-start-btn">Start</button>
+    </div>
+
+    <!-- Picker screen -->
+    <div id="picker" hidden>
+      <div class="picker-title">
+        <div class="picker-brand">BusOps Driver</div>
+        <div class="picker-subtitle">Select Starting Stop</div>
+      </div>
+      <button id="picker-back-btn" hidden>&#8592; Back to Duty Card</button>
+      <div class="picker-field">
+        <label for="stop-select">Starting stop</label>
+        <div class="select-wrap">
+          <select id="stop-select"></select>
+        </div>
+      </div>
+      <div class="picker-field testing-time-field" id="testing-time-field" hidden>
+        <div class="testing-departure-label">Scheduled departure: <strong id="testing-departure-time">--:--</strong></div>
+        <label class="testing-time-checkbox-label">
+          <input type="checkbox" id="use-current-time-checkbox">
+          Use current time (testing)
+        </label>
+      </div>
+      <button id="start-btn">Start</button>
+    </div>
+
+    <div id="wakelock-warning" hidden>
+      Screen lock active — keep screen on manually or tracking will stop
+    </div>
+
+    <div id="tracker" hidden>
+    <button id="btn-incident" class="top-toggle-btn top-toggle-btn--incident" type="button" hidden>&#9888; Report Incident</button>
+    <button id="btn-diversion" class="top-toggle-btn top-toggle-btn--diversion" type="button" hidden>&#8635; Diversion Alert</button>
+    <div id="diversion-panel" hidden>
+      <button id="diversion-confirm-btn" type="button"></button>
+      <button id="diversion-cancel-btn" type="button">Cancel</button>
+    </div>
+    <button id="psvair-toggle-btn" class="top-toggle-btn" type="button" hidden>&#128266; Announcements</button>
+    <div id="psvair-banner" hidden>
+      <span id="psvair-text" aria-live="assertive"></span>
+      <button id="psvair-voice-btn" type="button" aria-label="Announcement voice settings">&#9881;</button>
+      <button id="psvair-mute-btn" type="button" aria-label="Mute announcements">&#128266;</button>
+    </div>
+    <div id="psvair-voice-panel" hidden>
+      <div class="select-wrap">
+        <select id="psvair-voice-select" aria-label="Announcement voice"></select>
+      </div>
+      <button id="psvair-voice-test-btn" type="button">Test</button>
+    </div>
+    <div id="early-wait-banner" hidden>
+      <div class="ewb-title">WAIT HERE</div>
+      <div class="ewb-msg">Running early — depart at <span id="ewb-time"></span></div>
+    </div>
+    <div id="route-header">
+      <div id="header-service">
+        <span id="header-service-code"></span>
+      </div>
+      <div id="route-lines">
+        <span id="header-line1"></span>
+      </div>
+    </div>
+    <div id="status-card">
+      <div id="status-label">INITIALISING</div>
+      <div id="next-stop">—</div>
+
+      <div class="time-row">
+        <div class="time-group">
+          <span class="time-label">Scheduled</span>
+          <span class="time-value" id="sched-time">--:--</span>
+        </div>
+        <div class="time-group">
+          <span class="time-label">ETA</span>
+          <span class="time-value" id="eta-time">--:--</span>
+        </div>
+        <span id="delta">—</span>
+      </div>
+
+      <div class="metrics-row">
+        <div class="metric">
+          <span class="metric-label">Distance</span>
+          <span class="metric-value" id="distance">—</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Speed</span>
+          <span class="metric-value" id="speed">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="progress-section">
+      <div class="stop-labels">
+        <span class="stop-label-prefix">Next Stop :</span>
+        <span id="next-stop-label">—</span>
+      </div>
+      <div class="progress-track">
+        <div id="progress-fill"></div>
+      </div>
+    </div>
+
+    <div class="view-toggle">
+      <button id="btn-list" class="toggle-btn toggle-active">List</button>
+      <button id="btn-map"  class="toggle-btn">Map</button>
+      <button id="btn-dir"  class="toggle-btn">Directions</button>
+      <button id="btn-log"  class="toggle-btn">Log</button>
+    </div>
+    <div id="stop-list"></div>
+    <div id="map-view" hidden></div>
+    <div id="directions-view" hidden></div>
+    <div id="log-view" hidden></div>
+    <!-- Trip completes automatically on GPS arrival at the final stop; this
+         is a low-key fallback for when that never fires (e.g. GPS never
+         confirms arrival) — deliberately not a prominent button. -->
+    <button id="btn-complete-manual" class="manual-complete-link" type="button">Trip not finishing automatically? Complete manually</button>
+    </div>
+
+    <!-- Fixed to the viewport corner (see style.css) so it's visible on
+         every screen without scrolling, including #duty-card. -->
+    <div id="app-brand">
+      <div class="bo-wordmark">BusOps <span class="bo-app">Driver</span></div>
+      <div class="cm-attribution">
+        <span class="cm-powered-by">From</span>
+        <span class="cm-wordmark">PCV Technologies</span>
+      </div>
+    </div>
+
+    <!-- Incident reporting overlay -->
+    <div id="incident-overlay" hidden>
+      <div id="incident-modal">
+        <div class="incident-title">&#9888; Report Incident</div>
+        <div class="incident-body">
+          <label class="incident-label">Category</label>
+          <select id="incident-category" class="incident-select">
+            <option value="Delay">Delay</option>
+            <option value="Breakdown">Breakdown</option>
+            <option value="Road Incident">Road Incident</option>
+            <option value="Passenger Issue">Passenger Issue</option>
+            <option value="Other">Other</option>
+          </select>
+          <label class="incident-label">Description <span class="incident-optional">(optional)</span></label>
+          <textarea id="incident-desc" class="incident-textarea" rows="3" placeholder="Brief description…"></textarea>
+        </div>
+        <div class="incident-footer">
+          <button id="incident-cancel" class="incident-btn-cancel">Cancel</button>
+          <button id="incident-submit" class="incident-btn-submit">Submit Report</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trip-complete confirmation — shown once the final-stop upload
+         finishes (automatically or via the manual fallback), OK dismisses
+         it immediately and it also auto-dismisses after a short delay. -->
+    <div id="trip-complete-overlay" hidden>
+      <div id="trip-complete-modal">
+        <div class="tc-icon">&#10003;</div>
+        <div class="tc-title">Trip Complete</div>
+        <div class="tc-body">Data saved</div>
+        <button id="trip-complete-ok-btn" class="tc-ok-btn">OK</button>
+      </div>
+    </div>
+
+    <p style="text-align:center;font-size:0.7rem;color:var(--text-muted);opacity:0.6;padding:16px 0 8px;margin:0;">v1.5.1</p>
+
+    <script src="lib/leaflet.min.js"></script>
+    <script type="module" src="src/main.js"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('../service-worker.js').catch(console.error);
+        });
+      }
+    </script>
+  </body>
+</html>

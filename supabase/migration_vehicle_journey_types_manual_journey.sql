@@ -1,6 +1,6 @@
 -- ── Vehicle journey types + vehicle on manual journeys ────────────────────────
 -- Two changes to support the Driver PWA's manual-selection flow (no ops-issued
--- duty card — see pi-server/TEMP-LAPTOP.md, src/manualSelection.js) attaching a
+-- duty card — see mele-server/TEMP-LAPTOP.md, src/manualSelection.js) attaching a
 -- real vehicle instead of leaving journeys.vehicle_id permanently null. See
 -- docs/TODO.md "Manual-selection flow — no vehicle/driver on the journey".
 --

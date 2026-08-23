@@ -1,0 +1,104 @@
+// Relays the Driver device's already-computed tracking state (and, since
+// the Controller redesign, its schedule/duty data and announcement audio
+// cues) to the onboard sign, over two WebSocket endpoints on the same HTTP
+// server server.mjs already runs:
+//   /driver-push  — the Driver device connects here and pushes JSON
+//                   messages: one {type:'schedule', ...} per journey start
+//                   (and on every reconnect), one {type:'state', ...} per
+//                   state change, one {type:'announce', ...} per PSVAIR
+//                   announcement (see docs/CONTROLLER-REDESIGN.md §8). The
+//                   Controller has no GPS/Supabase access of its own —
+//                   these message types are its only source of truth.
+//   /sign-feed    — onboard.js (this box's kiosk browser, or a WiFi-client
+//                   display) connects here to receive schedule/state
+//                   messages, relayed as-is. Gets the last-known schedule
+//                   (if any) immediately on connect, then the last-known
+//                   state (if any) — schedule first, so a sign that
+//                   (re)connects mid-journey can always resolve state's
+//                   stop-index references against known stops, not just
+//                   avoid being blank. announce messages never reach this
+//                   endpoint — they drive this box's own local audio
+//                   playback (see onAnnounce below / mele-server/
+//                   audioPlayer.mjs), not the sign display.
+//
+// Both endpoints require ?token=<DRIVER_PUSH_TOKEN> on the connection URL
+// — a commissioning-time shared secret, not "on this network = trusted"
+// (see project_nextstop_architecture design notes). One Controller serves
+// one vehicle's one active journey, so single in-memory latestState/
+// latestSchedule are enough — no per-journey routing. announce messages
+// are fire-and-forget (no latestAnnounce) — a reconnecting sign or a
+// Controller restart has nothing useful to catch up on for an
+// announcement that's already been superseded by whatever's happening now.
+import { WebSocketServer } from 'ws';
+
+export function attachAnnounceRelay(httpServer, { token, onSchedule, onAnnounce } = {}) {
+  const driverWss = new WebSocketServer({ noServer: true });
+  const signWss = new WebSocketServer({ noServer: true });
+  const signClients = new Set();
+  let latestState = null;
+  let latestSchedule = null;
+
+  function broadcastToSignClients(payload) {
+    const data = JSON.stringify(payload);
+    for (const client of signClients) {
+      if (client.readyState === client.OPEN) client.send(data);
+    }
+  }
+
+  httpServer.on('upgrade', (req, socket, head) => {
+    const { pathname, searchParams } = new URL(req.url, 'http://internal');
+
+    if (pathname !== '/driver-push' && pathname !== '/sign-feed') return; // not ours — leave for anything else listening
+
+    if (!token || searchParams.get('token') !== token) {
+      // .end() (not .write()+.destroy()) so the status line/headers are
+      // guaranteed to flush before the socket closes — otherwise a client
+      // can see a bare connection drop instead of a clean 401.
+      socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+      return;
+    }
+
+    const wss = pathname === '/driver-push' ? driverWss : signWss;
+    wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+  });
+
+  driverWss.on('connection', (ws) => {
+    console.log('[announceRelay] driver connected');
+    ws.on('close', () => console.log('[announceRelay] driver disconnected'));
+    ws.on('message', (data) => {
+      let msg;
+      try {
+        msg = JSON.parse(data.toString('utf8'));
+      } catch (_) {
+        return; // malformed — ignore, don't drop the connection over one bad frame
+      }
+      if (msg.type === 'state') {
+        latestState = msg;
+        broadcastToSignClients(msg);
+      } else if (msg.type === 'schedule') {
+        latestSchedule = msg;
+        onSchedule?.(msg);
+        broadcastToSignClients(msg);
+      } else if (msg.type === 'announce') {
+        onAnnounce?.(msg); // Controller-local audio playback only — never relayed to signWss clients
+      }
+      // anything else — unrecognized type, ignore
+    });
+  });
+
+  signWss.on('connection', (ws) => {
+    console.log(`[announceRelay] sign display connected (${signClients.size + 1} now watching)`);
+    signClients.add(ws);
+    if (latestSchedule) ws.send(JSON.stringify(latestSchedule));
+    if (latestState) ws.send(JSON.stringify(latestState));
+    ws.on('close', () => {
+      signClients.delete(ws);
+      console.log(`[announceRelay] sign display disconnected (${signClients.size} now watching)`);
+    });
+  });
+
+  return {
+    getLatestState: () => latestState,
+    getLatestSchedule: () => latestSchedule,
+  };
+}

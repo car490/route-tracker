@@ -25,7 +25,7 @@ built yet, decide if/when needed:
 ## Manual-selection flow — no driver on the journey
 
 As of 2026-08-14 the Driver PWA's default flow (no duty-card link — see
-`src/manualSelection.js`, `pi-server/TEMP-LAPTOP.md`) is the driver opening
+`src/manualSelection.js`, `mele-server/TEMP-LAPTOP.md`) is the driver opening
 the plain PWA and picking their service by hand, not an ops-issued duty
 card. `journeys.driver_id` is never set for a journey created this way —
 there's no login, so no driver identity exists on the device to attach.

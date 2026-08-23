@@ -15,8 +15,11 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+          cache-dependency-path: pcv-dashboard/busops/package-lock.json
       - run: npm ci
+        working-directory: pcv-dashboard/busops
       - run: npm test
+        working-directory: pcv-dashboard/busops
 
   dashboard-lint:
     name: Dashboard — lint
@@ -27,11 +30,11 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: dashboard/package-lock.json
+          cache-dependency-path: pcv-dashboard/package-lock.json
       - run: npm ci
-        working-directory: dashboard
+        working-directory: pcv-dashboard
       - run: npm run lint
-        working-directory: dashboard
+        working-directory: pcv-dashboard
 
   dashboard-build:
     name: Dashboard — build
@@ -42,8 +45,8 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: dashboard/package-lock.json
+          cache-dependency-path: pcv-dashboard/package-lock.json
       - run: npm ci
-        working-directory: dashboard
+        working-directory: pcv-dashboard
       - run: npm run build
-        working-directory: dashboard
+        working-directory: pcv-dashboard
