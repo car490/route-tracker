@@ -1,5 +1,15 @@
 # Branding consolidation plan
 
+> **Paths below updated 2026-08-23** for the `pcv-dashboard/busops/{driver,
+> announce}` restructure (`dashboard/` → `pcv-dashboard/`, driver PWA → `pcv-
+> dashboard/busops/driver/`, onboard sign → `pcv-dashboard/busops/announce/`)
+> — this plan predates that move. **Item 4/step 5 (hardcoded operator name)
+> is now done** — verified 2026-08-23, no "Phil Haines Coaches" literal
+> remains in any `.jsx`/`.html` file; `fetchCompanyName()` in
+> `supabaseApi.js` already covers this. Items 1–3 and 5 (bucket mismatch,
+> unused `system-assets` bucket, orphaned root PNGs, static PWA icons) are
+> still open — verified live on `develop` the same day.
+
 ## Problem
 
 Branding assets (logos, brand colours, and the operator's name text) live in five
@@ -8,9 +18,9 @@ disagree with each other:
 
 1. **Two logo storage buckets in play for the same field.** `companies.logo_path`
    is documented (`supabase/schema.sql:42`) as living in `operator-assets`, and
-   `dashboard/src/features/settings/BrandingPage.jsx` writes there. But
-   `dashboard/src/shared/components/Layout.jsx:115` and
-   `dashboard/src/features/company/CompanyModal.jsx:6` still point `BUCKET` at the
+   `pcv-dashboard/src/features/settings/BrandingPage.jsx` writes there. But
+   `pcv-dashboard/src/shared/components/Layout.jsx:115` and
+   `pcv-dashboard/src/features/company/CompanyModal.jsx:6` still point `BUCKET` at the
    legacy `company-logos` bucket. Since both code paths write to the *same*
    `companies.logo_path` column but different buckets, uploading a logo via
    `CompanyModal` and viewing it via `Layout`/`BrandingPage` (or vice versa) 404s.
@@ -20,15 +30,12 @@ disagree with each other:
 3. **Two orphaned static PNGs at repo root** — `CompanyLogo.png` and
    `PhilHainesCoaches.png` — aren't referenced anywhere in code (confirmed via
    repo-wide grep). Dead weight, possibly someone's forgotten manual upload.
-4. **Hardcoded operator name text** ("Phil Haines Coaches") instead of reading
-   the company record dynamically:
-   - `index.html` (driver PWA) — 5 occurrences in picker/NDC markup
-   - `dashboard/index.html` — `<title>`
-   - `dashboard/src/features/auth/Login.jsx`, `ResetPassword.jsx`
-   - (`supabase/seed.sql` also has it, but that's seed data — fine as-is)
-5. **CoachMate's own PWA install icons** (`icons/*.png`,
-   `dashboard/public/pwa-*.png`) are static, git-tracked, referenced from
-   `manifest.json` / `dashboard/vite.config.js` — this part is *already* correct
+4. ~~**Hardcoded operator name text**~~ — **done, 2026-08-23**: driver PWA,
+   dashboard title, and auth pages all source the operator name dynamically now
+   (`fetchCompanyName()` in `supabaseApi.js`). No further action needed here.
+5. **CoachMate's own PWA install icons** (`pcv-dashboard/busops/shared/icons/*.png`,
+   `pcv-dashboard/public/pwa-*.png`) are static, git-tracked, referenced from
+   `manifest.json` / `pcv-dashboard/vite.config.js` — this part is *already* correct
    and should stay static (see "Out of scope" below), it's just not documented
    as the deliberate exception it is.
 
@@ -42,7 +49,7 @@ This plan supersedes it once done.
 |---|---|---|
 | Per-operator logo + colours | `companies.logo_path` / `primary_color` / `accent_color`, files in Supabase Storage bucket **`operator-assets`** (`{company_id}/logo.{ext}`) | Dashboard sidebar (`Layout.jsx`), `BrandingPage.jsx`, `CompanyModal.jsx`, driver PWA header, onboard sign |
 | CoachMate's own core brand (product wordmark, "Powered by CoachMate" badge, default/fallback logo shown before a company loads or for CoachMate-branded chrome) | Supabase Storage bucket **`system-assets`** | Login page before tenant is known, dashboard/PWA fallback state, any "Powered by" badge |
-| PWA installable icons / favicons (OS-level app icon, not in-app UI) | Static git files: `icons/*.png` (driver PWA), `dashboard/public/pwa-*.png` (dashboard) | `manifest.json`, `dashboard/vite.config.js` — **stays static, out of scope**, see below |
+| PWA installable icons / favicons (OS-level app icon, not in-app UI) | Static git files: `pcv-dashboard/busops/shared/icons/*.png` (driver PWA), `pcv-dashboard/public/pwa-*.png` (dashboard) | `manifest.json`, `pcv-dashboard/vite.config.js` — **stays static, out of scope**, see below |
 | Operator display name in UI text | `companies.name` (or `trading_name` where set), fetched at runtime — never hardcoded | Driver PWA picker/NDC, dashboard title/auth pages, onboard sign |
 
 Rationale for keeping PWA icons static rather than moving them into Storage: they're
@@ -76,7 +83,7 @@ artifact.
 ### 3. Populate `system-assets` and wire up a CoachMate fallback
 - Upload CoachMate's own logo/wordmark and any "Powered by" badge into
   `system-assets` (manual, via Supabase dashboard or a small seed script).
-- Add a small shared helper (`dashboard/src/shared/brandAssets.js` or similar)
+- Add a small shared helper (`pcv-dashboard/src/shared/brandAssets.js` or similar)
   that returns the `system-assets` public URL for a given asset name, so
   "CoachMate default logo" has exactly one code path, mirroring how
   `operator-assets` URLs are built today.
@@ -89,30 +96,21 @@ artifact.
   delete from git either way — assets don't belong in the repo tree once Storage
   is the source of truth.
 
-### 5. Replace hardcoded operator name text with dynamic lookups
-- Driver PWA (`index.html` picker/NDC markup): source the company name the same
-  way the app already sources schedule data — from the Supabase-backed config /
-  `schedule.json` fallback — rather than a literal string in markup.
-- Dashboard `Login.jsx` / `ResetPassword.jsx`: these render *before* a company is
-  known (no session yet), so they should show the **CoachMate** brand (from
-  `system-assets` / a constant), not a specific operator's name — this is a
-  product decision, not a bug, but the current hardcoded "Phil Haines Coaches"
-  is wrong regardless since a second operator's user would see the wrong brand.
-- `dashboard/index.html` `<title>`: switch to a generic default (`CoachMate Ops
-  Dashboard`) since it can't know the tenant before JS runs; set the per-company
-  title at runtime via `document.title` from `ThemeProvider.jsx` once the company
-  loads, same place colours are already applied.
-- Onboard sign is already correct (`onboard.html` title is generic
-  "CoachMate Onboard Display", `src/onboard.js` already falls back to a CoachMate
-  default when no `--operator-accent` is set) — use this as the reference pattern
-  for the other two surfaces.
+### 5. ~~Replace hardcoded operator name text with dynamic lookups~~ — done, 2026-08-23
+Driver PWA picker/NDC markup and the dashboard auth pages now source the
+operator name at runtime via `fetchCompanyName()` (`supabaseApi.js`) rather
+than a literal string. Onboard sign (`pcv-dashboard/busops/announce/
+onboard.html`/`src/onboard.js`) was already correct before this plan was
+written and served as the reference pattern. No remaining action here —
+left in this doc for the historical record of what "done" means for this
+item.
 
 ### 6. Verify
 - Manually create/switch between two companies in dev Supabase, confirm each
   sees its own logo/colours/name with no bucket 404s, and that the login page
   (pre-auth) shows CoachMate branding, not the last company's.
-- Run existing test suites (`npm test`, `npm run test:vitest`,
-  `cd dashboard && npm test`) — no logic changes expected to break these, but
+- Run existing test suites (`cd pcv-dashboard/busops && npm test && npx vitest run`,
+  `cd pcv-dashboard && npm test`) — no logic changes expected to break these, but
   bucket name is referenced in `Layout.jsx`/`CompanyModal.jsx` so check nothing
   in dashboard tests hardcodes `company-logos`.
 
@@ -125,8 +123,8 @@ artifact.
   `docs/branding-consolidation-plan.md`."
 
 ## Out of scope
-- Moving PWA installable icons (`icons/*.png`, `dashboard/public/pwa-*.png`)
-  into Supabase Storage — see rationale above.
+- Moving PWA installable icons (`pcv-dashboard/busops/shared/icons/*.png`,
+  `pcv-dashboard/public/pwa-*.png`) into Supabase Storage — see rationale above.
 - Per-operator PWA install icons (i.e. white-labelling the installable app icon
   itself, not just in-app chrome) — bigger feature, not implied by "tidy up",
   flag separately if wanted.
