@@ -4,7 +4,7 @@ Fixed, always-on driver PWA installs for vehicle cabs — the NextStop bridge fo
 the next ~6 months, until vehicles carry NextStop-native hardware. This is a
 different device class from `mele-server/` (that's the *passenger-facing*
 onboard sign, offline-only, one per vehicle, GPS from a Pi). The cab device is
-the **driver PWA** (`index.html`/`src/main.js`) itself, just running without a
+the **driver PWA** (`driver/index.html`/`driver/src/main.js`) itself, just running without a
 driver ever receiving or tapping an install link.
 
 ## What this does and doesn't solve
@@ -15,7 +15,7 @@ Screen" step, no picking their name off a duty list. The screen is just
 already there, on, and ready when they get in the cab.
 
 The manual service/run picker this relies on already ships on `develop`
-(`src/manualSelection.js`, wired up in `src/main.js`'s `initManualSelection()`)
+(`driver/src/manualSelection.js`, wired up in `driver/src/main.js`'s `initManualSelection()`)
 — it's the same fallback used whenever a driver has no pre-assigned duty, not
 anything cab-device-specific. Opening the plain production URL with no
 `?duties=` link lands on the "No duty assigned" screen, which has a
@@ -41,7 +41,7 @@ already targets. No dedicated GPS module needed (the browser's
 Power it from an ignition-switched USB supply (like a dashcam) so it boots
 with the vehicle.
 
-Vehicle identity is commissioned once per device via `src/vehicleSetup.js`
+Vehicle identity is commissioned once per device via `driver/src/vehicleSetup.js`
 (see "Device setup" below) and persisted to that device's `localStorage`, not
 tied to hardware in any deeper way — swapping a unit to a different vehicle
 is a one-tap **Change** in-app, not a factory reset or server-side change.
@@ -49,15 +49,23 @@ is a one-tap **Change** in-app, not a factory reset or server-side change.
 ## The kiosk URL
 
 ```
-https://<production PWA URL>/index.html
+https://<production PWA host>/driver/
 ```
 
-The plain production URL — no query param needed. Every cab unit is pinned
-to this exact same URL; nothing per-device or per-vehicle in it.
+No query param needed. Every cab unit is pinned to this exact same URL;
+nothing per-device or per-vehicle in it.
 
-No backend config needed: opening the production GitHub Pages URL already
-resolves to the production Supabase project via the hostname check in
-`src/config.js` (only `localhost`/`127.0.0.1` switch to dev).
+The `/driver/` path is required, not optional, on the Cloudflare Workers
+deploy (`driver.pcvtechnologies.co.uk` — see Project overview in `CLAUDE.md`
+for GitHub Pages vs. Workers status): it's a static-assets Worker with no
+`server.js`-style aliasing of bare `/` to `driver/index.html`, so the bare
+production root 404s. On the old GitHub Pages deploy the driver app lived at
+repo root, so the bare production URL worked there — don't reuse that
+shortcut once a device is pointed at the Workers host.
+
+No backend config needed: opening the production URL already resolves to
+the production Supabase project via the hostname check in
+`driver/src/config.js` (only `localhost`/`127.0.0.1` switch to dev).
 
 ## Device setup (Fully Kiosk Browser — the actual approach in use)
 
@@ -116,7 +124,7 @@ of simulating taps through the flaky UI.
 6. Confirm it lands on the **"No duty assigned"** screen with a **"Select a
    service manually"** button, and (once `vehicles.journey_types` includes
    `'Local Bus'` for at least one vehicle) the one-time **"WHICH VEHICLE IS
-   THIS?"** commissioning prompt from `src/vehicleSetup.js` — pick the
+   THIS?"** commissioning prompt from `driver/src/vehicleSetup.js` — pick the
    vehicle this physical unit is mounted in. Re-commission any time via the
    **Change** button next to the vehicle label on the "No duty assigned"
    screen — the device carries no fixed vehicle identity, contrary to what
