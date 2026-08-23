@@ -1,6 +1,11 @@
 {
   "name": "busops-driver",
   "compatibility_date": "2026-07-01",
+  // This top-level (unnamed) config is what a plain `wrangler deploy` uses —
+  // including Cloudflare Workers Builds' default deploy command
+  // (`npx wrangler deploy`, no `--env` flag) — and deploys to the Worker
+  // named above ("busops-driver"), the one routed to
+  // driver.pcvtechnologies.co.uk below.
   "assets": {
     "directory": "./"
   },
@@ -10,11 +15,25 @@
       "custom_domain": true
     }
   ],
+  // Named environments below are for `wrangler deploy --env <name>` (the
+  // busops-driver-dev Worker was deployed this way). `routes` is not
+  // inherited from the top-level config for a named environment, so each
+  // one needs its own if it's meant to have a custom domain; env.production
+  // previously had none, which would have silently deployed with no domain
+  // attached if that path is ever used (e.g. a Cloudflare dashboard
+  // "production" environment distinct from the top-level default one this
+  // repo's Git-connected build currently targets).
   "env": {
     "production": {
       "assets": {
         "directory": "./"
-      }
+      },
+      "routes": [
+        {
+          "pattern": "driver.pcvtechnologies.co.uk",
+          "custom_domain": true
+        }
+      ]
     },
     "dev": {
       "assets": {
