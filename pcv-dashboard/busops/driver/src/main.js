@@ -17,6 +17,7 @@ import {
   captureAnnounceSetup, connectAnnounceLink, disconnectAnnounceLink,
   broadcastState, broadcastSchedule, setAnnouncing,
 } from './announceLink.js';
+import { enqueuePendingTrip, getPendingTrips, removePendingTrip, markPendingTripAttempt } from './localStore.js';
 
 const DEBUG = new URLSearchParams(window.location.search).has('debug');
 
@@ -57,7 +58,7 @@ function minutesFromNow(hhmm) {
 
 const UPLOADABLE_STOP_STATUSES = new Set(['arrived', 'departed', 'skipped_signal', 'skipped_detour']);
 
-async function uploadStopTimes(jId, stopStates, stops) {
+function buildStopTimeRows(jId, stopStates, stops) {
   const rows = [];
   for (let i = 0; i < stops.length; i++) {
     const stop = stops[i];
@@ -70,16 +71,46 @@ async function uploadStopTimes(jId, stopStates, stops) {
       visit_status: s.status === 'skipped_signal' || s.status === 'skipped_detour' ? s.status : 'visited',
     });
   }
+  return rows;
+}
+
+// resolution=ignore-duplicates makes this safe to call more than once for
+// the same rows: journey_stop_times has a unique index on
+// (journey_id, timetable_stop_id) (supabase/schema.sql), so a row that
+// already landed from an earlier attempt is silently skipped rather than
+// erroring. Needed because a queued trip (see enqueuePendingTrip below) may
+// retry a POST whose rows already succeeded once, if the failure that
+// queued it actually happened on the complete_journey call that follows.
+async function postStopTimeRows(jId, rows) {
   log('info', `Upload payload (${rows.length} rows): ${JSON.stringify(rows)}`);
   if (!rows.length) return { ok: true, count: 0 };
   const res = await sbFetch('/rest/v1/journey_stop_times', {
     method: 'POST',
-    headers: { 'Prefer': 'return=minimal' },
+    headers: { 'Prefer': 'return=minimal,resolution=ignore-duplicates' },
     body: JSON.stringify(rows),
   });
   const responseBody = res.ok ? '' : await res.text().catch(() => '(could not read response)');
   if (!res.ok) log('error', `Upload failed HTTP ${res.status}: ${responseBody}`);
   return { ok: res.ok, status: res.status, count: rows.length, responseBody };
+}
+
+// Retries every trip that failed to reach Supabase at completeTrip() time
+// (src/localStore.js's queue) — called once at startup and again on every
+// 'online' event (see init() below). Silent on failure (no alert, no
+// throw): a trip just stays queued for the next attempt, indefinitely.
+async function flushPendingTrips() {
+  for (const trip of getPendingTrips()) {
+    try {
+      const uploadResult = await postStopTimeRows(trip.journeyId, trip.stopRows);
+      if (!uploadResult.ok) throw new Error(`stop times ${uploadResult.status}`);
+      await rpc('complete_journey', { p_journey_id: trip.journeyId });
+      removePendingTrip(trip.id);
+      log('info', `Synced queued trip ${trip.journeyId} (${trip.stopRows.length} stop time(s))`);
+    } catch (err) {
+      markPendingTripAttempt(trip.id);
+      log('warn', `Queued trip ${trip.journeyId} still can't sync: ${err.message}`);
+    }
+  }
 }
 
 // ── Wake lock ─────────────────────────────────────────────────────────────────
@@ -523,17 +554,27 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
     };
 
     if (journeyId) {
-      const uploadResult = await uploadStopTimes(journeyId, stopStatesRef, allStops);
-      await rpc('complete_journey', { p_journey_id: journeyId }).catch(() => {});
-      if (uploadResult.ok) {
-        log('info', `Uploaded ${uploadResult.count} stop time(s)`);
+      const stopRows = buildStopTimeRows(journeyId, stopStatesRef, allStops);
+      let completed = false;
+      try {
+        const uploadResult = await postStopTimeRows(journeyId, stopRows);
+        if (!uploadResult.ok) {
+          throw new Error(`stop times upload failed: HTTP ${uploadResult.status} ${uploadResult.responseBody || ''}`);
+        }
+        await rpc('complete_journey', { p_journey_id: journeyId });
+        completed = true;
+      } catch (err) {
+        log('warn', `Trip completion failed, queuing for retry: ${err.message}`);
+      }
+
+      if (completed) {
+        log('info', `Uploaded ${stopRows.length} stop time(s)`);
         showTripCompleteBanner(finish);
       } else {
+        enqueuePendingTrip({ journeyId, stopRows });
         alert(
-          `Trip ended but stop times could not be saved.\n\n` +
-          `HTTP status: ${uploadResult.status}\n` +
-          `Server response: ${uploadResult.responseBody || '(empty)'}\n\n` +
-          `Screenshot this message and contact ops.`
+          `Trip ended.\n\n${stopRows.length} stop time(s) saved on this device and will ` +
+          `sync automatically once back in signal — no action needed.`
         );
         finish();
       }
@@ -901,6 +942,14 @@ function initManualSelection() {
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 async function init() {
+  // Retries any trip(s) that failed to reach Supabase at completion time on
+  // a previous visit (src/localStore.js's queue) — covers the app being
+  // reopened after sitting offline overnight. Also re-attempted on every
+  // 'online' event below, for a mid-session reconnect. Best-effort/silent,
+  // same treatment as fetchCompanyName() just below.
+  flushPendingTrips().catch(() => {});
+  window.addEventListener('online', () => flushPendingTrips().catch(() => {}));
+
   // Real operator name for the picker/duty-card screens' brand heading —
   // best-effort and non-blocking (doesn't delay showing the actual
   // functional screens below); on failure (e.g. offline before any cache

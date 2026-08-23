@@ -3,5 +3,13 @@
 # deployment — busops/ deploys to Cloudflare Workers, coachmate/ has no
 # code yet. Keep them out of the Vercel build (large unrelated assets:
 # a kiosk APK, TTS audio clips, busops/'s own node_modules).
-busops/
+#
+# Exception: busops/shared/ (brand-tokens.css + two small icons) is a real
+# build-time dependency of this dashboard — vite.config.js reads
+# brand-tokens.css for the PWA manifest colours (see "Wire PCV Technologies
+# brand colours through a single token source"). Ignoring busops/* (rather
+# than busops/) and un-ignoring busops/shared/ keeps everything else in
+# busops/ out while still shipping this one small shared directory.
+busops/*
+!busops/shared/
 coachmate/

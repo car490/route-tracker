@@ -98,6 +98,19 @@ fleet-wide.
   state machine in `announcements.js` — it only needs to live on the
   Controller once nothing else plays audio, per §8's original reasoning).
 
+## Offline resilience — no "pending sync" indicator
+
+As of 2026-08-23, `src/localStore.js` + `src/main.js`'s `flushPendingTrips()`
+queue a trip's stop times/`complete_journey` call locally and retry
+automatically (on startup and on the `online` event) if Supabase couldn't be
+reached at end-of-trip. There's no UI surfacing this queue today — a driver
+or ops staff has no way to see "N trip(s) waiting to sync" short of opening
+devtools and reading `localStorage['busops.queue.pendingTrips']`.
+
+- [ ] Small indicator on the duty-card/no-duty-card screen (count + maybe
+  oldest-queued-at) once this queue has been live long enough to know how
+  often it's actually non-empty in practice.
+
 ## Brand — placeholder app icon needs real design
 
 `icons/icon-{192,512}.png` (driver PWA) and `dashboard/public/pwa-{192,512}x512.png` (dashboard)

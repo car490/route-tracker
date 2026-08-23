@@ -1,4 +1,5 @@
 import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
+import { getCachedServices, setCachedServices, getCachedStops, setCachedStops } from './localStore.js';
 
 // Driver token is read lazily (not at module load) so this module has no
 // top-level `window` access — it can be imported from a non-browser
@@ -51,14 +52,27 @@ export async function rpc(fn, args) {
 // seed data, see schema.sql) or done as a PostgREST array-contains query
 // param — filtered here client-side alongside the existing per-row work
 // instead, since journey_type is already coming back on every row anyway.
+//
+// Falls back to the last successful result (src/localStore.js) if Supabase
+// can't be reached at all — a live fetch is always attempted first since
+// routes/timetables do change, the cache is only a last resort so the
+// picker isn't a dead end during an outage. A cache miss on top of a live
+// failure still throws, same as before this fallback existed.
 export async function fetchAvailableServices() {
-  const res = await sbFetch(
-    `/rest/v1/schedule_view` +
-    `?select=service_code,timetable_name,departure_id,departure_time,journey_type` +
-    `&order=service_code,departure_time`
-  );
-  if (!res.ok) throw new Error(`schedule_view ${res.status}`);
-  const rows = await res.json();
+  let rows;
+  try {
+    const res = await sbFetch(
+      `/rest/v1/schedule_view` +
+      `?select=service_code,timetable_name,departure_id,departure_time,journey_type` +
+      `&order=service_code,departure_time`
+    );
+    if (!res.ok) throw new Error(`schedule_view ${res.status}`);
+    rows = await res.json();
+  } catch (err) {
+    const cached = getCachedServices();
+    if (cached) return cached;
+    throw err;
+  }
 
   const services = {};
   const seenDepartures = new Set();
@@ -69,6 +83,7 @@ export async function fetchAvailableServices() {
     const label = `${r.timetable_name} (${r.departure_time.substring(0, 5)})`;
     (services[r.service_code] ??= {})[label] = r.departure_id;
   }
+  setCachedServices(services);
   return services;
 }
 
@@ -96,16 +111,26 @@ export async function fetchCompanyName() {
   return rows[0]?.name ?? null;
 }
 
+// Falls back to the last successful result for this departureId
+// (src/localStore.js) if Supabase can't be reached — same live-first,
+// cache-as-last-resort shape as fetchAvailableServices() above.
 export async function fetchStopsForDeparture(departureId) {
-  const res = await sbFetch(
-    `/rest/v1/schedule_view` +
-    `?departure_id=eq.${departureId}` +
-    `&select=timetable_stop_id,stop_id,stop_type,scheduled_time,display_name,lat,lon,sequence,psvair_in_scope` +
-    `&order=sequence`
-  );
-  if (!res.ok) throw new Error(res.status);
-  const rows = await res.json();
-  return {
+  let rows;
+  try {
+    const res = await sbFetch(
+      `/rest/v1/schedule_view` +
+      `?departure_id=eq.${departureId}` +
+      `&select=timetable_stop_id,stop_id,stop_type,scheduled_time,display_name,lat,lon,sequence,psvair_in_scope` +
+      `&order=sequence`
+    );
+    if (!res.ok) throw new Error(res.status);
+    rows = await res.json();
+  } catch (err) {
+    const cached = getCachedStops(departureId);
+    if (cached) return cached;
+    throw err;
+  }
+  const result = {
     stops: rows.map(r => ({
       name: r.display_name,
       lat: r.lat,
@@ -117,4 +142,6 @@ export async function fetchStopsForDeparture(departureId) {
     })),
     psvairInScope: rows[0]?.psvair_in_scope ?? false,
   };
+  setCachedStops(departureId, result);
+  return result;
 }
