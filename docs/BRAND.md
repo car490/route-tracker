@@ -5,6 +5,12 @@ It is the single place that defines the brand; other docs and product-level note
 `coachmate-branding-summary.md`) should **link here** rather than restate values, so the two
 never drift apart.
 
+**See [`ACCESSIBILITY_BRAND_PLAYBOOK.md`](ACCESSIBILITY_BRAND_PLAYBOOK.md) for the
+company-level accessibility and brand standard** — colour contrast, typography, iconography,
+and audio/visual rules that apply to this brand and to every CoachMate surface. This document
+is the visual identity (colours, tokens, logo); the playbook is the rulebook everything here
+(and every future brand asset) is measured against.
+
 ## Company & product hierarchy
 
 ```

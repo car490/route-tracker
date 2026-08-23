@@ -81,6 +81,20 @@ above — treat it as exploratory only.
 
 ---
 
+## Accessibility & branding — company-level, mandatory
+
+**`docs/ACCESSIBILITY_BRAND_PLAYBOOK.md` is the company-level accessibility and brand
+standard.** It applies to every surface above and to anything built after it — not an
+opt-in guideline for one product. PSVAIR (the PSV Accessible Information Regulations 2023 +
+PSVAR 2000) is what's driving the current on-board audio/visual announcement feature, but the
+playbook extends the same bar — WCAG 2.2 AA contrast, never audio-only, never colour-only,
+plain English, RNIB/RNID-aligned typography — to colour tokens, typography, iconography, and
+copy across the driver PWA, the ops dashboard, and the onboard sign. Read it before making any
+UI, colour-token, copy, or brand-asset change; its Definition of Done checklist (§10) is the
+bar new UI work should be held to, the same way `npm test`/`npm run lint` are.
+
+---
+
 ## Commands
 
 ### Run everything locally
