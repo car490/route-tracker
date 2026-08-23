@@ -1,6 +1,6 @@
 -- ============================================================
 -- Resets the PSVAIR demo journeys back to a clean 'scheduled' state,
--- ready for another node scripts/demo-2up.mjs / demo-drive.mjs run.
+-- ready for another node scripts/demo-2up.mjs run.
 --
 -- Not automated (no service_role key in this project, and deliberately
 -- not adding an anon-writable reset RPC just for demo convenience — see

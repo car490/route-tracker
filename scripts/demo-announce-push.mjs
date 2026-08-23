@@ -1,11 +1,11 @@
 // Local end-to-end proof for the Driver -> Pi push path (src/announceLink.js
 // -> mele-server/announceRelay.mjs -> src/onboard.js's runSignPush), without
-// any real Pi/Android hardware. Same technique as scripts/demo-drive.mjs /
-// demo-2up.mjs — drives the real app code with mocked Geolocation — but
-// instead of the plain root server.js, this spawns mele-server/server.mjs
-// itself (it already serves the whole repo statically, same as server.js,
-// plus the new /driver-push and /sign-feed WebSocket endpoints), and
-// commissions both windows for the push feed before they load.
+// any real Pi/Android hardware. Same technique as scripts/demo-2up.mjs —
+// drives the real app code with mocked Geolocation — but instead of the
+// plain server.js, this spawns mele-server/server.mjs itself (it already
+// serves the whole repo statically, same as server.js, plus the new
+// /driver-push and /sign-feed WebSocket endpoints), and commissions both
+// windows for the push feed before they load.
 //
 // What to look for once all four windows have started:
 //   - All three RIGHT-side (Announce) windows — Bar, Monitor, and
@@ -144,8 +144,8 @@ async function waitForRealPage(context, expectedUrl) {
 }
 
 // setup(page) runs after load but before the reload that makes it "real" —
-// same two-step dance demo-drive.mjs/demo-2up.mjs use for the mute flag,
-// extended here to also seed the Driver window's one-time push commissioning.
+// same two-step dance demo-2up.mjs uses for the mute flag, extended here to
+// also seed the Driver window's one-time push commissioning.
 async function openWindow({ url, windowPosition, windowSize, setup }) {
   const userDataDir = mkdtempSync(join(tmpdir(), 'demo-announce-push-'));
   const context = await chromium.launchPersistentContext(userDataDir, {
