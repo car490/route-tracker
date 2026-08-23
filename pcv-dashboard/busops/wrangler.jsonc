@@ -4,6 +4,12 @@
   "assets": {
     "directory": "./"
   },
+  "routes": [
+    {
+      "pattern": "driver.pcvtechnologies.co.uk",
+      "custom_domain": true
+    }
+  ],
   "env": {
     "production": {
       "assets": {

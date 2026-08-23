@@ -1,7 +1,7 @@
 // tests/staticDeployPaths.test.js
 //
 // The driver PWA is deployed root-relative (GitHub Pages today, moving to
-// driver.coachmate.uk via Cloudflare Workers). These assert the manifest and
+// driver.pcvtechnologies.co.uk via Cloudflare Workers). These assert the manifest and
 // service-worker registration stay path-agnostic — no hardcoded subpath
 // prefix (e.g. "/route-tracker/") that would break once the app owns its
 // own origin instead of living under a subpath.
