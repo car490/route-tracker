@@ -2,7 +2,7 @@
 # driver/cab-device/), announce/ (minus announce/mele-server/), shared/, and
 # service-worker.js are the actual deployed app. Everything below is
 # dev/tooling/other-hardware content that must not be served publicly on
-# driver.coachmate.uk. wrangler deploy reads from local disk (not git), so
+# driver.pcvtechnologies.co.uk. wrangler deploy reads from local disk (not git), so
 # gitignored dirs like node_modules/ need to be listed here too or they'd
 # still get swept into the deploy.
 announce/mele-server/

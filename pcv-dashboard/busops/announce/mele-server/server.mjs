@@ -43,7 +43,7 @@ if (!DRIVER_PUSH_TOKEN) {
 }
 
 // TLS is required, not optional: the Driver PWA is always served over
-// HTTPS (GitHub Pages today, driver.coachmate.uk eventually), and mobile
+// HTTPS (GitHub Pages today, driver.pcvtechnologies.co.uk eventually), and mobile
 // WebView (unlike desktop Chrome, which only warns) throws a synchronous
 // SecurityError on `new WebSocket('ws://...')` from an HTTPS page — the
 // connection is never even attempted, no exception in the codebase catches

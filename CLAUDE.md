@@ -10,7 +10,7 @@ Supabase backend:
 
 | Surface | Path | Stack | Deploys to |
 |---|---|---|---|
-| Driver PWA (BusOps Driver) | `pcv-dashboard/busops/driver/` (`index.html`, `src/`) | Vanilla JS, ES modules, no build step | GitHub Pages today; migrating to Cloudflare Workers at `driver.coachmate.uk` (`wrangler.jsonc` + `.assetsignore`, both at `pcv-dashboard/busops/`, are already in place for that, not yet cut over) |
+| Driver PWA (BusOps Driver) | `pcv-dashboard/busops/driver/` (`index.html`, `src/`) | Vanilla JS, ES modules, no build step | GitHub Pages today; migrating to Cloudflare Workers at `driver.pcvtechnologies.co.uk` (`wrangler.jsonc` + `.assetsignore`, both at `pcv-dashboard/busops/`, are already in place for that, not yet cut over) |
 | Ops dashboard (PCV Dashboard) | `pcv-dashboard/` | React + Vite | Vercel, auto on push |
 | Onboard passenger sign (BusOps Announce) | `pcv-dashboard/busops/announce/` (`onboard.html`, `src/onboard.js`); Controller-side setup in `mele-server/` | Vanilla JS + Node (WebSocket relay, no GPS/DB access) | Bus Controller box (see `docs/CONTROLLER-REDESIGN.md`) + HDMI display, see `mele-server/DEPLOY.md` |
 
@@ -132,7 +132,7 @@ npx vitest run driver/src/geofence.test.js
 `tests/staticDeployPaths.test.js` guards `driver/manifest.json` and both
 `driver/index.html`/`announce/onboard.html`'s service-worker registration against hardcoded
 subpaths (e.g. `/route-tracker/`) — this matters because the PWA is moving from a GitHub Pages
-subpath to owning its own origin (`driver.coachmate.uk`); don't reintroduce an absolute or
+subpath to owning its own origin (`driver.pcvtechnologies.co.uk`); don't reintroduce an absolute or
 subpath-prefixed registration.
 
 Dashboard tests (Vitest, co-located `pcv-dashboard/src/**/*.test.js`):
