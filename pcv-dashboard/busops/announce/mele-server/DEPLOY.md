@@ -198,6 +198,16 @@ sudo systemctl enable --now systemd-networkd
 `sudo systemctl enable --now hostapd dnsmasq`, then confirm
 `CoachMate-<name>` shows up as a WiFi network from another device.
 
+**On the first physical unit, don't stop at "the SSID shows up"** — that
+confirms hostapd started, not that the chipset's AP mode actually works
+under load. `docs/HARDWARE.md` §1 flags the Quieter4C's exact WiFi chipset
+as unconfirmed (older MeLE models used Realtek, a newer sibling uses Intel
+AX201) and says to bench-test before ordering a fleet's worth. Run
+`mele-server/bench-test-ap.sh` — it identifies the chipset/driver, checks
+hostapd/dnsmasq stay up, watches for a real client DHCP lease, and prints a
+manual checklist (range through a vehicle mockup, client isolation, WPA3
+fallback, a vibration soak) to run through and record in `HARDWARE.md` §1.
+
 ## 4. The app itself
 `mpg123` plays PSVAIR announcement audio locally on the Controller
 (`mele-server/audioPlayer.mjs`, docs/HARDWARE.md §4) — install it
