@@ -17,8 +17,18 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     [hidden] { display: none !important; }
     html, body { height: 100%; }
+
+    /* This file is a standalone, fully self-contained demo (portable to share
+       outside the repo) — deliberately not importing brand-tokens.css. These
+       two are still declared once here rather than repeated as bare literals
+       across the demo chrome and the two mocked-screen scopes below. */
+    :root {
+      --pcv-cyan:     #00B4D8;
+      --pcv-charcoal: #242F35;
+      --pcv-font:     'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
     body {
-      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: var(--pcv-font);
       background: #111;
       color: #fff;
       display: flex;
@@ -57,7 +67,7 @@
       font-weight: 600;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: #00B4D8;
+      color: var(--pcv-cyan);
     }
     .demo-controls {
       display: flex;
@@ -87,13 +97,13 @@
     }
     #play-btn { min-width: 5rem; }
     #play-btn.paused { color: #10B981; border-color: #10B981; }
-    #step-btn { color: #00B4D8; border-color: rgba(0,180,216,0.5); }
+    #step-btn { color: var(--pcv-cyan); border-color: rgba(0,180,216,0.5); }
     #reset-btn { color: #8BA4B0; }
     .demo-clock {
       font-size: 0.78rem;
       font-weight: 700;
       font-variant-numeric: tabular-nums;
-      color: #00B4D8;
+      color: var(--pcv-cyan);
       letter-spacing: 0.05em;
       padding: 0.32rem 0.55rem;
       background: #1e2a30;
@@ -124,7 +134,7 @@
     }
     .demo-tab.active {
       color: #fff;
-      border-bottom-color: #00B4D8;
+      border-bottom-color: var(--pcv-cyan);
     }
 
     /* Tab panels */
@@ -151,7 +161,7 @@
     }
     .driver-screen {
       --bg:          #1B2428;
-      --surface:     #242F35;
+      --surface:     var(--pcv-charcoal);
       --text:        #ffffff;
       --text-muted:  #8BA4B0;
       --on-time:     #10B981;
@@ -159,7 +169,7 @@
       --early:       #F59E0B;
       --border:      rgba(255, 255, 255, 0.09);
       --progress-bg: rgba(255, 255, 255, 0.08);
-      --cyan:        #00B4D8;
+      --cyan:        var(--pcv-cyan);
 
       flex: 1;
       overflow-y: auto;
@@ -351,9 +361,7 @@
       font-size: 0.45rem; font-weight: 400; letter-spacing: 0.04em;
       text-transform: uppercase; color: #8BA4B0;
     }
-    .driver-brand .cm-wm { font-size: 0.65rem; letter-spacing: -0.02em; }
-    .driver-brand .cm-coach { font-weight: 800; color: rgba(255,255,255,0.7); }
-    .driver-brand .cm-mate  { font-weight: 400; color: #00B4D8; }
+    .driver-brand .cm-wm { font-size: 0.65rem; font-weight: 600; letter-spacing: -0.02em; color: var(--pcv-cyan); }
 
     /* ════════════════════════════════════════════════════════════════════
        ONBOARD SCREEN — e-paper theme (mirrors onboard.css), scoped
@@ -364,14 +372,14 @@
       --ep-soft:     #5A5850;
       --ep-line:     #1A1A18;
       --ep-slate:    #475569;
-      --ep-teal:     #00B4D8;
+      --ep-teal:     var(--pcv-cyan);
       --ep-late:     #EF4444;
       --op-accent:   ; /* injected by demo if demo-branding is on */
 
       flex: 1;
       background: var(--ep-bg);
       color: var(--ep-ink);
-      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: var(--pcv-font);
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -399,9 +407,7 @@
       font-size: 0.55rem; font-weight: 600; letter-spacing: 0.1em;
       text-transform: uppercase; color: var(--ep-soft);
     }
-    .onboard-screen .cm-wm { font-size: 0.8rem; letter-spacing: -0.02em; }
-    .onboard-screen .cm-coach { font-weight: 800; color: var(--ep-slate); }
-    .onboard-screen .cm-mate  { font-weight: 400; color: var(--ep-teal); }
+    .onboard-screen .cm-wm { font-size: 0.8rem; font-weight: 600; letter-spacing: -0.02em; color: var(--ep-teal); }
 
     /* sign wrapper */
     .onboard-screen #ob-sign {
@@ -664,8 +670,8 @@
       <div class="driver-brand" aria-hidden="true">
         <div class="bo-wm">BUSOPS <span class="bo-app">Driver</span></div>
         <div class="cm-attr">
-          <span class="cm-pb">Powered by</span>
-          <span class="cm-wm"><span class="cm-coach">COACH</span><span class="cm-mate">Mate</span></span>
+          <span class="cm-pb">From</span>
+          <span class="cm-wm">PCV Technologies</span>
         </div>
       </div>
 
@@ -680,8 +686,8 @@
       <div id="ob-brand" aria-hidden="true">
         <div class="bo-wm">BUSOPS <span class="bo-app">Announce</span></div>
         <div class="cm-attr">
-          <span class="cm-pb">Powered by</span>
-          <span class="cm-wm"><span class="cm-coach">COACH</span><span class="cm-mate">Mate</span></span>
+          <span class="cm-pb">From</span>
+          <span class="cm-wm">PCV Technologies</span>
         </div>
       </div>
 

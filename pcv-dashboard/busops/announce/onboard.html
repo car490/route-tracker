@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#ECEAE2" />
+    <title>CoachMate Onboard Display</title>
+    <link rel="icon" type="image/png" href="../shared/icons/icon-192.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="onboard.css" />
+  </head>
+  <body>
+
+    <!--
+      Fixed passenger-facing sign — vehicle-mounted display. Named display
+      profiles (?panel-profile=bar|monitor|monitor-vertical, see
+      PANEL_PROFILES in src/onboard.js) share this same markup and most of
+      the same CSS; monitor-vertical is the one exception, swapping the
+      tube-track's orientation via onboard.css's [data-track-layout]
+      selectors. No touch interaction expected. Deliberately silo'd from the
+      driver PWA (index.html/main.js): no login, no duty card, no incident
+      reporting, no stop-time upload, no writes to Supabase at all.
+
+      No manual intervention: this device is a pure pushed-state renderer
+      (see docs/CONTROLLER-REDESIGN.md) — it sits on a blank grey screen
+      until an authenticated /sign-feed connection delivers a
+      {type:'schedule'} message (i.e. the driver hits Start on their own
+      phone), then wakes on its own.
+
+      Styled as an e-paper sign (onboard.css): mostly monochrome and
+      motion-free, hard corners — not just a different colour scheme from
+      the driver PWA. Deliberate exceptions: the brand mark keeps its real
+      colours, the tube-track uses navy/charcoal/green, and its current-stop
+      dot pulses on a confirmed stop arrival. See onboard.css for why.
+    -->
+
+    <div id="onboard-brand">
+      <div class="bo-wordmark">BusOps <span class="bo-app">Announce</span></div>
+      <div class="cm-attribution">
+        <span class="cm-powered-by">From</span>
+        <span class="cm-wordmark">PCV Technologies</span>
+      </div>
+    </div>
+
+    <!--
+      Branded idle/default screen — shown before any journey exists (see
+      docs/CONTROLLER-REDESIGN.md §7). Only populated when this device was
+      commissioned with ?operator-name= (src/onboard.js's initIdleScreen);
+      without it, this stays hidden and the old blank-background-plus-
+      corner-mark look applies unchanged. The logo file itself is never
+      fetched from Supabase at runtime (the Controller has no WAN path —
+      see §5/§6) — it's a local static file placed on the Controller at
+      commissioning time (mele-server/DEPLOY.md), so a missing file (logo
+      never commissioned, or a demo/dev environment) just 404s and
+      idle-logo hides itself, falling back to name-only branding.
+    -->
+    <div id="onboard-idle" hidden>
+      <img id="idle-logo" alt="" hidden />
+      <div id="idle-operator-name"></div>
+    </div>
+
+    <div id="onboard-sign" hidden>
+      <div id="sign-topbar">
+        <div id="sign-route-line">
+          <span id="sign-service-code"></span>
+          <span id="sign-destination"></span>
+        </div>
+        <span id="sign-clock"></span>
+      </div>
+
+      <div id="early-wait-banner" hidden>
+        <div class="ewb-title">WAIT HERE</div>
+        <div class="ewb-msg">Running early — depart at <span id="ewb-time"></span></div>
+      </div>
+
+      <div id="sign-main">
+        <div id="tube-track"></div>
+        <div id="sign-upcoming" hidden></div>
+      </div>
+
+      <div id="sign-bottom-line">
+        <span id="sbl-status"></span>
+        <!-- Push-feed mode only (src/onboard.js's runSignPush) — echoes what
+             the Driver device is currently announcing over its own wired PA
+             connection. Audio itself never plays from this sign. -->
+        <span id="sign-announcing" hidden></span>
+      </div>
+    </div>
+
+    <script type="module" src="src/onboard.js"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('../service-worker.js').catch(console.error);
+        });
+      }
+    </script>
+  </body>
+</html>

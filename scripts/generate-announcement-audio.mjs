@@ -31,8 +31,8 @@ if (!AZURE_KEY || !AZURE_REGION) {
 }
 
 const __dir = dirname(fileURLToPath(import.meta.url));
-const scheduleJsonPath = join(__dir, '..', 'src', 'schedule.json');
-const audioDir = join(__dir, '..', 'audio', 'announcements');
+const scheduleJsonPath = join(__dir, '..', 'pcv-dashboard', 'busops', 'driver', 'src', 'schedule.json');
+const audioDir = join(__dir, '..', 'pcv-dashboard', 'busops', 'driver', 'audio', 'announcements');
 const manifestPath = join(audioDir, 'manifest.json');
 
 // Mirrors stripSpeechAnnotations() in src/announcements.js — NaPTAN

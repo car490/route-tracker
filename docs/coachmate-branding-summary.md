@@ -1,5 +1,8 @@
 # CoachMate branding summary
 
+> **See [`BRAND.md`](BRAND.md) for the current, canonical PCV Technologies / CoachMate brand
+> identity.** This file is a one-off audit snapshot and is not maintained.
+
 ## Current brand in place
 
 - **Core brand colours**

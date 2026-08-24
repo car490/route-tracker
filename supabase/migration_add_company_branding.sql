@@ -1,7 +1,7 @@
 -- Add multi-tenant branding columns to companies
 -- slug: URL-safe identifier for the company (used in future public tracking pages)
--- primary_color: sidebar/header colour — defaults to CoachMate Tarmac Charcoal
--- accent_color:  button/highlight colour — defaults to CoachMate Signal Cyan
+-- primary_color: sidebar/header colour — defaults to PCV Charcoal
+-- accent_color:  button/highlight colour — defaults to PCV Cyan
 
 alter table public.companies
   add column if not exists slug          text unique,
