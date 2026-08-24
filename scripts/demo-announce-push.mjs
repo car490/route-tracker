@@ -12,7 +12,7 @@
 //     monitor-vertical, see PANEL_PROFILES in src/onboard.js — should
 //     update in lockstep with the LEFT one WITHOUT ever requesting their
 //     own GPS permission — they're pure pushed-state renderers now (see
-//     docs/CONTROLLER-REDESIGN.md), with no GPS or Supabase access of their
+//     docs/HARDWARE.md "Read this first"), with no GPS or Supabase access of their
 //     own at all, not a fallback path. All three subscribe to the same
 //     /sign-feed token, so one Driver push drives all three previews at
 //     once.
@@ -164,7 +164,7 @@ async function openWindow({ url, windowPosition, windowSize, setup }) {
 
 // Three Announce previews to the right of the driver PWA — Bar (28"
 // ultra-wide destination-board panel, not yet built, kept for later — see
-// docs/CONTROLLER-REDESIGN.md) full-width on top, Monitor (Dell Pro P2426H,
+// docs/HARDWARE.md §6) full-width on top, Monitor (Dell Pro P2426H,
 // the confirmed demo/validation display) and monitor-vertical (same panel,
 // vertical tube-track) side by side below it. All three windows use their
 // real target aspect ratio (2560:480 / 1920:1080 for both Monitor variants)
@@ -242,7 +242,7 @@ process.on('SIGTERM', shutdown);
   console.log('BOTTOM LEFT (Announce, Monitor):        pushed feed on their own and wake once the');
   console.log('BOTTOM RIGHT(Announce, Monitor-vert.):  driver hits Start. No fallback exists — pure');
   console.log('                                        pushed-state renderers, all subscribed to the');
-  console.log('                                        same feed (see docs/CONTROLLER-REDESIGN.md).');
+  console.log('                                        same feed (see docs/HARDWARE.md "Read this first").');
   console.log('\nWaiting for all four to start…');
 
   await Promise.all([

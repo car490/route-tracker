@@ -1,8 +1,8 @@
 # WiFi AP hosted on the Controller's single onboard radio — the Driver
-# device joins this. As of docs/CONTROLLER-REDESIGN.md the Controller never
+# device joins this. As of docs/HARDWARE.md §3 the Controller never
 # joins any network as a client (no depot WiFi sync, no cellular) — this is
 # the radio's only job, run permanently, no mode-switching, no second USB
-# dongle (§4/§5 of that doc — no load-bearing USB peripherals at all).
+# dongle (§1 of that doc — no load-bearing USB peripherals at all).
 #
 # `mele-server/bootstrap-controller.sh` applies this automatically (detects
 # the interface name, fills in `interface=`/`ssid=`/`wpa_passphrase=`,

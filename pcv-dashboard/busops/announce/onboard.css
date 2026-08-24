@@ -182,7 +182,7 @@ body {
 }
 
 /* ── Idle/default screen — operator's own branding, shown before any
-   journey exists (docs/CONTROLLER-REDESIGN.md §7). Centred over the same
+   journey exists (docs/HARDWARE.md §5). Centred over the same
    blank --ep-bg the corner mark alone used to sit on. No accent colour
    here — none is known until a journey's schedule arrives (accentColor
    only travels on the {type:'schedule'} push), and the doc's decision was

@@ -140,7 +140,7 @@ is enabled, same reasoning as the screen-lock removal step below: Settings
 stays reachable pre-lockdown, not after.
 
 1. Insert the SIM (the Blackview Active 5 is dual-SIM, per
-   `docs/HARDWARE.md` §5 — either slot works).
+   `docs/HARDWARE.md` §8 — either slot works).
 2. Confirm mobile data connects: **Settings → Network & internet →
    SIM/Mobile network**. Most carriers auto-provision their APN from the
    SIM itself; only enter one manually if the carrier needs it (e.g. an

@@ -6,7 +6,7 @@
 //                   messages: one {type:'schedule', ...} per journey start
 //                   (and on every reconnect), one {type:'state', ...} per
 //                   state change, one {type:'announce', ...} per PSVAIR
-//                   announcement (see docs/CONTROLLER-REDESIGN.md §8). The
+//                   announcement (see docs/HARDWARE.md §4). The
 //                   Controller has no GPS/Supabase access of its own —
 //                   these message types are its only source of truth.
 //   /sign-feed    — onboard.js (this box's kiosk browser, or a WiFi-client

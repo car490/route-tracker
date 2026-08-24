@@ -188,7 +188,7 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
 
   // Tells the Controller which journey/stops this run's state updates refer
   // to — it has no Supabase access of its own to look this up (see
-  // docs/CONTROLLER-REDESIGN.md §3/§6). accentColor/primaryColor are absent
+  // docs/HARDWARE.md "Read this first" and §3). accentColor/primaryColor are absent
   // on the manual-selection path (no company branding lookup there today);
   // broadcastSchedule/buildSchedulePayload already default both to null.
   broadcastSchedule({

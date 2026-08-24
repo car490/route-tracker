@@ -38,7 +38,7 @@
 // don't talk over each other.
 //
 // The Announce window is a pure pushed-state renderer (see
-// docs/CONTROLLER-REDESIGN.md) — it shows nothing until the driver window's
+// docs/HARDWARE.md "Read this first") — it shows nothing until the driver window's
 // push feed delivers a schedule, so this script spawns mele-server/server.mjs
 // (not the plain server.js) and commissions the driver window's push-feed
 // localStorage before it loads, same technique as

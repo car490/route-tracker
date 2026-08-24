@@ -25,7 +25,7 @@
       reporting, no stop-time upload, no writes to Supabase at all.
 
       No manual intervention: this device is a pure pushed-state renderer
-      (see docs/CONTROLLER-REDESIGN.md) — it sits on a blank grey screen
+      (see docs/HARDWARE.md "Read this first") — it sits on a blank grey screen
       until an authenticated /sign-feed connection delivers a
       {type:'schedule'} message (i.e. the driver hits Start on their own
       phone), then wakes on its own.
@@ -47,7 +47,7 @@
 
     <!--
       Branded idle/default screen — shown before any journey exists (see
-      docs/CONTROLLER-REDESIGN.md §7). Only populated when this device was
+      docs/HARDWARE.md §5). Only populated when this device was
       commissioned with ?operator-name= (src/onboard.js's initIdleScreen);
       without it, this stays hidden and the old blank-background-plus-
       corner-mark look applies unchanged. The logo file itself is never

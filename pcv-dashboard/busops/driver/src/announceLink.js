@@ -1,13 +1,13 @@
-// Pushes the Driver's already-computed tracking state to a Raspberry Pi
+// Pushes the Driver's already-computed tracking state to a Bus Controller
 // over a local WebSocket, for BusOps Announce to render as a pushed feed
 // instead of its own independent GPS/Supabase polling (see
-// mele-server/announceRelay.mjs for the receiving side, docs/HARDWARE.md and
-// the project_nextstop_architecture design notes for the wider context).
+// mele-server/announceRelay.mjs for the receiving side, docs/HARDWARE.md §3
+// and the project_nextstop_architecture design notes for the wider context).
 //
 // Never sends raw GPS — only derived state (next stop, ETA, diversion/
 // final-stop flags). A complete no-op on any device that hasn't been
-// commissioned with a Pi target (see captureAnnounceSetup below), so it's
-// safe to call unconditionally from every vehicle, including ones still on
+// commissioned with a Controller target (see captureAnnounceSetup below), so
+// it's safe to call unconditionally from every vehicle, including ones still on
 // the cab-device bridge with no Pi at all.
 const RECONNECT_DELAY_MS = 3000;
 const STORAGE_URL_KEY = 'announceLinkUrl';

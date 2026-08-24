@@ -51,14 +51,16 @@ their detail.
 
 ## Onboard passenger sign (BusOps Announce) — architecture
 
-**This was "still open" in an earlier version of this page. It is resolved now — decided
-2026-08-14 in `docs/CONTROLLER-REDESIGN.md`:**
+**This was "still open" in an earlier version of this page. It's resolved — decided
+2026-08-14. It used to be written up in a separate `docs/CONTROLLER-REDESIGN.md`; that file
+has now been folded into `docs/HARDWARE.md` §1–§5 (2026-08-24), so `HARDWARE.md` is the single
+place to read this, not two documents:**
 
 - **Model 2 is the confirmed target: the driver tablet owns GPS and all Supabase
   reads/writes; the Bus Controller is a push-only renderer with no GPS, no independent
   Supabase polling, and no WAN connectivity of any kind.**
-- **Model 1 (the Pi having its own GPS module and independently polling Supabase) is dead —
-  not a fallback, not an open option.**
+- **Model 1 (the Controller having its own GPS module and independently polling Supabase) is
+  dead — not a fallback, not an open option.**
 - **Depot WiFi sync is dropped as a concept entirely.** The Controller never talks to
   Supabase directly. The driver PWA is now the sole sync path for schedule/duty data as well
   as live state, relayed down to the Controller over the same local WebSocket link it already
@@ -67,36 +69,35 @@ their detail.
 - **Networking simplifies to one onboard WiFi radio, AP-only.** No second-radio dongle, no
   AP+STA concurrent mode, no depot-client role on that radio at all.
 - **No load-bearing USB peripherals on the Controller, ever** — vibration risk in a moving
-  vehicle. Anything the box depends on must be onboard/internal or wireless.
+  vehicle. Anything the box depends on must be onboard/internal or wireless. **This conflicts
+  with an older assumption** that future ticketing/APC hardware would use USB/serial — flagged
+  as an open tension in `docs/HARDWARE.md` §11, not resolved.
 
-**Important — don't trust `docs/HARDWARE.md`'s own framing at face value for this.** Its
-"Read this first: two competing architectures, unresolved" header, and its §1 (board), §2
-(GPS), and §7 (networking) tables, are now stale — `docs/CONTROLLER-REDESIGN.md` explicitly
-supersedes those sections, but **the two documents have not been folded together yet**, so
-`HARDWARE.md` still reads as if the question is open when it isn't. Read
-`docs/CONTROLLER-REDESIGN.md` §10 for the exact list of which `HARDWARE.md` sections it
-overrides.
+`docs/HARDWARE.md`'s "Read this first" section states this resolution directly now — its old
+"two competing architectures, unresolved" framing is gone, not just superseded in a second
+document.
 
 | Question | Decided | Source |
 |---|---|---|
-| Who hosts the local WiFi hotspot | **The Controller hosts the AP; the driver device joins as a client.** A competing "driver hosts, Controller joins" plan was rejected (MDM/Device-Owner and WiFi-Direct-fragility risk). | `docs/HARDWARE.md` §"Networking (§7) resolved 2026-08-13" |
-| Where announcement audio plays | **Decided: moves to the Controller** — matches the visual/audio passenger-facing split, and the driver tablet is a worse home for unattended continuous PA audio. **Deviation, decided 2026-08-19**: the driver PWA does **not** stop playing locally yet — only one physical Controller exists so far, and a hard cutover would silence PSVAIR audio on every other vehicle. Drop local playback only once Controller hardware is deployed fleet-wide. | `docs/CONTROLLER-REDESIGN.md` §8, `docs/TODO.md` "Controller audio" |
-| Onboard idle-screen branding | **Decided**: show the operator's logo + name as text before a journey starts (currently a blank/generic screen). No PSVAIR/accessibility statement text — checked against the actual regulation and there's no requirement for pre-journey display content. Commissioned once via URL params at setup time (no live fetch — the Controller has no WAN path). | `docs/CONTROLLER-REDESIGN.md` §7, `mele-server/DEPLOY.md` "Idle screen branding" |
+| Who hosts the local WiFi hotspot | **The Controller hosts the AP; the driver device joins as a client.** A competing "driver hosts, Controller joins" plan was rejected (MDM/Device-Owner and WiFi-Direct-fragility risk). | `docs/HARDWARE.md` "Read this first" |
+| Where announcement audio plays | **Decided: moves to the Controller** — matches the visual/audio passenger-facing split, and the driver tablet is a worse home for unattended continuous PA audio. **Deviation, decided 2026-08-19**: the driver PWA does **not** stop playing locally yet — only one physical Controller exists so far, and a hard cutover would silence PSVAIR audio on every other vehicle. Drop local playback only once Controller hardware is deployed fleet-wide. | `docs/HARDWARE.md` §4, `docs/TODO.md` "Controller audio" |
+| Onboard idle-screen branding | **Decided**: show the operator's logo + name as text before a journey starts (currently a blank/generic screen). No PSVAIR/accessibility statement text — checked against the actual regulation and there's no requirement for pre-journey display content. Commissioned once via URL params at setup time (no live fetch — the Controller has no WAN path). | `docs/HARDWARE.md` §5, `mele-server/DEPLOY.md` "Idle screen branding" |
 | `wifi-direct-poc/` (Android WiFi-Direct bench app) | **Exploratory only** — not part of any product surface, not deployed | `CLAUDE.md` Project overview |
 
 ## Onboard passenger sign — hardware
 
-Full detail: `docs/HARDWARE.md` for display/power/mounting (still accurate for those parts),
-`docs/CONTROLLER-REDESIGN.md` for the Bus Controller board itself (supersedes `HARDWARE.md`
-§1/§2 — see the architecture section above).
+Full detail: `docs/HARDWARE.md` — one file now, covering the Bus Controller board (§1), GPS
+(§2), networking/software architecture (§3), audio (§4), idle-screen branding (§5), the
+passenger display (§6), and everything downstream of those (cab device, driver tablet, power,
+mounting, cabling).
 
 | Question | Decided | Source |
 |---|---|---|
-| Bus Controller board | **MeLE Quieter4C** (x86, fanless, Intel N150, 8GB RAM/128GB storage, No OS — Ubuntu/Debian installed directly). **Replaces the Raspberry Pi CM5 pick outright** (cost/UK availability problem), not a fallback. One real unconfirmed risk: exact WiFi chipset AP-mode support under Linux `hostapd` — bench-test one unit before ordering a fleet's worth. | `docs/CONTROLLER-REDESIGN.md` §2, §9 |
-| Ruled-out Controller candidate | **MeLE Quieter3Q rejected** — its 3.5mm jack is combo mic-in/line-in only, no audio output, confirmed directly with the seller | `docs/CONTROLLER-REDESIGN.md` §9 |
-| BETA passenger display | **Dell Pro P2426H** (no stand), purchased 2026-08-14, mains-powered via inverter for the demo build only | `docs/HARDWARE.md` §3 |
-| Production passenger display | **Still open / unresolved sourcing gap.** No off-the-shelf 12V-native, vehicle-rugged, wiring-compatible panel has been found. | `docs/HARDWARE.md` §3 |
-| Fire HD tablet as the passenger display | **Dropped/purged**, not just "not the confirmed pick" — `mele-server/DEPLOY.md` "Option A" no longer names a specific device. Do not cite Fire HD as live onboard-display hardware. | `docs/HARDWARE.md` §3 status trail, commit `6bc2f8f` |
+| Bus Controller board | **MeLE Quieter4C** (x86, fanless, Intel N150, 8GB RAM/128GB storage, No OS — Ubuntu/Debian installed directly). **Replaces the Raspberry Pi CM5 pick outright** (cost/UK availability problem), not a fallback. One real unconfirmed risk: exact WiFi chipset AP-mode support under Linux `hostapd` — bench-test one unit before ordering a fleet's worth (this bench test is the one remaining open action item on the whole redesign — everything else is either decided or already implemented in code). | `docs/HARDWARE.md` §1 |
+| Ruled-out Controller candidate | **MeLE Quieter3Q rejected** — its 3.5mm jack is combo mic-in/line-in only, no audio output, confirmed directly with the seller | `docs/HARDWARE.md` §1 |
+| BETA passenger display | **Dell Pro P2426H** (no stand), purchased 2026-08-14, mains-powered via inverter for the demo build only | `docs/HARDWARE.md` §6 |
+| Production passenger display | **Still open / unresolved sourcing gap.** No off-the-shelf 12V-native, vehicle-rugged, wiring-compatible panel has been found. | `docs/HARDWARE.md` §6 |
+| Fire HD tablet as the passenger display | **Dropped/purged**, not just "not the confirmed pick" — `mele-server/DEPLOY.md` "Option A" no longer names a specific device. Do not cite Fire HD as live onboard-display hardware. | `docs/HARDWARE.md` §6 status trail, commit `6bc2f8f` |
 | BETA ceiling mount | **RAM E-size VESA system** (corrected from an earlier, under-rated D-size pick) | `docs/HARDWARE.md` §8, `docs/TODO.md` |
 | Driver PWA tablet — production target | **Blackview Active 5** (rugged, IP68/IP69K) — not affected by the Controller redesign | `docs/HARDWARE.md` §5 |
 | 28"/large-format stretch-bar panel | **Dropped** — target fleet's existing wiring can't support it without a major rewire | `docs/HARDWARE.md` §3 |

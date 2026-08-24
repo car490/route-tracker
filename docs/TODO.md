@@ -87,9 +87,9 @@ enclosure.
 ## Controller audio — drop local Driver fallback once fleet-wide
 
 As of 2026-08-19, `src/announcements.js`'s `announce()` broadcasts to a
-commissioned Controller (`docs/CONTROLLER-REDESIGN.md` §8) *and* still
+commissioned Controller (`docs/HARDWARE.md` §4) *and* still
 plays locally on the Driver tablet — a deliberate deviation from that
-doc's original "Controller only" design, since only one physical
+section's original "Controller only" design, since only one physical
 Controller exists today and a hard cutover would silence PSVAIR audio
 fleet-wide.
 
