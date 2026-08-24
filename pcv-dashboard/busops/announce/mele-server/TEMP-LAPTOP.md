@@ -39,13 +39,13 @@ switching those URLs back — see "Removing this" at the bottom.
    Defender Firewall → Advanced settings → Inbound Rules → New Rule → Port →
    TCP 8080 → Allow.
 3. **Turn off sleep/lock on the laptop** while it's running this (Settings →
-   System → Power) — same reasoning as the Pi's kiosk needing the screen to
-   stay awake.
+   System → Power) — same reasoning as the Controller's kiosk needing the
+   screen to stay awake.
 4. **Generate a token**: any long random string (e.g.
    `[System.Guid]::NewGuid().ToString("N") + [System.Guid]::NewGuid().ToString("N")`
    in a PowerShell prompt). This is the same kind of commissioning-time
-   shared secret `DEPLOY.md` §6 describes for the real Pi — not a password
-   you need to remember, just something long and hard to guess.
+   shared secret `DEPLOY.md` §6 describes for the real Controller — not a
+   password you need to remember, just something long and hard to guess.
 5. **Copy the script**: `mele-server/start-temp-mele.example.ps1` →
    `mele-server/start-temp-mele.local.ps1` (gitignored — it'll hold your real
    token). Paste your token into `$Token` at the top.
@@ -78,7 +78,7 @@ switching those URLs back — see "Removing this" at the bottom.
 ## Verifying it's working
 
 Same checks as `DEPLOY.md`'s "Verifying it's working" section, just against
-`localhost` instead of the Pi's `192.168.4.1`:
+`localhost` instead of the Controller's `192.168.4.1`:
 ```powershell
 curl http://localhost:8080/api/schedule
 npx wscat -c "ws://localhost:8080/sign-feed?token=<token>"   # should connect and stay open
@@ -90,16 +90,17 @@ taps Start on their phone — that's the schedule push arriving over
 ## Removing this
 
 No rollback needed on the laptop side — just stop running
-`start-temp-mele.local.ps1`. Two things need re-pointing at the real Pi once
-it's commissioned per `DEPLOY.md`:
+`start-temp-mele.local.ps1`. Two things need re-pointing at the real
+Controller once it's commissioned per `DEPLOY.md`:
 
 1. **Re-commission the driver phone** by opening the same kind of
    `?announce-setup=...&announce-token=...` URL again, this time with the
-   Pi's `ws://192.168.4.1:8080/driver-push` and the Pi's own token — this
-   simply overwrites the two `localStorage` values, no "undo" step needed.
-2. **Point the Monitor's kiosk URL at the Pi** instead of `localhost` (or
-   move the Monitor's HDMI cable to the Pi if it's driving the display
-   directly per `DEPLOY.md` Option B).
+   Controller's `ws://192.168.4.1:8080/driver-push` and the Controller's own
+   token — this simply overwrites the two `localStorage` values, no "undo"
+   step needed.
+2. **Point the Monitor's kiosk URL at the Controller** instead of
+   `localhost` (or move the Monitor's HDMI cable to the Controller if it's
+   driving the display directly per `DEPLOY.md` Option B).
 
 Nothing in this file's setup touches `git`-tracked app code, so there's
 nothing to revert there either — `start-temp-mele.local.ps1` can just stay
