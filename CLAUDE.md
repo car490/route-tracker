@@ -12,10 +12,16 @@ Supabase backend:
 |---|---|---|---|
 | Driver PWA (BusOps Driver) | repo root (`index.html`, `src/`) | Vanilla JS, ES modules, no build step | GitHub Pages today; migrating to Cloudflare Workers at `driver.coachmate.uk` (`wrangler.jsonc` + `.assetsignore` are already in place for that, not yet cut over) |
 | Ops dashboard (CoachMate Ops Dashboard) | `dashboard/` | React + Vite | Vercel, auto on push |
-| Onboard passenger sign (BusOps Announce) | `onboard.html`, `src/onboard.js`; Pi-side setup in `pi-server/` | Vanilla JS + Node (gpsd client) | Raspberry Pi + Fire HD tablet, see `pi-server/DEPLOY.md` |
+| Onboard passenger sign (BusOps Announce) | `onboard.html`, `src/onboard.js`; Pi-side setup in `pi-server/` | Vanilla JS + Node (gpsd client) | Raspberry Pi + passenger display — hardware still evolving, see `docs/HARDWARE.md` for the current confirmed picks and open questions (Fire HD tablet is a supported option, not the confirmed production display) |
 
 Supabase schema lives at `supabase/schema.sql`. Everything else (`graphhopper/`, `lib/`,
 `scripts/`, `audio/`) is shared infra used by more than one surface.
+
+**This project has a history of flip-flopping on cross-cutting questions (onboard hardware,
+architecture, naming).** Before assuming or re-deciding one of those, check
+`docs/DECISIONS.md` first — it's the single scannable ledger of what's actually settled vs.
+still genuinely open, with pointers to the detailed source (`docs/HARDWARE.md` for hardware,
+this file for everything else).
 
 **Important:** the driver PWA source is served directly from the repo root — there is no
 `public/` folder (the root `README.md` still describes an old `public/`-based layout; it is
