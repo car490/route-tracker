@@ -4,12 +4,12 @@
 # mele-server/autoinstall/) has produced a fresh, SSH-reachable Ubuntu Server
 # box. Idempotent — safe to re-run.
 #
-# What this does, per docs/CONTROLLER-REDESIGN.md:
+# What this does, per docs/HARDWARE.md:
 #   - installs Node.js, hostapd, dnsmasq (mpg123/git already present via
 #     autoinstall's package list)
 #   - clones/updates this repo
 #   - configures ONE onboard WiFi radio as a permanent AP (no depot-WiFi
-#     client role, no second USB dongle — §4/§5 of the redesign doc)
+#     client role, no second USB dongle — §1/§3 of HARDWARE.md)
 #   - installs the coachmate-onboard systemd service with a freshly
 #     generated DRIVER_PUSH_TOKEN
 #

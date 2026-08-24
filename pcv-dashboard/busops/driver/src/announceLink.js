@@ -1,14 +1,14 @@
-// Pushes the Driver's already-computed tracking state to a Raspberry Pi
+// Pushes the Driver's already-computed tracking state to a Bus Controller
 // over a local WebSocket, for BusOps Announce to render as a pushed feed
 // instead of its own independent GPS/Supabase polling (see
-// mele-server/announceRelay.mjs for the receiving side, docs/HARDWARE.md and
-// the project_nextstop_architecture design notes for the wider context).
+// mele-server/announceRelay.mjs for the receiving side, docs/HARDWARE.md §3
+// and the project_nextstop_architecture design notes for the wider context).
 //
 // Never sends raw GPS — only derived state (next stop, ETA, diversion/
 // final-stop flags). A complete no-op on any device that hasn't been
-// commissioned with a Pi target (see captureAnnounceSetup below), so it's
-// safe to call unconditionally from every vehicle, including ones still on
-// the cab-device bridge with no Pi at all.
+// commissioned with a Controller target (see captureAnnounceSetup below), so
+// it's safe to call unconditionally from every vehicle, including ones still on
+// the cab-device bridge with no Controller at all.
 const RECONNECT_DELAY_MS = 3000;
 const STORAGE_URL_KEY = 'announceLinkUrl';
 const STORAGE_TOKEN_KEY = 'announceLinkToken';
@@ -16,7 +16,7 @@ const STORAGE_TOKEN_KEY = 'announceLinkToken';
 // ── Pure helpers (no localStorage/WebSocket access — safe to unit test) ────
 
 // Builds the /driver-push connection URL from stored config, or null if
-// this device was never commissioned for a Pi at all.
+// this device was never commissioned for a Controller at all.
 export function buildConnectionUrl(base, token) {
   if (!base) return null;
   const url = new URL(base);
@@ -69,7 +69,7 @@ export function buildSchedulePayload({ journeyId, serviceCode, destination, allS
 
 // ── Commissioning (one-time, persisted) ─────────────────────────────────────
 
-// One-time setup: visiting index.html?announce-setup=<pi-ws-url>&announce-token=<token>
+// One-time setup: visiting index.html?announce-setup=<controller-ws-url>&announce-token=<token>
 // saves both to localStorage; the query param is never needed again on that
 // device. storage is injectable for testing, defaults to the real browser API.
 export function captureAnnounceSetup(params, storage = globalThis.localStorage) {
@@ -99,7 +99,7 @@ function sendSchedule() {
 function connect() {
   if (stopped) return;
   const url = buildConnectionUrl(localStorage.getItem(STORAGE_URL_KEY), localStorage.getItem(STORAGE_TOKEN_KEY));
-  if (!url) return; // not commissioned for a Pi — silently do nothing
+  if (!url) return; // not commissioned for a Controller — silently do nothing
 
   try {
     socket = new WebSocket(url);
@@ -136,7 +136,7 @@ export function disconnectAnnounceLink() {
 
 // Lets main.js flag what's currently being announced (PSVAIR audio stays on
 // the Driver device — see project plan — this is display-only metadata for
-// the onboard sign to show, not a request for the Pi to play anything).
+// the onboard sign to show, not a request for the Controller to play anything).
 export function setAnnouncing(name) {
   announcing = name ?? null;
 }

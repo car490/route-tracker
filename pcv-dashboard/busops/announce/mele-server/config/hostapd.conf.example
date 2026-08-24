@@ -1,8 +1,8 @@
 # WiFi AP hosted on the Controller's single onboard radio — the Driver
-# device joins this. As of docs/CONTROLLER-REDESIGN.md the Controller never
+# device joins this. As of docs/HARDWARE.md §3 the Controller never
 # joins any network as a client (no depot WiFi sync, no cellular) — this is
 # the radio's only job, run permanently, no mode-switching, no second USB
-# dongle (§4/§5 of that doc — no load-bearing USB peripherals at all).
+# dongle (§1 of that doc — no load-bearing USB peripherals at all).
 #
 # `mele-server/bootstrap-controller.sh` applies this automatically (detects
 # the interface name, fills in `interface=`/`ssid=`/`wpa_passphrase=`,
@@ -21,21 +21,21 @@
 #
 # ── Security (hardened 2026-08-14) ──────────────────────────────────────────
 # This hotspot has no internet uplink for its clients at all — that's the
-# main thing limiting what a joined device can reach (this Pi's own tiny
-# HTTP/WS server, nothing else). Everything below is defense on top of
+# main thing limiting what a joined device can reach (this Controller's own
+# tiny HTTP/WS server, nothing else). Everything below is defense on top of
 # that, not instead of it. Threat model: a vehicle full of technically
 # curious passengers who can see the SSID broadcasting and may try to join.
 #
 # wpa_passphrase MUST be changed before deploying, and must be UNIQUE PER
 # VEHICLE — never reused fleet-wide (a leaked passphrase should compromise
 # exactly one vehicle, not the pattern for all of them). Generate one on
-# the Pi with:
+# the Controller with:
 #   openssl rand -base64 16
 # 16+ random characters, not a word/phrase — a guessable passphrase is
 # offline-dictionary-attackable regardless of WPA2 vs WPA3 below. Keep it
 # in your commissioning records, not written anywhere inside the vehicle.
 
-interface=wlan0
+interface=CHANGE_ME_INTERFACE_NAME
 driver=nl80211
 ssid=CoachMate-CHANGEME
 hw_mode=g
@@ -47,7 +47,7 @@ ignore_broadcast_ssid=0
 
 # Client isolation — blocks joined devices from talking to each other
 # directly at the AP (layer 2). Free defense-in-depth: nothing on this
-# hotspot ever needs to reach anything except the Pi itself.
+# hotspot ever needs to reach anything except the Controller itself.
 ap_isolate=1
 
 # WPA2/WPA3-Personal transition mode. WPA3-capable clients authenticate via

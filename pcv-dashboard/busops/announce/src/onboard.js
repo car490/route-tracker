@@ -1,7 +1,7 @@
 // Fixed passenger-facing onboard sign. Deliberately siloed from main.js —
 // no login, no duty card UI, no incident reporting, no stop-time upload, no
 // writes to Supabase at all. As of the Controller redesign
-// (docs/CONTROLLER-REDESIGN.md §3/§4/§5/§6) it also has NO reads of its
+// (docs/HARDWARE.md §1-§5) it also has NO reads of its
 // own: no independent get_duty_card polling, no GPS (neither its own
 // hardware nor a local /api/position bridge), no schedule_view queries.
 // It is a pure renderer, driven entirely by what the Driver device pushes
@@ -236,12 +236,13 @@ function render(allStops, initialStopIndex, { nextStopIndex, earlyWait, atStop, 
   positionBrand(); // banner toggling above can change the bottom row's height
 }
 
-// "Announcing: X" hint. Audio playback itself stays on the Driver device
-// (PSVAIR reliability — it must keep working even if this feed drops; see
-// docs/CONTROLLER-REDESIGN.md §8 for the not-yet-built plan to change
-// that); this is a display-only echo of the announcing field the Driver
-// includes in its push messages. #sign-announcing is optional markup —
-// harmless no-op if it's not present.
+// "Announcing: X" hint. Audio playback also plays locally on the Driver
+// device, alongside the Controller (PSVAIR reliability — it must keep
+// working even on vehicles with no Controller commissioned yet; see
+// docs/HARDWARE.md §4 for the audio-ownership decision and the deliberate
+// local-playback fallback); this is a display-only echo of the announcing
+// field the Driver includes in its push messages. #sign-announcing is
+// optional markup — harmless no-op if it's not present.
 function renderAnnouncing(name) {
   const box = el('sign-announcing');
   if (!box) return;
@@ -340,7 +341,7 @@ function applyOperatorBranding({ accentColor }) {
 }
 
 // ── Idle/default screen — operator branding shown before any journey
-// exists (docs/CONTROLLER-REDESIGN.md §7). Company identity can't come
+// exists (docs/HARDWARE.md §5). Company identity can't come
 // from get_duty_card (journey-scoped, nothing exists yet at idle), so it's
 // commissioned directly onto this device instead, same URL-param pattern
 // as ?panel-profile=/?panel-diagonal=: ?operator-name=<name>. The logo

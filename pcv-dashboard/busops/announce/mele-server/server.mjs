@@ -6,9 +6,9 @@
 // browser of its own in Option B), serve the schedule cache written by the
 // announce relay's onSchedule callback (see writeScheduleCache below)
 // whenever the Driver device pushes a fresh one, and play PSVAIR
-// announcement audio locally (createAudioPlayer, docs/CONTROLLER-
-// REDESIGN.md §8) whenever the Driver pushes a {type:'announce'} message —
-// no GPS of its own (see docs/CONTROLLER-REDESIGN.md §6 — the Controller
+// announcement audio locally (createAudioPlayer, docs/HARDWARE.md §4)
+// whenever the Driver pushes a {type:'announce'} message —
+// no GPS of its own (see docs/HARDWARE.md "Read this first"/§2 — the Controller
 // has no GPS hardware; that lives entirely on the Driver device and flows
 // through as pushed state), and no PSVAIR event-decision logic of its own
 // either — audioPlayer.mjs just plays whatever clip keys the Driver already
@@ -51,7 +51,7 @@ if (!DRIVER_PUSH_TOKEN) {
 // all, on any real deployed device — confirmed 2026-08-22 by testing the
 // live WebView via chrome://inspect against this actual Controller.
 // Self-signed since the Controller has no public DNS/WAN path for a real
-// CA to validate against (see docs/CONTROLLER-REDESIGN.md); the cert must
+// CA to validate against (see docs/HARDWARE.md §3); the cert must
 // be installed as trusted on each Driver device once at commissioning
 // (see mele-server/DEPLOY.md §6). onboard.js already derives ws:/wss:
 // dynamically from location.protocol, so no change needed there.

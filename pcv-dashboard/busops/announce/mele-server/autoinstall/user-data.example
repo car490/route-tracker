@@ -1,6 +1,6 @@
 #cloud-config
 # Ubuntu Server autoinstall — Bus Controller (MeLE Quieter4C, see
-# docs/CONTROLLER-REDESIGN.md). Produces a headless, SSH-reachable box on
+# docs/HARDWARE.md §1). Produces a headless, SSH-reachable box on
 # first boot: no monitor/keyboard needed at any point.
 #
 # This is a TEMPLATE. Copy it to user-data.local (gitignored — it will hold

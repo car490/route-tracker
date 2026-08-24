@@ -12,7 +12,7 @@ Supabase backend:
 |---|---|---|---|
 | Driver PWA (BusOps Driver) | `pcv-dashboard/busops/driver/` (`index.html`, `src/`) | Vanilla JS, ES modules, no build step | GitHub Pages today; migrating to Cloudflare Workers at `driver.pcvtechnologies.co.uk` (`wrangler.jsonc` + `.assetsignore`, both at `pcv-dashboard/busops/`, are already in place for that, not yet cut over) |
 | Ops dashboard (PCV Dashboard) | `pcv-dashboard/` | React + Vite | Vercel, auto on push |
-| Onboard passenger sign (BusOps Announce) | `pcv-dashboard/busops/announce/` (`onboard.html`, `src/onboard.js`); Controller-side setup in `mele-server/` | Vanilla JS + Node (WebSocket relay, no GPS/DB access) | Bus Controller box (see `docs/CONTROLLER-REDESIGN.md`) + HDMI display, see `mele-server/DEPLOY.md` |
+| Onboard passenger sign (BusOps Announce) | `pcv-dashboard/busops/announce/` (`onboard.html`, `src/onboard.js`); Controller-side setup in `mele-server/` | Vanilla JS + Node (WebSocket relay, no GPS/DB access) | Bus Controller box (see `docs/HARDWARE.md`) + HDMI display, see `mele-server/DEPLOY.md` |
 
 **Company brand note:** PCV Technologies is the vendor company (`pcvtechnologies.co.uk`); the
 ops dashboard above is **PCV Dashboard**, a mandatory umbrella product every customer gets
@@ -78,6 +78,14 @@ imports (`gps.js`, `engine.js`, `supabaseApi.js`, `announcements.js`, etc.) move
 future WiFi-Direct-based redesign of how Driver and Announce talk to each other. It is **not**
 part of the product build, not deployed anywhere, and not wired into any of the three surfaces
 above — treat it as exploratory only.
+
+**This project has a history of flip-flopping on cross-cutting questions (onboard hardware,
+architecture, naming).** Before assuming or re-deciding one of those, check
+`docs/DECISIONS.md` first — it's the single scannable ledger of what's actually settled vs.
+still genuinely open, with pointers to the detailed source (`docs/HARDWARE.md` and
+`docs/HARDWARE.md` §1-§5 for hardware/architecture, `docs/BRAND.md` for naming, this file
+for everything else). Re-derive it from `origin/develop`, never `master` — `master` is
+routinely dozens of commits behind and missing recent decisions entirely.
 
 ---
 
@@ -370,7 +378,7 @@ meant to run full-screen on an HDMI panel mounted in the vehicle, driven by a Bu
 over its own local WiFi hotspot (see `mele-server/DEPLOY.md` for setup,
 `mele-server/announceRelay.mjs` for the WebSocket relay). Deliberately siloed from `main.js` — no
 login, no duty-card UI, no incident reporting, no writes to Supabase at all. As of the Controller
-redesign (`docs/CONTROLLER-REDESIGN.md`) it also has **no reads of its own**: no `get_duty_card`
+redesign (`docs/HARDWARE.md` §1-§5) it also has **no reads of its own**: no `get_duty_card`
 polling, no GPS (the Controller has no GPS hardware — that lives entirely on the driver device),
 no `schedule_view` queries. It's a pure renderer, driven only by what the Driver PWA pushes to it
 (`busops/driver/src/announceLink.js` → `mele-server/announceRelay.mjs` → this device's
@@ -414,11 +422,13 @@ its own `WizardModal.jsx`) — see `docs/TODO.md` for a known refactor candidate
   driver/vehicle duty allocation and drivers'-hours compliance — not yet built; has an open
   blocker on TruTac tacho-vendor access, don't assume that integration exists), plus
   verification write-ups and the BusOps
-  Driver hardware proposal. `HARDWARE.md` is the consolidated spec for every physical component
-  in the onboard/vehicle system (Bus Controller, GPS, displays, driver device, power, mounting)
-  — start there for any hardware question, but check `CONTROLLER-REDESIGN.md` alongside it: that
-  doc supersedes several of `HARDWARE.md`'s sections (Bus Controller board, GPS ownership,
-  networking model, audio pipeline) with decisions from a 2026-08-14 session that haven't been
-  folded back into `HARDWARE.md` itself yet, and are agreed direction but **not yet implemented
-  in code** — read both, don't assume `HARDWARE.md` alone is current. Root `README.md` is stale
-  (describes an old `public/`-based PWA layout) — prefer this file and `docs/TESTING.md` over it.
+  Driver hardware proposal. `HARDWARE.md` is the single consolidated spec for every physical
+  component in the onboard/vehicle system (Bus Controller, GPS, displays, driver device, power,
+  mounting) **and** the Bus Controller's software architecture (§1–§5) — this used to be split
+  across that file and a separate `CONTROLLER-REDESIGN.md`, folded together 2026-08-24; the
+  standalone file no longer exists, don't look for it. Most of §1–§5's decisions are already
+  implemented in code (the MeLE Quieter4C headless setup, the `/driver-push`
+  schedule/state/announce protocol, Controller-side audio playback) — the one remaining open
+  item is a real-hardware `hostapd` AP-mode bench test (§1), not a design gap. Root `README.md`
+  is stale (describes an old `public/`-based PWA layout) — prefer this file and
+  `docs/TESTING.md` over it.

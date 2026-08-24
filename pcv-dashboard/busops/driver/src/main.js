@@ -172,9 +172,9 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   document.getElementById('tracker').hidden = false;
   document.getElementById('route-header').scrollIntoView();
 
-  // No-op on any device not commissioned with a Pi target (see
+  // No-op on any device not commissioned with a Controller target (see
   // announceLink.js) — safe to call unconditionally, including on the
-  // cab-device bridge where there's no Pi at all.
+  // cab-device bridge where there's no Controller at all.
   connectAnnounceLink();
 
   const firstStop  = allStops[0];
@@ -188,7 +188,7 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
 
   // Tells the Controller which journey/stops this run's state updates refer
   // to — it has no Supabase access of its own to look this up (see
-  // docs/CONTROLLER-REDESIGN.md §3/§6). accentColor/primaryColor are absent
+  // docs/HARDWARE.md "Read this first" and §3). accentColor/primaryColor are absent
   // on the manual-selection path (no company branding lookup there today);
   // broadcastSchedule/buildSchedulePayload already default both to null.
   broadcastSchedule({
@@ -434,8 +434,9 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
           diversionActive: !!diversionAlertState,
         });
         // Display-only metadata for the onboard sign's push feed (see
-        // announceLink.js) — audio itself stays on this device, never the
-        // Pi. Cleared after a fixed window rather than tracking actual
+        // announceLink.js) — audio itself stays on this device (also
+        // broadcast to a commissioned Controller, see docs/HARDWARE.md §4).
+        // Cleared after a fixed window rather than tracking actual
         // playback completion — good enough for a "now announcing" hint.
         setAnnouncing(allStops[approaching.stopIndex].name);
         setTimeout(() => setAnnouncing(null), 6000);
@@ -473,7 +474,7 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
       if (activeTab === 'dir') updateDirections();
       if (activeTab === 'log') renderLog(getEntries());
 
-      // No-op unless this device is commissioned + connected to a Pi (see
+      // No-op unless this device is commissioned + connected to a Controller (see
       // announceLink.js) — never blocks tracking either way.
       broadcastState({
         journeyId,
@@ -971,7 +972,7 @@ async function init() {
   const vehicleSetup = initVehicleSetup();
   document.getElementById('ndc-change-vehicle-btn').onclick = () => vehicleSetup.show();
 
-  // One-time commissioning step for the Driver -> Pi push feed (see
+  // One-time commissioning step for the Driver -> Controller push feed (see
   // announceLink.js) — harmless no-op on every visit that isn't it.
   captureAnnounceSetup(new URLSearchParams(window.location.search));
 

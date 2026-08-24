@@ -1,6 +1,6 @@
 // src/announceLink.test.js
 //
-// Driver -> Pi push client (see mele-server/announceRelay.mjs for the
+// Driver -> Controller push client (see mele-server/announceRelay.mjs for the
 // receiving side). Split into pure-helper tests (no globals touched) and
 // live-connection tests (WebSocket/localStorage stubbed via vi.stubGlobal —
 // vitest.config.js runs src/**/*.test.js under environment: 'node', which
@@ -13,7 +13,7 @@ import {
 } from './announceLink.js';
 
 describe('buildConnectionUrl', () => {
-  it('returns null when this device was never commissioned with a Pi target', () => {
+  it('returns null when this device was never commissioned with a Controller target', () => {
     expect(buildConnectionUrl(null, 'tok')).toBeNull();
     expect(buildConnectionUrl('', 'tok')).toBeNull();
   });

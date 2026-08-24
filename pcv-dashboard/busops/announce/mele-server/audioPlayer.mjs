@@ -1,5 +1,5 @@
 // Controller-side playback for PSVAIR announcement audio pushed from the
-// Driver device (docs/CONTROLLER-REDESIGN.md §8). Deliberately dumb: no
+// Driver device (docs/HARDWARE.md §4). Deliberately dumb: no
 // PSVAIR event-decision logic, no slug() scheme, no knowledge of stop IDs
 // or service codes — the Driver has already resolved audioKeys to a ready,
 // ordered list of clip filenames before broadcasting (see

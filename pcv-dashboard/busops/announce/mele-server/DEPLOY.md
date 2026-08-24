@@ -2,7 +2,7 @@
 
 > **Board/architecture note (2026-08-20):** the Bus Controller has moved to
 > an x86 mini PC (MeLE Quieter4C, Ubuntu Server, single onboard WiFi radio,
-> AP-only, no depot WiFi/cellular) per `docs/CONTROLLER-REDESIGN.md` — §0
+> AP-only, no depot WiFi/cellular) per `docs/HARDWARE.md` §1/§3 — §0
 > and §3 below now describe that setup and are the current path for a new
 > unit. The Raspberry Pi/two-radio steps this file previously described are
 > kept at the bottom under "Legacy: Raspberry Pi hardware" for reference
@@ -42,7 +42,7 @@ future use but is not currently consumed by any visible element on the sign.
 ## Idle screen branding (logo + name)
 
 Before a journey starts, the sign shows the operator's own logo and name
-instead of a blank screen (`docs/CONTROLLER-REDESIGN.md` §7). Unlike the
+instead of a blank screen (`docs/HARDWARE.md` §5). Unlike the
 colours above, this can't be resolved from a journey push — there is no
 journey yet — so it's commissioned directly onto the device instead, same
 one-time pattern as `&panel-profile=`/`&panel-diagonal=`:
@@ -51,7 +51,7 @@ one-time pattern as `&panel-profile=`/`&panel-diagonal=`:
    kiosk URL, e.g. `...announce/onboard.html?announce-token=<token>&panel-profile=monitor&operator-name=Acme%20Coaches`.
    Omit entirely and the idle screen stays exactly as it was before (blank
    background, small corner mark only).
-2. **Logo** — the Controller has no WAN path at runtime (§5/§6), so the
+2. **Logo** — the Controller has no WAN path at runtime (`docs/HARDWARE.md` §3), so the
    image can't be fetched live from Supabase Storage. Instead, from any
    machine with internet access, download the operator's logo from their
    own public Storage URL:
@@ -73,13 +73,12 @@ one-time pattern as `&panel-profile=`/`&panel-diagonal=`:
    `mele-server/schedule-cache.json`.
 
 ## Hardware
-Full spec, MUST-vs-nice-to-have breakdown, and rationale live in
-**[`docs/HARDWARE.md`](../docs/HARDWARE.md)** — but check
-**[`docs/CONTROLLER-REDESIGN.md`](../docs/CONTROLLER-REDESIGN.md)**
-alongside it, since it supersedes `HARDWARE.md`'s Bus Controller board
-(§1, now MeLE Quieter4C not CM5) and networking model (§7, now single
-onboard radio, AP-only, no WAN). Read both before planning a build. The
-setup steps below assume the hardware is already in hand.
+Full spec, MUST-vs-nice-to-have breakdown, rationale, and the Bus
+Controller's software architecture (board pick §1, GPS §2, networking §3,
+audio §4) all live in **[`docs/HARDWARE.md`](../docs/HARDWARE.md)** — it
+used to be split across that file and a separate `CONTROLLER-REDESIGN.md`,
+folded together 2026-08-24. Read it before planning a build. The setup
+steps below assume the hardware is already in hand.
 
 ## Storage
 None needed — the Quieter4C boots directly from its internal storage
@@ -123,7 +122,7 @@ Ethernet + SSH from a laptop).
    cat meta-data >> /path/to/usb/ventoy/autoinstall
    ```
 5. **Boot the MeLE from the USB**, plug in Ethernet (for package downloads
-   during install — see CONTROLLER-REDESIGN.md §5 for why the box needs no
+   during install — see `docs/HARDWARE.md` §3 for why the box needs no
    WAN path at *runtime*, which is a separate question from needing one
    during setup) and power. It partitions, installs, and reboots
    unattended — no prompts, nothing to confirm on a screen.
@@ -147,13 +146,13 @@ Ethernet + SSH from a laptop).
 
 **Removed.** GPS lives entirely on the Driver device now (its own GNSS
 chip) and reaches the Controller as already-derived state over the push
-feed (§6) — see `docs/CONTROLLER-REDESIGN.md` §6. `mele-server/gpsd-client.mjs`
+feed (§6) — see `docs/HARDWARE.md` §2 and "Read this first". `mele-server/gpsd-client.mjs`
 and the `/api/position` endpoint are gone; don't install `gpsd` or wire up
 a GPS module for this box.
 
 ## 2. WiFi — Controller hotspot (single radio, AP-only)
 
-Per `docs/CONTROLLER-REDESIGN.md` §3/§5, the Controller never joins a
+Per `docs/HARDWARE.md` §3, the Controller never joins a
 network as a client at all — no depot WiFi sync, no cellular. Its one
 onboard WiFi radio runs permanently as an access point (`hostapd`) for the
 Driver device to join; Ethernet (used for setup/updates, per §0) stays a
@@ -201,7 +200,7 @@ sudo systemctl enable --now systemd-networkd
 
 ## 4. The app itself
 `mpg123` plays PSVAIR announcement audio locally on the Controller
-(`mele-server/audioPlayer.mjs`, docs/CONTROLLER-REDESIGN.md §8) — install it
+(`mele-server/audioPlayer.mjs`, docs/HARDWARE.md §4) — install it
 before starting the service:
 ```bash
 sudo apt install mpg123
@@ -227,7 +226,7 @@ already part of the same repo checkout above.
 
 Two named display profiles exist — **Bar** (the original ultra-wide
 destination-board panel, 28", not yet sourced/built — kept for later, see
-`docs/CONTROLLER-REDESIGN.md`) and **Monitor** (Dell Pro P2426H, 24"/23.8"
+`docs/HARDWARE.md` §6) and **Monitor** (Dell Pro P2426H, 24"/23.8"
 diagonal, the confirmed unit in use for demo/validation builds today). Both
 are commissioned the same way, via `&panel-profile=bar` or
 `&panel-profile=monitor` appended to the fixed kiosk URL (same pattern as
@@ -239,7 +238,7 @@ other display param is normally needed. Example for the Dell Pro P2426H:
 ### Option A — WiFi-client display
 No specific device is deployed this way today — the tablet originally used
 here has been dropped in favour of the HDMI-wired Option B panels below
-(see `docs/CONTROLLER-REDESIGN.md`). The mechanism itself is
+(see `docs/HARDWARE.md` §6). The mechanism itself is
 still supported by `mele-server/server.mjs` if a WiFi-client display is ever
 used again: point its browser at `http://192.168.4.1:8080/`, pin/kiosk-lock
 it to that page using whatever mechanism its OS provides, and set it to
@@ -361,7 +360,7 @@ sit connected to the Controller's hotspot indefinitely and never show up in
 browser's own devtools console (confirmed 2026-08-22 via `chrome://inspect`
 against a live WebView). Generate a self-signed cert **on the Controller
 itself** (it has no public DNS/WAN path for a real CA to validate against —
-see `docs/CONTROLLER-REDESIGN.md`), valid for its static AP IP:
+see `docs/HARDWARE.md` §3), valid for its static AP IP:
 
 ```bash
 mkdir -p certs && cd certs
@@ -452,14 +451,14 @@ already uses to open `onboard.html`.
 ## 7. Announcement audio (Controller-side playback)
 
 PSVAIR announcement audio plays from the Controller itself, not the Driver
-tablet (`docs/CONTROLLER-REDESIGN.md` §8) — the Driver resolves which clips
+tablet (`docs/HARDWARE.md` §4) — the Driver resolves which clips
 to play and pushes `{type:'announce', text, audioKeys}` over the same
 `/driver-push` connection as §6; `mele-server/audioPlayer.mjs` plays them via
 `mpg123` (installed in §4) from the local `audio/announcements/` clip set
 already part of this repo checkout. No separate commissioning step beyond
 §6's shared token — this rides the same connection.
 
-**Wiring**: interim AUX only, no amp yet (§8's explicit decision) — run a
+**Wiring**: interim AUX only, no amp yet (`docs/HARDWARE.md` §4's explicit decision) — run a
 3.5mm cable from the Controller's own headphone/audio-out jack into the
 vehicle head unit's AUX-IN, same test methodology `docs/HARDWARE.md` §9
 already describes (listening test against the PSVAIR 3dB-above-ambient/
@@ -526,7 +525,7 @@ once it receives the schedule message that starting a journey sends.
 
 Kept for audit trail / in case a Pi build ever recurs — not the current
 path (§0–§2 above, MeLE Quieter4C, are current). See
-`docs/CONTROLLER-REDESIGN.md` §2/§9 for why the board changed.
+`docs/HARDWARE.md` §1 for why the board changed.
 
 **Storage** — no microSD in a vehicle-deployed Pi (vibration, write
 endurance, unclean-shutdown corruption):
@@ -540,7 +539,7 @@ endurance, unclean-shutdown corruption):
 (one interface at a time in AP+client mode is unreliable on-chip), and the
 old architecture needed the Controller to be a WiFi client too (morning
 depot-WiFi schedule sync — dropped entirely in the redesign, see
-`docs/CONTROLLER-REDESIGN.md` §3). `wlan0` stayed a normal WiFi client for
+`docs/HARDWARE.md` §3). `wlan0` stayed a normal WiFi client for
 that sync; `wlan1`, a cheap USB dongle (e.g. Edimax EW-7811Un), ran the
 permanent hotspot. No mode-switching — both ran simultaneously.
 

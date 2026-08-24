@@ -223,8 +223,8 @@ export function previewVoice(voiceURI) {
 
 function announce(text, audioKeys) {
   if (!enabled) return;
-  // Broadcast to a commissioned Controller (docs/CONTROLLER-REDESIGN.md
-  // §8) alongside local playback, not instead of it — most of the fleet
+  // Broadcast to a commissioned Controller (docs/HARDWARE.md §4)
+  // alongside local playback, not instead of it — most of the fleet
   // has no Controller deployed yet, so local playback stays the only
   // audio path for those vehicles; broadcastAnnounce is a no-op there
   // anyway (see its own comment). Gated on the same mute check speak()

@@ -10,5 +10,5 @@
 # tries to bind the DHCP/DNS service to every interface, including the
 # Ethernet uplink, which you don't want handing out addresses.
 
-interface=wlan0
+interface=CHANGE_ME_INTERFACE_NAME
 dhcp-range=192.168.4.2,192.168.4.20,255.255.255.0,24h

@@ -3,7 +3,8 @@
 Fixed, always-on driver PWA installs for vehicle cabs — the NextStop bridge for
 the next ~6 months, until vehicles carry NextStop-native hardware. This is a
 different device class from `mele-server/` (that's the *passenger-facing*
-onboard sign, offline-only, one per vehicle, GPS from a Pi). The cab device is
+onboard sign, one per vehicle, driven by a Bus Controller box with no GPS or
+WAN connectivity of its own — see `docs/HARDWARE.md` §1-§3). The cab device is
 the **driver PWA** (`driver/index.html`/`driver/src/main.js`) itself, just running without a
 driver ever receiving or tapping an install link.
 
@@ -140,7 +141,7 @@ is enabled, same reasoning as the screen-lock removal step below: Settings
 stays reachable pre-lockdown, not after.
 
 1. Insert the SIM (the Blackview Active 5 is dual-SIM, per
-   `docs/HARDWARE.md` §5 — either slot works).
+   `docs/HARDWARE.md` §8 — either slot works).
 2. Confirm mobile data connects: **Settings → Network & internet →
    SIM/Mobile network**. Most carriers auto-provision their APN from the
    SIM itself; only enter one manually if the carrier needs it (e.g. an
