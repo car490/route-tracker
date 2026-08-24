@@ -79,6 +79,14 @@ future WiFi-Direct-based redesign of how Driver and Announce talk to each other.
 part of the product build, not deployed anywhere, and not wired into any of the three surfaces
 above — treat it as exploratory only.
 
+**This project has a history of flip-flopping on cross-cutting questions (onboard hardware,
+architecture, naming).** Before assuming or re-deciding one of those, check
+`docs/DECISIONS.md` first — it's the single scannable ledger of what's actually settled vs.
+still genuinely open, with pointers to the detailed source (`docs/HARDWARE.md` and
+`docs/CONTROLLER-REDESIGN.md` for hardware/architecture, `docs/BRAND.md` for naming, this file
+for everything else). Re-derive it from `origin/develop`, never `master` — `master` is
+routinely dozens of commits behind and missing recent decisions entirely.
+
 ---
 
 ## Accessibility & branding — company-level, mandatory
