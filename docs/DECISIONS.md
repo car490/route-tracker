@@ -41,7 +41,7 @@ their detail.
 
 | Question | Decided | Source |
 |---|---|---|
-| Deploy target | **GitHub Pages today.** Cloudflare Workers (`driver.pcvtechnologies.co.uk`, config now at `pcv-dashboard/busops/`) is the migration target — **not yet cut over**. | `CLAUDE.md` Project overview |
+| Deploy target | **GitHub Pages today — still the live production target.** Cloudflare Workers (`driver.pcvtechnologies.co.uk`, config at `pcv-dashboard/busops/`) is the migration target. **Its build pipeline (Cloudflare Workers Builds) was broken, then fixed 2026-08-24** — don't read that as the cutover itself: the pipeline now deploying successfully on `develop` means the blocker is cleared, not that production traffic has moved. GitHub Pages remains the source of truth until someone explicitly switches it. | `CLAUDE.md` Project overview |
 | OSRM/directions source of truth | **Always scheduled stop coordinates, never live GPS position** | `CLAUDE.md` Architecture |
 | Login / driver identity on device | **No login, ever** (standing project convention) | `docs/TODO.md` "Manual-selection flow" |
 | Manually-started journey → `vehicle_id` | **Decided and shipped 2026-08-14** — one-time device prompt, sourced from Supabase, filtered to `'Local Bus'`-tagged vehicles | `docs/TODO.md` |

@@ -10,7 +10,7 @@ Supabase backend:
 
 | Surface | Path | Stack | Deploys to |
 |---|---|---|---|
-| Driver PWA (BusOps Driver) | `pcv-dashboard/busops/driver/` (`index.html`, `src/`) | Vanilla JS, ES modules, no build step | GitHub Pages today; migrating to Cloudflare Workers at `driver.pcvtechnologies.co.uk` (`wrangler.jsonc` + `.assetsignore`, both at `pcv-dashboard/busops/`, are already in place for that, not yet cut over) |
+| Driver PWA (BusOps Driver) | `pcv-dashboard/busops/driver/` (`index.html`, `src/`) | Vanilla JS, ES modules, no build step | GitHub Pages today (still the live production target); migrating to Cloudflare Workers at `driver.pcvtechnologies.co.uk` (`wrangler.jsonc` + `.assetsignore`, both at `pcv-dashboard/busops/`) — the Workers Builds pipeline itself is now confirmed working on `develop` (fixed 2026-08-24), but that's the blocker being cleared, not the cutover; GitHub Pages is still what serves production until that's explicitly switched |
 | Ops dashboard (PCV Dashboard) | `pcv-dashboard/` | React + Vite | Vercel, auto on push |
 | Onboard passenger sign (BusOps Announce) | `pcv-dashboard/busops/announce/` (`onboard.html`, `src/onboard.js`); Controller-side setup in `mele-server/` | Vanilla JS + Node (WebSocket relay, no GPS/DB access) | Bus Controller box (see `docs/HARDWARE.md`) + HDMI display, see `mele-server/DEPLOY.md` |
 
