@@ -20,9 +20,12 @@ set -euo pipefail
 
 REPO_URL="https://github.com/car490/route-tracker.git"
 REPO_DIR="$HOME/route-tracker"
-# TODO: point this at develop/master once restructure/brand-hierarchy merges —
-# it's the only branch with the current mele-server/ layout as of 2026-08-22.
-REPO_BRANCH="restructure/brand-hierarchy"
+# restructure/brand-hierarchy (the mele-server/ layout this script depends
+# on) merged into develop via f9fd85b — that branch is now stale, develop
+# has it plus everything since. master is still pre-restructure and lags
+# develop by dozens of commits (see CLAUDE.md's Release / versioning
+# section), so it's the wrong target here too until a formal release ships.
+REPO_BRANCH="develop"
 AP_SSID="CoachMate-$(hostname)"
 AP_IP="192.168.4.1"
 
