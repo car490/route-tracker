@@ -112,7 +112,7 @@ const NAV = [
 ]
 
 const CAN_EDIT_LOGO = ['super_user', 'ops_manager']
-const BUCKET = 'company-logos'
+const BUCKET = 'operator-assets'
 
 export default function Layout({ session }) {
   const [logoModalOpen, setLogoModalOpen] = useState(false)

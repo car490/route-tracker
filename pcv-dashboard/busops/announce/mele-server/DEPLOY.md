@@ -56,7 +56,7 @@ one-time pattern as `&panel-profile=`/`&panel-diagonal=`:
    machine with internet access, download the operator's logo from their
    own public Storage URL:
    ```
-   curl -o branding-logo.png "https://<project-ref>.supabase.co/storage/v1/object/public/company-logos/<company_id>/logo.<ext>"
+   curl -o branding-logo.png "https://<project-ref>.supabase.co/storage/v1/object/public/operator-assets/<company_id>/logo.<ext>"
    ```
    (`company_id`/logo path come from that operator's `companies.logo_path`
    row — see dashboard Branding settings.) Then copy `branding-logo.png`

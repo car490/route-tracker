@@ -3,7 +3,7 @@ import { supabase } from '../../shared/supabase'
 import { searchPlaces } from '../../shared/api/osPlaces'
 import { invalidateCompanyCache } from '../../shared/company'
 
-const BUCKET = 'company-logos'
+const BUCKET = 'operator-assets'
 
 const LICENCE_STATUS = {
   lsts_valid:       { label: 'Valid',       badge: 'badge-green' },
