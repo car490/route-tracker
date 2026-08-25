@@ -145,3 +145,38 @@ export async function fetchStopsForDeparture(departureId) {
   setCachedStops(departureId, result);
   return result;
 }
+
+// Warms the offline cache for every valid manual-selection route in one
+// pass, called best-effort from main.js's init() whenever the device is
+// online — not just the lazy per-departure caching fetchStopsForDeparture()
+// already does on its own as a side effect of a driver actually opening
+// that route. Without this, a route the driver has never manually picked
+// before (e.g. right after Controller-AP-only bench testing, or a genuinely
+// new route added since the last real sync) would have no cached stops to
+// fall back to, and manualSelection.js's offline path would have nothing to
+// show even though the journey itself can still start.
+//
+// Sequential, not Promise.all — this can be dozens of departures on a slow
+// or intermittent connection, and fetchStopsForDeparture()'s own live-first
+// behavior means a burst of parallel requests wouldn't be meaningfully
+// faster (Supabase/PostgREST is the bottleneck, not client-side latency).
+// Failures are swallowed per-departure so one bad/unreachable route doesn't
+// stop the rest from caching — same fail-soft philosophy as
+// localStore.js's readJSON/writeJSON.
+export async function preloadAllRoutes() {
+  let services;
+  try {
+    services = await fetchAvailableServices();
+  } catch {
+    return;
+  }
+  const departureIds = new Set();
+  for (const periods of Object.values(services)) {
+    for (const departureId of Object.values(periods)) {
+      departureIds.add(departureId);
+    }
+  }
+  for (const departureId of departureIds) {
+    await fetchStopsForDeparture(departureId).catch(() => {});
+  }
+}

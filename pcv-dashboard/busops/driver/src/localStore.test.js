@@ -3,6 +3,7 @@ import {
   getCachedServices, setCachedServices,
   getCachedStops, setCachedStops,
   getPendingTrips, enqueuePendingTrip, removePendingTrip, markPendingTripAttempt,
+  getPendingJourneyStarts, enqueuePendingJourneyStart, removePendingJourneyStart, markPendingJourneyStartAttempt,
 } from './localStore.js';
 
 function fakeStorage(initial = {}) {
@@ -98,5 +99,59 @@ describe('pending trip queue', () => {
   it('markPendingTripAttempt on an unknown id is a no-op', () => {
     const storage = fakeStorage();
     expect(() => markPendingTripAttempt('nonexistent', storage)).not.toThrow();
+  });
+});
+
+describe('pending journey-start queue', () => {
+  it('starts empty', () => {
+    expect(getPendingJourneyStarts(fakeStorage())).toEqual([]);
+  });
+
+  it('enqueue stamps id/createdAt/attempts and appends the entry', () => {
+    const storage = fakeStorage();
+    const id = enqueuePendingJourneyStart({ journeyId: 'j-1', departureId: 'dep-1', vehicleId: 'veh-1' }, storage);
+    const starts = getPendingJourneyStarts(storage);
+    expect(starts).toHaveLength(1);
+    expect(starts[0]).toMatchObject({ id, journeyId: 'j-1', departureId: 'dep-1', vehicleId: 'veh-1', attempts: 0 });
+    expect(starts[0].createdAt).toEqual(expect.any(Number));
+  });
+
+  it('supports multiple queued starts at once', () => {
+    const storage = fakeStorage();
+    enqueuePendingJourneyStart({ journeyId: 'j-1', departureId: 'dep-1', vehicleId: null }, storage);
+    enqueuePendingJourneyStart({ journeyId: 'j-2', departureId: 'dep-2', vehicleId: null }, storage);
+    expect(getPendingJourneyStarts(storage).map(s => s.journeyId)).toEqual(['j-1', 'j-2']);
+  });
+
+  it('removePendingJourneyStart removes only the matching entry', () => {
+    const storage = fakeStorage();
+    const idA = enqueuePendingJourneyStart({ journeyId: 'j-1', departureId: 'dep-1', vehicleId: null }, storage);
+    const idB = enqueuePendingJourneyStart({ journeyId: 'j-2', departureId: 'dep-2', vehicleId: null }, storage);
+    removePendingJourneyStart(idA, storage);
+    const starts = getPendingJourneyStarts(storage);
+    expect(starts).toHaveLength(1);
+    expect(starts[0].id).toBe(idB);
+  });
+
+  it('removePendingJourneyStart on an unknown id is a no-op', () => {
+    const storage = fakeStorage();
+    enqueuePendingJourneyStart({ journeyId: 'j-1', departureId: 'dep-1', vehicleId: null }, storage);
+    removePendingJourneyStart('nonexistent', storage);
+    expect(getPendingJourneyStarts(storage)).toHaveLength(1);
+  });
+
+  it('markPendingJourneyStartAttempt increments attempts and stamps lastAttemptAt', () => {
+    const storage = fakeStorage();
+    const id = enqueuePendingJourneyStart({ journeyId: 'j-1', departureId: 'dep-1', vehicleId: null }, storage);
+    markPendingJourneyStartAttempt(id, storage);
+    markPendingJourneyStartAttempt(id, storage);
+    const [start] = getPendingJourneyStarts(storage);
+    expect(start.attempts).toBe(2);
+    expect(start.lastAttemptAt).toEqual(expect.any(Number));
+  });
+
+  it('markPendingJourneyStartAttempt on an unknown id is a no-op', () => {
+    const storage = fakeStorage();
+    expect(() => markPendingJourneyStartAttempt('nonexistent', storage)).not.toThrow();
   });
 });

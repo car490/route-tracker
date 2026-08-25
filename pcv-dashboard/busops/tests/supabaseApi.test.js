@@ -5,7 +5,8 @@
  * so anything importing supabaseApi.js transitively needs a DOM global —
  * plain Node (this project's default test environment) doesn't have one.
  */
-import { fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyName } from '../driver/src/supabaseApi.js';
+import { fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyName, preloadAllRoutes } from '../driver/src/supabaseApi.js';
+import { getCachedStops } from '../driver/src/localStore.js';
 
 // schedule_view is one row per stop, not per departure — a two-stop
 // departure produces two rows with the same service_code/departure_id/
@@ -84,6 +85,51 @@ describe('fetchAvailableServices', () => {
   test('still throws when there is no cache to fall back to', async () => {
     global.fetch = jest.fn(async () => { throw new TypeError('Failed to fetch'); });
     await expect(fetchAvailableServices()).rejects.toThrow(/failed to fetch/i);
+  });
+});
+
+describe('preloadAllRoutes', () => {
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  // One shared handler covering both endpoints preloadAllRoutes touches —
+  // fetchAvailableServices() first, then fetchStopsForDeparture() once per
+  // unique departure it found.
+  function mockFetchImplementation({ stopsFail } = {}) {
+    return jest.fn(async (url) => {
+      const urlStr = String(url);
+      if (urlStr.includes('departure_id=eq.')) {
+        if (stopsFail) return { ok: false, status: 500 };
+        return { ok: true, json: async () => [] };
+      }
+      return { ok: true, json: async () => [...S116S_AM_ROWS, S116S_PM_ROW, S125S_AM_ROW] };
+    });
+  }
+
+  test('warms the stops cache for every unique departure across every service', async () => {
+    global.fetch = mockFetchImplementation();
+    await preloadAllRoutes();
+    expect(getCachedStops('dep-116s-am')).not.toBeNull();
+    expect(getCachedStops('dep-116s-pm')).not.toBeNull();
+    expect(getCachedStops('dep-125s-am')).not.toBeNull();
+  });
+
+  test('does not throw, and still caches the other departures, when one departure\'s stops fetch fails', async () => {
+    global.fetch = mockFetchImplementation({ stopsFail: true });
+    await expect(preloadAllRoutes()).resolves.toBeUndefined();
+    expect(getCachedStops('dep-116s-am')).toBeNull();
+  });
+
+  test('is a silent no-op when fetchAvailableServices itself fails with nothing cached yet', async () => {
+    global.fetch = jest.fn(async () => { throw new TypeError('Failed to fetch'); });
+    await expect(preloadAllRoutes()).resolves.toBeUndefined();
   });
 });
 

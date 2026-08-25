@@ -15,6 +15,7 @@
 const SERVICES_KEY      = 'busops.cache.services';
 const STOPS_KEY_PREFIX  = 'busops.cache.stops.';
 const PENDING_TRIPS_KEY = 'busops.queue.pendingTrips';
+const PENDING_STARTS_KEY = 'busops.queue.pendingJourneyStarts';
 
 function readJSON(storage, key, fallback) {
   try {
@@ -89,4 +90,44 @@ export function markPendingTripAttempt(id, storage = globalThis.localStorage) {
   trip.attempts += 1;
   trip.lastAttemptAt = Date.now();
   setPendingTrips(trips, storage);
+}
+
+// ── Pending journey-start queue ──────────────────────────────────────────
+// Mirror of the pending-trip queue above, for the other end of a journey:
+// a manual-selection start that couldn't reach Supabase at all (see
+// manualSelection.js). The journeyId here is always the same one the app
+// already used locally for tracking/the announce push (client-generated,
+// see manualSelection.js) — not a placeholder to be swapped out later —
+// so queuing this is purely "tell Supabase about a journey that's already
+// under way", never a blocker to starting.
+
+export function getPendingJourneyStarts(storage = globalThis.localStorage) {
+  return readJSON(storage, PENDING_STARTS_KEY, []);
+}
+
+function setPendingJourneyStarts(starts, storage) {
+  writeJSON(storage, PENDING_STARTS_KEY, starts);
+}
+
+// entry: { journeyId, departureId, vehicleId } — id/createdAt/attempts
+// stamped here so callers don't have to, same as enqueuePendingTrip.
+export function enqueuePendingJourneyStart(entry, storage = globalThis.localStorage) {
+  const starts = getPendingJourneyStarts(storage);
+  const id = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`);
+  starts.push({ id, createdAt: Date.now(), attempts: 0, ...entry });
+  setPendingJourneyStarts(starts, storage);
+  return id;
+}
+
+export function removePendingJourneyStart(id, storage = globalThis.localStorage) {
+  setPendingJourneyStarts(getPendingJourneyStarts(storage).filter(s => s.id !== id), storage);
+}
+
+export function markPendingJourneyStartAttempt(id, storage = globalThis.localStorage) {
+  const starts = getPendingJourneyStarts(storage);
+  const start = starts.find(s => s.id === id);
+  if (!start) return;
+  start.attempts += 1;
+  start.lastAttemptAt = Date.now();
+  setPendingJourneyStarts(starts, storage);
 }

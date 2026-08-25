@@ -7,6 +7,7 @@
  * have one.
  */
 import { selectServiceManually } from '../driver/src/manualSelection.js';
+import { getPendingJourneyStarts } from '../driver/src/localStore.js';
 
 const RPC_NAME = 'get_or_create_manual_journey';
 
@@ -45,6 +46,7 @@ describe('selectServiceManually', () => {
 
   beforeEach(() => {
     global.fetch = mockFetchImplementation();
+    localStorage.clear();
   });
 
   afterEach(() => {
@@ -105,9 +107,31 @@ describe('selectServiceManually', () => {
     expect(typeof result.onComplete).toBe('function');
   });
 
-  test('propagates a clear error if the RPC fails, rather than producing a partial/broken param bag', async () => {
+  test('falls back to a locally-generated journeyId and queues a pending start when the RPC fails, rather than blocking the driver', async () => {
     global.fetch = mockFetchImplementation({ rpcError: 'no matching departure today' });
-    await expect(selectServiceManually(DEPARTURE_ID, 'S116S', 'Morning Outbound')).rejects.toThrow(/no matching departure today/);
+    const result = await selectServiceManually(DEPARTURE_ID, 'S116S', 'Morning Outbound', 'veh-42');
+    // Still produces a complete, usable runTracker() param bag — the whole
+    // point of this fallback is that a Supabase outage never blocks a
+    // journey from starting.
+    expect(result.allStops).toEqual(mappedStops);
+    expect(result.journeyId).toMatch(/^[0-9a-f-]{36}$/i); // a real crypto.randomUUID(), not a placeholder
+    const pending = getPendingJourneyStarts();
+    expect(pending).toHaveLength(1);
+    expect(pending[0]).toMatchObject({ journeyId: result.journeyId, departureId: DEPARTURE_ID, vehicleId: 'veh-42' });
+  });
+
+  test('does not queue a pending start when the RPC succeeds — only the failure path needs a retry', async () => {
+    await selectServiceManually(DEPARTURE_ID, 'S116S', 'Morning Outbound');
+    expect(getPendingJourneyStarts()).toHaveLength(0);
+  });
+
+  test('still returns stops from cache when both the RPC and the live stops fetch fail', async () => {
+    const { setCachedStops } = await import('../driver/src/localStore.js');
+    setCachedStops(DEPARTURE_ID, { stops: mappedStops, psvairInScope: false });
+    global.fetch = jest.fn(async () => ({ ok: false, json: async () => ({ message: 'network down' }) }));
+    const result = await selectServiceManually(DEPARTURE_ID, 'S116S', 'Morning Outbound');
+    expect(result.allStops).toEqual(mappedStops);
+    expect(getPendingJourneyStarts()).toHaveLength(1);
   });
 
   test('does not call fetch at all when departureId is missing (fails fast, no partial requests)', async () => {
@@ -127,5 +151,17 @@ describe('selectServiceManually', () => {
     const rpcCall = global.fetch.mock.calls.find(([url]) => String(url).includes('/rpc/'));
     const body = JSON.parse(rpcCall[1].body);
     expect('p_vehicle_id' in body).toBe(false);
+  });
+
+  test('always sends p_journey_id (client-generated), online or not, so an offline start and its eventual sync share one id', async () => {
+    const result = await selectServiceManually(DEPARTURE_ID, 'S116S', 'Morning Outbound');
+    const rpcCall = global.fetch.mock.calls.find(([url]) => String(url).includes('/rpc/'));
+    const body = JSON.parse(rpcCall[1].body);
+    expect(body.p_journey_id).toMatch(/^[0-9a-f-]{36}$/i);
+    // The RPC mock returns a *different* fixed id ('jrn-manual-001') here to
+    // simulate the get-or-create fallback finding a pre-existing journey —
+    // the server's answer must win over the client-generated one in that case.
+    expect(result.journeyId).toBe('jrn-manual-001');
+    expect(result.journeyId).not.toBe(body.p_journey_id);
   });
 });

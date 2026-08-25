@@ -8,7 +8,7 @@ import {
   announceDiversion, isMuted, setMuted, isBannerShown, setBannerShown,
   listVoices, getSelectedVoiceURI, setSelectedVoiceURI, previewVoice,
 } from './announcements.js';
-import { sbFetch, rpc, fetchStopsForDeparture, fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyName } from './supabaseApi.js';
+import { sbFetch, rpc, fetchStopsForDeparture, fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyName, preloadAllRoutes } from './supabaseApi.js';
 import { announceApproachEvent, announceStopEvent } from './announceStopEvent.js';
 import { triggerDiversionAlert, clearDiversionAlert } from './diversionAlert.js';
 import { selectServiceManually } from './manualSelection.js';
@@ -17,7 +17,10 @@ import {
   captureAnnounceSetup, connectAnnounceLink, disconnectAnnounceLink,
   broadcastState, broadcastSchedule, setAnnouncing,
 } from './announceLink.js';
-import { enqueuePendingTrip, getPendingTrips, removePendingTrip, markPendingTripAttempt } from './localStore.js';
+import {
+  enqueuePendingTrip, getPendingTrips, removePendingTrip, markPendingTripAttempt,
+  getPendingJourneyStarts, removePendingJourneyStart, markPendingJourneyStartAttempt,
+} from './localStore.js';
 
 const DEBUG = new URLSearchParams(window.location.search).has('debug');
 
@@ -109,6 +112,42 @@ async function flushPendingTrips() {
     } catch (err) {
       markPendingTripAttempt(trip.id);
       log('warn', `Queued trip ${trip.journeyId} still can't sync: ${err.message}`);
+    }
+  }
+}
+
+// Retries every journey that was started manually (src/manualSelection.js)
+// while Supabase couldn't be reached — mirrors flushPendingTrips() above for
+// the other end of a journey. p_journey_id is always the same id already in
+// use locally for tracking/the Controller push feed (see the migration that
+// added that param to get_or_create_manual_journey, 20260825100305), so this
+// is purely "tell Supabase about a journey already under way", never a
+// blocker to anything already running.
+//
+// If Supabase already has a *different* journey for this departure+date
+// (someone else created it first — rare, e.g. ops or another device), the
+// RPC's existing get-or-create fallback returns that id instead of the
+// locally-generated one. Reconciling already-sent journey_events/push state
+// to the real id is out of scope here — logged loudly so it's visible, not
+// silently dropped, but not auto-fixed. See docs/TODO.md.
+async function flushPendingJourneyStarts() {
+  for (const start of getPendingJourneyStarts()) {
+    try {
+      const [{ journey_id: resolvedId }] = await rpc('get_or_create_manual_journey', {
+        p_timetable_departure_id: start.departureId,
+        p_journey_id: start.journeyId,
+        ...(start.vehicleId ? { p_vehicle_id: start.vehicleId } : {}),
+      });
+      await rpc('start_journey', { p_journey_id: resolvedId });
+      removePendingJourneyStart(start.id);
+      if (resolvedId === start.journeyId) {
+        log('info', `Synced queued journey start ${start.journeyId}`);
+      } else {
+        log('warn', `Queued journey start ${start.journeyId} synced under a DIFFERENT existing journey ${resolvedId} — a duplicate was created first elsewhere. Manual reconciliation may be needed.`);
+      }
+    } catch (err) {
+      markPendingJourneyStartAttempt(start.id);
+      log('warn', `Queued journey start ${start.journeyId} still can't sync: ${err.message}`);
     }
   }
 }
@@ -949,7 +988,21 @@ async function init() {
   // 'online' event below, for a mid-session reconnect. Best-effort/silent,
   // same treatment as fetchCompanyName() just below.
   flushPendingTrips().catch(() => {});
-  window.addEventListener('online', () => flushPendingTrips().catch(() => {}));
+  flushPendingJourneyStarts().catch(() => {});
+  window.addEventListener('online', () => {
+    flushPendingTrips().catch(() => {});
+    flushPendingJourneyStarts().catch(() => {});
+  });
+
+  // Warms the offline route/stop cache for every valid manual-selection
+  // route, not just ones the driver happens to have opened before — see
+  // supabaseApi.js's preloadAllRoutes() for why this matters (a journey
+  // whose stops were never cached has nothing to fall back to if Supabase
+  // is unreachable at start time, even though the journey itself can still
+  // start via the pending-start queue above). Best-effort/non-blocking,
+  // same treatment as fetchCompanyName() just below — never delays showing
+  // the actual functional screens.
+  preloadAllRoutes().catch(() => {});
 
   // Real operator name for the picker/duty-card screens' brand heading —
   // best-effort and non-blocking (doesn't delay showing the actual
