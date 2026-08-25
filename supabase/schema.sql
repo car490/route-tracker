@@ -901,12 +901,20 @@ grant execute on function complete_journey(uuid) to anon;
 -- p_vehicle_id (optional) is the device's once-commissioned vehicle (see
 -- src/vehicleSetup.js) — validated against the departure's own company
 -- below so anon can't attach an arbitrary vehicle UUID from another company.
+-- p_journey_id (optional) lets the client supply the id up front, so a
+-- manual-selection start made while offline can use the same journey_id
+-- locally as the one that eventually lands here once queued/retried — see
+-- manualSelection.js and migration 20260825100305. Falls through to
+-- gen_random_uuid() when omitted, same as the implicit column default
+-- before this param existed.
+DROP FUNCTION IF EXISTS public.get_or_create_manual_journey(uuid, date, uuid);
 DROP FUNCTION IF EXISTS public.get_or_create_manual_journey(uuid, date);
 
 create or replace function get_or_create_manual_journey(
   p_timetable_departure_id uuid,
   p_journey_date date default current_date,
-  p_vehicle_id uuid default null
+  p_vehicle_id uuid default null,
+  p_journey_id uuid default null
 )
 returns table (journey_id uuid)
 language plpgsql
@@ -958,8 +966,8 @@ begin
     raise exception 'vehicle % not found for this company', p_vehicle_id;
   end if;
 
-  insert into journeys (company_id, timetable_departure_id, journey_date, status, vehicle_id)
-  values (v_company_id, p_timetable_departure_id, p_journey_date, 'scheduled', p_vehicle_id)
+  insert into journeys (id, company_id, timetable_departure_id, journey_date, status, vehicle_id)
+  values (coalesce(p_journey_id, gen_random_uuid()), v_company_id, p_timetable_departure_id, p_journey_date, 'scheduled', p_vehicle_id)
   on conflict (timetable_departure_id, journey_date)
     where status != 'cancelled' and timetable_departure_id is not null
   do nothing
@@ -978,7 +986,7 @@ begin
 end;
 $$;
 
-grant execute on function get_or_create_manual_journey(uuid, date, uuid) to anon;
+grant execute on function get_or_create_manual_journey(uuid, date, uuid, uuid) to anon;
 
 DROP FUNCTION IF EXISTS public.get_duty_card(uuid[]);
 
