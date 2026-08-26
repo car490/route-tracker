@@ -356,15 +356,14 @@ function initIdleScreen() {
   if (!operatorName) return;
 
   const logo = el('idle-logo');
-  logo.alt = `${operatorName} logo`;
+  logo.alt = `${operatorName} logo`; // not rendered visually — accessibility label only, see onboard.html
   // Listeners attached before src is set (not a static attribute in
   // onboard.html) — otherwise a fast same-origin load can fire 'load'
   // before this function ever runs, leaving the image stuck hidden.
   logo.addEventListener('load', () => { logo.hidden = false; });
-  logo.addEventListener('error', () => { logo.hidden = true; }); // not commissioned with a logo yet, or a dev/demo environment — name-only branding is still better than nothing
+  logo.addEventListener('error', () => { logo.hidden = true; }); // not commissioned with a logo yet, or a dev/demo environment
   logo.src = 'branding-logo.png';
 
-  el('idle-operator-name').textContent = operatorName;
   el('onboard-idle').hidden = false;
 }
 

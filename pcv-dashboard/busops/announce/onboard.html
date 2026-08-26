@@ -55,11 +55,18 @@
       see §5/§6) — it's a local static file placed on the Controller at
       commissioning time (mele-server/DEPLOY.md), so a missing file (logo
       never commissioned, or a demo/dev environment) just 404s and
-      idle-logo hides itself, falling back to name-only branding.
+      idle-logo hides itself.
+      Logo only, no operator-name text — top/bottom bars are shown here too
+      (empty, same accent colour as #sign-topbar/#sign-bottom-line) so the
+      idle screen previews the same chrome the active sign will use once a
+      journey starts, rather than switching layouts abruptly.
     -->
     <div id="onboard-idle" hidden>
-      <img id="idle-logo" alt="" hidden />
-      <div id="idle-operator-name"></div>
+      <div id="idle-topbar"></div>
+      <div id="idle-main">
+        <img id="idle-logo" alt="" hidden />
+      </div>
+      <div id="idle-bottombar"></div>
     </div>
 
     <div id="onboard-sign" hidden>
