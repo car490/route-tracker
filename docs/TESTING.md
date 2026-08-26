@@ -337,17 +337,28 @@ Open **http://localhost:8080/?debug**
 
 ## 15. Test: Driver PWA — offline fallback
 
-Tests that the PWA loads schedule data from `schedule.json` when Supabase is unreachable.
+Tests that the PWA falls back to its `localStorage` route/schedule cache (`localStore.js`)
+when Supabase is unreachable, and that a journey start attempted offline is queued rather
+than blocked.
 
-1. Open **http://localhost:8080** — wait for it to fully load (service worker registers)
+1. Open **http://localhost:8080** **online** and let it fully load (service worker registers,
+   and `preloadAllRoutes()` warms the `localStorage` cache with the current `schedule_view`
+   data).
 2. Open DevTools → **Network** tab → set throttle to **Offline**
 3. Refresh the page
-4. The PWA should still load (served from service worker cache)
-5. Select a service and start a journey — stop data loads from `schedule.json`
+4. The PWA should still load (app shell from service worker cache)
+5. The picker and stop list should still populate — from the `localStorage` cache
+   (`busops.cache.services` / `busops.cache.stops.*` in DevTools → Application → Local
+   Storage), not from a live Supabase fetch
+6. Select a service and start a journey — the start is accepted immediately rather than
+   erroring; check `busops.cache.services`' neighbour key `busops.queue.pendingJourneyStarts`
+   in Local Storage — it should contain the queued start
 
-**Pass:** No "Failed to fetch" error in the console; the picker and stop list work normally.
+**Pass:** No "Failed to fetch" error in the console; the picker and stop list work normally
+offline; the journey start is queued, not rejected.
 
-**To restore:** Set Network throttle back to **No throttling** and refresh.
+**To restore:** Set Network throttle back to **No throttling** and refresh — `main.js`'s
+`flushPendingJourneyStarts()` should drain the queued journey start on reconnect.
 
 ### Verify service worker is registered
 1. DevTools → **Application** tab → **Service Workers**
