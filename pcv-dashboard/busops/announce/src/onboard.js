@@ -126,26 +126,27 @@ function renderTubeTrack(allStops, centerIndex, isAtStop) {
   const track = el('tube-track');
   track.innerHTML = '';
 
-  const first = 0, last = allStops.length - 1;
+  const last = allStops.length - 1;
   // Labels must stay readable from the back of an 11m bus (~22mm min text,
   // see --min-text in onboard.css), which leaves room for only a few stops
   // either side regardless of how much room a given profile has to spend.
   const isWide = isWideLayout();
-  // A confirmed arrival shows the stop just left, for context (stopsBack:
-  // 1). Once under way again there's nothing behind worth showing — the
-  // departed stop drops off entirely, and the slot it freed goes to
-  // another stop ahead instead, so the leading node is always the next
-  // stop, never one already left behind.
-  const stopsBack = isAtStop ? 1 : 0;
-  const baseForward = (isWide || trackLayout() === 'vertical') ? 2 : 1;
-  const stopsForward = isAtStop ? baseForward : baseForward + 1;
+  // The leading (leftmost/topmost) node is always the current reference
+  // stop — the one we're at (green, pulsing) or, once under way, the one
+  // we're heading to next (green, not pulsing) — never one already left
+  // behind. A fixed shape regardless of isAtStop matters: making the
+  // window reshape itself on that flag (showing a past stop only while
+  // dwelling) meant a real-world GPS wobble right at the arrival boundary
+  // — isAtStop flipping without nextStopIndex itself changing — rearranged
+  // the whole strip and desynced it from the (debounced, stable) voice
+  // announcements. Keeping the shape constant and using isAtStop only for
+  // the pulse animation below avoids that.
+  const stopsForward = (isWide || trackLayout() === 'vertical') ? 3 : 2;
   const indices = [];
-  for (let i = centerIndex - stopsBack; i <= centerIndex + stopsForward; i++) {
-    if (i >= first && i <= last) indices.push(i);
-  }
+  for (let i = centerIndex; i <= Math.min(centerIndex + stopsForward, last); i++) indices.push(i);
 
   indices.forEach((i) => {
-    const state = i < centerIndex ? 'past' : i === centerIndex ? 'current' : 'future';
+    const state = i === centerIndex ? 'current' : 'future';
     const node = document.createElement('div');
     node.className = `tube-node tube-${state}`;
     // "At stop" (geofence-confirmed arrival) gets its own pulsating look,
@@ -173,17 +174,16 @@ function etaForStop(stop, timing) {
 
 const UPCOMING_STOP_COUNT = 4;
 
-function renderUpcoming(allStops, centerIndex, isAtStop, timing) {
+function renderUpcoming(allStops, centerIndex, timing) {
   const box = el('sign-upcoming');
   if (!isWideLayout()) { box.hidden = true; return; }
 
   const last = allStops.length - 1;
-  // While dwelling, list what's ahead of the stop we're at; once under way,
-  // centerIndex is already the next stop, so the list starts there rather
-  // than one stop further on.
-  const start = isAtStop ? centerIndex + 1 : centerIndex;
+  // Strictly after the highlighted stop — same fixed-shape reasoning as
+  // renderTubeTrack above, and it avoids listing the highlighted stop's
+  // own ETA a second time as if it were "upcoming".
   const rows = [];
-  for (let i = start; i <= Math.min(start + UPCOMING_STOP_COUNT - 1, last); i++) rows.push(allStops[i]);
+  for (let i = centerIndex + 1; i <= Math.min(centerIndex + UPCOMING_STOP_COUNT, last); i++) rows.push(allStops[i]);
 
   if (!rows.length) { box.hidden = true; box.innerHTML = ''; return; }
   box.hidden = false;
@@ -245,7 +245,7 @@ function render(allStops, initialStopIndex, { nextStopIndex, earlyWait, atStop, 
       ? 'End of route'
       : `The next stop will be ${allStops[centerIndex].name}`;
   renderTubeTrack(allStops, centerIndex, !!atStop);
-  renderUpcoming(allStops, centerIndex, !!atStop, timing);
+  renderUpcoming(allStops, centerIndex, timing);
 
   const banner = el('early-wait-banner');
   if (earlyWait) {
