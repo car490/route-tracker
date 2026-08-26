@@ -137,10 +137,28 @@ body {
   position: fixed;
   bottom: 27vh;
   left: 1vw;
+  /* #onboard-idle is also position:fixed (unlike #onboard-sign, a normal
+     in-flow element) — two positioned, z-index:auto siblings paint in DOM
+     order, and #onboard-idle comes after this element in onboard.html, so
+     without an explicit z-index its own (opaque, since #idle-main got a
+     white background) content painted over this mark instead of under it.
+     Pinning this above both screens outright avoids relying on DOM order
+     ever again, active sign included. */
+  z-index: 10;
   display: flex;
   flex-direction: column;
   gap: 0.4vh;
   pointer-events: none;
+}
+
+#brand-logo {
+  max-height: 6vh;
+  max-width: 14vw;
+  object-fit: contain;
+  /* Left-aligned like the text below it, not centred — object-fit:contain
+     on an <img> centres the image within its own box by default. */
+  align-self: flex-start;
+  margin-bottom: 0.2vh;
 }
 
 .bo-wordmark {

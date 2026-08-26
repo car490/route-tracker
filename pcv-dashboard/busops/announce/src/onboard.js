@@ -470,6 +470,20 @@ function connectSignFeed() {
   connect(token);
 }
 
+// ── Corner brand mark's logo — separate from the idle screen's own big
+// centred logo (#idle-logo, gated behind ?operator-name=, see
+// initIdleScreen above): this one lives inside #onboard-brand, which is
+// always in the DOM and visible on both the idle screen and the active
+// sign, so it's loaded unconditionally here rather than only when
+// operator-name is commissioned. Same file (branding-logo.png), same
+// 404-hides-itself fallback. ────────────────────────────────────────────
+function initBrandLogo() {
+  const logo = el('brand-logo');
+  logo.addEventListener('load', () => { logo.hidden = false; });
+  logo.addEventListener('error', () => { logo.hidden = true; }); // not commissioned with a logo yet, or a dev/demo environment
+  logo.src = 'branding-logo.png';
+}
+
 // ── Entry point ──────────────────────────────────────────────────────────
 
 function init() {
@@ -478,6 +492,7 @@ function init() {
   // the ones in effect for every profile/URL that doesn't ask for vertical.
   if (trackLayout() === 'vertical') document.documentElement.dataset.trackLayout = 'vertical';
   startClock();
+  initBrandLogo();
   initIdleScreen();
   connectSignFeed();
 }
