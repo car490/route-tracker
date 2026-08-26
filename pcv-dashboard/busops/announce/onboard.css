@@ -366,15 +366,15 @@ body {
   right: 8%;
   top: 50%;
   transform: translateY(-50%);
-  height: 8px;
+  height: 1.2vh;
   background: var(--operator-accent, var(--ep-slate));
 }
 
-/* Direction-of-travel arrowhead, tip planted exactly where the line starts
-   (left: 8%, same anchor as ::before above) and pointing along it — a
-   zero-size box with only the left border filled in is the standard
+/* Marks the start of the line (left: 8%, same anchor as ::before above),
+   pointing back along it rather than in the direction of travel — a
+   zero-size box with only the right border filled in is the standard
    CSS-triangle trick, so the "point" sits at the box's own position and
-   the flat base trails off to the left of it. */
+   the flat base trails off to the right of it, into the line. */
 #tube-track::after {
   content: '';
   position: absolute;
@@ -384,18 +384,20 @@ body {
   height: 0;
   border-top: 1.4vh solid transparent;
   border-bottom: 1.4vh solid transparent;
-  border-left: 2vh solid var(--operator-accent, var(--ep-slate));
+  border-right: 2vh solid var(--operator-accent, var(--ep-slate));
   transform: translateY(-50%);
 }
 
 .tube-node {
   position: relative;
   display: flex;
-  /* Label above the dot/line, not below — column-reverse flips the visual
-     order without needing to reorder the dot/label markup in onboard.js. */
-  flex-direction: column-reverse;
+  flex-direction: column;
+  /* Only the dot is a normal-flow child now (the label is absolutely
+     positioned above it, see .tube-label below) — centering this on
+     #tube-track's row therefore centers the dot itself on the line, not
+     some taller dot+label+gap block whose centre sits well below it. */
   align-items: center;
-  gap: 5vh;
+  justify-content: center;
   flex: 1;
   min-width: 0;
 }
@@ -419,6 +421,14 @@ body {
 
 .tube-label {
   font-family: var(--ep-font);
+  /* Absolutely positioned, floating above the dot, rather than a normal
+     flex child spaced off it with `gap` — keeps the label out of
+     .tube-node's own layout height entirely, which is what lets centering
+     .tube-node on #tube-track's row land the dot itself on the line (see
+     .tube-node above) instead of the centre of a dot+label+gap block. */
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 5vh);
   /* Not PSVAIR-regulated (only route number/destination/this stop/next
      stop are), so deliberately short of --min-text (17vh). 3.5vh was too
      small; 9vh (tried first) was too big and crowded the track — 6vh is
@@ -451,7 +461,7 @@ body {
      own starting point regardless of how long the name is. Reset to
      horizontal for the vertical track layout below, where labels already
      sit beside their dot with no crowding problem to solve. */
-  transform: rotate(-30deg);
+  transform: translateX(-50%) rotate(-30deg);
   transform-origin: left bottom;
 }
 
@@ -538,6 +548,13 @@ body {
 }
 
 [data-track-layout="vertical"] .tube-label {
+  /* Back into the grid's own flow (a normal cell, not floated above the
+     dot) — the horizontal layout's absolute positioning above only exists
+     to keep the label out of the flex centering math, which doesn't apply
+     to this grid-based layout at all. */
+  position: static;
+  left: auto;
+  bottom: auto;
   text-align: left;
   /* Labels already sit beside their dot in their own row here — no
      crowding to solve, so undo the horizontal layout's 30deg tilt. */
