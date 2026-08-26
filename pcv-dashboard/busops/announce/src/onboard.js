@@ -131,8 +131,14 @@ function renderTubeTrack(allStops, centerIndex, isAtStop) {
   // see --min-text in onboard.css), which leaves room for only a few stops
   // either side regardless of how much room a given profile has to spend.
   const isWide = isWideLayout();
-  const stopsBack = 1;
-  const stopsForward = (isWide || trackLayout() === 'vertical') ? 2 : 1;
+  // A confirmed arrival shows the stop just left, for context (stopsBack:
+  // 1). Once under way again there's nothing behind worth showing — the
+  // departed stop drops off entirely, and the slot it freed goes to
+  // another stop ahead instead, so the leading node is always the next
+  // stop, never one already left behind.
+  const stopsBack = isAtStop ? 1 : 0;
+  const baseForward = (isWide || trackLayout() === 'vertical') ? 2 : 1;
+  const stopsForward = isAtStop ? baseForward : baseForward + 1;
   const indices = [];
   for (let i = centerIndex - stopsBack; i <= centerIndex + stopsForward; i++) {
     if (i >= first && i <= last) indices.push(i);
@@ -167,13 +173,17 @@ function etaForStop(stop, timing) {
 
 const UPCOMING_STOP_COUNT = 4;
 
-function renderUpcoming(allStops, centerIndex, timing) {
+function renderUpcoming(allStops, centerIndex, isAtStop, timing) {
   const box = el('sign-upcoming');
   if (!isWideLayout()) { box.hidden = true; return; }
 
   const last = allStops.length - 1;
+  // While dwelling, list what's ahead of the stop we're at; once under way,
+  // centerIndex is already the next stop, so the list starts there rather
+  // than one stop further on.
+  const start = isAtStop ? centerIndex + 1 : centerIndex;
   const rows = [];
-  for (let i = centerIndex + 1; i <= Math.min(centerIndex + UPCOMING_STOP_COUNT, last); i++) rows.push(allStops[i]);
+  for (let i = start; i <= Math.min(start + UPCOMING_STOP_COUNT - 1, last); i++) rows.push(allStops[i]);
 
   if (!rows.length) { box.hidden = true; box.innerHTML = ''; return; }
   box.hidden = false;
@@ -218,8 +228,12 @@ window.addEventListener('resize', positionBrand);
 // updates off an already-computed state shape pushed from the Driver. ──────
 
 function render(allStops, initialStopIndex, { nextStopIndex, earlyWait, atStop, timing }) {
-  const centerIndex = atStop ? atStop.stopIndex : Math.max(nextStopIndex - 1, initialStopIndex);
-  const isFinal = centerIndex === allStops.length - 1;
+  const last = allStops.length - 1;
+  // atStop.stopIndex and nextStopIndex are the same index while dwelling —
+  // gps.js only advances nextStopIndex on departure — so nextStopIndex is
+  // always the right "where the track is centred" answer either way.
+  const centerIndex = Math.min(Math.max(nextStopIndex, initialStopIndex), last);
+  const isFinal = !atStop && nextStopIndex > last;
 
   // One line of text that changes wording rather than a second line
   // appearing/disappearing — a close, not verbatim, echo of the audio
@@ -229,9 +243,9 @@ function render(allStops, initialStopIndex, { nextStopIndex, earlyWait, atStop, 
     ? `This stop is ${allStops[centerIndex].name}`
     : isFinal
       ? 'End of route'
-      : `The next stop will be ${allStops[centerIndex + 1].name}`;
+      : `The next stop will be ${allStops[centerIndex].name}`;
   renderTubeTrack(allStops, centerIndex, !!atStop);
-  renderUpcoming(allStops, centerIndex, timing);
+  renderUpcoming(allStops, centerIndex, !!atStop, timing);
 
   const banner = el('early-wait-banner');
   if (earlyWait) {

@@ -370,6 +370,24 @@ body {
   background: var(--operator-accent, var(--ep-slate));
 }
 
+/* Direction-of-travel arrowhead, tip planted exactly where the line starts
+   (left: 8%, same anchor as ::before above) and pointing along it — a
+   zero-size box with only the left border filled in is the standard
+   CSS-triangle trick, so the "point" sits at the box's own position and
+   the flat base trails off to the left of it. */
+#tube-track::after {
+  content: '';
+  position: absolute;
+  left: 8%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border-top: 1.4vh solid transparent;
+  border-bottom: 1.4vh solid transparent;
+  border-left: 2vh solid var(--operator-accent, var(--ep-slate));
+  transform: translateY(-50%);
+}
+
 .tube-node {
   position: relative;
   display: flex;
@@ -415,6 +433,16 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--operator-accent, var(--ep-slate));
+  /* Angled like a tube-map label rather than stacked flat above the dot —
+     adjacent stop names read as a clean diagonal run instead of a jumble
+     of horizontal lines stacked over each other. Pivoted on its own
+     bottom-centre (which sits just above the dot) so the label still
+     reads as "belonging" to that dot rather than drifting toward a
+     neighbour. Reset to horizontal for the vertical track layout below,
+     where labels already sit beside their dot with no crowding problem
+     to solve. */
+  transform: rotate(-30deg);
+  transform-origin: center bottom;
 }
 
 .tube-node.tube-current .tube-label {
@@ -473,6 +501,19 @@ body {
   transform: none;
 }
 
+/* Same arrowhead as the horizontal layout, rotated to point down the
+   vertical line instead of along a horizontal one — tip planted at the
+   line's own start (top: 8%, same x as ::before above). */
+[data-track-layout="vertical"] #tube-track::after {
+  left: calc(3vw + 4.5vh);
+  top: 8%;
+  border-top: 2vh solid var(--operator-accent, var(--ep-slate));
+  border-left: 1.4vh solid transparent;
+  border-right: 1.4vh solid transparent;
+  border-bottom: 0;
+  transform: translateX(-50%);
+}
+
 [data-track-layout="vertical"] .tube-node {
   display: grid;
   grid-template-columns: 9vh 1fr;
@@ -488,6 +529,9 @@ body {
 
 [data-track-layout="vertical"] .tube-label {
   text-align: left;
+  /* Labels already sit beside their dot in their own row here — no
+     crowding to solve, so undo the horizontal layout's 30deg tilt. */
+  transform: none;
 }
 
 /* ── Upcoming-stops box — wide (Bar) sign only. Sits right of the
