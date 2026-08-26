@@ -350,12 +350,21 @@ body {
 }
 
 #tube-track {
+  /* Single source of truth for the line's vertical position within the
+     band — was a flat 50% (dead centre), which split the space above/below
+     evenly even though only the (now-shorter, see .tube-label) labels need
+     headroom above; nothing sits below. Moved down so most of the band's
+     height is available to them. Change this one value to retune it. */
+  --tube-line-top: 75%;
   position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
   justify-content: space-around;
-  align-items: center;
+  /* Nodes stretch to the band's full height now — .tube-dot/.tube-label are
+     positioned with top/bottom percentages of that full height (see below),
+     not centred by this flex row the way they used to be. */
+  align-items: stretch;
   padding: 0 4vw;
 }
 
@@ -364,45 +373,47 @@ body {
   position: absolute;
   left: 8%;
   right: 8%;
-  top: 50%;
+  top: var(--tube-line-top);
   transform: translateY(-50%);
   height: 1.2vh;
   background: var(--operator-accent, var(--ep-slate));
 }
 
-/* Marks the start of the line (left: 8%, same anchor as ::before above),
-   pointing back along it rather than in the direction of travel — a
-   zero-size box with only the right border filled in is the standard
-   CSS-triangle trick, so the "point" sits at the box's own position and
-   the flat base trails off to the right of it, into the line. */
+/* Marks the end of the line (right: 8%, same anchor as ::before above),
+   tip pointing onward past it in the direction of travel — a zero-size
+   box with only the left border filled in is the standard CSS-triangle
+   trick, so the "point" sits at the box's own position with the flat base
+   trailing off to the left of it, into the line, while the tip itself
+   extends into the open margin beyond the line rather than overlapping it. */
 #tube-track::after {
   content: '';
   position: absolute;
-  left: 8%;
-  top: 50%;
+  right: 8%;
+  top: var(--tube-line-top);
   width: 0;
   height: 0;
   border-top: 1.4vh solid transparent;
   border-bottom: 1.4vh solid transparent;
-  border-right: 2vh solid var(--operator-accent, var(--ep-slate));
+  border-left: 2vh solid var(--operator-accent, var(--ep-slate));
   transform: translateY(-50%);
 }
 
 .tube-node {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  /* Only the dot is a normal-flow child now (the label is absolutely
-     positioned above it, see .tube-label below) — centering this on
-     #tube-track's row therefore centers the dot itself on the line, not
-     some taller dot+label+gap block whose centre sits well below it. */
-  align-items: center;
-  justify-content: center;
   flex: 1;
   min-width: 0;
 }
 
 .tube-dot {
+  /* Positioned directly off #tube-track's own --tube-line-top rather than
+     centred by a flex parent — .tube-node stretches to the band's full
+     height (see #tube-track above), so this percentage resolves against
+     that same full height, landing the dot exactly on the line regardless
+     of dot size (7vh normal / 9vh current, below). */
+  position: absolute;
+  top: var(--tube-line-top);
+  left: 50%;
+  transform: translate(-50%, -50%);
   width: 7vh;
   height: 7vh;
   border-radius: 50%;
@@ -421,19 +432,21 @@ body {
 
 .tube-label {
   font-family: var(--ep-font);
-  /* Absolutely positioned, floating above the dot, rather than a normal
-     flex child spaced off it with `gap` — keeps the label out of
-     .tube-node's own layout height entirely, which is what lets centering
-     .tube-node on #tube-track's row land the dot itself on the line (see
-     .tube-node above) instead of the centre of a dot+label+gap block. */
+  /* Absolutely positioned, floating above the dot, off the same
+     --tube-line-top the dot itself uses (#tube-track) — 100% - that
+     percentage is the space between the line and .tube-node's bottom
+     edge, plus the (normal-size) dot's own half-height to clear it, plus a
+     5vh gap above that. .tube-node.tube-current below adds the extra
+     1vh the bigger current-stop dot needs. */
   position: absolute;
   left: 50%;
-  bottom: calc(100% + 5vh);
+  bottom: calc(100% - var(--tube-line-top) + 8.5vh);
   /* Not PSVAIR-regulated (only route number/destination/this stop/next
-     stop are), so deliberately short of --min-text (17vh). 3.5vh was too
-     small; 9vh (tried first) was too big and crowded the track — 6vh is
-     the middle ground. */
-  font-size: 6vh;
+     stop are) — that 22mm minimum applies to the top/bottom bars only.
+     Shrunk from 6vh once the line/dots moved down (see --tube-line-top)
+     and stopped needing as much of a size boost to read as "on" the
+     track. */
+  font-size: 4.5vh;
   font-weight: 600;
   text-align: center;
   /* 100% of its own .tube-node, not a fixed vw guess — a fixed width let
@@ -467,6 +480,10 @@ body {
 
 .tube-node.tube-current .tube-label {
   font-weight: 800;
+  /* The current-stop dot is 9vh, not 7vh (see .tube-node.tube-current
+     .tube-dot above) — one extra vh of half-height to clear before the
+     same 5vh gap applies. */
+  bottom: calc(100% - var(--tube-line-top) + 9.5vh);
 }
 
 /* Confirmed arrival (geofence match), not just an estimated position —
@@ -526,6 +543,7 @@ body {
    line's own start (top: 8%, same x as ::before above). */
 [data-track-layout="vertical"] #tube-track::after {
   left: calc(3vw + 4.5vh);
+  right: auto;
   top: 8%;
   border-top: 2vh solid var(--operator-accent, var(--ep-slate));
   border-left: 1.4vh solid transparent;
@@ -544,6 +562,15 @@ body {
 }
 
 [data-track-layout="vertical"] .tube-dot {
+  /* Back into the grid's own flow, same reasoning as .tube-label below —
+     the horizontal layout's absolute top/left positioning only exists to
+     line the dot up with --tube-line-top, which this grid-based layout
+     has no equivalent of (justify-self does the equivalent centering job
+     within the fixed-width dot column instead). */
+  position: static;
+  top: auto;
+  left: auto;
+  transform: none;
   justify-self: center;
 }
 
