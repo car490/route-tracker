@@ -331,7 +331,9 @@ needed. It also supports the Wayland idle-inhibit protocol, so the existing
 screen from blanking (under X11 you'd want `xset s off`/`xset -dpms`
 alongside it instead).
 ```bash
-sudo apt install cage chromium-browser
+sudo apt install cage chromium-browser seatd
+sudo systemctl enable --now seatd
+sudo usermod -aG seat mele
 sudo cp config/coachmate-kiosk.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now coachmate-kiosk
@@ -342,6 +344,17 @@ both claim the `coachmate-kiosk` service name. Adjust its `XDG_RUNTIME_DIR`
 UID if `mele`'s UID isn't 1000 (`id -u mele`), and re-verify PSVAIR announcement
 audio autoplay on real hardware either way
 (`--autoplay-policy=no-user-gesture-required` is already in its `ExecStart`).
+
+**`seatd` is required, confirmed 2026-08-26 on the Quieter4C/Ubuntu Server.**
+Without it, `cage` fails at boot: `libseat` tries the `logind` backend first,
+which needs an active desktop login session to hand off a seat — a headless
+Ubuntu Server box has none, so it fails with `Could not activate session:
+Interactive authentication required` / `Could not open target tty:
+Permission denied`, and `cage` aborts with `Unable to create the wlroots
+backend`. The service file now sets `Environment=LIBSEAT_BACKEND=seatd` and
+`Requires=seatd.service` to force the working backend directly, but `seatd`
+still needs to actually be installed/enabled and `mele` added to the `seat`
+group as shown above, or the service will still fail the same way.
 
 ### Option B panel: which one to actually buy
 The `VSDISPLAY 28" 1920×360` example above is **stale** — see

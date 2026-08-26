@@ -1,13 +1,21 @@
 [Unit]
 Description=CoachMate onboard kiosk (Chromium via cage, HDMI output)
-After=coachmate-onboard.service
+After=coachmate-onboard.service seatd.service
 Wants=coachmate-onboard.service
+Requires=seatd.service
 
 [Service]
 Type=simple
 User=mele
 # Adjust if the mele user's UID isn't 1000 (check with `id -u mele`).
 Environment=XDG_RUNTIME_DIR=/run/user/1000
+# Without this, cage's libseat tries logind first — on a headless box with
+# no desktop login session that fails ("Interactive authentication
+# required" / "Unable to create the wlroots backend"). seatd is the
+# lightweight seat manager that actually works here; `mele` must be in the
+# `seat` group (`sudo usermod -aG seat mele`) and seatd.service must be
+# installed+enabled (`sudo apt install seatd && sudo systemctl enable --now seatd`).
+Environment=LIBSEAT_BACKEND=seatd
 ExecStart=/usr/bin/cage -- /usr/bin/chromium-browser --kiosk --noerrdialogs --disable-session-crashed-bubble --disable-infobars --autoplay-policy=no-user-gesture-required http://localhost:8080/announce/onboard.html
 Restart=on-failure
 RestartSec=3
