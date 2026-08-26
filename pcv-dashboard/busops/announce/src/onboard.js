@@ -184,22 +184,29 @@ function renderUpcoming(allStops, centerIndex, timing) {
 }
 
 // ── Brand mark position — pinned to the actual bottom-left corner of the
-// track band (#sign-main), measured live rather than guessed as a fixed
-// vh offset. A fixed-vh guess (the old approach) only worked by accident:
-// it was calibrated once against a bottom bar height that happened to be
-// near-identical across every profile that existed at the time. That
-// stopped holding the moment profiles with genuinely different --min-text
-// values (Bar ~16.8vh vs Monitor ~7.42vh, see onboard.css) coexisted — the
-// bottom (and top) bar's rendered height scales with --min-text, so the
-// same fixed offset overshoots on a short-bar profile and undershoots on a
-// tall-bar one. Measuring #sign-main's real box is correct for any
-// profile, present or future, with no per-panel number to maintain. Also
-// re-run on every render() — the early-wait banner (#early-wait-banner)
-// replaces the bottom bar with a taller two-line block while it's shown,
-// which shifts the track band's own bottom edge for as long as it's up. ──
+// middle band (#sign-main once active, #idle-main before that), measured
+// live rather than guessed as a fixed vh offset. A fixed-vh guess (the old
+// approach) only worked by accident: it was calibrated once against a
+// bottom bar height that happened to be near-identical across every
+// profile that existed at the time. That stopped holding the moment
+// profiles with genuinely different --min-text values (Bar ~16.8vh vs
+// Monitor ~7.42vh, see onboard.css) coexisted — the bottom (and top) bar's
+// rendered height scales with --min-text, so the same fixed offset
+// overshoots on a short-bar profile and undershoots on a tall-bar one.
+// Measuring the real box is correct for any profile, present or future,
+// with no per-panel number to maintain. Also re-run on every render() — the
+// early-wait banner (#early-wait-banner) replaces the bottom bar with a
+// taller two-line block while it's shown, which shifts the track band's
+// own bottom edge for as long as it's up. Idle and active share this same
+// logic (both use the same topbar/main/bottom grid shape, see onboard.css)
+// so the brand mark sits directly above the lower bar on every screen, not
+// just once a journey is live. ──────────────────────────────────────────
 function positionBrand() {
-  if (el('onboard-sign').hidden) return; // idle screen — CSS's own fixed default applies, nothing to measure yet
-  const trackRect = el('sign-main').getBoundingClientRect();
+  const mainBand = !el('onboard-sign').hidden ? el('sign-main')
+    : !el('onboard-idle').hidden ? el('idle-main')
+    : null;
+  if (!mainBand) return; // neither screen shown yet (uncommissioned device) — CSS's own fixed default applies
+  const trackRect = mainBand.getBoundingClientRect();
   const marginPx = window.innerHeight * 0.015;
   const brand = el('onboard-brand');
   brand.style.left = `${trackRect.left + marginPx}px`;
@@ -365,6 +372,7 @@ function initIdleScreen() {
   logo.src = 'branding-logo.png';
 
   el('onboard-idle').hidden = false;
+  positionBrand(); // idle screen's topbar/main/bottom band now exists to measure — pins the mark above the bottom bar here too
 }
 
 // ── Clock — wide-layout top bar only, but harmless to keep updating while
