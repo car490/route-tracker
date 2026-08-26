@@ -236,14 +236,20 @@ function render(allStops, initialStopIndex, { nextStopIndex, earlyWait, atStop, 
   const isFinal = !atStop && nextStopIndex > last;
 
   // One line of text that changes wording rather than a second line
-  // appearing/disappearing — a close, not verbatim, echo of the audio
-  // announcements (see announcements.js) — and keeps the bottom bar's
-  // height constant so the tube-track above it never jumps.
-  el('sbl-status').textContent = atStop
-    ? `This stop is ${allStops[centerIndex].name}`
+  // appearing/disappearing — keeps the bottom bar's height constant so the
+  // tube-track above it never jumps. While at a stop, it states both the
+  // current and next stop together (mirroring what the audio announcement
+  // itself says, see announceAtStop() in announcements.js), rather than
+  // needing a separate "Announcing: X" hint alongside it.
+  const statusEl = el('sbl-status');
+  statusEl.textContent = atStop
+    ? centerIndex < last
+      ? `This stop is ${allStops[centerIndex].name}. The next stop will be ${allStops[centerIndex + 1].name}.`
+      : `This stop is ${allStops[centerIndex].name}.`
     : isFinal
       ? 'End of route'
       : `The next stop will be ${allStops[centerIndex].name}`;
+  updateMarquee(statusEl);
   renderTubeTrack(allStops, centerIndex, !!atStop);
   renderUpcoming(allStops, centerIndex, timing);
 
@@ -257,18 +263,23 @@ function render(allStops, initialStopIndex, { nextStopIndex, earlyWait, atStop, 
   positionBrand(); // banner toggling above can change the bottom row's height
 }
 
-// "Announcing: X" hint. Audio playback also plays locally on the Driver
-// device, alongside the Controller (PSVAIR reliability — it must keep
-// working even on vehicles with no Controller commissioned yet; see
-// docs/HARDWARE.md §4 for the audio-ownership decision and the deliberate
-// local-playback fallback); this is a display-only echo of the announcing
-// field the Driver includes in its push messages. #sign-announcing is
-// optional markup — harmless no-op if it's not present.
-function renderAnnouncing(name) {
-  const box = el('sign-announcing');
-  if (!box) return;
-  box.hidden = !name;
-  if (name) box.textContent = `Announcing: ${name}`;
+// Auto-scrolls the bottom-bar status text when it's too long to fit rather
+// than ellipsis-ing it away — the combined "This stop is X. The next stop
+// will be Y." wording (see render() above) runs long often enough that
+// silently truncating it would drop real information. Removes/re-adds the
+// class (with a forced reflow between) on every call so the animation
+// restarts from the beginning for new text, rather than continuing
+// mid-scroll or not restarting at all (CSS doesn't restart a
+// still-applied animation just because its element's content changed).
+function updateMarquee(textEl) {
+  textEl.classList.remove('sbl-marquee');
+  textEl.style.removeProperty('--marquee-distance');
+  void textEl.offsetWidth; // force reflow so the next class add is seen as a fresh start
+  const overflowPx = textEl.scrollWidth - textEl.clientWidth;
+  if (overflowPx > 2) {
+    textEl.style.setProperty('--marquee-distance', `${overflowPx}px`);
+    textEl.classList.add('sbl-marquee');
+  }
 }
 
 // Dates cross JSON as ISO strings — revive them back into Date objects the
@@ -445,7 +456,6 @@ function onState(msg) {
   }
   const state = reviveState(msg);
   render(allStops, initialStopIndex, state);
-  renderAnnouncing(state.announcing);
 }
 
 function connect(token) {

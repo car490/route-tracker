@@ -590,12 +590,13 @@ body {
 }
 
 /* ── Bottom bar — brand accent, white lettering. A single line of text that
-   changes wording rather than adding/stacking a second line, matching the
-   audio announcements exactly: "This stop is <name>" while dwelling at a
-   stop, "The next stop is <name>" while en route. Always one line, so the
-   bar's height (and the tube-track row above it) never jumps between
-   states — see onboard.js's onUpdate. ETAs live in the upcoming-stops box
-   above, not here. ────────────────────────────────────────────────────── */
+   changes wording rather than adding/stacking a second line: while dwelling
+   at a stop it states both the current and next stop together (mirroring
+   the audio announcement itself, see announceAtStop() in announcements.js),
+   "The next stop is <name>" while en route. Always one line, so the bar's
+   height (and the tube-track row above it) never jumps between states —
+   see onboard.js's render(). ETAs live in the upcoming-stops box above,
+   not here. ─────────────────────────────────────────────────────────── */
 
 #sign-bottom-line {
   grid-area: bottom;
@@ -613,20 +614,29 @@ body {
 
 #sbl-status {
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
 }
 
-/* Push-feed mode only (src/onboard.js's runSignPush) — a smaller, muted
-   trailing echo of what the Driver device is currently announcing over its
-   own wired PA connection, not a second equally-weighted line of text. */
-#sign-announcing {
-  margin-left: 1.5vw;
-  font-size: 0.55em;
-  font-weight: 600;
-  opacity: 0.75;
-  flex-shrink: 0;
+/* Auto-scroll rather than ellipsis when the combined "This stop is X. The
+   next stop will be Y." line doesn't fit — see onboard.js's updateMarquee().
+   Pans the text left then back rather than a one-way looping ticker, so it
+   never needs the text duplicated to fake a seamless wrap. --marquee-distance
+   is set inline per render, in px, to the exact overflow amount. */
+#sbl-status.sbl-marquee {
+  animation-name: sbl-marquee-scroll;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+  /* Roughly constant reading speed regardless of how much text overflows,
+     rather than a fixed duration that would race short overflows and
+     crawl long ones. */
+  animation-duration: calc(2s + var(--marquee-distance, 0px) * 25ms / 1px);
+}
+
+@keyframes sbl-marquee-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(calc(-1 * var(--marquee-distance, 0px))); }
 }
 
 /* "Replaces" the bottom line while early-wait is active. */
