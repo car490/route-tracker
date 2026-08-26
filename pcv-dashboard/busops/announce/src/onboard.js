@@ -235,20 +235,17 @@ function render(allStops, initialStopIndex, { nextStopIndex, earlyWait, atStop, 
   const centerIndex = Math.min(Math.max(nextStopIndex, initialStopIndex), last);
   const isFinal = !atStop && nextStopIndex > last;
 
-  // One clause only, not "This stop is X. The next stop will be Y." — a
-  // second clause packed onto the same line runs long often enough to need
-  // constant scrolling to read, which is worse than just keeping this line
-  // short (the tube-track above already shows what's next visually).
-  // Changes wording rather than adding/stacking a second line, so the
-  // bottom bar's height stays constant and the tube-track above it never
-  // jumps.
-  const statusEl = el('sbl-status');
-  statusEl.textContent = atStop
+  // One clause only, not "This stop is X. The next stop will be Y." — the
+  // tube-track above already shows what's next visually. Changes wording
+  // rather than adding/stacking a second line, so the bottom bar's height
+  // stays constant and the tube-track above it never jumps. Static text —
+  // ellipsis-truncates (see onboard.css) rather than scrolling if a name
+  // is too long to fit.
+  el('sbl-status').textContent = atStop
     ? `This stop is ${allStops[centerIndex].name}`
     : isFinal
       ? 'End of route'
       : `The next stop will be ${allStops[centerIndex].name}`;
-  updateMarquee(statusEl);
   renderTubeTrack(allStops, centerIndex, !!atStop);
   renderUpcoming(allStops, centerIndex, timing);
 
@@ -260,25 +257,6 @@ function render(allStops, initialStopIndex, { nextStopIndex, earlyWait, atStop, 
     banner.hidden = true;
   }
   positionBrand(); // banner toggling above can change the bottom row's height
-}
-
-// Auto-scrolls the bottom-bar status text when it's too long to fit rather
-// than ellipsis-ing it away — the combined "This stop is X. The next stop
-// will be Y." wording (see render() above) runs long often enough that
-// silently truncating it would drop real information. Removes/re-adds the
-// class (with a forced reflow between) on every call so the animation
-// restarts from the beginning for new text, rather than continuing
-// mid-scroll or not restarting at all (CSS doesn't restart a
-// still-applied animation just because its element's content changed).
-function updateMarquee(textEl) {
-  textEl.classList.remove('sbl-marquee');
-  textEl.style.removeProperty('--marquee-distance');
-  void textEl.offsetWidth; // force reflow so the next class add is seen as a fresh start
-  const overflowPx = textEl.scrollWidth - textEl.clientWidth;
-  if (overflowPx > 2) {
-    textEl.style.setProperty('--marquee-distance', `${overflowPx}px`);
-    textEl.classList.add('sbl-marquee');
-  }
 }
 
 // Dates cross JSON as ISO strings — revive them back into Date objects the
