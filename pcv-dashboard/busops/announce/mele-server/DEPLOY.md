@@ -333,7 +333,7 @@ alongside it instead).
 ```bash
 sudo apt install cage chromium-browser seatd
 sudo systemctl enable --now seatd
-sudo usermod -aG seat mele
+sudo usermod -aG video mele
 sudo cp config/coachmate-kiosk.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now coachmate-kiosk
@@ -353,8 +353,15 @@ Interactive authentication required` / `Could not open target tty:
 Permission denied`, and `cage` aborts with `Unable to create the wlroots
 backend`. The service file now sets `Environment=LIBSEAT_BACKEND=seatd` and
 `Requires=seatd.service` to force the working backend directly, but `seatd`
-still needs to actually be installed/enabled and `mele` added to the `seat`
-group as shown above, or the service will still fail the same way.
+still needs to actually be installed/enabled and `mele` added to the `video`
+group (not `seat` — this Ubuntu build's seatd package ships a unit running
+`seatd -g video`, and no `seat` group exists here at all) as shown above, or
+the service will still fail the same way. **Verified live on unit #1
+(`busops-controller`), 2026-08-26**: with `seatd` installed/enabled and
+`mele` in `video`, `coachmate-kiosk` starts cleanly, `cage` holds a stable
+Wayland session, Chromium renders under it (`--ozone-platform=wayland`
+child process confirmed), and `curl -sk https://localhost:8080/announce/
+onboard.html` returns `200`.
 
 ### Option B panel: which one to actually buy
 The `VSDISPLAY 28" 1920×360` example above is **stale** — see
