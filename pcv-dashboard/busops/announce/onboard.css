@@ -350,21 +350,27 @@ body {
 }
 
 #tube-track {
-  /* Single source of truth for the line's vertical position within the
-     band — was a flat 50% (dead centre), which split the space above/below
-     evenly even though only the (now-shorter, see .tube-label) labels need
-     headroom above; nothing sits below. Moved down so most of the band's
-     height is available to them. Change this one value to retune it. */
-  --tube-line-top: 75%;
+  /* Single source of truth for label sizing/spacing — .tube-label's own
+     font-size/min-height, .tube-node's gap, and the line/arrow's vertical
+     offset (::before/::after below) are all derived from these, so they
+     can't drift out of sync with each other. */
+  --tube-label-font: 4.5vh;
+  --tube-label-line-h: calc(var(--tube-label-font) * 1.2);
+  --tube-label-h: calc(var(--tube-label-line-h) * 2); /* reserved for 2 lines, always — see .tube-label */
+  --tube-label-gap: 5vh;
   position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
   justify-content: space-around;
-  /* Nodes stretch to the band's full height now — .tube-dot/.tube-label are
-     positioned with top/bottom percentages of that full height (see below),
-     not centred by this flex row the way they used to be. */
-  align-items: stretch;
+  /* Centres each node (label-slot + gap + dot) as a whole block on the
+     band — see .tube-label's min-height below for why this now lands
+     every dot on the same line despite some labels wrapping to 2 lines
+     and others staying on 1: every node reserves the same label height
+     regardless of actual content, so every node is the same total height
+     and centering them all lines the dots up automatically, no manual
+     top-offset guess needed. */
+  align-items: center;
   padding: 0 4vw;
 }
 
@@ -373,7 +379,12 @@ body {
   position: absolute;
   left: 8%;
   right: 8%;
-  top: var(--tube-line-top);
+  /* Matches exactly where centering (align-items: center, above) actually
+     puts the dots: the block's centre sits on the row's true centre, but
+     the dot itself is the bottom-most element of that block (see
+     .tube-node's column-reverse below), so its own centre sits below the
+     row's centre by half the reserved label height + the gap to it. */
+  top: calc(50% + (var(--tube-label-h) + var(--tube-label-gap)) / 2);
   transform: translateY(-50%);
   height: 1.2vh;
   background: var(--operator-accent, var(--ep-slate));
@@ -389,7 +400,7 @@ body {
   content: '';
   position: absolute;
   right: 8%;
-  top: var(--tube-line-top);
+  top: calc(50% + (var(--tube-label-h) + var(--tube-label-gap)) / 2);
   width: 0;
   height: 0;
   border-top: 1.4vh solid transparent;
@@ -400,20 +411,17 @@ body {
 
 .tube-node {
   position: relative;
+  display: flex;
+  /* Label above the dot/line, not below — column-reverse flips the visual
+     order without needing to reorder the dot/label markup in onboard.js. */
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: var(--tube-label-gap);
   flex: 1;
   min-width: 0;
 }
 
 .tube-dot {
-  /* Positioned directly off #tube-track's own --tube-line-top rather than
-     centred by a flex parent — .tube-node stretches to the band's full
-     height (see #tube-track above), so this percentage resolves against
-     that same full height, landing the dot exactly on the line regardless
-     of dot size (7vh normal / 9vh current, below). */
-  position: absolute;
-  top: var(--tube-line-top);
-  left: 50%;
-  transform: translate(-50%, -50%);
   width: 7vh;
   height: 7vh;
   border-radius: 50%;
@@ -432,35 +440,32 @@ body {
 
 .tube-label {
   font-family: var(--ep-font);
-  /* Absolutely positioned, floating above the dot, off the same
-     --tube-line-top the dot itself uses (#tube-track) — 100% - that
-     percentage is the space between the line and .tube-node's bottom
-     edge, plus the (normal-size) dot's own half-height to clear it, plus a
-     5vh gap above that. .tube-node.tube-current below adds the extra
-     1vh the bigger current-stop dot needs. */
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% - var(--tube-line-top) + 8.5vh);
   /* Not PSVAIR-regulated (only route number/destination/this stop/next
-     stop are) — that 22mm minimum applies to the top/bottom bars only.
-     Shrunk from 6vh once the line/dots moved down (see --tube-line-top)
-     and stopped needing as much of a size boost to read as "on" the
-     track. */
-  font-size: 4.5vh;
+     stop are) — that 22mm minimum applies to the top/bottom bars only. */
+  font-size: var(--tube-label-font);
+  line-height: 1.2;
   font-weight: 600;
   text-align: center;
-  /* 100% of its own .tube-node, not a fixed vw guess — a fixed width let
-     adjacent labels overflow their node and overlap their neighbours. */
-  max-width: 100%;
-  /* Tube-track only: wrap onto a second line rather than ellipsis-ing a
-     long name into unreadable "Weston, The Ch…" mush. The bottom bar and
-     upcoming-stops box (#sbl-status/.upcoming-name) keep the old
-     single-line-plus-ellipsis behaviour — they have a fixed row height to
-     protect, this label doesn't. -webkit-line-clamp still falls back to
-     ellipsis if even two lines isn't enough. */
+  /* Meaningfully more than its own .tube-node's width, not capped at
+     100% of it — the rotation below already keeps a long label's real
+     on-screen footprint well short of its unrotated text width, so
+     capping at exactly the node's own slice was forcing names onto a
+     second line more often than actually necessary. */
+  max-width: 180%;
+  /* Reserves space for 2 lines always, whether this particular name needs
+     one or two — every node's label slot ends up the same height as a
+     result, which is what lets #tube-track just centre the whole node
+     block and have every dot land level (see #tube-track/::before above)
+     regardless of which labels actually wrapped. -webkit-box-pack keeps a
+     short single line bottom-anchored against the dot rather than
+     floating at the top of the unused reserved space. -webkit-line-clamp
+     still ellipsis-falls-back if even two lines isn't enough for an
+     unusually long name. */
+  min-height: var(--tube-label-h);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  -webkit-box-pack: end;
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--operator-accent, var(--ep-slate));
@@ -474,16 +479,12 @@ body {
      own starting point regardless of how long the name is. Reset to
      horizontal for the vertical track layout below, where labels already
      sit beside their dot with no crowding problem to solve. */
-  transform: translateX(-50%) rotate(-30deg);
+  transform: rotate(-30deg);
   transform-origin: left bottom;
 }
 
 .tube-node.tube-current .tube-label {
   font-weight: 800;
-  /* The current-stop dot is 9vh, not 7vh (see .tube-node.tube-current
-     .tube-dot above) — one extra vh of half-height to clear before the
-     same 5vh gap applies. */
-  bottom: calc(100% - var(--tube-line-top) + 9.5vh);
 }
 
 /* Confirmed arrival (geofence match), not just an estimated position —
@@ -562,27 +563,16 @@ body {
 }
 
 [data-track-layout="vertical"] .tube-dot {
-  /* Back into the grid's own flow, same reasoning as .tube-label below —
-     the horizontal layout's absolute top/left positioning only exists to
-     line the dot up with --tube-line-top, which this grid-based layout
-     has no equivalent of (justify-self does the equivalent centering job
-     within the fixed-width dot column instead). */
-  position: static;
-  top: auto;
-  left: auto;
-  transform: none;
   justify-self: center;
 }
 
 [data-track-layout="vertical"] .tube-label {
-  /* Back into the grid's own flow (a normal cell, not floated above the
-     dot) — the horizontal layout's absolute positioning above only exists
-     to keep the label out of the flex centering math, which doesn't apply
-     to this grid-based layout at all. */
-  position: static;
-  left: auto;
-  bottom: auto;
   text-align: left;
+  /* The horizontal layout's wider cap exists to cut down on 2-line
+     wrapping there — this layout already avoids that (see the section
+     comment above), and letting a label overflow its own grid column
+     here would spill it into the next stop's row instead. */
+  max-width: 100%;
   /* Labels already sit beside their dot in their own row here — no
      crowding to solve, so undo the horizontal layout's 30deg tilt. */
   transform: none;
