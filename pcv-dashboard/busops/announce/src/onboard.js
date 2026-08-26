@@ -235,17 +235,16 @@ function render(allStops, initialStopIndex, { nextStopIndex, earlyWait, atStop, 
   const centerIndex = Math.min(Math.max(nextStopIndex, initialStopIndex), last);
   const isFinal = !atStop && nextStopIndex > last;
 
-  // One line of text that changes wording rather than a second line
-  // appearing/disappearing — keeps the bottom bar's height constant so the
-  // tube-track above it never jumps. While at a stop, it states both the
-  // current and next stop together (mirroring what the audio announcement
-  // itself says, see announceAtStop() in announcements.js), rather than
-  // needing a separate "Announcing: X" hint alongside it.
+  // One clause only, not "This stop is X. The next stop will be Y." — a
+  // second clause packed onto the same line runs long often enough to need
+  // constant scrolling to read, which is worse than just keeping this line
+  // short (the tube-track above already shows what's next visually).
+  // Changes wording rather than adding/stacking a second line, so the
+  // bottom bar's height stays constant and the tube-track above it never
+  // jumps.
   const statusEl = el('sbl-status');
   statusEl.textContent = atStop
-    ? centerIndex < last
-      ? `This stop is ${allStops[centerIndex].name}. The next stop will be ${allStops[centerIndex + 1].name}.`
-      : `This stop is ${allStops[centerIndex].name}.`
+    ? `This stop is ${allStops[centerIndex].name}`
     : isFinal
       ? 'End of route'
       : `The next stop will be ${allStops[centerIndex].name}`;
