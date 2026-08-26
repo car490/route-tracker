@@ -429,20 +429,30 @@ body {
   /* 100% of its own .tube-node, not a fixed vw guess — a fixed width let
      adjacent labels overflow their node and overlap their neighbours. */
   max-width: 100%;
+  /* Tube-track only: wrap onto a second line rather than ellipsis-ing a
+     long name into unreadable "Weston, The Ch…" mush. The bottom bar and
+     upcoming-stops box (#sbl-status/.upcoming-name) keep the old
+     single-line-plus-ellipsis behaviour — they have a fixed row height to
+     protect, this label doesn't. -webkit-line-clamp still falls back to
+     ellipsis if even two lines isn't enough. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
   color: var(--operator-accent, var(--ep-slate));
   /* Angled like a tube-map label rather than stacked flat above the dot —
      adjacent stop names read as a clean diagonal run instead of a jumble
      of horizontal lines stacked over each other. Pivoted on its own
-     bottom-centre (which sits just above the dot) so the label still
-     reads as "belonging" to that dot rather than drifting toward a
-     neighbour. Reset to horizontal for the vertical track layout below,
-     where labels already sit beside their dot with no crowding problem
-     to solve. */
+     bottom-LEFT corner, not centre — rotating about the centre let long
+     names swing far enough down on one side to cross back through the dot
+     and line below; anchored at the left corner, rotate(-30deg) only ever
+     swings the box upward from where it starts; it can't dip below its
+     own starting point regardless of how long the name is. Reset to
+     horizontal for the vertical track layout below, where labels already
+     sit beside their dot with no crowding problem to solve. */
   transform: rotate(-30deg);
-  transform-origin: center bottom;
+  transform-origin: left bottom;
 }
 
 .tube-node.tube-current .tube-label {
