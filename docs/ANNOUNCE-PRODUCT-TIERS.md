@@ -70,13 +70,21 @@ history:
   evaluated and rejected twice already (`HARDWARE.md` §3's networking
   history) — Lite doesn't need a local link, so that rejection doesn't
   need to be revisited for it to work.
-- **Action item for whoever picks this up:** confirm how much of the old
-  independent-polling path is still intact in the codebase vs. how much
-  was actively removed as part of the Controller-push migration, and treat
-  restoring/maintaining it as real scoped work, not "just flip a flag."
-  Add it to `docs/TESTING.md` as its own tested flow once it's live, so it
-  doesn't silently bit-rot the way the WiFi hotspot flip-flopped once
-  already in this repo's history (`HARDWARE.md` §12 decision history).
+- **Done, 2026-08-27 ("Announce Lite tier, Phase 0" commit):** the
+  independent-polling path was restored as real scoped work, not a flag
+  flip — `announceGps.js`/`shared/gps.js` (internal-mode tracking),
+  `announceStandaloneAutopilot.js`/`scheduleAutopilot.js` (the geofence+time
+  matcher below), `announceLiteFeed.js` (transport, both modes), the
+  `announce_devices` table/RPCs, and the dashboard device-link page all
+  exist and are wired in, not just designed here. Tested flow is in
+  `docs/TESTING.md` §17 ("Test: BusOps Announce Lite") — it did not
+  bit-rot unnoticed. **Remaining real gaps**, confirmed against the code
+  directly, not assumed: no "Link Announce device" button in the Driver
+  PWA yet (the underlying API exists — `announceDeviceLinkApi.js` — link
+  today via `select link_announce_device(...)` in SQL, per §17's own
+  "Known gap" note); no dashboard UI yet for editing a standalone device's
+  `candidate_departure_ids`/match-window/terminus-radius columns (SQL
+  only, also per §17).
 
 **GPS source should be a config knob, not a hardcoded assumption.** The
 independent-polling design above assumes the Announce tablet always uses its
@@ -445,50 +453,51 @@ reasonable first design, not a pixel-verified one — exact placement in
 
 ## Open items / next steps
 
+**Status check, 2026-08-27: most of this list was actually built the same
+day it was written (see the "Done" note in the Lite section above) — this
+list undersold what existed for a while and was corrected once that was
+caught. Re-verify against the actual code before trusting any "not built"
+claim in this file again; the items below are what's genuinely still
+open, confirmed against the code directly, not carried over from an
+earlier draft.**
+
 - Price both tiers properly (component cost, not guesswork) before
-  presenting either as the "budget" option to a client.
+  presenting either as the "budget" option to a client. **Still open.**
 - Decide product naming — suggest `BusOps Announce — Standard` /
   `BusOps Announce — Lite`, consistent with the existing BusOps Driver /
-  BusOps Announce naming in `CLAUDE.md`.
-- Add a Lite row/flow to `docs/TESTING.md` once the independent-polling
-  path is confirmed working, so it's a tested product, not a resurrected
-  code path nobody exercises.
-- When restoring the independent-polling path, build it behind a GPS source
-  adapter (`internal` / `driver-device`) in `src/gps.js` rather than assuming
-  `internal` is the only option forever — see the Lite section above.
-- Design and build the `announce_devices` registration + link/unlink flow
-  (dashboard device-link generation, Driver PWA link/unlink UI, Supabase
-  Realtime push channel for linked mode) before Lite can actually ship the
-  paired-install scenario described above.
-- Build the geofence + time idle-loop matcher for standalone Announce
-  (Phil Haines Travel's two-route case) — see "Schedule-autopilot" above.
-  Its safety depends on the routes' start/end points not overlapping any
-  other service's stops; verify that holds before commissioning it for
-  any additional client, not just this one.
+  BusOps Announce naming in `CLAUDE.md`. **Still open.**
+- **Driver PWA "Link Announce device" UI** — `announceDeviceLinkApi.js`
+  exists and is imported into `main.js`, but there's no picker action to
+  actually trigger a link yet; linking today is a manual
+  `select link_announce_device(...)` SQL call (`docs/TESTING.md` §17).
+  This is the one piece of the paired-install scenario still missing a UI.
+- **Dashboard UI for standalone commissioning** — `AnnounceDeviceLinkPage.jsx`
+  covers device registration, install-link generation, and a testing-mode
+  toggle, but there's no UI yet for setting a standalone device's
+  `candidate_departure_ids`/`match_window_before_min`/
+  `match_window_after_min`/`terminus_radius_m` — SQL only for now
+  (`docs/TESTING.md` §17).
 - The general standalone-Announce case (routes that *do* share stops with
   other services) still has no schedule-autopilot design — remains
   genuinely unscoped, distinct from the Phil Haines Travel shortcut above.
+  **Still open** — the shipped matcher only covers the non-overlapping
+  case.
 - Diversion alerts are accepted as out of scope for standalone Announce
-  (no driver to trigger them) — revisit only if a client needs it; would
-  require an ops-side dashboard control to push diversions centrally.
+  (no driver to trigger them) — a standing decision, not a to-do; revisit
+  only if a client needs it.
 - Confirm with the team whether Lite is being positioned as a genuinely
   separate SKU or as an entry-tier upsell funnel into Standard — affects
-  how it's marketed, not the technical plan above.
-- **Automated tests**: a new Jest suite in `pcv-dashboard/busops/tests/`
-  for the geofence+time matcher, matching `geofence.test.js`/
-  `engine.test.js`'s idiom (pure functions, synthetic fixtures, no
-  mocking) — cover match-found, no-match, tie-break (two candidates both
-  matching → nearest scheduled time wins), and the shared-terminus case
-  (outbound/return sharing a stop, disambiguated by time alone).
-- **Manual tests**: `docs/TESTING.md` has no Announce/onboard section at
-  all today (confirmed — "Announce"/"onboard" don't appear in the file).
-  Add one modeled on its §13 format (GPS simulation via Chrome DevTools →
-  Sensors, numbered steps, **Pass:**/**Fail:**/**To restore:** blocks):
-  simulate GPS at a commissioned terminus inside/outside the match
-  window, confirm journey starts/doesn't start, confirm idle-screen
-  next-departure content renders, confirm the completion safety-net
-  timeout fires when GPS never confirms final-stop arrival.
+  how it's marketed, not the technical plan above. **Still open.**
 - Tune `terminus_radius_m`/`match_window_before_min`/
   `match_window_after_min`'s defaults (150m / 15 / 30) against Phil
   Haines Travel's real timetable and site geography once that data
-  exists — currently starting defaults, not measured values.
+  exists — currently starting defaults, not measured values. **Still open.**
+
+**Done, not open any more** (kept here briefly so this list doesn't read
+as if these were never tracked): the `announce_devices` table/RPCs, the
+device JWT, the dashboard device-link/registration page, the geofence+time
+matcher and its `internal`/`driver-device` GPS-source adapter, and both
+the Jest suite (`tests/scheduleAutopilot.test.js`,
+`tests/scheduleTimeShift.test.js`) and the manual test flow
+(`docs/TESTING.md` §17) for it — see the "Done" note in the Lite section
+above for the full list and what's still missing around it.
