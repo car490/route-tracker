@@ -81,6 +81,14 @@ export function attachAnnounceRelay(httpServer, { token, onSchedule, onAnnounce 
         broadcastToSignClients(msg);
       } else if (msg.type === 'announce') {
         onAnnounce?.(msg); // Controller-local audio playback only — never relayed to signWss clients
+      } else if (msg.type === 'complete') {
+        // Journey ended (announceLink.js's disconnectAnnounceLink). Clears
+        // the cache too, not just relays — otherwise a sign reconnecting
+        // later (line ~92 below) would still get the stale schedule/state
+        // replayed, undoing the reset it just received live.
+        latestState = null;
+        latestSchedule = null;
+        broadcastToSignClients(msg);
       }
       // anything else — unrecognized type, ignore
     });

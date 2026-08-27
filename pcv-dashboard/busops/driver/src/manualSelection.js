@@ -86,6 +86,7 @@ export async function selectServiceManually(departureId, serviceCode, servicePer
     serviceCode,
     servicePeriod,
     psvairEnabled: psvairInScope,
+    vehicleId,
     onComplete,
   };
 }

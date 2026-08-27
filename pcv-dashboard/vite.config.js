@@ -233,9 +233,18 @@ function localSignTokenApi(secret) {
   }
 }
 
-// No exp claim — unlike sign-token.js's 24h duty token, this identifies a
-// fixed kiosk installation and must not expire and blank the passenger sign
-// daily. Mirrors pcv-dashboard/api/sign-announce-token.js exactly.
+// A 100-year exp, not no exp — unlike sign-token.js's 24h duty token, this
+// identifies a fixed kiosk installation and must not expire and blank the
+// passenger sign daily, but Supabase Realtime's setAuth() hard-rejects any
+// token missing `exp` with CHANNEL_ERROR "InvalidJWTToken: Fields `role` and
+// `exp` are required in JWT" (confirmed live, 2026-08-28 — this is what was
+// silently breaking every paired-mode Realtime subscription all along,
+// while the plain REST reads worked fine since PostgREST doesn't require
+// exp). A 100-year expiry satisfies Realtime's requirement without ever
+// practically expiring in this device's operational lifetime. Mirrors
+// pcv-dashboard/api/sign-announce-token.js exactly.
+const ANNOUNCE_TOKEN_LIFETIME_SECONDS = 100 * 365 * 24 * 60 * 60
+
 function localSignAnnounceTokenApi(secret) {
   return {
     name: 'local-sign-announce-token-api',
@@ -275,6 +284,7 @@ function localSignAnnounceTokenApi(secret) {
               company_id,
               vehicle_id,
               iat:        now,
+              exp:        now + ANNOUNCE_TOKEN_LIFETIME_SECONDS,
             }))
             const sig = createHmac('sha256', secret)
               .update(`${header}.${payload}`)

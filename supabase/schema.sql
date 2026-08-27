@@ -1313,6 +1313,14 @@ create policy "device_self" on public.announce_devices
   for select to anon
   using (id = (auth.jwt() ->> 'device_id')::uuid);
 
+-- RLS alone doesn't make a table emit postgres_changes events -- Realtime
+-- only replicates changes for tables added to this publication. Without
+-- this, announceLiteFeed.js's paired-mode subscription (above comment)
+-- never receives anything, even though the RLS policy and the push RPC
+-- below are both correct (confirmed missing on the dev project, 2026-08-28 --
+-- see migration_announce_devices_realtime_publication.sql).
+alter publication supabase_realtime add table public.announce_devices;
+
 -- Called by the Driver PWA (anon) when linked, to push derived schedule/state
 -- to the paired Announce device. Mirrors announceLink.js's buildSchedulePayload/
 -- buildStatePayload shapes — only the transport differs from Standard's
@@ -1342,6 +1350,32 @@ end;
 $$;
 
 grant execute on function public.update_announce_device_state(uuid, jsonb, jsonb) to anon;
+
+-- Called by the Driver PWA (anon) when a journey ends, so a linked Announce
+-- device returns to its idle screen instead of showing the last journey's
+-- state forever (confirmed gap, 2026-08-28 -- both this tier and Standard's
+-- WebSocket push had no "journey ended" signal at all until now; Standard's
+-- side is announceRelay.mjs's new 'complete' message type). A genuine clear,
+-- not routed through update_announce_device_state's coalesce above -- that
+-- function deliberately never lets a partial push wipe the other column,
+-- which is exactly wrong for this explicit end-of-journey reset.
+create or replace function public.end_announce_device_journey(
+  p_device_id uuid
+) returns boolean
+language plpgsql security definer
+as $$
+begin
+  update public.announce_devices
+  set latest_schedule  = null,
+      latest_state     = null,
+      state_updated_at = now(),
+      last_seen_at     = now()
+  where id = p_device_id;
+  return found;
+end;
+$$;
+
+grant execute on function public.end_announce_device_journey(uuid) to anon;
 
 -- Called by the Driver PWA (anon) to link an Announce device registered to
 -- the same vehicle. Validates ownership inside the function body (device and

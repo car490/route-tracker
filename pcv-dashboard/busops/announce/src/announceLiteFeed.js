@@ -40,7 +40,7 @@ function scheduleChanged(a, b) {
 // mid-session — a device changing gps_source (e.g. linked while running)
 // takes effect on its next reload, same as a Standard device's own
 // commissioning is fixed per boot.
-export function connectAnnounceLiteFeed(deviceToken, { onSchedule, onState, onIdleNextDeparture }) {
+export function connectAnnounceLiteFeed(deviceToken, { onSchedule, onState, onJourneyEnd, onIdleNextDeparture }) {
   const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     global: { headers: { Authorization: `Bearer ${deviceToken}` } },
   });
@@ -58,6 +58,12 @@ export function connectAnnounceLiteFeed(deviceToken, { onSchedule, onState, onId
     if (row.latest_schedule && scheduleChanged(row.latest_schedule, lastSchedule)) {
       lastSchedule = row.latest_schedule;
       onSchedule(row.latest_schedule);
+    } else if (!row.latest_schedule && lastSchedule !== null) {
+      // Journey ended (end_announce_device_journey cleared both columns) —
+      // the Realtime-transport equivalent of Standard's {type:'complete'}
+      // WebSocket message (see onboard.js's onJourneyEnd).
+      lastSchedule = null;
+      onJourneyEnd?.();
     }
     if (row.latest_state) onState(row.latest_state);
   }
@@ -81,6 +87,15 @@ export function connectAnnounceLiteFeed(deviceToken, { onSchedule, onState, onId
       return;
     }
 
+    // Paired mode has no schedule pushed yet on a fresh link (or a device
+    // that's simply between journeys) — unlike standalone mode, nothing else
+    // unhides #onboard-idle for this case, so the device would otherwise sit
+    // fully blank (both #onboard-idle and #onboard-sign hidden, see
+    // onboard.html) until the first push arrives. onIdleNextDeparture(null)
+    // unhides the idle board without showing a next-departure caption (that
+    // caption is standalone-only) — reused rather than adding a new function.
+    if (!data.latest_schedule) onIdleNextDeparture?.(null);
+
     applyPushedRow(data);
 
     client
@@ -90,7 +105,14 @@ export function connectAnnounceLiteFeed(deviceToken, { onSchedule, onState, onId
         { event: 'UPDATE', schema: 'public', table: 'announce_devices', filter: `id=eq.${data.id}` },
         (payload) => applyPushedRow(payload.new)
       )
-      .subscribe();
+      // Previously no status callback at all -- a silent CHANNEL_ERROR/
+      // TIMED_OUT (bad JWT claim, RLS rejecting the realtime role, etc.)
+      // looked identical from the outside to "just nothing pushed yet".
+      .subscribe((status, err) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('announceLiteFeed: Realtime subscription failed', status, err);
+        }
+      });
   }
 
   start();

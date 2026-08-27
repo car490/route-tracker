@@ -125,8 +125,16 @@ export function connectAnnounceLink() {
   connect();
 }
 
-// Call once when a journey ends/stops.
+// Call once when a journey ends/stops. Tells the Controller to drop the
+// sign back to idle (see announceRelay.mjs's 'complete' handling and
+// onboard.js's onJourneyEnd()) before closing — previously this just
+// closed the socket, leaving the sign showing the last journey's state
+// forever, since neither the relay nor the sign had any "journey ended"
+// signal at all.
 export function disconnectAnnounceLink() {
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: 'complete' }));
+  }
   stopped = true;
   socket?.close();
   socket = null;

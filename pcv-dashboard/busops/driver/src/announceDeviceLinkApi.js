@@ -61,3 +61,11 @@ export async function pushAnnounceDeviceState(deviceId, schedule, state) {
     p_state:     state ?? null,
   });
 }
+
+// Called once when a journey ends, so a linked Announce device returns to
+// its idle screen — a genuine clear, not routed through
+// pushAnnounceDeviceState above (its coalesce deliberately never lets one
+// column's push null out the other, which is exactly wrong for this reset).
+export async function endAnnounceDeviceJourney(deviceId) {
+  return rpc('end_announce_device_journey', { p_device_id: deviceId });
+}

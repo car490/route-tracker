@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../shared/supabase'
-import { getCompanyId } from '../../shared/company'
+import { getCompanyId, getCompanyName } from '../../shared/company'
 import Modal from '../../shared/components/Modal'
 
 // Same origin the driver PWA duty-card links use (DutyCardsPage.jsx) — the
@@ -105,7 +105,17 @@ export default function AnnounceDeviceLinkPage() {
       // ?announce-device-token= is the distinct Lite-tier device JWT param
       // (doc's own standalone-commissioning naming, reused here for paired
       // mode too — see busops/announce/src/announceLiteSetup.js).
-      else if (data.token) setLink(`${PWA_BASE}/announce/onboard.html?announce-device-token=${data.token}`)
+      // ?operator-name= drives onboard.js's initIdleScreen() (existing
+      // Standard-tier mechanism, previously only ever set by hand during
+      // Controller commissioning) — without it the idle screen's logo box
+      // never unhides on a Lite device either, so wire it in here too. Still
+      // reads branding-logo.png as a local file next to onboard.html (see
+      // that function's own comment) — a per-company logo fetched live from
+      // Supabase is a separate, bigger change not attempted here.
+      else if (data.token) {
+        const operatorName = (await getCompanyName()) ?? ''
+        setLink(`${PWA_BASE}/announce/onboard.html?announce-device-token=${data.token}&operator-name=${encodeURIComponent(operatorName)}`)
+      }
       else setLinkError('No token returned')
     } catch (err) {
       setLinkError(`fetch failed: ${err.message}`)

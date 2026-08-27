@@ -5,8 +5,18 @@ function base64url(str) {
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
 }
 
-// No exp claim — unlike the duty-card token, this identifies a fixed kiosk
-// installation and must not expire and blank the passenger sign daily.
+// A 100-year exp, not no exp — unlike the duty-card token, this identifies a
+// fixed kiosk installation and must not expire and blank the passenger sign
+// daily, but Supabase Realtime's setAuth() hard-rejects any token missing
+// `exp` with CHANNEL_ERROR "InvalidJWTToken: Fields `role` and `exp` are
+// required in JWT" (confirmed live, 2026-08-28 — this silently broke every
+// paired-mode Realtime subscription while plain REST reads kept working,
+// since PostgREST doesn't require exp). A 100-year expiry satisfies
+// Realtime's requirement without ever practically expiring in this device's
+// operational lifetime. Mirrors vite.config.js's localSignAnnounceTokenApi
+// exactly.
+const ANNOUNCE_TOKEN_LIFETIME_SECONDS = 100 * 365 * 24 * 60 * 60
+
 function signJwt(device_id, company_id, vehicle_id, secret) {
   const header  = base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
   const now     = Math.floor(Date.now() / 1000)
@@ -17,6 +27,7 @@ function signJwt(device_id, company_id, vehicle_id, secret) {
     company_id,
     vehicle_id,
     iat:        now,
+    exp:        now + ANNOUNCE_TOKEN_LIFETIME_SECONDS,
   }))
   const sig = createHmac('sha256', secret)
     .update(`${header}.${payload}`)

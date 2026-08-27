@@ -468,6 +468,20 @@ export function onState(msg) {
   render(allStops, initialStopIndex, state);
 }
 
+// Journey ended — Standard via {type:'complete'} over the WebSocket
+// (announceLink.js's disconnectAnnounceLink, relayed by announceRelay.mjs),
+// Lite via announce_devices' latest_schedule/latest_state being cleared
+// (end_announce_device_journey, see announceLiteFeed.js). Previously
+// neither transport had any "journey ended" signal at all, so the sign just
+// kept showing the last journey's state indefinitely. Reuses
+// showNextDeparture(null)'s "unhide idle, no candidate caption" behaviour
+// rather than a new idle-rendering path.
+export function onJourneyEnd() {
+  allStops = null;
+  el('onboard-sign').hidden = true;
+  showNextDeparture(null);
+}
+
 function connect(token) {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   try {
@@ -485,6 +499,7 @@ function connect(token) {
     }
     if (msg.type === 'schedule') onSchedule(msg);
     else if (msg.type === 'state') onState(msg);
+    else if (msg.type === 'complete') onJourneyEnd();
   });
   socket.addEventListener('close', () => scheduleReconnect(token));
   socket.addEventListener('error', () => {}); // 'close' always follows 'error' on WebSocket, no separate handling needed
@@ -523,7 +538,7 @@ function init() {
   captureAnnounceDeviceSetup(new URLSearchParams(window.location.search));
   const liteDeviceToken = getAnnounceDeviceToken();
   if (liteDeviceToken) {
-    connectAnnounceLiteFeed(liteDeviceToken, { onSchedule, onState, onIdleNextDeparture: showNextDeparture });
+    connectAnnounceLiteFeed(liteDeviceToken, { onSchedule, onState, onJourneyEnd, onIdleNextDeparture: showNextDeparture });
   } else {
     connectSignFeed();
   }

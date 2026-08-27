@@ -19,7 +19,7 @@ import {
   broadcastState, broadcastSchedule, setAnnouncing,
   buildStatePayload, buildSchedulePayload,
 } from './announceLink.js';
-import { fetchLinkedAnnounceDeviceId, pushAnnounceDeviceState } from './announceDeviceLinkApi.js';
+import { fetchLinkedAnnounceDeviceId, pushAnnounceDeviceState, endAnnounceDeviceJourney } from './announceDeviceLinkApi.js';
 import {
   enqueuePendingTrip, getPendingTrips, removePendingTrip, markPendingTripAttempt,
   getPendingJourneyStarts, removePendingJourneyStart, markPendingJourneyStartAttempt,
@@ -548,6 +548,11 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   const btnIncident     = document.getElementById('btn-incident');
   const incidentOverlay = document.getElementById('incident-overlay');
   btnIncident.hidden = false;
+  // completeTrip() hides this on completion but nothing previously reset it
+  // back for the next journey — once hidden once, it stayed hidden for the
+  // rest of the page session (pre-existing bug, unrelated to today's other
+  // fixes, found while retesting completion).
+  document.getElementById('btn-complete-manual').hidden = false;
 
   btnIncident.onclick = () => {
     document.getElementById('incident-category').value = 'Delay';
@@ -591,6 +596,13 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
 
     tracker.stop();
     disconnectAnnounceLink();
+    // Paired Lite's equivalent of the WebSocket 'complete' message above —
+    // fire-and-forget, same treatment as every other Announce Lite push in
+    // this function, and a safe no-op when linkedAnnounceDeviceId is still
+    // null (no linked device, or the lookup hadn't resolved yet).
+    if (linkedAnnounceDeviceId) {
+      endAnnounceDeviceJourney(linkedAnnounceDeviceId).catch(() => {});
+    }
     btnIncident.hidden = true;
     btnDiversion.hidden = true;
     diversionPanel.hidden = true;

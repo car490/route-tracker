@@ -345,11 +345,23 @@ true)`. Claims:
 { "iss": "supabase", "role": "anon", "device_id": "...", "company_id": "...", "vehicle_id": "...", "iat": 0 }
 ```
 
-**Deliberately no `exp` claim** (or a very long one) — unlike the
-duty-card's 24h shift-scoped token, this identifies a fixed kiosk
-installation and must not expire and blank the passenger sign daily. This
-is an intentional deviation from the duty-card pattern, stated explicitly
-here so it doesn't read as an oversight later.
+**A 100-year `exp` claim, not no `exp`** — unlike the duty-card's 24h
+shift-scoped token, this identifies a fixed kiosk installation and must not
+expire and blank the passenger sign daily. The original design here chose
+literally no `exp` claim at all (this section's own first draft flagged "or
+a very long one" as the alternative, but the shipped code took the "no exp"
+branch) — **confirmed broken live, 2026-08-28**: Supabase Realtime's
+`setAuth()` hard-rejects any token missing `exp` with `CHANNEL_ERROR
+"InvalidJWTToken: Fields \`role\` and \`exp\` are required in JWT"`. This
+silently broke every paired-mode Realtime subscription while plain REST
+reads (the initial `announce_devices` row fetch) kept working fine, since
+PostgREST doesn't require `exp` — which is exactly why this took a full
+testing session to pin down: the device could always read its own row once
+on load, it just never received a live update afterwards. Fixed by moving
+to a 100-year expiry (`api/sign-announce-token.js` /
+`vite.config.js`'s `localSignAnnounceTokenApi`) — satisfies Realtime's
+requirement without ever practically expiring in this device's operational
+lifetime.
 
 *Before implementing:* confirm whether the dashboard actually mints
 duty-card tokens via direct `supabase.rpc('generate_duty_token', ...)` or
