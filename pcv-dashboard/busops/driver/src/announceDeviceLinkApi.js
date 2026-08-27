@@ -37,12 +37,16 @@ export async function unlinkAnnounceDevice(deviceId) {
 // announceLink.js's own "not commissioned" no-op.
 export async function fetchLinkedAnnounceDeviceId(vehicleId) {
   if (!vehicleId) return null;
-  const res = await sbFetch(
-    `/rest/v1/announce_devices?vehicle_id=eq.${vehicleId}&link_state=eq.linked&select=id&limit=1`
-  );
-  if (!res.ok) return null;
-  const rows = await res.json();
-  return rows[0]?.id ?? null;
+  // A direct REST SELECT here always returns zero rows under RLS -- the only
+  // anon read policy on announce_devices (device_self) requires the caller to
+  // already carry the target device's own device_id claim, which the driver
+  // (looking the device up, not authenticating as it) never has. RPC instead,
+  // same pattern as link/unlink below.
+  try {
+    return await rpc('get_linked_announce_device_id', { p_vehicle_id: vehicleId });
+  } catch {
+    return null;
+  }
 }
 
 // Fire-and-forget push of the Driver's already-computed schedule/state to a

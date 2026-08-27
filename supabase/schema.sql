@@ -1403,6 +1403,28 @@ $$;
 
 grant execute on function public.unlink_announce_device(uuid) to anon;
 
+-- Called by the Driver PWA (anon, no JWT claims) to check whether the
+-- vehicle it's on has a linked Announce Lite device, ahead of pushing
+-- schedule/state. The only anon RLS policy on announce_devices
+-- (device_self) requires the caller to already carry that exact device's
+-- own device_id claim, which the driver doesn't have -- a direct SELECT
+-- always returns zero rows under RLS. Returns only the id, not the row's
+-- schedule/state contents, to avoid a broader anon SELECT policy that
+-- would let any anon caller read live schedule/state for any company's
+-- vehicle by guessing a vehicle_id.
+create or replace function public.get_linked_announce_device_id(
+  p_vehicle_id uuid
+) returns uuid
+language sql security definer
+stable
+as $$
+  select id from public.announce_devices
+  where vehicle_id = p_vehicle_id and link_state = 'linked'
+  limit 1;
+$$;
+
+grant execute on function public.get_linked_announce_device_id(uuid) to anon;
+
 
 -- ── Views ─────────────────────────────────────────────────────────────────────
 -- Returns one row per (departure × stop).
