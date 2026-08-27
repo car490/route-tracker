@@ -749,7 +749,8 @@ Blackview Active 5 — only the Announce-side device in a Lite install.
   visibility, ≥22mm text height (computed at runtime by `onboard.js`'s
   `computeMinTextVh()` from `?panel-diagonal=`). Target: ~14", in line with
   the panel diagonals already validated in §6 — not a phone-tablet
-  diagonal.
+  diagonal. **In tension with the mount decision below** — see "Mount"
+  and "Compliance risk" subsections.
 - **3.5mm AUX audio out.** Closes a gap `ANNOUNCE-PRODUCT-TIERS.md`'s tier
   comparison only answered for the *paired* scenario ("falls back to the
   driver tablet's AUX-cable path"). The "Announce Lite only, no Driver
@@ -790,13 +791,74 @@ it, but don't block on finding one.
 | Candidate | Why rejected |
 |---|---|
 | Digital-signage Android tablet (e.g. Geekland GK-VR14 — 14", 1920×1080 true 16:9, native 12V DC-in, 3.5mm jack, ~$399) | No GPS or cellular modem — these are static WiFi/PoE-driven kiosk panels, not tracking devices. Would need an external USB/Bluetooth GPS receiver bolted on to do Lite's `internal` tracking — a new component and failure point, not justified when an LTE tablet already bundles GPS at a comparable price. |
-| Vehicle-telematics rugged tablet (e.g. Waysion, Emdoor EM-V10T, TOPICON — genuine 9–36V DC-in with ignition sense, built-in GPS+4G, IP65) | Best power/GPS match of anything found, but this market segment tops out around 10.1" — too small to pass §6's passenger-visibility maths. Worth revisiting if a 12"+ model in this category appears. |
+| Vehicle-telematics rugged tablet (e.g. Waysion, Emdoor EM-V10T, TOPICON — genuine 9–36V DC-in with ignition sense, built-in GPS+4G, IP65) | **Reopened, not rejected, 2026-08-27** — originally rejected only for topping out ~10.1", too small for §6's visibility maths at the time. The mount decision below caps screen size at ~9"–11" anyway, so this class is now a live candidate again — possibly a better one than the DOOGEE Tab E3 Max (native vehicle-voltage power skips the PD module entirely; the EM-V10T specifically supports VESA/RAM-bracket mounting built into its housing, so it can bolt straight to a RAM base plate instead of sitting in a spring-loaded universal cradle). **Not re-picked over the DOOGEE yet — an open decision**, not a silent swap. |
+
+### Mount: stanchion clamp — decided 2026-08-27, screen size subordinate to this
+
+**Decided: the Announce Lite tablet clamps to a bus stanchion, metal
+construction preferred, rather than a fixed ceiling/ceiling-void mount.**
+This is a deliberate reversal of priority from the requirements list above
+— screen size is now the thing that flexes to fit the mount, not the other
+way round. Confirmed bus stanchion tube stock is 1.25" OD stainless steel
+(real bus-parts listing, All Points Bus) — sized against that, not assumed.
+
+| Candidate | Spec | Status |
+|---|---|---|
+| **RAM® X-Grip® + Tough-Claw™, 9" Pipe Mount, for 9"–11" tablets** (RAP-401-9-BC-UN9U) | Large Tough-Claw base, clamps 1"–2.25" rails/tubes (covers the 1.25" stanchion with margin), metal 9" arm, stainless hardware, twist-knob install/removal. ~£142.49, RAM Mounts UK. | **Proposed.** Same mount ecosystem §8 already specifies for the driver tablet — no new supplier relationship. Caveat: the Tough-Claw's clamp *jaws* are glass-filled nylon composite, not solid metal (arm + all hardware are) — doesn't literally satisfy "metal" if that means the jaw itself. |
+| **iBOLT TabDock LockPro 38mm AMPS** | Genuinely aluminum construction, 7"–10" tablet cradle, **keyed lock** — the cradle head ships on a drill-base by default, so pairing it with a stanchion needs a separate pole-clamp base (iBOLT's own C-clamp or a RAM Tough-Claw base + AMPS adapter plate), not a single-box purchase. ~$119.95. | **Proposed alternative.** The lock matters here specifically: unlike the ceiling-mounted display or the driver's own tablet, this device sits within standing-passenger arm's reach — a real tamper/theft exposure the other two mounts never had to address. New supplier relationship, not yet used elsewhere in this doc. |
+
+Both cradles top out at **9"–11" tablets, not 14"** — this is what forces
+the DOOGEE Tab E3 Max pick above to be revisited (see the reopened
+vehicle-telematics row above), not yet resolved.
+
+### Compliance risk: seat visibility and text height are not the same problem
+
+Flagged as open, not invented — checked against both the code and the
+original proposal rather than assumed either way.
+
+- **§1.4 (≥22mm text) is not actually broken by a smaller screen.**
+  `computeMinTextVh()` (`(22 / panelHeightMm) * 100`) sizes text as a
+  fraction of viewport height computed from the panel's own physical
+  diagonal — it already scales to a genuine 22mm on any screen size, once
+  that screen's diagonal is correctly supplied via `?panel-diagonal=`. A
+  smaller screen doesn't fail this requirement; it just spends more of its
+  own vertical space on mandatory-size text, leaving less room for stop
+  content before cycling/scrolling is needed. That's a usability cost, not
+  a §1.4 compliance failure.
+- **§1.1–§1.3 (≥51% seat visibility, wheelchair/priority seat visibility)
+  is the real risk, and it's a geometry problem, not a size problem.**
+  `docs/BusOpsDriver_Proposal.source.html` Appendix A names *"central-aisle
+  ceiling mounting position"* as the intended way to satisfy §1.1 — and
+  even that was never confirmed: its own status is "Planned," with the
+  note "seat-visibility percentage cannot be confirmed until a candidate
+  panel's size/position is finalised." **No seat-visibility percentage has
+  ever been verified for any candidate in this repo, ceiling-mounted or
+  otherwise.** A stanchion clamp sits at roughly shoulder/head height at
+  one fixed point in the vehicle — the opposite geometry from an elevated,
+  central-aisle ceiling mount that clears every seatback and head down the
+  gangway. Swapping back to a bigger screen at stanchion height doesn't
+  fix this; screen size was never the variable §1.1 compliance depended
+  on in the original design.
+- **Practical implication, not yet acted on:** before committing to a
+  stanchion install for any vehicle class beyond a small minibus, hold a
+  candidate screen at stanchion height in an actual vehicle (or the
+  nearest mockup) and check what fraction of seats can read it. If a
+  full-size coach can't clear ≥51% from one stanchion position, Lite's
+  stanchion pitch may only be honestly viable on smaller vehicles, with
+  Standard's ceiling panel remaining the answer for full-size coaches —
+  a product-tier boundary, not just a hardware pick. Not decided either
+  way yet.
 
 ### Open items
 
-- **Mount** — not sourced. The driver tablet's RAM X-Grip 7"-8" holder
-  (§8) doesn't fit a 14" panel; needs its own mount spec, closer to a
-  display bracket than a phone holder.
+- **Tablet-vs-mount size conflict, unresolved**: the DOOGEE Tab E3 Max
+  (14") doesn't fit either stanchion-clamp candidate above (9"–11" max).
+  Either re-pick the tablet (the reopened vehicle-telematics row is the
+  leading alternative) or find a stanchion clamp rated for a 14" panel —
+  neither has been done yet.
+- **Seat-visibility verification, unresolved** — see "Compliance risk"
+  above. This blocks confirming a stanchion mount for any full-size
+  vehicle, independent of which tablet/clamp combo gets picked.
 - **Bench-test the physical unit** before a fleet order — GPS accuracy/lock
   time, actual audio output level through the 3.5mm jack, and USB-C PD
   charge behavior are all asserted from spec-sheet/listing research this
