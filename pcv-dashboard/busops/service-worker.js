@@ -12,8 +12,10 @@ const STATIC_ASSETS = [
   './shared/icons/icon-512.png',
   './driver/lib/leaflet.min.js',
   './driver/lib/leaflet.min.css',
+  './announce/lib/supabase.min.js',
   './driver/src/main.js',
   './announce/src/onboard.js',
+  './announce/src/announceLiteFeed.js',
   './driver/src/announcements.js',
   './driver/src/directions.js',
   './shared/engine.js',
@@ -28,6 +30,8 @@ const STATIC_ASSETS = [
   './driver/src/supabaseApi.js',
   './driver/src/manualSelection.js',
   './driver/src/vehicleSetup.js',
+  './driver/src/announceDeviceLink.js',
+  './driver/src/announceDeviceLinkApi.js',
 ];
 
 const TILE_CACHE = [

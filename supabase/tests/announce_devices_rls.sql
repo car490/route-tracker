@@ -188,3 +188,42 @@ exception
       raise;
     end if;
 end $$;
+
+-- 5. Regression: a state-only push must not wipe out a previously pushed
+-- schedule (main.js calls update_announce_device_state on two different
+-- cadences — schedule once per journey start, state on every GPS fix — so
+-- the columns must be independently coalesced, not overwritten with null).
+do $$
+declare
+  v_company_id uuid;
+  v_device_id uuid;
+  v_schedule_after jsonb;
+begin
+  select id into v_company_id from companies limit 1;
+  if v_company_id is null then
+    raise notice 'SKIP: no company row to attach a test device to';
+    return;
+  end if;
+
+  insert into announce_devices (company_id) values (v_company_id) returning id into v_device_id;
+
+  perform update_announce_device_state(v_device_id, '{"type":"schedule","serviceCode":"42"}'::jsonb, null);
+  perform update_announce_device_state(v_device_id, null, '{"type":"state","nextStopIndex":1}'::jsonb);
+
+  select latest_schedule into v_schedule_after from announce_devices where id = v_device_id;
+
+  if v_schedule_after is null then
+    raise exception 'FAIL: state-only push wiped out the previously pushed schedule';
+  else
+    raise notice 'PASS: state-only push left the previous schedule intact: %', v_schedule_after;
+  end if;
+
+  raise exception 'rollback';
+exception
+  when others then
+    if sqlerrm = 'rollback' then
+      raise notice 'Rolled back test rows cleanly';
+    else
+      raise;
+    end if;
+end $$;

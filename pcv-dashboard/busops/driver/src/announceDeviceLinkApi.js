@@ -28,3 +28,32 @@ export async function linkAnnounceDevice(deviceId, vehicleId) {
 export async function unlinkAnnounceDevice(deviceId) {
   return rpc('unlink_announce_device', { p_device_id: deviceId });
 }
+
+// This vehicle's currently-linked Announce Lite device, if any — main.js
+// calls this once per journey start to decide whether to also push state to
+// Supabase (paired Lite) alongside the existing Controller WebSocket push
+// (Standard). null on any vehicle with no linked device, which is most of
+// the fleet today — main.js treats that as a no-op, same shape as
+// announceLink.js's own "not commissioned" no-op.
+export async function fetchLinkedAnnounceDeviceId(vehicleId) {
+  if (!vehicleId) return null;
+  const res = await sbFetch(
+    `/rest/v1/announce_devices?vehicle_id=eq.${vehicleId}&link_state=eq.linked&select=id&limit=1`
+  );
+  if (!res.ok) return null;
+  const rows = await res.json();
+  return rows[0]?.id ?? null;
+}
+
+// Fire-and-forget push of the Driver's already-computed schedule/state to a
+// linked Announce Lite device, via Supabase instead of the Controller
+// WebSocket. schedule/state are independently optional (see
+// update_announce_device_state's coalesce behaviour) since main.js pushes
+// them on different cadences.
+export async function pushAnnounceDeviceState(deviceId, schedule, state) {
+  return rpc('update_announce_device_state', {
+    p_device_id: deviceId,
+    p_schedule:  schedule ?? null,
+    p_state:     state ?? null,
+  });
+}

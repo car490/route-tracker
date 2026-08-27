@@ -70,6 +70,12 @@ create policy "device_self" on public.announce_devices
 -- to the paired Announce device. Mirrors announceLink.js's buildSchedulePayload/
 -- buildStatePayload shapes — only the transport differs from Standard's
 -- WebSocket push, not the message contract.
+--
+-- p_schedule and p_state are independently optional (coalesced against the
+-- existing value, not overwritten with null) because main.js pushes them on
+-- different cadences: schedule once per journey start, state on every GPS
+-- fix. A state-only push must never wipe out the schedule set moments
+-- earlier, and vice versa.
 create or replace function public.update_announce_device_state(
   p_device_id uuid,
   p_schedule  jsonb,
@@ -79,8 +85,8 @@ language plpgsql security definer
 as $$
 begin
   update public.announce_devices
-  set latest_schedule  = p_schedule,
-      latest_state     = p_state,
+  set latest_schedule  = coalesce(p_schedule, latest_schedule),
+      latest_state     = coalesce(p_state, latest_state),
       state_updated_at = now(),
       last_seen_at     = now()
   where id = p_device_id;

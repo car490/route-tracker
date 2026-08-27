@@ -1,20 +1,31 @@
 // Fixed passenger-facing onboard sign. Deliberately siloed from main.js —
-// no login, no duty card UI, no incident reporting, no stop-time upload, no
-// writes to Supabase at all. As of the Controller redesign
-// (docs/HARDWARE.md §1-§5) it also has NO reads of its
-// own: no independent get_duty_card polling, no GPS (neither its own
-// hardware nor a local /api/position bridge), no schedule_view queries.
-// It is a pure renderer, driven entirely by what the Driver device pushes
-// to it over a local WebSocket (see src/announceLink.js — the sender —
-// and mele-server/announceRelay.mjs — the relay this device connects to).
+// no login, no duty card UI, no incident reporting, no stop-time upload.
+// This file itself still writes nothing to Supabase directly.
 //
-// No manual intervention: this device is told nothing about which journey
-// to watch via its own URL beyond ?announce-token=<token> (the shared
-// secret for the relay — see mele-server/DEPLOY.md). It sits blank until an
-// authenticated /sign-feed connection receives a {type:'schedule'}
-// message — i.e. the moment a Driver device starts tracking a journey —
-// then wakes on its own and starts showing stops as {type:'state'}
-// messages arrive.
+// Two tiers, two feeds, mutually exclusive per device (see docs/
+// ANNOUNCE-PRODUCT-TIERS.md):
+//
+// - Standard (Controller-fed): NO reads of its own — no independent
+//   get_duty_card polling, no GPS, no schedule_view queries, no Supabase
+//   writes. A pure renderer driven entirely by what the Driver device
+//   pushes over a local WebSocket (see src/announceLink.js — the sender —
+//   and mele-server/announceRelay.mjs — the relay this device connects
+//   to). Told nothing about which journey to watch via its own URL beyond
+//   ?announce-token=<token> (the relay's shared secret — see
+//   mele-server/DEPLOY.md). Sits blank until an authenticated /sign-feed
+//   connection receives a {type:'schedule'} message, then wakes on its own
+//   as {type:'state'} messages arrive.
+//
+// - Announce Lite, paired mode (Controller-less): an intentional, scoped
+//   exception to "no reads of its own" — see announceLiteFeed.js. Reads its
+//   own announce_devices row (anon, scoped by the device_id claim in
+//   ?announce-device-token=<token> — a distinct param from Standard's
+//   ?announce-token=, never both on the same device) and subscribes to
+//   Supabase Realtime for driver-pushed schedule/state updates, calling the
+//   exact same onSchedule()/onState() below — the rendering code is shared
+//   unchanged between both tiers, only the transport differs.
+import { connectAnnounceLiteFeed } from './announceLiteFeed.js';
+
 const WIDE_LAYOUT_QUERY = '(min-aspect-ratio: 4/1)'; // 16:3 ultra-wide sign, see docs/onboard-widescreen-layout.md
 
 // Named display profiles — commissioned via ?panel-profile=<key> (same
@@ -406,7 +417,11 @@ let allStops = null;
 const initialStopIndex = 0; // start of route; geofence catch-up (on the Driver side) handles wherever the vehicle actually is
 let signShown = false;
 
-function onSchedule(msg) {
+// Exported for announceLiteFeed.js — the Lite tier's Supabase-driven
+// alternative to this section's WebSocket feed calls these with the exact
+// same message shape (see that file's header comment), so the rendering
+// code below is shared unchanged between both tiers.
+export function onSchedule(msg) {
   allStops = (msg.stops ?? []).map((s) => ({ ...s, name: stripIndicator(s.name) }));
   el('sign-service-code').textContent = msg.serviceCode;
   el('sign-destination').textContent = msg.destination;
@@ -423,7 +438,7 @@ function onSchedule(msg) {
   }
 }
 
-function onState(msg) {
+export function onState(msg) {
   if (!allStops) {
     // Shouldn't happen given the relay sends schedule before state on
     // connect (see announceRelay.mjs), but guards a freshly-restarted relay
@@ -480,7 +495,17 @@ function init() {
   if (trackLayout() === 'vertical') document.documentElement.dataset.trackLayout = 'vertical';
   startClock();
   initIdleScreen();
-  connectSignFeed();
+
+  // Mutually exclusive per device: ?announce-device-token= (Lite, Supabase
+  // Realtime — see announceLiteFeed.js) vs the Standard /sign-feed
+  // WebSocket. A device is provisioned with exactly one of the two URL
+  // params, never both.
+  const liteDeviceToken = new URLSearchParams(window.location.search).get('announce-device-token');
+  if (liteDeviceToken) {
+    connectAnnounceLiteFeed(liteDeviceToken, { onSchedule, onState });
+  } else {
+    connectSignFeed();
+  }
 }
 
 init();

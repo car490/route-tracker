@@ -88,7 +88,12 @@ export default function AnnounceDeviceLinkPage() {
       })
       const data = await res.json()
       if (!res.ok) setLinkError(data.error ?? 'Signing failed')
-      else if (data.token) setLink(`${PWA_BASE}/announce/onboard.html?announce-token=${data.token}`)
+      // NOT ?announce-token= — that param is already the Standard tier's
+      // /sign-feed WebSocket relay secret (onboard.js's connectSignFeed()).
+      // ?announce-device-token= is the distinct Lite-tier device JWT param
+      // (doc's own standalone-commissioning naming, reused here for paired
+      // mode too — see announceLiteInit.js).
+      else if (data.token) setLink(`${PWA_BASE}/announce/onboard.html?announce-device-token=${data.token}`)
       else setLinkError('No token returned')
     } catch (err) {
       setLinkError(`fetch failed: ${err.message}`)

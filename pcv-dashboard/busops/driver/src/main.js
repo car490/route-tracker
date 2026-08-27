@@ -16,7 +16,9 @@ import { getStoredVehicle, storeVehicle } from './vehicleSetup.js';
 import {
   captureAnnounceSetup, connectAnnounceLink, disconnectAnnounceLink,
   broadcastState, broadcastSchedule, setAnnouncing,
+  buildStatePayload, buildSchedulePayload,
 } from './announceLink.js';
+import { fetchLinkedAnnounceDeviceId, pushAnnounceDeviceState } from './announceDeviceLinkApi.js';
 import {
   enqueuePendingTrip, getPendingTrips, removePendingTrip, markPendingTripAttempt,
   getPendingJourneyStarts, removePendingJourneyStart, markPendingJourneyStartAttempt,
@@ -216,6 +218,22 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   // cab-device bridge where there's no Controller at all.
   connectAnnounceLink();
 
+  // BusOps Announce Lite (paired install) — this vehicle's linked Announce
+  // device, if any (most vehicles have none — Standard/unpaired-Lite are the
+  // common case). Resolved async, fire-and-forget, so it can race the
+  // schedule broadcast below — same race announceLink.js's own
+  // sendSchedule()-on-'open' already handles for the Controller WebSocket,
+  // solved the same way here: remember the last schedule payload and push it
+  // once the lookup resolves, in case it resolves after broadcastSchedule().
+  let linkedAnnounceDeviceId = null;
+  let lastAnnounceLiteSchedule = null;
+  fetchLinkedAnnounceDeviceId(vehicleId).then(id => {
+    linkedAnnounceDeviceId = id;
+    if (linkedAnnounceDeviceId && lastAnnounceLiteSchedule) {
+      pushAnnounceDeviceState(linkedAnnounceDeviceId, lastAnnounceLiteSchedule, null).catch(() => {});
+    }
+  }).catch(() => {});
+
   const firstStop  = allStops[0];
   // Second real stop — always exists: a route needs at least a first and a
   // last passenger stop, and on a 2-stop route this simply equals lastStop.
@@ -230,14 +248,24 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   // docs/HARDWARE.md "Read this first" and §3). accentColor/primaryColor are absent
   // on the manual-selection path (no company branding lookup there today);
   // broadcastSchedule/buildSchedulePayload already default both to null.
-  broadcastSchedule({
+  const scheduleState = {
     journeyId,
     serviceCode,
     destination: stripIndicator(lastStop.name),
     allStops,
     accentColor,
     primaryColor,
-  });
+  };
+  broadcastSchedule(scheduleState);
+
+  // BusOps Announce Lite (paired install) — same payload shape, pushed via
+  // Supabase instead of the Controller WebSocket. Remembered (see the
+  // fetchLinkedAnnounceDeviceId lookup above) in case the device lookup
+  // hasn't resolved yet.
+  lastAnnounceLiteSchedule = buildSchedulePayload(scheduleState);
+  if (linkedAnnounceDeviceId) {
+    pushAnnounceDeviceState(linkedAnnounceDeviceId, lastAnnounceLiteSchedule, null).catch(() => {});
+  }
 
   log('info', `Started: ${serviceCode}${servicePeriod ? ' ' + servicePeriod : ''} from "${allStops[initialStopIndex].name}"`);
 
@@ -515,7 +543,7 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
 
       // No-op unless this device is commissioned + connected to a Controller (see
       // announceLink.js) — never blocks tracking either way.
-      broadcastState({
+      const trackState = {
         journeyId,
         nextStopIndex,
         nextStopName: timing.nextStopName,
@@ -526,7 +554,15 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
         stopStates,
         diversionActive: !!diversionAlertState,
         isFinal: !!(atStop && atStop.stopIndex === allStops.length - 1),
-      });
+      };
+      broadcastState(trackState);
+
+      // BusOps Announce Lite (paired install) — same payload shape, pushed
+      // via Supabase instead of the Controller WebSocket. A no-op until the
+      // device lookup above resolves to a linked device.
+      if (linkedAnnounceDeviceId) {
+        pushAnnounceDeviceState(linkedAnnounceDeviceId, null, buildStatePayload(trackState)).catch(() => {});
+      }
     },
   });
 
