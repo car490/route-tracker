@@ -42,8 +42,13 @@ replacing the install.
 ## Lite tier — Tablet ↔ Tablet, no Controller
 
 No Bus Controller. The passenger display is itself a GPS+cellular-capable
-tablet (same device class as the driver tablet, e.g. Blackview Active 5 or
-equivalent), running the onboard sign UI directly.
+tablet, running the onboard sign UI directly. **Not necessarily the same
+device class as the driver tablet** — it also has to pass §6's
+passenger-display requirements (seat visibility, 22mm text), which a
+phone-sized screen like the Blackview Active 5 can't meet. See
+`docs/HARDWARE.md` §14 for the concrete Announce-side candidate (DOOGEE Tab
+E3 Max, proposed 2026-08-27, ~14"). The driver tablet pick itself is
+unaffected — still Blackview Active 5, §8.
 
 **This reuses code that already exists rather than requiring new
 engineering.** `HARDWARE.md`'s "Model 1" — the Controller-less design where

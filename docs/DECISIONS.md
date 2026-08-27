@@ -100,6 +100,7 @@ mounting, cabling).
 | Fire HD tablet as the passenger display | **Dropped/purged**, not just "not the confirmed pick" — `mele-server/DEPLOY.md` "Option A" no longer names a specific device. Do not cite Fire HD as live onboard-display hardware. | `docs/HARDWARE.md` §6 status trail, commit `6bc2f8f` |
 | BETA ceiling mount | **RAM E-size VESA system** (corrected from an earlier, under-rated D-size pick) | `docs/HARDWARE.md` §8, `docs/TODO.md` |
 | Driver PWA tablet — production target | **Blackview Active 5** (rugged, IP68/IP69K) — not affected by the Controller redesign | `docs/HARDWARE.md` §5 |
+| Announce Lite tablet (passenger-display + standalone tracking device) | **Proposed, not yet purchased or bench-tested**: DOOGEE Tab E3 Max — 14" 3:2 (no 16:9 tablet with built-in GPS/cellular was found), Android 15, dual-SIM 4G LTE with built-in GPS, 3.5mm jack, USB-C charged via the same 12V-in PD module pattern as the driver tablet. Supersedes `ANNOUNCE-PRODUCT-TIERS.md`'s earlier assumption that the Announce-side Lite device is "the same device class as the driver tablet." | `docs/HARDWARE.md` §14 |
 | 28"/large-format stretch-bar panel | **Dropped** — target fleet's existing wiring can't support it without a major rewire | `docs/HARDWARE.md` §3 |
 | Power converter | **Victron Orion-Tr Isolated 24/12**, 24/12-20 (240W) tier — chosen for galvanic isolation | `docs/HARDWARE.md` §6 |
 

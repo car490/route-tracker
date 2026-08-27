@@ -723,3 +723,88 @@ ignition-switched-USB setup and isn't covered here.
 - **Bus Controller power draw** (§1) — needs reconfirming against the
   MeLE Quieter4C, not carried over from the old CM5-specific numbers.
 - **WiFi antenna routing** — not documented for the new board, see above.
+
+---
+
+## 14. Announce Lite tablet (passenger-display + standalone tracking device)
+
+Full architecture: `docs/ANNOUNCE-PRODUCT-TIERS.md` "Lite tier" — no Bus Controller, the
+passenger display is itself a GPS+cellular tablet running the onboard sign UI directly. That
+doc originally assumed the Announce-side device would be "the same device class as the driver
+tablet, e.g. Blackview Active 5 or equivalent" (§8's 8.68" phone-tablet). **Superseded by this
+section, 2026-08-27**: the Announce-side device also has to pass §6's passenger-display
+MUST-haves (≥51% per-deck seat visibility, ≥22mm text) that a phone-sized screen can't meet, so
+it needs its own, larger pick. This does **not** change the Driver tablet pick — §8 stays
+Blackview Active 5 — only the Announce-side device in a Lite install.
+
+### Requirements, derived not assumed
+
+- **GPS + cellular.** Lite's `internal` GPS-source mode
+  (`ANNOUNCE-PRODUCT-TIERS.md`) needs its own GNSS fix to run
+  `gps.js`/`geofence.js`/`engine.js` unchanged, the same way the driver
+  tablet does today (§2). A cellular (4G) SKU rather than WiFi-only is the
+  practical way to guarantee this — GNSS is bundled into essentially every
+  LTE modem, while WiFi-only tablets routinely omit a GPS chip entirely.
+- **Screen large enough to pass §6's MUST-haves** — ≥51% per-deck seat
+  visibility, ≥22mm text height (computed at runtime by `onboard.js`'s
+  `computeMinTextVh()` from `?panel-diagonal=`). Target: ~14", in line with
+  the panel diagonals already validated in §6 — not a phone-tablet
+  diagonal.
+- **3.5mm AUX audio out.** Closes a gap `ANNOUNCE-PRODUCT-TIERS.md`'s tier
+  comparison only answered for the *paired* scenario ("falls back to the
+  driver tablet's AUX-cable path"). The "Announce Lite only, no Driver
+  device" scenario has neither a driver tablet nor a Bus Controller
+  (§1–§5) in the loop to host PA audio — the Announce tablet itself is the
+  only device present, so it must own the AUX-out path directly, the same
+  cable pattern already proven for the Bus Controller and driver tablet
+  (§4, §13).
+- **Powered from the vehicle's 12V system** — not necessarily a native
+  12V-in pin. The existing 12V-in USB-C PD point-of-load module (§9)
+  already solves this for the driver tablet; reusing that pattern here
+  needs no new power-architecture component, just another fused branch
+  (§13).
+
+### Candidate: DOOGEE Tab E3 Max — proposed, not yet purchased
+
+| Item | Spec |
+|---|---|
+| Screen | 14" IPS LCD, 2160×1440 — **3:2, not 16:9** (see below) |
+| OS | Android 15 |
+| SoC / RAM / storage | MediaTek Helio G99, 8GB RAM / 256GB storage |
+| Connectivity | Dual Nano-SIM 4G LTE + WiFi + Bluetooth; GPS/GLONASS/Galileo/BDS confirmed on the LTE SKU |
+| Audio out | 3.5mm headphone jack, confirmed |
+| Battery / charging | 13,500mAh, USB-C, 18W |
+| Price | ~£260–370 (UK — Amazon.co.uk and other retailers, varies by bundle/deal) |
+| Status | **Proposed candidate, found via web research this session — not yet purchased or bench-tested.** Verify GPS lock and the 3.5mm jack against the physical unit before committing to a fleet order, the same "confirm before ordering a fleet's worth" caution this doc already applies to the MeLE Quieter4C's WiFi chipset (§1). |
+
+**Aspect ratio compromise, stated explicitly:** no 14" Android tablet with
+built-in GPS/cellular was found in true 16:9 — that ratio only turns up in
+the digital-signage-panel category (see "Rejected" below), which has no
+GNSS/modem at all. 3:2 is the accepted trade to get GPS+cellular on a
+passenger-display-sized screen without adding a separate GPS receiver. If a
+future SKU ships true 16:9 with the same GPS/cellular/audio spec, prefer
+it, but don't block on finding one.
+
+### Rejected alternatives (kept for audit trail, per this doc's convention)
+
+| Candidate | Why rejected |
+|---|---|
+| Digital-signage Android tablet (e.g. Geekland GK-VR14 — 14", 1920×1080 true 16:9, native 12V DC-in, 3.5mm jack, ~$399) | No GPS or cellular modem — these are static WiFi/PoE-driven kiosk panels, not tracking devices. Would need an external USB/Bluetooth GPS receiver bolted on to do Lite's `internal` tracking — a new component and failure point, not justified when an LTE tablet already bundles GPS at a comparable price. |
+| Vehicle-telematics rugged tablet (e.g. Waysion, Emdoor EM-V10T, TOPICON — genuine 9–36V DC-in with ignition sense, built-in GPS+4G, IP65) | Best power/GPS match of anything found, but this market segment tops out around 10.1" — too small to pass §6's passenger-visibility maths. Worth revisiting if a 12"+ model in this category appears. |
+
+### Open items
+
+- **Mount** — not sourced. The driver tablet's RAM X-Grip 7"-8" holder
+  (§8) doesn't fit a 14" panel; needs its own mount spec, closer to a
+  display bracket than a phone holder.
+- **Bench-test the physical unit** before a fleet order — GPS accuracy/lock
+  time, actual audio output level through the 3.5mm jack, and USB-C PD
+  charge behavior are all asserted from spec-sheet/listing research this
+  session, not verified hardware-in-hand.
+- **Price both Lite hardware sets properly** — this device plus the driver
+  tablet (paired scenario) or alone (standalone scenario) still needs to
+  go into the "don't assume Lite is cheaper" costing flagged in
+  `ANNOUNCE-PRODUCT-TIERS.md`'s tier comparison.
+- `docs/ANNOUNCE-PRODUCT-TIERS.md`'s "same device class as the driver
+  tablet" line is now stale for the Announce-side device — updated in that
+  file alongside this section.
