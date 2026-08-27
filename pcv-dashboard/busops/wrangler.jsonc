@@ -38,7 +38,13 @@
     "dev": {
       "assets": {
         "directory": "./"
-      }
+      },
+      "routes": [
+        {
+          "pattern": "driver-dev.pcvtechnologies.co.uk",
+          "custom_domain": true
+        }
+      ]
     }
   }
 }

@@ -53,8 +53,8 @@ jobs:
       - run: npm run build
         working-directory: pcv-dashboard
 
-  deploy-driver-pwa:
-    name: Driver PWA — deploy to driver.pcvtechnologies.co.uk
+  deploy-driver-pwa-dev:
+    name: Driver PWA — deploy to driver-dev.pcvtechnologies.co.uk (dev Supabase)
     needs: [pwa-test, dashboard-lint, dashboard-build]
     if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -67,8 +67,16 @@ jobs:
           cache-dependency-path: pcv-dashboard/busops/package-lock.json
       - run: npm ci
         working-directory: pcv-dashboard/busops
-      - run: npx wrangler deploy --env=""
+      - run: npx wrangler deploy --env dev
         working-directory: pcv-dashboard/busops
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: b3fc3cb9a7bc2946482799dfa42c2c90
+
+  # No deploy-driver-pwa-production job yet: driver.pcvtechnologies.co.uk
+  # (the top-level/env.production wrangler config, no "-dev") is the eventual
+  # production migration target, still un-cut-over -- GitHub Pages remains
+  # the real production source of truth (see CLAUDE.md). Add a job here
+  # triggered on pushes to `master` when that cutover actually happens;
+  # until then nothing should auto-deploy to it, since it's wired to
+  # production Supabase and master isn't gated the way develop is here.

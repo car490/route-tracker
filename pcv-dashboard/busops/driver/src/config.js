@@ -10,7 +10,14 @@
 // secret here — those must only ever be read from process.env on a server
 // (see dashboard/api/*.js for that pattern).
 
-export const IS_DEV = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+// driver-dev.pcvtechnologies.co.uk is the develop-only Cloudflare Workers
+// deploy target (env.dev in wrangler.jsonc) -- it must hit dev Supabase,
+// same as localhost, so that testing develop's auto-deployed code never
+// touches production data. driver.pcvtechnologies.co.uk (no "-dev") is the
+// production migration target and must stay on the prod branch below.
+export const IS_DEV = window.location.hostname === 'localhost'
+  || window.location.hostname === '127.0.0.1'
+  || window.location.hostname === 'driver-dev.pcvtechnologies.co.uk';
 
 export const SUPABASE_URL = IS_DEV
   ? 'https://cgcbfgceputvdvhzrgio.supabase.co'
