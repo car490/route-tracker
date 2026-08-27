@@ -18,7 +18,8 @@
 // services case are explicitly out of scope here.
 
 import { startAnnounceGpsTracking } from './announceGps.js';
-import { findScheduleMatch, isJourneyComplete } from './scheduleAutopilot.js';
+import { findScheduleMatch, findTestingScheduleMatch, isJourneyComplete } from './scheduleAutopilot.js';
+import { shiftStopTimes } from '../../shared/scheduleTimeShift.js';
 
 const IDLE_POLL_MS = 5000; // own-GPS check interval while no journey is active
 const COMPLETION_TIMEOUT_MIN = 120; // safety net — no driver to notice a stuck journey
@@ -116,16 +117,36 @@ export function startStandaloneAutopilot(client, deviceRow, { onSchedule, onStat
 
   async function tryMatch(lat, lon) {
     if (activeJourney || !candidates.length) return;
-    const match = findScheduleMatch({
-      candidates, lat, lon, now: new Date(),
+    const now = new Date();
+    let match = findScheduleMatch({
+      candidates, lat, lon, now,
       terminusRadiusM: deviceRow.terminus_radius_m,
       matchWindowBeforeMin: deviceRow.match_window_before_min,
       matchWindowAfterMin: deviceRow.match_window_after_min,
     });
+
+    // Testing-only fallback: a match well outside the normal time window
+    // (device deliberately driven to the terminus at an odd hour to test)
+    // still starts the journey, but with its stop schedule shifted to now
+    // — see scheduleAutopilot.js's findTestingScheduleMatch for the
+    // threshold/rationale. Off by default (testing_mode), so a live device
+    // never takes this path.
+    let shiftMinutes = 0;
+    if (!match && deviceRow.testing_mode) {
+      const testingMatch = findTestingScheduleMatch({
+        candidates, lat, lon, now,
+        terminusRadiusM: deviceRow.terminus_radius_m,
+      });
+      if (testingMatch) {
+        match = testingMatch.candidate;
+        shiftMinutes = testingMatch.shiftMinutes;
+      }
+    }
     if (!match) return;
 
     const details = await fetchDepartureDetails(client, match.departureId);
     if (!details) return; // near-miss costs nothing — stays idle, tries again next tick
+    if (shiftMinutes) details.allStops = shiftStopTimes(details.allStops, shiftMinutes);
 
     const journeyId = crypto.randomUUID();
     const { data: created } = await client.rpc('get_or_create_manual_journey', {

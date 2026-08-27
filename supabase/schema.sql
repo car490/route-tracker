@@ -1285,6 +1285,7 @@ create table if not exists public.announce_devices (
   match_window_before_min  int not null default 15,
   match_window_after_min   int not null default 30,
   terminus_radius_m        int not null default 150,
+  testing_mode             boolean not null default false,
 
   last_seen_at  timestamptz,
   created_at    timestamptz not null default now()

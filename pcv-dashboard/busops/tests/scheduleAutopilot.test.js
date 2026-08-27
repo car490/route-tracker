@@ -8,7 +8,7 @@
 // than one candidate matches (e.g. a shared-terminus outbound/return pair),
 // the nearest scheduled departure time wins.
 
-import { findScheduleMatch, isJourneyComplete } from '../announce/src/scheduleAutopilot.js';
+import { findScheduleMatch, findTestingScheduleMatch, isJourneyComplete } from '../announce/src/scheduleAutopilot.js';
 
 // Bus depot terminus — both an outbound and a return service happen to
 // start/end here, per the shared-terminus test below.
@@ -91,6 +91,41 @@ describe('findScheduleMatch', () => {
       candidates: [outbound, ret], lat: DEPOT.lat, lon: DEPOT.lon, now: at(8, 3), ...DEFAULT_PARAMS,
     });
     expect(result).toEqual(outbound);
+  });
+});
+
+describe('findTestingScheduleMatch', () => {
+  it('does not match within the normal-ish window — well under the 60min threshold', () => {
+    const candidates = [candidate('dep-1', { ...DEPOT, departureTime: '08:00' })];
+    const result = findTestingScheduleMatch({
+      candidates, lat: DEPOT.lat, lon: DEPOT.lon, now: at(8, 45), terminusRadiusM: 150,
+    });
+    expect(result).toBeNull();
+  });
+
+  it('matches when at least 60 minutes from the scheduled time, and returns the shift', () => {
+    const candidates = [candidate('dep-1', { ...DEPOT, departureTime: '08:00' })];
+    const result = findTestingScheduleMatch({
+      candidates, lat: DEPOT.lat, lon: DEPOT.lon, now: at(14, 0), terminusRadiusM: 150,
+    });
+    expect(result).toEqual({ candidate: candidates[0], shiftMinutes: 360 });
+  });
+
+  it('still requires the geofence — time alone is not enough', () => {
+    const candidates = [candidate('dep-1', { ...DEPOT, departureTime: '08:00' })];
+    const result = findTestingScheduleMatch({
+      candidates, lat: AWAY.lat, lon: AWAY.lon, now: at(14, 0), terminusRadiusM: 150,
+    });
+    expect(result).toBeNull();
+  });
+
+  it('tie-break: nearest scheduled time wins among candidates past the threshold', () => {
+    const near = candidate('dep-near', { ...DEPOT, departureTime: '08:00' }); // 6h away
+    const far  = candidate('dep-far',  { ...DEPOT, departureTime: '06:00' }); // 8h away
+    const result = findTestingScheduleMatch({
+      candidates: [far, near], lat: DEPOT.lat, lon: DEPOT.lon, now: at(14, 0), terminusRadiusM: 150,
+    });
+    expect(result).toEqual({ candidate: near, shiftMinutes: 360 });
   });
 });
 

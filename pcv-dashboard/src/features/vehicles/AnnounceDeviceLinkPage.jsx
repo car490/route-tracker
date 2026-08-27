@@ -63,6 +63,18 @@ export default function AnnounceDeviceLinkPage() {
     load()
   }
 
+  // Standalone autopilot only — lets a device matched well outside its
+  // normal match window (device deliberately driven to the terminus at an
+  // odd hour to test) start anyway, with its stop schedule shifted to now.
+  // See scheduleAutopilot.js's findTestingScheduleMatch. Off by default so
+  // a live device never takes this path.
+  async function toggleTestingMode(device) {
+    const testing_mode = !device.testing_mode
+    setDevices(ds => ds.map(d => d.id === device.id ? { ...d, testing_mode } : d))
+    const { error: err } = await supabase.from('announce_devices').update({ testing_mode }).eq('id', device.id)
+    if (err) load() // revert the optimistic flip on failure by re-reading the real row
+  }
+
   // Stateless (no exp claim, see api/sign-announce-token.js) — safe to
   // re-mint on demand any time an installer needs the link again, same
   // on-demand-regeneration pattern as DutyCardsPage.jsx's generateToken().
@@ -127,6 +139,7 @@ export default function AnnounceDeviceLinkPage() {
                   <th>Label</th>
                   <th>Vehicle</th>
                   <th>Status</th>
+                  <th>Testing</th>
                   <th></th>
                 </tr>
               </thead>
@@ -137,6 +150,14 @@ export default function AnnounceDeviceLinkPage() {
                     <td style={{ fontFamily: 'monospace' }}>{d.vehicles?.registration ?? '—'}</td>
                     <td style={{ color: 'var(--text-muted)' }}>
                       {d.link_state === 'linked' ? 'Linked to driver device' : 'Standalone'}
+                    </td>
+                    <td>
+                      {d.link_state !== 'linked' && (
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
+                          <input type="checkbox" checked={!!d.testing_mode} onChange={() => toggleTestingMode(d)} />
+                          Testing mode
+                        </label>
+                      )}
                     </td>
                     <td>
                       <div className="td-actions">

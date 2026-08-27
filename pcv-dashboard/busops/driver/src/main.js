@@ -1,4 +1,5 @@
 import { startGpsTracking } from '../../shared/gps.js';
+import { shiftStopTimes, minutesFromNow } from '../../shared/scheduleTimeShift.js';
 import { updateUi, renderLog, setOnStopJump } from './ui.js';
 import { initMap, updateMapPosition, invalidateSize } from './map.js';
 import { log, getEntries } from '../../shared/logger.js';
@@ -32,31 +33,6 @@ const DEBUG = new URLSearchParams(window.location.search).has('debug');
 // line. Stripped there only; every other use of a stop's name keeps it.
 function stripIndicator(name) {
   return name.replace(/\s*\([^)]*\)\s*$/, '');
-}
-
-// ── Testing-mode time shift (DEBUG only) ────────────────────────────────────
-// Lets a tester run a journey outside its real scheduled hours: the whole
-// stop schedule slides so the first stop's time becomes "now", preserving
-// the real gaps between stops so on-time/late/ETA logic downstream
-// (engine.js, gps.js, ui.js — all of which only ever read stop.time) still
-// behaves meaningfully. Display-only; does not touch what gets uploaded to
-// journey_stop_times, so the ops dashboard's variance calc (which recomputes
-// "scheduled" from the DB's real departure_time) will show a test run as
-// late/early — expected, not a bug.
-function shiftStopTimes(stops, deltaMinutes) {
-  return stops.map(stop => {
-    const [h, m] = stop.time.split(':').map(Number);
-    const shifted = (((h * 60 + m + deltaMinutes) % 1440) + 1440) % 1440;
-    const nh = String(Math.floor(shifted / 60)).padStart(2, '0');
-    const nm = String(shifted % 60).padStart(2, '0');
-    return { ...stop, time: `${nh}:${nm}` };
-  });
-}
-
-function minutesFromNow(hhmm) {
-  const [h, m] = hhmm.split(':').map(Number);
-  const now = new Date();
-  return (now.getHours() * 60 + now.getMinutes()) - (h * 60 + m);
 }
 
 // ── Stop time upload ──────────────────────────────────────────────────────────
