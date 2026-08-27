@@ -22,7 +22,8 @@ Step-by-step instructions for testing every component of the RouteTracker platfo
 14. [Test: Driver PWA — debug mode](#14-test-driver-pwa--debug-mode)
 15. [Test: Driver PWA — offline fallback](#15-test-driver-pwa--offline-fallback)
 16. [Test: End-to-end (dashboard + PWA together)](#16-test-end-to-end-dashboard--pwa-together)
-17. [Resetting test data](#17-resetting-test-data)
+17. [Test: BusOps Announce Lite](#17-test-busops-announce-lite)
+18. [Resetting test data](#18-resetting-test-data)
 
 ---
 
@@ -385,7 +386,83 @@ This verifies the two halves of the system work together.
 
 ---
 
-## 17. Resetting test data
+## 17. Test: BusOps Announce Lite
+
+Covers the Controller-less "Lite" tier (see `docs/ANNOUNCE-PRODUCT-TIERS.md`): a
+second GPS-capable tablet running `busops/announce/onboard.html` directly,
+either paired to a Driver device or fully standalone (driverless). Both modes
+read/write Supabase directly via a device-scoped JWT — no Bus Controller
+involved.
+
+### Register a device and get its install link
+1. Dashboard → **Announce Devices** → **+ Add Device**
+2. Pick a vehicle, optionally give it a label, save
+3. Click **Get Install Link** — a URL like
+   `http://localhost:8080/announce/onboard.html?announce-device-token=<jwt>`
+   is generated (calls `/api/sign-announce-token`)
+4. Open that URL in a **second** browser tab/window — it should render the
+   idle screen with the BusOps Announce brand mark and no console errors
+
+### Test: paired mode (linked to a Driver device)
+> **Known gap (not yet built):** there is no "Link Announce device" button
+> in the Driver PWA yet — only the underlying RPCs
+> (`link_announce_device`/`unlink_announce_device`) and the dashboard-side
+> registration exist so far. Until that UI lands, link a device manually:
+> ```sql
+> select link_announce_device('<announce_devices.id>', '<vehicles.id>');
+> ```
+1. Link a device to a vehicle (UI once built, or the SQL above for now)
+2. Start a duty-card or manual-selection journey on that vehicle in the
+   Driver PWA (tab 1)
+3. In the Announce tab (tab 2, opened with that device's install link), the
+   idle screen should replace itself with the live sign — service code,
+   destination, tube-track — within a few seconds of journey start
+4. Simulate GPS arrival at a stop in the Driver PWA (DevTools Sensors, see
+   §13) — the Announce tab's tube-track should advance to match, without
+   reloading
+5. Complete the journey in the Driver PWA — the Announce tab returns to idle
+
+**Pass:** the Announce tab mirrors the Driver PWA's tracking state via
+Supabase Realtime, with no direct interaction on the Announce device itself.
+
+### Test: standalone mode (driverless, schedule-autopilot)
+Only safe for routes whose start/end stops don't overlap with any other
+service (see the doc's "hard precondition") — the seeded S125S route is a
+reasonable stand-in for testing.
+
+1. In Supabase SQL Editor, configure the device's candidates directly (no
+   dashboard UI for this yet either):
+   ```sql
+   update announce_devices
+   set candidate_departure_ids = array['<timetable_departures.id>']
+   where id = '<announce_devices.id>';
+   ```
+2. Open the device's install link — the idle screen should show a
+   **"Next departure HH:MM"** caption once candidates load
+3. Open DevTools (F12) → **Sensors** → set **Custom location** to the
+   candidate's first stop's lat/lon, within `terminus_radius_m` (150m
+   default)
+4. Within ~5 seconds (the idle-poll interval) the idle screen should
+   disappear and the live sign should appear — a journey has started
+   automatically, no driver/manual action involved
+5. Simulate GPS progressing through the remaining stops (as in §13) — the
+   tube-track should advance normally, using the same tracking engine as
+   the Driver PWA
+6. Simulate GPS arrival at the final stop — the journey should complete and
+   the device return to the idle/next-departure screen automatically
+
+**Pass:** a fully driverless device starts, tracks, and completes a journey
+on its own, matching only when both the geofence and the scheduled-time
+window agree (test outside either condition and confirm it stays idle).
+
+**To restore:** clear the test device's `candidate_departure_ids` and
+`link_state`/`gps_source` back to defaults (`'{}'`, `'unlinked'`,
+`'internal'`) once done, and clear DevTools' Sensors override back to
+**No override**.
+
+---
+
+## 18. Resetting test data
 
 To clear test drivers, vehicles, and journeys between test runs without touching the seeded routes/timetables:
 
