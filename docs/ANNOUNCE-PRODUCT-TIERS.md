@@ -139,20 +139,48 @@ end point with any other service**. That non-overlap is what makes a
 lightweight matching approach safe, instead of needing full schedule
 reasoning:
 
-1. **Commissioning**: the box is preloaded with its small, fixed set of
-   candidate departures — 2 routes × 2 directions, up to 4
-   `timetable_departure_id`s — cached via the existing offline-first
-   pattern (`preloadAllRoutes()`/`localStore.js`), each carrying its
-   first stop's lat/lon and scheduled `departure_time`. No new caching
-   mechanism.
+1. **Commissioning**: one URL param only — `?announce-device-token=`,
+   captured once and persisted to `localStorage`, mirroring
+   `announceLink.js`'s existing `captureAnnounceSetup()`/`connect()`
+   pattern exactly (new sibling module, not a new pattern). The candidate
+   departure list is **not** URL-encoded — checked both existing
+   commissioning patterns first (`?panel-profile=` is stateless, re-read
+   every load; `?announce-setup=`/`?announce-token=` is captured once)
+   and neither has precedent for carrying multi-value structured data
+   (a JWT plus up to 4 departure IDs) in a URL. Instead
+   `candidate_departure_ids` lives on the device's own `announce_devices`
+   row (added above) and is fetched via the existing `device_self` anon
+   RLS policy — no new policy needed, just read the extra column. This
+   also means candidate routes are editable from the dashboard at any
+   time without re-touching the physical kiosk, and unifies commissioning
+   across both paired and standalone Lite: which mode a device is in
+   falls out of `gps_source`/`link_state`/whether
+   `candidate_departure_ids` is populated, not a separate flow per mode.
+   Departures are cached client-side via the existing offline-first
+   pattern (`preloadAllRoutes()`/`localStore.js`) — no new caching
+   mechanism — each carrying its first stop's lat/lon and scheduled
+   `departure_time`.
 2. **Idle loop**: while no journey is active, the tablet watches its own
    GPS and, for each cached candidate, checks two conditions together:
-   - **Geofence** — is the vehicle within the existing stop-radius
-     (reusing `geofence.js`'s current constant, not a new one) of that
-     candidate's *first* stop?
+   - **Geofence** — is the vehicle within `terminus_radius_m` (new
+     tunable column, default 150m) of that candidate's *first* stop?
+     **Not** `geofence.js`'s existing `GEOFENCE_RADIUS_M` (50m) — that
+     constant is sized for street-level stop arrival; a route terminus or
+     depot forecourt is plausibly wider than 50m across, and 150m sits
+     between it and the file's existing wider-band precedent,
+     `APPROACH_FALLBACK_RADIUS_M` (300m, used for a different purpose —
+     approach detection). No real timetable/site data exists yet for
+     Phil Haines Travel's two routes to validate this number against
+     (`supabase/seed.sql` is reference-data-only; operational data is
+     "created via the dashboard after setup") — treat 150m as a starting
+     default to tune once the real install exists, not a measured value.
    - **Time** — is now within a window around that candidate's scheduled
-     `departure_time` (generous enough for early running, e.g. −15/+30
-     min)?
+     `departure_time`: `match_window_before_min`/`match_window_after_min`
+     (new tunable columns, default 15/30). Same caveat — starting
+     defaults pending real data, not measured. Making both the radius and
+     the window per-device dashboard-editable columns (rather than
+     hardcoded constants) means they can be tuned after the fact without
+     a code deploy, which matters given neither can be validated yet.
 
    Both signals matter together, not geofence alone: if a route's
    outbound and return share a terminus (there-and-back from one depot
@@ -188,14 +216,44 @@ capability for zero-interaction operation. Revisit only if a client
 specifically needs it (would require ops pushing a diversion flag
 centrally from the dashboard, which is real new scope, not free).
 
+**Idle-screen UI.** `onboard.js` already has a real idle scaffold, not a
+blank body — `#onboard-idle` (topbar/main/bottom, same grid shape as the
+active sign), shown today only via `?operator-name=`, logo-only, wired to
+no data source. Its file-header comment states the device has "no
+independent reads" by design — true for Standard and paired Lite, but
+standalone Announce's entire premise is breaking that (its own GPS + a
+cached candidate list), so this is a scoped, intentional exception, not a
+violation of that note. Extend `#onboard-idle` (reuse its accent-bar
+pattern and `positionBrand()`) to show the next candidate departure's
+scheduled time, computed client-side from the already-cached list — no
+network call needed. This next-departure content applies **only to
+standalone/autopilot mode** — paired Lite and Standard keep today's
+logo-only idle screen unchanged, since a not-yet-linked Driver has no
+future schedule to show anyway.
+
+**Entitlement gating — explicitly deferred, not built now.** Checked and
+confirmed nothing like a per-company plan/tier/feature-entitlement concept
+exists anywhere in this codebase today: no such column on `companies`, no
+feature-flag table, no gating utility in `pcv-dashboard/src/shared/`. Even
+`CoachMate` (the other reserved product-module placeholder) has zero
+gating logic — it's an empty folder. Building a general entitlement
+system is out of scope here; it's the same "genuinely separate SKU or
+upsell funnel" business decision already sitting in the open items below,
+not a coding prerequisite. For now, ship the new dashboard UI (device-link
+page, standalone commissioning) visible to every company — harmless
+no-op for companies with no `announce_devices` rows, same as
+`VehiclesPage.jsx` being visible regardless of fleet size. Recorded here
+explicitly so it doesn't quietly get forgotten once a second Lite client
+shows up.
+
 **New engineering surface this implies:**
 - Dashboard: a device-link-generation flow (mirrors duty-card generation)
-- Driver PWA: a link/unlink action, and a Supabase Realtime push channel
-  for linked mode (distinct from Standard's local-WebSocket `/driver-push`)
-  — needed for the paired scenario, not this one
+- Driver PWA: a link/unlink action (see "Link-picker UX" in the technical
+  addendum below) — needed for the paired scenario, not this one
 - Announce app: a new idle-loop matcher module (geofence + time check
-  against the cached candidate list, described above) — no new database
-  schema required for this piece, unlike `announce_devices` above
+  against the cached candidate list, described above) plus the extended
+  idle-screen UI — no new database table required for either piece,
+  just the extra `announce_devices` columns added above
 
 ## Technical addendum: paired-install implementation contract
 
@@ -205,9 +263,12 @@ coding agent can implement the paired-install scenario against this
 repo's actual conventions instead of inventing its own. Grounded directly
 in the existing duty-card JWT (`generate_duty_token()` in
 `supabase/schema.sql`) and Driver→Announce push contract
-(`busops/driver/src/announceLink.js`) — not a fresh design. Standalone
-Announce (no Driver device) is deliberately **not** covered here; it's
-still blocked on the schedule-autopilot problem noted above.
+(`busops/driver/src/announceLink.js`) — not a fresh design. The
+`announce_devices` table below is shared by both scenarios (its
+standalone-specific columns are simply unused/empty on a paired-mode
+device); the JWT and Realtime sections are paired-install-specific —
+standalone's own commissioning and matching design lives in the
+"Schedule-autopilot" section above, not here.
 
 ### `announce_devices` table
 
@@ -225,6 +286,17 @@ create table public.announce_devices (
     check (link_state in ('unlinked','linked')),
   gps_source text not null default 'internal'
     check (gps_source in ('internal','driver-device')),
+  -- Linked-mode push state (§ Linked-mode Realtime contract below) — no
+  -- separate state table, this row IS the push target.
+  latest_schedule jsonb,
+  latest_state jsonb,
+  state_updated_at timestamptz,
+  -- Standalone-mode commissioning (§ Schedule-autopilot) — null/empty for
+  -- paired-mode devices, populated for standalone ones.
+  candidate_departure_ids uuid[] not null default '{}',
+  match_window_before_min int not null default 15,
+  match_window_after_min int not null default 30,
+  terminus_radius_m int not null default 150,
   last_seen_at timestamptz,
   created_at timestamptz not null default now()
 );
@@ -274,14 +346,59 @@ whichever is the live path, not both.
 
 ### Linked-mode Realtime contract
 
-Reuse `announceLink.js`'s `buildSchedulePayload`/`buildStatePayload`
-field shapes **verbatim** — do not redesign the message shape — delivered
-over a Supabase Realtime broadcast channel named `announce-device:<device_id>`,
-with broadcast events `schedule` and `state`. No `announce` (PSVAIR audio
-cue) event: Standard's relay already never forwards that to the sign
-today, which matches Lite's own "no PA from Announce" limitation in the
-tier-comparison table below — this carries an existing limitation forward
-rather than opening a new gap.
+**Correction:** an earlier draft of this section specified a Supabase
+Realtime *Broadcast* channel. Checked against the only Realtime usage that
+actually exists in this codebase — `pcv-dashboard/src/features/tracking/
+LiveTracking.jsx` — and it uses **Postgres Changes**
+(`supabase.channel(...).on('postgres_changes', {event, schema, table}, cb)`)
+subscribed to row writes on `journeys`/`journey_events`, not Broadcast.
+There's no Broadcast precedent anywhere in this repo, so linked mode should
+follow the pattern that already exists:
+
+- Driver writes state via a new `security definer` RPC —
+  `update_announce_device_state(p_device_id uuid, p_schedule jsonb,
+  p_state jsonb)`, `grant execute to anon` — into `announce_devices`'
+  `latest_schedule`/`latest_state`/`state_updated_at` columns (added
+  above; no separate state table). This matches how `start_journey`/
+  `complete_journey`/`get_or_create_manual_journey` already handle anon
+  writes: validated inside the function, not via an RLS+JWT-claim check.
+  That matters concretely here — manual-selection-flow driver devices
+  often run under the bare anon key with **no JWT claims at all**
+  (`supabaseApi.js`'s `driverToken()` falls back to the plain
+  `SUPABASE_KEY` when there's no `?token=` present), so an RLS policy
+  requiring a JWT `vehicle_id`/`company_id` match would silently break
+  that path.
+- Announce subscribes:
+  ```js
+  supabase.channel('announce-device')
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public',
+        table: 'announce_devices', filter: `id=eq.${deviceId}` }, cb)
+    .subscribe()
+  ```
+- The JSON **shapes inside** `latest_schedule`/`latest_state` are still
+  exactly `announceLink.js`'s `buildSchedulePayload`/`buildStatePayload`
+  fields, unchanged from the original design — only the transport
+  changed, not the message contract. No `announce` (PSVAIR audio cue)
+  event: Standard's relay already never forwards that to the sign today,
+  matching Lite's own "no PA from Announce" limitation in the
+  tier-comparison table below — this carries an existing limitation
+  forward rather than opening a new gap.
+
+### Link-picker UX (Driver PWA → Announce device)
+
+"Pick the Announce device registered to the same vehicle" (provisioning
+step 5 above) needs a concrete `vehicle_id` to filter
+`announce_devices` by, and the Driver PWA has two different sources for
+one depending on which flow started the journey: prefer the active
+journey's `journeys.vehicle_id` (duty-card flow); fall back to
+`vehicleSetup.js`'s locally-commissioned vehicle (manual-selection flow)
+— the same conditional already threaded through `manualSelection.js`'s
+`selectServiceManually(..., vehicleId, ...)`. UI-wise, add a small "Link
+Announce device" action near the existing vehicle-commissioning prompt
+(the "WHICH VEHICLE IS THIS?" flow `cab-device/setup-cab-device.sh`
+references), listing matching `announce_devices` rows. This is a
+reasonable first design, not a pixel-verified one — exact placement in
+`ui.js` needs a look once building starts.
 
 ### File placement
 
@@ -352,3 +469,21 @@ rather than opening a new gap.
 - Confirm with the team whether Lite is being positioned as a genuinely
   separate SKU or as an entry-tier upsell funnel into Standard — affects
   how it's marketed, not the technical plan above.
+- **Automated tests**: a new Jest suite in `pcv-dashboard/busops/tests/`
+  for the geofence+time matcher, matching `geofence.test.js`/
+  `engine.test.js`'s idiom (pure functions, synthetic fixtures, no
+  mocking) — cover match-found, no-match, tie-break (two candidates both
+  matching → nearest scheduled time wins), and the shared-terminus case
+  (outbound/return sharing a stop, disambiguated by time alone).
+- **Manual tests**: `docs/TESTING.md` has no Announce/onboard section at
+  all today (confirmed — "Announce"/"onboard" don't appear in the file).
+  Add one modeled on its §13 format (GPS simulation via Chrome DevTools →
+  Sensors, numbered steps, **Pass:**/**Fail:**/**To restore:** blocks):
+  simulate GPS at a commissioned terminus inside/outside the match
+  window, confirm journey starts/doesn't start, confirm idle-screen
+  next-departure content renders, confirm the completion safety-net
+  timeout fires when GPS never confirms final-stop arrival.
+- Tune `terminus_radius_m`/`match_window_before_min`/
+  `match_window_after_min`'s defaults (150m / 15 / 30) against Phil
+  Haines Travel's real timetable and site geography once that data
+  exists — currently starting defaults, not measured values.
