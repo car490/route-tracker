@@ -59,7 +59,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, execSync } from 'node:child_process';
-import { haversine } from '../pcv-dashboard/busops/driver/src/geo.js';
+import { haversine } from '../pcv-dashboard/busops/shared/geo.js';
 
 const MODE = process.argv[2];
 // Deliberately slow (14s/stop) — this script exists to

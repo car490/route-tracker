@@ -1,4 +1,4 @@
-import { findForwardMatch, isApproaching, GEOFENCE_RADIUS_M, APPROACH_ETA_SECONDS, APPROACH_FALLBACK_RADIUS_M } from '../driver/src/geofence.js';
+import { findForwardMatch, isApproaching, GEOFENCE_RADIUS_M, APPROACH_ETA_SECONDS, APPROACH_FALLBACK_RADIUS_M } from '../shared/geofence.js';
 
 // Stops spaced ~200m apart along latitude (0.0018 deg ≈ 200m) so each is
 // unambiguously inside/outside the 50m geofence from any other stop's coords.

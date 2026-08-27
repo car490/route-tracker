@@ -1,7 +1,7 @@
-import { startGpsTracking } from './gps.js';
+import { startGpsTracking } from '../../shared/gps.js';
 import { updateUi, renderLog, setOnStopJump } from './ui.js';
 import { initMap, updateMapPosition, invalidateSize } from './map.js';
-import { log, getEntries } from './logger.js';
+import { log, getEntries } from '../../shared/logger.js';
 import { initDirections, syncCurrentStop, updateDirections } from './directions.js';
 import {
   setAnnouncementsEnabled, onAnnouncementChange, announceJourneyStart,

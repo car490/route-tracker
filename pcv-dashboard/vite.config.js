@@ -233,6 +233,68 @@ function localSignTokenApi(secret) {
   }
 }
 
+// No exp claim — unlike sign-token.js's 24h duty token, this identifies a
+// fixed kiosk installation and must not expire and blank the passenger sign
+// daily. Mirrors pcv-dashboard/api/sign-announce-token.js exactly.
+function localSignAnnounceTokenApi(secret) {
+  return {
+    name: 'local-sign-announce-token-api',
+    configureServer(server) {
+      server.middlewares.use('/api/sign-announce-token', (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ error: 'Method not allowed' }))
+          return
+        }
+
+        let raw = ''
+        req.on('data', chunk => { raw += chunk })
+        req.on('end', () => {
+          if (!secret) {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: 'SUPABASE_JWT_SECRET not configured in .env.local' }))
+            return
+          }
+          try {
+            const { device_id, company_id, vehicle_id } = JSON.parse(raw)
+            if (!device_id || !company_id) {
+              res.statusCode = 400
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ error: 'device_id and company_id required' }))
+              return
+            }
+
+            const header  = base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
+            const now     = Math.floor(Date.now() / 1000)
+            const payload = base64url(JSON.stringify({
+              iss:        'supabase',
+              role:       'anon',
+              device_id,
+              company_id,
+              vehicle_id,
+              iat:        now,
+            }))
+            const sig = createHmac('sha256', secret)
+              .update(`${header}.${payload}`)
+              .digest('base64')
+              .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+
+            res.statusCode = 200
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ token: `${header}.${payload}.${sig}` }))
+          } catch (e) {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: e.message }))
+          }
+        })
+      })
+    },
+  }
+}
+
 function localSendDutyEmailApi(resendApiKey, resendFrom) {
   return {
     name: 'local-send-duty-email-api',
@@ -342,6 +404,7 @@ export default defineConfig(({ mode }) => {
       localDirectionsApi(ghBase, ghProfile),
       localDirectionsDiagnosticsApi(env),
       localSignTokenApi(env.SUPABASE_JWT_SECRET),
+      localSignAnnounceTokenApi(env.SUPABASE_JWT_SECRET),
       localSendDutyEmailApi(env.RESEND_API_KEY, env.RESEND_FROM),
     ],
   }

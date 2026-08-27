@@ -20,7 +20,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, execSync } from 'node:child_process';
-import { haversine } from './driver/src/geo.js';
+import { haversine } from './shared/geo.js';
 
 const MODE = process.argv[2];
 const SECONDS_PER_STOP = Number(process.argv[3] ?? 14);
