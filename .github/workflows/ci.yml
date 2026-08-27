@@ -20,6 +20,8 @@ jobs:
         working-directory: pcv-dashboard/busops
       - run: npm test
         working-directory: pcv-dashboard/busops
+      - run: npm run test:vitest
+        working-directory: pcv-dashboard/busops
 
   dashboard-lint:
     name: Dashboard — lint
@@ -50,3 +52,23 @@ jobs:
         working-directory: pcv-dashboard
       - run: npm run build
         working-directory: pcv-dashboard
+
+  deploy-driver-pwa:
+    name: Driver PWA — deploy to driver.pcvtechnologies.co.uk
+    needs: [pwa-test, dashboard-lint, dashboard-build]
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: pcv-dashboard/busops/package-lock.json
+      - run: npm ci
+        working-directory: pcv-dashboard/busops
+      - run: npx wrangler deploy --env=""
+        working-directory: pcv-dashboard/busops
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: b3fc3cb9a7bc2946482799dfa42c2c90
