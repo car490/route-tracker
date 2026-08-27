@@ -389,6 +389,23 @@ function initIdleScreen() {
   positionBrand(); // idle screen's topbar/main/bottom band now exists to measure — pins the mark above the bottom bar here too
 }
 
+// Standalone (driverless) schedule-autopilot only (see
+// announceStandaloneAutopilot.js) — always unhides the idle screen, even
+// without ?operator-name= and even with no candidate yet (a device freshly
+// registered with no candidate_departure_ids configured), so the kiosk
+// visibly confirms it booted into standalone mode rather than looking
+// identical to a broken/not-yet-connected device. Only the next-departure
+// caption itself is conditional. candidate is
+// { departureId, firstStopLat, firstStopLon, departureTime } (scheduleAutopilot.js's
+// shape) or null once nothing is cached yet / commissioned.
+export function showNextDeparture(candidate) {
+  const box = el('idle-next-departure');
+  box.hidden = !candidate;
+  box.textContent = candidate ? `Next departure ${candidate.departureTime}` : '';
+  el('onboard-idle').hidden = false;
+  positionBrand();
+}
+
 // ── Clock — wide-layout top bar only, but harmless to keep updating while
 // the sign is hidden/in the default layout since #sign-clock just sits
 // unused there. ──────────────────────────────────────────────────────────
@@ -506,7 +523,7 @@ function init() {
   captureAnnounceDeviceSetup(new URLSearchParams(window.location.search));
   const liteDeviceToken = getAnnounceDeviceToken();
   if (liteDeviceToken) {
-    connectAnnounceLiteFeed(liteDeviceToken, { onSchedule, onState });
+    connectAnnounceLiteFeed(liteDeviceToken, { onSchedule, onState, onIdleNextDeparture: showNextDeparture });
   } else {
     connectSignFeed();
   }

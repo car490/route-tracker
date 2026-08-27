@@ -14,6 +14,7 @@
 // import — there is no bundler here (see CLAUDE.md, no build step for this app).
 
 import { SUPABASE_URL, SUPABASE_KEY } from '../../driver/src/config.js';
+import { startStandaloneAutopilot } from './announceStandaloneAutopilot.js';
 
 const RECONNECT_DELAY_MS = 3000;
 
@@ -29,10 +30,17 @@ function scheduleChanged(a, b) {
 
 // deviceToken is the JWT minted by api/sign-announce-token.js (device_id/
 // company_id/vehicle_id claims, no exp — see that file). onSchedule/onState
-// are onboard.js's own exported render functions, dependency-injected so
-// this module doesn't need to import onboard.js (which would create a
-// circular import, since onboard.js imports connectAnnounceLiteFeed).
-export function connectAnnounceLiteFeed(deviceToken, { onSchedule, onState }) {
+// are onboard.js's own exported render functions; onIdleNextDeparture is
+// onboard.js's idle-screen extension (standalone mode only) — all
+// dependency-injected so this module doesn't need to import onboard.js
+// (which would create a circular import, since onboard.js imports
+// connectAnnounceLiteFeed).
+//
+// Mode is decided once, from the row read at startup, and not hot-switched
+// mid-session — a device changing gps_source (e.g. linked while running)
+// takes effect on its next reload, same as a Standard device's own
+// commissioning is fixed per boot.
+export function connectAnnounceLiteFeed(deviceToken, { onSchedule, onState, onIdleNextDeparture }) {
   const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     global: { headers: { Authorization: `Bearer ${deviceToken}` } },
   });
@@ -43,7 +51,9 @@ export function connectAnnounceLiteFeed(deviceToken, { onSchedule, onState }) {
 
   let lastSchedule = null;
 
-  function applyRow(row) {
+  // Paired mode (gps_source: 'driver-device') — render whatever the linked
+  // Driver device has pushed into this row.
+  function applyPushedRow(row) {
     if (!row) return;
     if (row.latest_schedule && scheduleChanged(row.latest_schedule, lastSchedule)) {
       lastSchedule = row.latest_schedule;
@@ -61,14 +71,24 @@ export function connectAnnounceLiteFeed(deviceToken, { onSchedule, onState }) {
       setTimeout(start, RECONNECT_DELAY_MS);
       return;
     }
-    applyRow(data);
+
+    if (data.gps_source === 'internal') {
+      // Standalone (driverless) — a no-op idle screen if this device has no
+      // candidate_departure_ids configured yet (see
+      // startStandaloneAutopilot's own guard), same as before this feature
+      // existed.
+      startStandaloneAutopilot(client, data, { onSchedule, onState, onIdleNextDeparture });
+      return;
+    }
+
+    applyPushedRow(data);
 
     client
       .channel(`announce-device-${data.id}`)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'announce_devices', filter: `id=eq.${data.id}` },
-        (payload) => applyRow(payload.new)
+        (payload) => applyPushedRow(payload.new)
       )
       .subscribe();
   }

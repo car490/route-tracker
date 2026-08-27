@@ -226,8 +226,10 @@ body {
 #idle-main {
   grid-area: main;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 2vh;
   /* Matches #onboard-sign's own paper background (var(--ep-paper)) — the
      logo file itself sits on white, so leaving this on the page's cream
      --ep-bg made it read as a pasted-on rectangle instead of blending into
@@ -239,6 +241,19 @@ body {
   max-width: 50vw;
   max-height: 35vh;
   object-fit: contain;
+}
+
+/* Standalone (driverless) schedule-autopilot's next-departure caption —
+   see announceStandaloneAutopilot.js/onboard.js's showNextDeparture(). Not
+   held to the active sign's 22mm PSVAIR minimum (--min-text) — that
+   requirement is for in-service passenger information, not this
+   before-boarding idle caption. */
+#idle-next-departure {
+  font-family: var(--ep-font);
+  font-weight: 700;
+  font-size: calc(var(--min-text) * 0.6);
+  color: var(--ep-ink-soft);
+  text-align: center;
 }
 
 /* ── Top bar — brand accent, white lettering (logo keeps its own brand
