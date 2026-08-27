@@ -460,6 +460,29 @@ window agree (test outside either condition and confirm it stays idle).
 `'internal'`) once done, and clear DevTools' Sensors override back to
 **No override**.
 
+### Bench-testing with real devices (real GPS, not DevTools simulation)
+
+Unlike Standard (needs the Bus Controller + its own WiFi hotspot, see
+`mele-server/`), Lite needs no local link at all — any phone/tablet with a
+browser and an internet connection (mobile data or the same WiFi as your
+laptop) can run it, moving/walking it physically instead of simulating GPS.
+
+**Gotcha**: `driver/src/config.js`'s `IS_DEV` check only matches hostname
+`localhost`/`127.0.0.1` — a real device reaching your laptop over its LAN IP
+(e.g. `192.168.1.42:8080`) fails that check and silently points at
+**production** Supabase instead of dev. For a bench test:
+1. Temporarily edit `IS_DEV` in `config.js` to also match your LAN IP (or
+   just hardcode it `true`) — never commit this, revert with
+   `git checkout -- pcv-dashboard/busops/driver/src/config.js` when done.
+2. `node scripts/dev-all.mjs` (or just `cd pcv-dashboard/busops && node server.js`),
+   find your laptop's LAN IP (`ipconfig`), and both real devices browse to
+   `http://<LAN-IP>:8080/...` instead of `localhost`.
+3. Register/link Announce devices exactly as above, but build install
+   links against `http://<LAN-IP>:8080/announce/onboard.html?...` instead
+   of the dashboard's auto-generated `localhost` one.
+4. Physically walk/drive the devices between real stops rather than using
+   DevTools Sensors.
+
 ---
 
 ## 18. Resetting test data
