@@ -204,13 +204,20 @@ export default function Layout({ session }) {
           <button className="btn-signout" onClick={() => supabase.auth.signOut()}>
             Sign out
           </button>
-          <div className="sidebar-coachmate">
-            <span className="cm-coach">COACH</span><span className="cm-mate">Mate</span>
+          <div className="sidebar-brandbar">
+            <div className="sidebar-wordmark">
+              <div className="sidebar-wordmark-name">
+                <span className="cm-coach">PCV</span><span className="cm-mate">Dashboard</span>
+              </div>
+              <div className="sidebar-wordmark-strap">From PCV Technologies</div>
+            </div>
+            <div className="sidebar-badges">
+              <div className={`sidebar-env ${IS_DEV_SUPABASE ? 'sidebar-env--dev' : 'sidebar-env--prod'}`}>
+                {IS_DEV_SUPABASE ? 'DEV' : 'PRODUCTION'}
+              </div>
+              <div className="sidebar-version">v{__APP_VERSION__}</div>
+            </div>
           </div>
-          <div className={`sidebar-env ${IS_DEV_SUPABASE ? 'sidebar-env--dev' : 'sidebar-env--prod'}`}>
-            {IS_DEV_SUPABASE ? 'DEV' : 'PRODUCTION'}
-          </div>
-          <div className="sidebar-version">v{__APP_VERSION__}</div>
         </div>
       </nav>
 
@@ -219,13 +226,6 @@ export default function Layout({ session }) {
           <Outlet />
         </div>
       </main>
-
-      <div className="app-brand">
-        <div className="app-brand-wordmark">
-          PCV <span className="app-brand-accent">Dashboard</span>
-        </div>
-        <div className="app-brand-attribution">From PCV Technologies</div>
-      </div>
 
       {logoModalOpen && employee && (
         <CompanyModal
