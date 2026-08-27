@@ -64,6 +64,13 @@ const NavIcons = {
       <circle cx="18.5" cy="18.5" r="2.5"/>
     </Icon>
   ),
+  announce: (
+    <Icon>
+      <rect x="3" y="4" width="18" height="13" rx="2"/>
+      <line x1="8" y1="21" x2="16" y2="21"/>
+      <line x1="12" y1="17" x2="12" y2="21"/>
+    </Icon>
+  ),
   routes: (
     <Icon>
       <line x1="6" y1="3" x2="6" y2="15"/>
@@ -105,6 +112,7 @@ const NAV = [
   { divider: true },
   { to: '/employees',     label: 'Drivers',          icon: 'drivers' },
   { to: '/vehicles',      label: 'Vehicles',         icon: 'vehicles' },
+  { to: '/announce-devices', label: 'Announce Devices', icon: 'announce' },
   { divider: true },
   { to: '/routes',        label: 'Routes',           icon: 'routes' },
   { to: '/journeys',      label: 'Daily Journeys',   icon: 'journeys' },

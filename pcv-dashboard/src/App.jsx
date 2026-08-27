@@ -7,6 +7,7 @@ import ResetPassword from './features/auth/ResetPassword'
 import Overview from './features/overview/Overview'
 import EmployeesPage from './features/employees/EmployeesPage'
 import VehiclesPage from './features/vehicles/VehiclesPage'
+import AnnounceDeviceLinkPage from './features/vehicles/AnnounceDeviceLinkPage'
 import RoutesPage from './features/routes/RoutesPage'
 import JourneysPage from './features/journeys/JourneysPage'
 import SchedulePage from './features/schedule/SchedulePage'
@@ -82,6 +83,7 @@ export default function App() {
         <Route path="routes" element={<RoutesPage />} />
         <Route path="employees" element={<EmployeesPage />} />
         <Route path="vehicles" element={<VehiclesPage />} />
+        <Route path="announce-devices" element={<AnnounceDeviceLinkPage />} />
         <Route path="journeys" element={<JourneysPage />} />
         <Route path="duty-cards" element={<DutyCardsPage />} />
         <Route path="route-planner" element={<RoutePlannerPage />} />
