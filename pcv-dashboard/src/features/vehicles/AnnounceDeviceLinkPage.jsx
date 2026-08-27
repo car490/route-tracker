@@ -92,7 +92,7 @@ export default function AnnounceDeviceLinkPage() {
       // /sign-feed WebSocket relay secret (onboard.js's connectSignFeed()).
       // ?announce-device-token= is the distinct Lite-tier device JWT param
       // (doc's own standalone-commissioning naming, reused here for paired
-      // mode too — see announceLiteInit.js).
+      // mode too — see busops/announce/src/announceLiteSetup.js).
       else if (data.token) setLink(`${PWA_BASE}/announce/onboard.html?announce-device-token=${data.token}`)
       else setLinkError('No token returned')
     } catch (err) {

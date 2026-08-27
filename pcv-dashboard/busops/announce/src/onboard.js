@@ -25,6 +25,7 @@
 //   exact same onSchedule()/onState() below — the rendering code is shared
 //   unchanged between both tiers, only the transport differs.
 import { connectAnnounceLiteFeed } from './announceLiteFeed.js';
+import { captureAnnounceDeviceSetup, getAnnounceDeviceToken } from './announceLiteSetup.js';
 
 const WIDE_LAYOUT_QUERY = '(min-aspect-ratio: 4/1)'; // 16:3 ultra-wide sign, see docs/onboard-widescreen-layout.md
 
@@ -499,8 +500,11 @@ function init() {
   // Mutually exclusive per device: ?announce-device-token= (Lite, Supabase
   // Realtime — see announceLiteFeed.js) vs the Standard /sign-feed
   // WebSocket. A device is provisioned with exactly one of the two URL
-  // params, never both.
-  const liteDeviceToken = new URLSearchParams(window.location.search).get('announce-device-token');
+  // params, never both. The Lite token is captured once and persisted (see
+  // announceLiteSetup.js) rather than re-read from the URL every load — a
+  // kiosk isn't guaranteed to reopen with its original query string.
+  captureAnnounceDeviceSetup(new URLSearchParams(window.location.search));
+  const liteDeviceToken = getAnnounceDeviceToken();
   if (liteDeviceToken) {
     connectAnnounceLiteFeed(liteDeviceToken, { onSchedule, onState });
   } else {
