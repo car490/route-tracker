@@ -17,9 +17,22 @@ const MIME = {
 };
 
 http.createServer((req, res) => {
-  let urlPath = req.url.split('?')[0];
-  if (urlPath === '/') urlPath = '/driver/index.html';
+  const [reqPath, queryString] = req.url.split('?');
 
+  // A same-URL rewrite (serving driver/index.html's bytes while the browser
+  // still shows '/') breaks every relative asset reference in that file --
+  // <script src="src/main.js"> etc. resolve against the visible URL, not
+  // the file's real directory, so main.js 404s and nothing ever renders
+  // beyond the static HTML. A real redirect changes the URL bar to
+  // /driver/ first, so relative paths resolve correctly. Query string
+  // (e.g. ?debug) must survive the redirect -- see CLAUDE.md.
+  if (reqPath === '/') {
+    res.writeHead(302, { Location: '/driver/' + (queryString ? `?${queryString}` : '') });
+    res.end();
+    return;
+  }
+
+  const urlPath = reqPath.endsWith('/') ? `${reqPath}index.html` : reqPath;
   const filePath = path.join(__dirname, urlPath);
 
   fs.readFile(filePath, (err, data) => {
