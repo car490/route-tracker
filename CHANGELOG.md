@@ -5,6 +5,114 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.0.0] - 2026-08-27
+
+- docs: add Announce Lite manual test section to TESTING.md
+- Announce Lite: standalone schedule-autopilot wiring + idle-screen extension
+- Announce Lite: standalone schedule-autopilot matcher (TDD)
+- Announce Lite: persist the device token instead of one-shot URL read
+- Announce Lite tier: paired-mode Realtime push/pull, both directions
+- Announce Lite tier: dashboard device registration/install-link page
+- Announce Lite tier: Driver PWA device-link primitives (TDD)
+- Announce Lite tier, Phase 0: schema, device JWT, shared GPS relocation
+- docs: close remaining gaps in Lite spec before implementation starts
+- docs: design standalone-Announce autopilot via geofence + time matching
+- docs: pin down execute-ready technical contract for Lite paired install
+- docs: add Lite provisioning & linking flow, incl. standalone-Announce gap
+- docs: scope Lite's GPS source as an adapter, not a hardcoded assumption
+- docs: propose BusOps Announce Standard/Lite product tiers
+- Keep the real-Controller bench demo script, move token out of source
+- Centre tube-track block via fixed-height label reservation, widen labels
+- Remove bottom-bar auto-scroll, back to fixed ellipsis truncation
+- Move tube line down, shrink labels, arrow to the line's end
+- Centre tube-track dots on the line, thicken it, flip the start arrow
+- Revert onboard bottom bar to a single clause, not a combined line
+- Replace onboard bottom-bar Announcing hint with a combined status line
+- Fix onboard tube-track oscillating between arrival and departure
+- Fix onboard tube-track label crossing, wrap long names to 2 lines
+- Rework onboard tube-track: drop departed stop, angle labels, add direction arrow
+- Revert corner brand mark to text-only, keep the z-index stacking fix
+- Fix operator logo never appearing in the corner brand mark
+- Idle sign: white middle band, brand mark pinned above bottom bar everywhere
+- Simplify onboard idle screen: logo only, add branded top/bottom bars
+- Correct seatd group to video, confirm fix verified live on Controller
+- Fix cage kiosk failing to start on Controller: force seatd backend
+- Fix stale offline-fallback docs: describe the real localStorage cache + queues, not dead schedule.json
+- chore(busops): add wrangler as a devDependency
+- Sync schema.sql with the client-generated journey id migration
+- Make manual journey-start work offline via a client-generated journey id
+- Fix branding logo bucket mismatch (Layout/CompanyModal vs BrandingPage) (#15)
+- Add hostapd AP-mode bench-test script for the Quieter4C Controller (#14)
+- Update deploy-status docs: Cloudflare Workers Builds fixed, cutover still pending
+- Clean up remaining stale Pi/pi-server references after the Controller redesign
+- Fold docs/CONTROLLER-REDESIGN.md into docs/HARDWARE.md
+- Rebuild docs/DECISIONS.md against develop's actual current state
+- Add docs/DECISIONS.md: single ledger of settled vs. still-open project decisions
+- fix(mele-server): point bootstrap-controller.sh's clone at develop
+- fix(cab-device): update template Start URL to Cloudflare Workers domain
+- fix(busops): pin Node 22 for Cloudflare Workers Builds
+- fix(busops): declare the custom domain route on env.production too
+- docs: fix cab-device paths and kiosk URL for pcv-dashboard restructure
+- docs: remove stale demo-drive.mjs references
+- Update driver PWA domain references to pcvtechnologies.co.uk
+- docs: add company-level accessibility & brand playbook
+- docs: add branding consolidation plan (updated for pcv-dashboard restructure)
+- docs: add branding consolidation plan
+- Fix Vercel build: don't strip busops/shared/ from the dashboard build
+- Add offline resilience: cache routes, queue failed trip uploads
+- docs(mele-server): document wss:// requirement and cert-trust commissioning step
+- fix(mele-server): serve over HTTPS/WSS to fix mixed-content block on Driver push
+- fix(mele-server): dnsmasq loses a startup race against hostapd
+- fix(mele-server): detect WiFi interface without depending on iw
+- fix(mele-server): bootstrap script clones restructure/brand-hierarchy, not default branch
+- Rename pi-server/ to mele-server/, pi commissioning user to mele
+- Finalize deploy config and docs for the brand-hierarchy restructure
+- Move pi-server/ into busops/announce/, fix its own served paths
+- Split BusOps Driver/Announce into pcv-dashboard/busops/{driver,announce}
+- Rename dashboard/ -> pcv-dashboard/, add coachmate/ placeholder
+- Exclude cab-device/ from Cloudflare Workers deploy assets
+- Centre the monitor-vertical tube-track with visible margins
+- Reposition brand attribution to PCV Technologies, rename dashboard to PCV Dashboard
+- Close remaining brand metadata gaps (category E)
+- Replace hardcoded "Phil Haines Coaches" with the real per-tenant name
+- Fix stale product naming and add missing PCV attribution (category C)
+- Wire PCV Technologies brand typeface through the same token source
+- Wire PCV Technologies brand colours through a single token source
+- docs: correct Controller autoinstall delivery mechanism
+- Bus Controller: headless setup for MeLE Quieter4C, single-radio AP model
+- docs: log open issue — Kiosk Lock accessibility service doesn't survive restart
+- fix: disable Fully Kiosk's wait-for-internet on reload
+- Add driver duties / drivers'-hours compliance spec
+- Suppress boot-time system nags on cab kiosk devices
+- Require a SIM in every cab kiosk device before Kiosk Mode lockdown
+- feat(dashboard): add CoachMate Operations brand mark
+- Add DEBUG-only 'use current time' testing toggle to journey start
+- Driver side: broadcast PSVAIR announcements to a commissioned Controller
+- Controller-side audio playback subsystem (docs/CONTROLLER-REDESIGN.md §8)
+- Onboard sign: branded idle screen before a journey starts
+- Fix driver display: stop-list hidden behind brand mark, make trip-leave button visible
+- Onboard sign: Bar/Monitor/Monitor-vertical display profiles, brand badge fix, Fire HD purge
+- Bus Controller: schedule via push, onboard.js is now push-only
+- Point CLAUDE.md at HARDWARE.md and CONTROLLER-REDESIGN.md
+- Automate cab kiosk device provisioning (Fully Kiosk Browser)
+- docs: record the exact Quieter4C order spec for the BETA unit
+- docs: confirm Quieter4C audio-out, close out the audio hardware question
+- docs: rule out Quieter3Q (audio-out not supported), flag Quieter4C audio unverified
+- docs: add minimum-viable-spec purchasing note for BETA hardware
+- docs: pick MeLE Quieter4C for the Bus Controller in redesign notes
+- docs: decide idle-screen content for Controller redesign
+- docs: correct stale outstanding-items note in Controller redesign doc
+- docs: decide audio-out hardware and message transport for Controller redesign
+- docs: confirm audio-to-Controller decision in Controller redesign notes
+- Add Bus Controller redesign notes (mini PC, drop depot WiFi, audio question)
+- docs: correct onboard display mount from RAM D-size to E-size, add ordered parts
+- docs: require VESA passthrough on onboard display enclosure so BETA mount reuses without a second purchase
+- docs: flag RAM D-size VESA mount system for onboard display (BETA + production), exact parts TBD
+- docs: add onboard display BETA enclosure gap to TODO
+- docs: confirm Dell Pro P2426H as BETA monitor unit, note enclosure gap
+- fix: replace em-dashes with hyphens in start-temp-pi.example.ps1
+- chore: release v1.5.0
+
 ## [1.5.1] - 2026-08-19
 
 - Fix driver display: stop-list hidden behind brand mark, make trip-leave button visible
