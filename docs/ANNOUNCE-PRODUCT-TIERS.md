@@ -92,6 +92,56 @@ signal comes from changes.
 fast to install, movable between vehicles — and don't need PA/ticketing/APC
 now or on a near-term roadmap.
 
+## Provisioning & linking
+
+How a vehicle actually gets set up, per purchase scenario. Only the two
+Announce-Lite scenarios need anything beyond what exists today.
+
+### Driver only
+No change from today: dashboard generates a per-shift duty-card URL,
+driver opens it, done. Any future non-Announce feature hangs off this
+install the same way. No Announce device involved at all.
+
+### Driver + Announce Lite (paired install)
+1. Ops creates the vehicle in the dashboard (existing Vehicles slice).
+2. Dashboard generates a one-time, vehicle-scoped signed link for the
+   Announce tablet — same shape as the duty-card JWT, but persistent and
+   device-scoped rather than per-shift-per-driver. Installer opens it once
+   in the kiosk browser; it registers the device against
+   `company_id`+`vehicle_id` in a new `announce_devices` table, and the
+   kiosk retains that identity locally from then on (no re-scan needed).
+3. Announce boots straight into self-contained `internal` mode — it's a
+   complete, working product at this point, before any linking happens.
+4. Driver installs separately, unrelated step.
+5. **Linking is optional and happens later**, from the Driver PWA: pick
+   the Announce device registered to the same vehicle, tap link. This
+   flips that device's GPS source to `driver-device`, delivered over
+   Supabase Realtime (no local link between the two tablets — consistent
+   with Lite's existing "no local link" design; only the payload changes).
+   Unlinking drops it back to `internal` — reversible in either direction
+   at any time, not a one-way install-time choice.
+
+### Announce Lite only, no Driver device
+Device registration is identical to step 2 above — same one-time signed
+link, same `announce_devices` row. It stays permanently in `internal`
+mode since there's no Driver device to ever link to.
+
+**Open problem, not yet solved:** every other flow relies on a driver
+manually picking a duty to establish "which scheduled service is running
+right now." A driverless Announce has no driver to do that. Solving this
+needs schedule-autopilot logic — watching `schedule_view` for the
+vehicle's assigned route and auto-selecting whichever duty's scheduled
+time window matches now — which doesn't exist in the codebase today and
+is real, unscoped work, not a side effect of device registration. Treat
+"Announce Lite sold standalone" as blocked on this until it's designed.
+
+**New engineering surface this implies (not built yet):**
+- `announce_devices` table (device ↔ company/vehicle registration)
+- Dashboard: a device-link-generation flow (mirrors duty-card generation)
+- Driver PWA: a link/unlink action, and a Supabase Realtime push channel
+  for linked mode (distinct from Standard's local-WebSocket `/driver-push`)
+- Schedule-autopilot duty selection, required only for standalone Announce
+
 ## Tier comparison
 
 | Aspect | Standard | Lite |
@@ -119,6 +169,13 @@ now or on a near-term roadmap.
 - When restoring the independent-polling path, build it behind a GPS source
   adapter (`internal` / `driver-device`) in `src/gps.js` rather than assuming
   `internal` is the only option forever — see the Lite section above.
+- Design and build the `announce_devices` registration + link/unlink flow
+  (dashboard device-link generation, Driver PWA link/unlink UI, Supabase
+  Realtime push channel for linked mode) before Lite can actually ship the
+  paired-install scenario described above.
+- Schedule-autopilot duty selection is required before Announce Lite can
+  be sold standalone (no Driver device) — currently unscoped, blocking
+  that scenario specifically, not the paired-install one.
 - Confirm with the team whether Lite is being positioned as a genuinely
   separate SKU or as an entry-tier upsell funnel into Standard — affects
   how it's marketed, not the technical plan above.
