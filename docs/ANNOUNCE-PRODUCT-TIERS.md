@@ -73,6 +73,21 @@ history:
   doesn't silently bit-rot the way the WiFi hotspot flip-flopped once
   already in this repo's history (`HARDWARE.md` §12 decision history).
 
+**GPS source should be a config knob, not a hardcoded assumption.** The
+independent-polling design above assumes the Announce tablet always uses its
+own on-device GPS. Worth building the reused `src/gps.js` engine to accept a
+source adapter instead — `internal` (the tablet's own GPS, the default/only
+mode Lite needs day one) vs. `driver-device` (consume GPS-derived state
+pushed from the Driver device, closer to Standard's model but without a
+Controller in between). Two situations make the second adapter worth having
+even though nothing needs it yet: an Announce tablet with weak GPS/cellular
+reception in a given vehicle, and any future variant that wants Lite's
+cheaper two-tablet hardware with Standard's lower-latency push instead of
+poll-interval-bound updates. This is scoped as an adapter interface inside
+Lite's existing GPS engine, not a new device profile or operating mode —
+Lite stays two independent devices either way; only where one tablet's GPS
+signal comes from changes.
+
 **Who it's for:** operators who want the StarPAL-equivalent pitch — light,
 fast to install, movable between vehicles — and don't need PA/ticketing/APC
 now or on a near-term roadmap.
@@ -101,6 +116,9 @@ now or on a near-term roadmap.
 - Add a Lite row/flow to `docs/TESTING.md` once the independent-polling
   path is confirmed working, so it's a tested product, not a resurrected
   code path nobody exercises.
+- When restoring the independent-polling path, build it behind a GPS source
+  adapter (`internal` / `driver-device`) in `src/gps.js` rather than assuming
+  `internal` is the only option forever — see the Lite section above.
 - Confirm with the team whether Lite is being positioned as a genuinely
   separate SKU or as an entry-tier upsell funnel into Standard — affects
   how it's marketed, not the technical plan above.
