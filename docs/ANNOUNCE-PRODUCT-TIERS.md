@@ -126,21 +126,76 @@ Device registration is identical to step 2 above — same one-time signed
 link, same `announce_devices` row. It stays permanently in `internal`
 mode since there's no Driver device to ever link to.
 
-**Open problem, not yet solved:** every other flow relies on a driver
-manually picking a duty to establish "which scheduled service is running
-right now." A driverless Announce has no driver to do that. Solving this
-needs schedule-autopilot logic — watching `schedule_view` for the
-vehicle's assigned route and auto-selecting whichever duty's scheduled
-time window matches now — which doesn't exist in the codebase today and
-is real, unscoped work, not a side effect of device registration. Treat
-"Announce Lite sold standalone" as blocked on this until it's designed.
+**Every other flow relies on a driver manually picking a duty** to
+establish "which scheduled service is running right now." A driverless
+Announce has no driver to do that, so it needs its own way to decide when
+to start tracking.
 
-**New engineering surface this implies (not built yet):**
-- `announce_devices` table (device ↔ company/vehicle registration)
+#### Schedule-autopilot: geofence + time matching (designed for Phil Haines Travel)
+
+Phil Haines Travel only needs standalone Announce on two routes, one
+journey each way, and — critically — **neither route shares a start or
+end point with any other service**. That non-overlap is what makes a
+lightweight matching approach safe, instead of needing full schedule
+reasoning:
+
+1. **Commissioning**: the box is preloaded with its small, fixed set of
+   candidate departures — 2 routes × 2 directions, up to 4
+   `timetable_departure_id`s — cached via the existing offline-first
+   pattern (`preloadAllRoutes()`/`localStore.js`), each carrying its
+   first stop's lat/lon and scheduled `departure_time`. No new caching
+   mechanism.
+2. **Idle loop**: while no journey is active, the tablet watches its own
+   GPS and, for each cached candidate, checks two conditions together:
+   - **Geofence** — is the vehicle within the existing stop-radius
+     (reusing `geofence.js`'s current constant, not a new one) of that
+     candidate's *first* stop?
+   - **Time** — is now within a window around that candidate's scheduled
+     `departure_time` (generous enough for early running, e.g. −15/+30
+     min)?
+
+   Both signals matter together, not geofence alone: if a route's
+   outbound and return share a terminus (there-and-back from one depot
+   stop), geofence can't tell the two directions apart — time is what
+   disambiguates which of the candidates parked at that same point is
+   actually due. Geofence is what makes cross-route confusion impossible
+   in the first place, since no other service touches these stops.
+3. **Match found** → the exact same calls `manualSelection.js` already
+   makes: `get_or_create_manual_journey` → `start_journey`, then normal
+   `gps.js`/`engine.js`/`geofence.js` tracking takes over unchanged. No
+   new tracking logic, no new schema — this reuses the entire existing
+   engine, only the trigger changes from a driver's tap to an automatic
+   match.
+4. **No match** → stay on the idle screen. Nothing is created or
+   mutated, so a near-miss costs nothing.
+5. **Completion**: final-stop geofence arrival (existing `isFinal`
+   logic), plus a wall-clock timeout past the window as a safety net —
+   there's no driver to notice a journey stuck `in_progress`.
+
+**Hard precondition — document this as a guardrail, not an assumption:**
+this approach is only safe when the commissioned routes' start/end points
+don't overlap with any other service's stops. A future standalone client
+whose routes share a terminus with other services needs the fuller
+schedule-reasoning approach that was previously scoped here as "unscoped
+work" — that general case remains genuinely unsolved. Don't reuse this
+shortcut for a client where the precondition doesn't hold.
+
+**Diversion alerts are explicitly out of scope for standalone Announce.**
+`diversionAlert.js` is driver-triggered; a driverless install has no one
+to trigger it. Decided as an accepted limitation for now, not something
+to silently work around — standalone Announce trades diversion-alert
+capability for zero-interaction operation. Revisit only if a client
+specifically needs it (would require ops pushing a diversion flag
+centrally from the dashboard, which is real new scope, not free).
+
+**New engineering surface this implies:**
 - Dashboard: a device-link-generation flow (mirrors duty-card generation)
 - Driver PWA: a link/unlink action, and a Supabase Realtime push channel
   for linked mode (distinct from Standard's local-WebSocket `/driver-push`)
-- Schedule-autopilot duty selection, required only for standalone Announce
+  — needed for the paired scenario, not this one
+- Announce app: a new idle-loop matcher module (geofence + time check
+  against the cached candidate list, described above) — no new database
+  schema required for this piece, unlike `announce_devices` above
 
 ## Technical addendum: paired-install implementation contract
 
@@ -283,9 +338,17 @@ rather than opening a new gap.
   (dashboard device-link generation, Driver PWA link/unlink UI, Supabase
   Realtime push channel for linked mode) before Lite can actually ship the
   paired-install scenario described above.
-- Schedule-autopilot duty selection is required before Announce Lite can
-  be sold standalone (no Driver device) — currently unscoped, blocking
-  that scenario specifically, not the paired-install one.
+- Build the geofence + time idle-loop matcher for standalone Announce
+  (Phil Haines Travel's two-route case) — see "Schedule-autopilot" above.
+  Its safety depends on the routes' start/end points not overlapping any
+  other service's stops; verify that holds before commissioning it for
+  any additional client, not just this one.
+- The general standalone-Announce case (routes that *do* share stops with
+  other services) still has no schedule-autopilot design — remains
+  genuinely unscoped, distinct from the Phil Haines Travel shortcut above.
+- Diversion alerts are accepted as out of scope for standalone Announce
+  (no driver to trigger them) — revisit only if a client needs it; would
+  require an ops-side dashboard control to push diversions centrally.
 - Confirm with the team whether Lite is being positioned as a genuinely
   separate SKU or as an entry-tier upsell funnel into Standard — affects
   how it's marketed, not the technical plan above.
