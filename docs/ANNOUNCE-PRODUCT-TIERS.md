@@ -142,6 +142,116 @@ is real, unscoped work, not a side effect of device registration. Treat
   for linked mode (distinct from Standard's local-WebSocket `/driver-push`)
 - Schedule-autopilot duty selection, required only for standalone Announce
 
+## Technical addendum: paired-install implementation contract
+
+The provisioning/linking section above is architecture-level. This section
+pins down the exact schema, JWT, message contract, and file placement so a
+coding agent can implement the paired-install scenario against this
+repo's actual conventions instead of inventing its own. Grounded directly
+in the existing duty-card JWT (`generate_duty_token()` in
+`supabase/schema.sql`) and Driver→Announce push contract
+(`busops/driver/src/announceLink.js`) — not a fresh design. Standalone
+Announce (no Driver device) is deliberately **not** covered here; it's
+still blocked on the schedule-autopilot problem noted above.
+
+### `announce_devices` table
+
+New `supabase/migration_announce_devices.sql` (also added to
+`schema.sql`), matching the existing `vehicles`/`employees`
+company-scoped pattern:
+
+```sql
+create table public.announce_devices (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references companies(id) on delete cascade,
+  vehicle_id uuid references vehicles(id) on delete set null,
+  label text,
+  link_state text not null default 'unlinked'
+    check (link_state in ('unlinked','linked')),
+  gps_source text not null default 'internal'
+    check (gps_source in ('internal','driver-device')),
+  last_seen_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+grant select on public.announce_devices to anon;
+grant all    on public.announce_devices to authenticated;
+
+alter table public.announce_devices enable row level security;
+
+create policy "company_all" on public.announce_devices
+  for all to authenticated
+  using      (company_id = current_company_id())
+  with check (company_id = current_company_id());
+
+create policy "device_self" on public.announce_devices
+  for select to anon
+  using (id = (auth.jwt() ->> 'device_id')::uuid);
+```
+
+`device_self` reads a raw JWT claim rather than calling a helper function,
+so — per this repo's SQL ordering rule — it can stay inline with the
+table instead of being deferred to the bottom RLS block.
+
+### Device-link JWT
+
+A new `generate_announce_device_token(p_device_id uuid, p_company_id uuid,
+p_vehicle_id uuid)` function in `schema.sql`, structurally mirroring
+`generate_duty_token()`: `security definer`, signs with `pgcrypto`'s
+`hmac()`, same secret via `current_setting('app.settings.jwt_secret',
+true)`. Claims:
+
+```json
+{ "iss": "supabase", "role": "anon", "device_id": "...", "company_id": "...", "vehicle_id": "...", "iat": 0 }
+```
+
+**Deliberately no `exp` claim** (or a very long one) — unlike the
+duty-card's 24h shift-scoped token, this identifies a fixed kiosk
+installation and must not expire and blank the passenger sign daily. This
+is an intentional deviation from the duty-card pattern, stated explicitly
+here so it doesn't read as an oversight later.
+
+*Before implementing:* confirm whether the dashboard actually mints
+duty-card tokens via direct `supabase.rpc('generate_duty_token', ...)` or
+via `pcv-dashboard/api/sign-token.js` — both exist in the codebase and
+which one `DutyCardsPage.jsx` really calls wasn't pinned down. Mirror
+whichever is the live path, not both.
+
+### Linked-mode Realtime contract
+
+Reuse `announceLink.js`'s `buildSchedulePayload`/`buildStatePayload`
+field shapes **verbatim** — do not redesign the message shape — delivered
+over a Supabase Realtime broadcast channel named `announce-device:<device_id>`,
+with broadcast events `schedule` and `state`. No `announce` (PSVAIR audio
+cue) event: Standard's relay already never forwards that to the sign
+today, which matches Lite's own "no PA from Announce" limitation in the
+tier-comparison table below — this carries an existing limitation forward
+rather than opening a new gap.
+
+### File placement
+
+- **Dashboard**: a flat page in the `vehicles` slice (the device is
+  vehicle-scoped), e.g.
+  `pcv-dashboard/src/features/vehicles/AnnounceDeviceLinkPage.jsx`,
+  following `VehiclesPage.jsx`'s existing pattern of direct Supabase calls
+  (no `api/*.js` round-trip needed unless the JWT step requires it — see
+  above).
+- **Driver PWA**: new module
+  `pcv-dashboard/busops/driver/src/announceDeviceLink.js` — **explicitly
+  not** `announceLink.js`, which already exists and stays Standard-only
+  (Controller push). Supabase calls go in the existing centralized
+  `supabaseApi.js`, wired into `main.js` alongside the other module
+  imports.
+- **Announce app**: relocate `gps.js`, `geofence.js`, `engine.js` from
+  `driver/src/` to `pcv-dashboard/busops/shared/` (already the folder for
+  code genuinely shared between `driver/` and `announce/`), so both
+  surfaces import the same files instead of `announce/` reaching into
+  `driver/src/` or duplicating logic — update `driver/src/`'s imports
+  accordingly. Add a new `announce/src/announceGps.js` (or similar) for
+  Lite's `internal`-mode polling loop. This ends `onboard.js`'s
+  zero-local-imports property (true today) — an intentional, known
+  change for Lite, not a regression.
+
 ## Tier comparison
 
 | Aspect | Standard | Lite |
