@@ -1048,6 +1048,51 @@ $function$;
 
 grant execute on function get_duty_card(uuid[]) to anon;
 
+-- Manual-selection/cab-device active-journey recovery (BusOps Driver).
+-- Lets a device ask "is there already an active journey for my
+-- commissioned vehicle" on boot, mirroring get_duty_card's row shape so the
+-- driver PWA can reuse its existing stop-confirm picker flow. See
+-- migration_get_active_manual_journey.sql and
+-- driver/src/activeJourneyRecovery.js for the full rationale (deliberately
+-- does not derive the current stop automatically -- confirm step stays
+-- manual).
+create or replace function public.get_active_manual_journey(p_vehicle_id uuid)
+returns table (
+  journey_id             uuid,
+  driver_id              uuid,
+  vehicle_id              uuid,
+  status                 text,
+  started_at             timestamptz,
+  completed_at           timestamptz,
+  driver_name            text,
+  vehicle_registration   text,
+  service_code           text,
+  route_name             text,
+  timetable_name         text,
+  direction               text,
+  timetable_departure_id uuid,
+  first_stop_time        text,
+  last_stop_name         text,
+  notes                  text,
+  primary_color          text,
+  accent_color           text
+)
+language sql
+stable security definer
+as $$
+  select * from public.get_duty_card(
+    array(
+      select id from public.journeys
+      where vehicle_id = p_vehicle_id
+        and status = 'in_progress'
+      order by started_at desc nulls last
+      limit 1
+    )
+  )
+$$;
+
+grant execute on function public.get_active_manual_journey(uuid) to anon;
+
 
 -- ── naptan_near_point ─────────────────────────────────────────────────────────
 -- Returns active NAPTAN bus stops within p_radius_m metres of a coordinate.
@@ -1287,12 +1332,43 @@ create table if not exists public.announce_devices (
   terminus_radius_m        int not null default 150,
   testing_mode             boolean not null default false,
 
+  -- Bumped by the trigger below whenever a config-relevant column changes —
+  -- lets a running device detect "is my cached config stale" as a single
+  -- integer comparison instead of a full row diff (see deviceStateSync.js's
+  -- hasRowChanged()).
+  config_version int not null default 1,
+
   last_seen_at  timestamptz,
   created_at    timestamptz not null default now()
 );
 
 create index if not exists announce_devices_company_id_idx on public.announce_devices (company_id);
 create index if not exists announce_devices_vehicle_id_idx on public.announce_devices (vehicle_id);
+
+create or replace function public.bump_announce_device_config_version()
+returns trigger
+language plpgsql
+as $$
+begin
+  if (
+    new.testing_mode            is distinct from old.testing_mode or
+    new.gps_source               is distinct from old.gps_source or
+    new.candidate_departure_ids is distinct from old.candidate_departure_ids or
+    new.match_window_before_min is distinct from old.match_window_before_min or
+    new.match_window_after_min  is distinct from old.match_window_after_min or
+    new.terminus_radius_m       is distinct from old.terminus_radius_m or
+    new.vehicle_id               is distinct from old.vehicle_id or
+    new.link_state                is distinct from old.link_state
+  ) then
+    new.config_version := old.config_version + 1;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger announce_devices_bump_config_version
+  before update on public.announce_devices
+  for each row execute function public.bump_announce_device_config_version();
 
 grant select on public.announce_devices to anon;
 grant all    on public.announce_devices to authenticated;
@@ -1436,6 +1512,33 @@ end;
 $$;
 
 grant execute on function public.unlink_announce_device(uuid) to anon;
+
+-- Self-reported liveness -- previously last_seen_at was only ever touched by
+-- the Driver-invoked RPCs above, so a standalone ("internal" gps_source)
+-- device -- which never calls any of them -- had no way to report it was
+-- alive at all. Every Announce Lite device now writes this itself on a
+-- heartbeat interval (see deviceStateSync.js's startHeartbeat, wired in by
+-- announceLiteFeed.js). Scoped by the device's own JWT claim, same pattern
+-- as the device_self SELECT policy -- no device id parameter, so a device
+-- can only ever report on itself.
+create or replace function public.report_device_heartbeat()
+returns boolean
+language plpgsql security definer
+as $$
+declare
+  v_device_id uuid := (auth.jwt() ->> 'device_id')::uuid;
+begin
+  if v_device_id is null then
+    return false;
+  end if;
+  update public.announce_devices
+  set last_seen_at = now()
+  where id = v_device_id;
+  return found;
+end;
+$$;
+
+grant execute on function public.report_device_heartbeat() to anon;
 
 -- Called by the Driver PWA (anon, no JWT claims) to check whether the
 -- vehicle it's on has a linked Announce Lite device, ahead of pushing

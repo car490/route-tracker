@@ -18,7 +18,7 @@
 // services case are explicitly out of scope here.
 
 import { startAnnounceGpsTracking } from './announceGps.js';
-import { findScheduleMatch, findTestingScheduleMatch, isJourneyComplete } from './scheduleAutopilot.js';
+import { findScheduleMatch, findTestingScheduleMatch, isJourneyComplete, describeConfigUpdate } from './scheduleAutopilot.js';
 import { shiftStopTimes } from '../../shared/scheduleTimeShift.js';
 
 const IDLE_POLL_MS = 5000; // own-GPS check interval while no journey is active
@@ -85,7 +85,13 @@ function msUntilNextOccurrence(departureTime, now) {
   return diff;
 }
 
-export function startStandaloneAutopilot(client, deviceRow, { onSchedule, onState, onIdleNextDeparture }) {
+export function startStandaloneAutopilot(client, initialDeviceRow, { onSchedule, onState, onIdleNextDeparture, onGpsSourceChanged }) {
+  // Live reference, not a frozen snapshot — applyConfigUpdate() below
+  // replaces it in place, and tryMatch()/reportNextDeparture() always read
+  // whatever it currently points to, so a dashboard edit (testing_mode,
+  // terminus_radius_m, match windows) takes effect on the very next
+  // idle-poll tick instead of requiring a device reload.
+  let deviceRow = initialDeviceRow;
   let candidates = [];
   let activeJourney = null; // { journeyId, startedAt, tracker }
 
@@ -198,6 +204,21 @@ export function startStandaloneAutopilot(client, deviceRow, { onSchedule, onStat
     activeJourney = { journeyId: resolvedId, startedAt, tracker };
   }
 
+  // Applies a fresh announce_devices row read after a live config change
+  // (see deviceStateSync.js's subscribeToChanges, wired in by
+  // announceLiteFeed.js). Only candidate_departure_ids needs an explicit
+  // re-fetch — everything else tryMatch() already reads off the live
+  // `deviceRow` reference this function replaces. gps_source flipping
+  // (device linked/unlinked while running) is surfaced via
+  // onGpsSourceChanged so the caller can tear this loop down and start the
+  // other mode, rather than this module trying to hot-switch itself.
+  function applyConfigUpdate(nextRow) {
+    const { candidatesChanged, gpsSourceChanged } = describeConfigUpdate(deviceRow, nextRow);
+    deviceRow = nextRow;
+    if (candidatesChanged) refreshCandidates();
+    if (gpsSourceChanged) onGpsSourceChanged?.(nextRow);
+  }
+
   refreshCandidates();
 
   const idleTimer = setInterval(() => {
@@ -215,5 +236,6 @@ export function startStandaloneAutopilot(client, deviceRow, { onSchedule, onStat
       activeJourney?.tracker?.stop();
     },
     refreshCandidates,
+    applyConfigUpdate,
   };
 }

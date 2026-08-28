@@ -9,7 +9,8 @@ import {
   announceDiversion, isMuted, setMuted, isBannerShown, setBannerShown,
   listVoices, getSelectedVoiceURI, setSelectedVoiceURI, previewVoice,
 } from './announcements.js';
-import { sbFetch, rpc, fetchStopsForDeparture, fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyName, preloadAllRoutes } from './supabaseApi.js';
+import { sbFetch, rpc, fetchStopsForDeparture, fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyName, preloadAllRoutes, fetchActiveManualJourney } from './supabaseApi.js';
+import { resolveBootAction, BOOT_ACTION } from './activeJourneyRecovery.js';
 import { announceApproachEvent, announceStopEvent } from './announceStopEvent.js';
 import { triggerDiversionAlert, clearDiversionAlert } from './diversionAlert.js';
 import { selectServiceManually } from './manualSelection.js';
@@ -823,6 +824,73 @@ async function launchDutyRoute(duties, idx, journeyIds) {
   };
 }
 
+// ── Manual-selection active-journey recovery ──────────────────────────────────
+// See activeJourneyRecovery.js's header comment for the full rationale.
+// Reuses the same stop-confirm #picker screen as launchDutyRoute() above
+// (pick your current stop, tap Start) so the trust level matches the
+// existing duty-card Resume Route button — this deliberately does NOT
+// auto-pick the stop index. journey.status is always already 'in_progress'
+// here (the RPC only ever returns one), so unlike launchDutyRoute there is
+// no start_journey call to make.
+async function resumeActiveManualJourney(journey) {
+  let allStops = [];
+  let psvairInScope = false;
+  if (journey.timetable_departure_id) {
+    try {
+      const result = await fetchStopsForDeparture(journey.timetable_departure_id);
+      allStops = result.stops;
+      psvairInScope = result.psvairInScope;
+    } catch (err) {
+      console.error('Failed to load stops for active journey recovery:', err);
+    }
+  }
+
+  if (!allStops.length) {
+    showNoDutyCard();
+    return;
+  }
+
+  document.getElementById('no-duty-card').hidden    = true;
+  document.getElementById('picker').hidden          = false;
+  document.getElementById('picker-back-btn').hidden = false;
+
+  const stopSelect = document.getElementById('stop-select');
+  stopSelect.innerHTML = '';
+  allStops.forEach((stop, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `${stop.time}  ${stop.name}`;
+    stopSelect.appendChild(opt);
+  });
+  document.getElementById('testing-time-field').hidden = true;
+
+  document.getElementById('picker-back-btn').onclick = () => {
+    document.getElementById('picker').hidden          = true;
+    document.getElementById('picker-back-btn').hidden = true;
+    showNoDutyCard();
+  };
+
+  document.getElementById('start-btn').onclick = async () => {
+    const initialStopIndex = parseInt(stopSelect.value, 10) || 0;
+    document.getElementById('picker-back-btn').hidden = true;
+    await acquireWakeLock();
+
+    runTracker({
+      allStops,
+      journeyId: journey.journey_id,
+      driverId: journey.driver_id,
+      vehicleId: journey.vehicle_id,
+      initialStopIndex,
+      serviceCode: journey.service_code,
+      servicePeriod: journey.timetable_name,
+      psvairEnabled: psvairInScope,
+      accentColor: journey.accent_color,
+      primaryColor: journey.primary_color,
+      onComplete: showNoDutyCard,
+    });
+  };
+}
+
 // ── No duty card screen ───────────────────────────────────────────────────────
 
 function showNoDutyCard() {
@@ -1054,15 +1122,45 @@ async function init() {
   captureAnnounceSetup(new URLSearchParams(window.location.search));
 
   const dutiesParam = new URLSearchParams(window.location.search).get('duties');
-  if (dutiesParam) {
-    // A duty card already carries its own ops-assigned vehicle per journey —
-    // vehicle commissioning is only for the manual-selection path below.
-    const journeyIds = dutiesParam.split(',').map(s => s.trim()).filter(Boolean);
-    await initDutyCard(journeyIds);
-  } else if (getStoredVehicle()) {
-    showNoDutyCard();
-  } else {
-    vehicleSetup.show();
+  const storedVehicle = getStoredVehicle();
+
+  // Manual-selection/cab-device active-journey recovery — see
+  // activeJourneyRecovery.js's header comment. Only looked up when it could
+  // actually matter (no duty-card link, a vehicle is commissioned) so a
+  // duty-card device or a freshly-unboxed one never pays for this RPC.
+  // A failed lookup (offline, RLS hiccup) is treated the same as "none
+  // found" — falls through to the existing no-duty screen, same as before
+  // this feature existed, rather than blocking boot on it.
+  let activeJourney = null;
+  if (!dutiesParam && storedVehicle) {
+    activeJourney = await fetchActiveManualJourney(storedVehicle.id).catch(() => null);
+  }
+
+  const bootAction = resolveBootAction({
+    dutiesParam,
+    storedVehicleId: storedVehicle?.id ?? null,
+    activeJourney,
+  });
+
+  switch (bootAction) {
+    case BOOT_ACTION.DUTY_CARD: {
+      // A duty card already carries its own ops-assigned vehicle per
+      // journey — vehicle commissioning is only for the manual-selection
+      // path below.
+      const journeyIds = dutiesParam.split(',').map(s => s.trim()).filter(Boolean);
+      await initDutyCard(journeyIds);
+      break;
+    }
+    case BOOT_ACTION.RESUME_ACTIVE:
+      await resumeActiveManualJourney(activeJourney);
+      break;
+    case BOOT_ACTION.NO_DUTY:
+      showNoDutyCard();
+      break;
+    case BOOT_ACTION.VEHICLE_SETUP:
+    default:
+      vehicleSetup.show();
+      break;
   }
 }
 

@@ -12,11 +12,21 @@
 // WebSocket/Phoenix-channel client, which there's no reasonable case for
 // hand-rolling. `supabase` below refers to that script's global, not an
 // import — there is no bundler here (see CLAUDE.md, no build step for this app).
+//
+// Mode is no longer decided once at boot and frozen — a device's own row is
+// watched continuously via deviceStateSync.js's subscribeToChanges, in BOTH
+// modes (previously only paired mode subscribed at all — standalone read its
+// config once and never again, see announceStandaloneAutopilot.js's
+// applyConfigUpdate). A gps_source flip (linked/unlinked mid-session) tears
+// down the running mode and starts the other, via announceLiteMode.js's
+// resolveModeSwitch — the "hot-switch" this file previously disclaimed.
 
 import { SUPABASE_URL, SUPABASE_KEY } from '../../driver/src/config.js';
 import { startStandaloneAutopilot } from './announceStandaloneAutopilot.js';
+import { resolveModeSwitch } from './announceLiteMode.js';
+import { hydrate, subscribeToChanges, startHeartbeat } from '../../shared/deviceStateSync.js';
 
-const RECONNECT_DELAY_MS = 3000;
+const HEARTBEAT_INTERVAL_MS = 30000;
 
 // Only a genuinely new schedule should re-trigger onSchedule() (it resets
 // #onboard-idle/#onboard-sign visibility and re-acquires the wake lock —
@@ -34,13 +44,11 @@ function scheduleChanged(a, b) {
 // onboard.js's idle-screen extension (standalone mode only) — all
 // dependency-injected so this module doesn't need to import onboard.js
 // (which would create a circular import, since onboard.js imports
-// connectAnnounceLiteFeed).
-//
-// Mode is decided once, from the row read at startup, and not hot-switched
-// mid-session — a device changing gps_source (e.g. linked while running)
-// takes effect on its next reload, same as a Standard device's own
-// commissioning is fixed per boot.
-export function connectAnnounceLiteFeed(deviceToken, { onSchedule, onState, onJourneyEnd, onIdleNextDeparture }) {
+// connectAnnounceLiteFeed). onDegraded/onRestored are optional — let a
+// caller surface connection health (currently: console visibility only, see
+// the module header) without this file needing to know about onboard.js's
+// DOM at all.
+export function connectAnnounceLiteFeed(deviceToken, { onSchedule, onState, onJourneyEnd, onIdleNextDeparture, onDegraded, onRestored }) {
   const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     global: { headers: { Authorization: `Bearer ${deviceToken}` } },
   });
@@ -50,6 +58,11 @@ export function connectAnnounceLiteFeed(deviceToken, { onSchedule, onState, onJo
   client.realtime.setAuth(deviceToken);
 
   let lastSchedule = null;
+  let mode = null; // 'internal' | 'driver-device'
+  let standaloneHandle = null; // { stop, refreshCandidates, applyConfigUpdate } — standalone mode only
+  let subscription = null;
+  let heartbeat = null;
+  let deviceId = null;
 
   // Paired mode (gps_source: 'driver-device') — render whatever the linked
   // Driver device has pushed into this row.
@@ -68,25 +81,17 @@ export function connectAnnounceLiteFeed(deviceToken, { onSchedule, onState, onJo
     if (row.latest_state) onState(row.latest_state);
   }
 
-  async function start() {
-    // device_self RLS policy scopes this to exactly this device's own row —
-    // no .eq('id', ...) needed, there is only ever one possible match.
-    const { data, error } = await client.from('announce_devices').select('*').single();
-    if (error || !data) {
-      console.warn('announceLiteFeed: could not read own announce_devices row — retrying', error);
-      setTimeout(start, RECONNECT_DELAY_MS);
-      return;
-    }
+  function startStandalone(row) {
+    mode = 'internal';
+    standaloneHandle = startStandaloneAutopilot(client, row, {
+      onSchedule, onState, onIdleNextDeparture,
+      onGpsSourceChanged: (nextRow) => switchMode(nextRow),
+    });
+  }
 
-    if (data.gps_source === 'internal') {
-      // Standalone (driverless) — a no-op idle screen if this device has no
-      // candidate_departure_ids configured yet (see
-      // startStandaloneAutopilot's own guard), same as before this feature
-      // existed.
-      startStandaloneAutopilot(client, data, { onSchedule, onState, onIdleNextDeparture });
-      return;
-    }
-
+  function startPaired(row) {
+    mode = 'driver-device';
+    standaloneHandle = null;
     // Paired mode has no schedule pushed yet on a fresh link (or a device
     // that's simply between journeys) — unlike standalone mode, nothing else
     // unhides #onboard-idle for this case, so the device would otherwise sit
@@ -94,26 +99,77 @@ export function connectAnnounceLiteFeed(deviceToken, { onSchedule, onState, onJo
     // onboard.html) until the first push arrives. onIdleNextDeparture(null)
     // unhides the idle board without showing a next-departure caption (that
     // caption is standalone-only) — reused rather than adding a new function.
-    if (!data.latest_schedule) onIdleNextDeparture?.(null);
+    if (!row.latest_schedule) onIdleNextDeparture?.(null);
+    lastSchedule = null;
+    applyPushedRow(row);
+  }
 
-    applyPushedRow(data);
+  // Tears down whichever mode is currently running and starts the other —
+  // reached only when resolveModeSwitch confirms gps_source itself changed,
+  // never on an ordinary state/schedule push.
+  function switchMode(row) {
+    standaloneHandle?.stop();
+    if (row.gps_source === 'internal') startStandalone(row);
+    else startPaired(row);
+  }
 
-    client
-      .channel(`announce-device-${data.id}`)
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'announce_devices', filter: `id=eq.${data.id}` },
-        (payload) => applyPushedRow(payload.new)
-      )
-      // Previously no status callback at all -- a silent CHANNEL_ERROR/
-      // TIMED_OUT (bad JWT claim, RLS rejecting the realtime role, etc.)
-      // looked identical from the outside to "just nothing pushed yet".
-      .subscribe((status, err) => {
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('announceLiteFeed: Realtime subscription failed', status, err);
-        }
-      });
+  function handleRowChange(row) {
+    const nextMode = resolveModeSwitch(mode, row);
+    if (nextMode) { switchMode(row); return; }
+    if (mode === 'internal') standaloneHandle?.applyConfigUpdate(row);
+    else applyPushedRow(row);
+  }
+
+  async function start() {
+    // device_self RLS policy scopes this to exactly this device's own row —
+    // no filter needed, there is only ever one possible match.
+    let row;
+    try {
+      row = await hydrate(client, 'announce_devices');
+    } catch (error) {
+      console.warn('announceLiteFeed: could not read own announce_devices row — retrying', error);
+      setTimeout(start, 3000);
+      return;
+    }
+
+    deviceId = row.id;
+    if (row.gps_source === 'internal') startStandalone(row);
+    else startPaired(row);
+
+    // Previously subscribed only in paired mode, and previously only
+    // console.error'd a dead channel with no recovery (CHANNEL_ERROR/
+    // TIMED_OUT) — subscribeToChanges reconnects with backoff in both
+    // modes now, and onDegraded/onRestored let a caller react instead of
+    // the failure only ever showing up in a browser console nobody
+    // trackside is looking at.
+    subscription = subscribeToChanges(client, 'announce_devices', { column: 'id', value: deviceId }, {
+      onChanged: (row, { changed }) => { if (changed) handleRowChange(row); },
+      onDegraded: (status, err) => {
+        console.error('announceLiteFeed: Realtime subscription degraded', status, err);
+        onDegraded?.(status, err);
+      },
+      onRestored: () => onRestored?.(),
+    });
+
+    // Self-reported liveness — standalone mode never called any of the
+    // Driver-invoked RPCs that used to be the only thing touching
+    // last_seen_at, so it previously had no way to report it was alive at
+    // all. Every device writes this itself now, independent of mode or of
+    // anything else pushing through it (see
+    // migration_announce_devices_config_version.sql).
+    heartbeat = startHeartbeat(
+      () => client.rpc('report_device_heartbeat').catch(() => {}),
+      HEARTBEAT_INTERVAL_MS
+    );
   }
 
   start();
+
+  return {
+    stop: () => {
+      subscription?.stop();
+      standaloneHandle?.stop();
+      heartbeat?.stop();
+    },
+  };
 }

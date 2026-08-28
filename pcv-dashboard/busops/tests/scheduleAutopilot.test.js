@@ -8,7 +8,7 @@
 // than one candidate matches (e.g. a shared-terminus outbound/return pair),
 // the nearest scheduled departure time wins.
 
-import { findScheduleMatch, findTestingScheduleMatch, isJourneyComplete } from '../announce/src/scheduleAutopilot.js';
+import { findScheduleMatch, findTestingScheduleMatch, isJourneyComplete, describeConfigUpdate } from '../announce/src/scheduleAutopilot.js';
 
 // Bus depot terminus — both an outbound and a return service happen to
 // start/end here, per the shared-terminus test below.
@@ -126,6 +126,58 @@ describe('findTestingScheduleMatch', () => {
       candidates: [far, near], lat: DEPOT.lat, lon: DEPOT.lon, now: at(14, 0), terminusRadiusM: 150,
     });
     expect(result).toEqual({ candidate: near, shiftMinutes: 360 });
+  });
+});
+
+describe('describeConfigUpdate', () => {
+  // A live standalone device (announceStandaloneAutopilot.js) keeps
+  // tryMatch() reading testing_mode/terminus_radius_m/match-window fields
+  // straight off its current deviceRow reference, so replacing that
+  // reference is enough for those to take effect on the very next idle-poll
+  // tick — no extra signal needed. candidate_departure_ids is the one field
+  // that requires an actual network re-fetch (schedule_view lookup), so
+  // that's the one change this function needs to flag explicitly.
+  const BASE = {
+    testing_mode: false,
+    terminus_radius_m: 150,
+    match_window_before_min: 15,
+    match_window_after_min: 30,
+    candidate_departure_ids: ['dep-1', 'dep-2'],
+    gps_source: 'internal',
+  };
+
+  it('flags no changes when the row is identical', () => {
+    expect(describeConfigUpdate(BASE, { ...BASE })).toEqual({
+      candidatesChanged: false,
+      gpsSourceChanged: false,
+    });
+  });
+
+  it('flags candidatesChanged when candidate_departure_ids differs', () => {
+    const next = { ...BASE, candidate_departure_ids: ['dep-1', 'dep-3'] };
+    expect(describeConfigUpdate(BASE, next)).toEqual({
+      candidatesChanged: true,
+      gpsSourceChanged: false,
+    });
+  });
+
+  it('does not flag candidatesChanged for testing_mode/match-window-only edits', () => {
+    // These take effect just by tryMatch() reading the replaced deviceRow
+    // reference — no re-fetch needed, so this must stay false.
+    const next = { ...BASE, testing_mode: true, terminus_radius_m: 200, match_window_after_min: 45 };
+    expect(describeConfigUpdate(BASE, next).candidatesChanged).toBe(false);
+  });
+
+  it('flags gpsSourceChanged when a device is linked/unlinked mid-session', () => {
+    const next = { ...BASE, gps_source: 'driver-device' };
+    expect(describeConfigUpdate(BASE, next)).toEqual({
+      candidatesChanged: false,
+      gpsSourceChanged: true,
+    });
+  });
+
+  it('treats a null previous row as no prior candidates, so an empty next list is not a change', () => {
+    expect(describeConfigUpdate(null, { ...BASE, candidate_departure_ids: [] }).candidatesChanged).toBe(false);
   });
 });
 
