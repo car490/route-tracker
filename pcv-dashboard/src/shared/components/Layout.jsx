@@ -1,5 +1,5 @@
 import { Outlet, NavLink } from 'react-router-dom'
-import { supabase } from '../supabase'
+import { supabase, IS_DEV_SUPABASE } from '../supabase'
 import { useCurrentEmployee } from '../hooks/useCurrentEmployee'
 import CompanyModal from '../../features/company/CompanyModal'
 import { useState } from 'react'
@@ -206,6 +206,9 @@ export default function Layout({ session }) {
           </button>
           <div className="sidebar-coachmate">
             <span className="cm-coach">COACH</span><span className="cm-mate">Mate</span>
+          </div>
+          <div className={`sidebar-env ${IS_DEV_SUPABASE ? 'sidebar-env--dev' : 'sidebar-env--prod'}`}>
+            {IS_DEV_SUPABASE ? 'DEV' : 'PRODUCTION'}
           </div>
           <div className="sidebar-version">v{__APP_VERSION__}</div>
         </div>
