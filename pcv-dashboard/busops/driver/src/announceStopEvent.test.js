@@ -12,13 +12,41 @@
 // precedent; tests/**/*.test.js runs on Jest).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { announceStopEvent } from './announceStopEvent.js';
+import { announceApproachEvent, announceStopEvent } from './announceStopEvent.js';
 import * as announcements from './announcements.js';
 import { ANNOUNCE_STATES } from '../../shared/announceStates.js';
 
 vi.mock('./announcements.js', () => ({
   announceState: vi.fn(),
 }));
+
+describe('announceApproachEvent', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('calls announceState for a non-final stop with no diversion active', () => {
+    announceApproachEvent(ANNOUNCE_STATES.APPROACHING, { stopName: 'High Street', isFinal: false }, { stopId: 'stop-1' }, false);
+
+    expect(announcements.announceState).toHaveBeenCalledWith(
+      ANNOUNCE_STATES.APPROACHING, { stopName: 'High Street', isFinal: false }, { stopId: 'stop-1' }
+    );
+  });
+
+  it('still announces the final stop — state 6 no longer silently skipped', () => {
+    announceApproachEvent(ANNOUNCE_STATES.APPROACHING, { stopName: 'Bus Station', isFinal: true }, { stopId: 'stop-9' }, false);
+
+    expect(announcements.announceState).toHaveBeenCalledWith(
+      ANNOUNCE_STATES.APPROACHING, { stopName: 'Bus Station', isFinal: true }, { stopId: 'stop-9' }
+    );
+  });
+
+  it('suppresses the approach announcement while a diversion is active', () => {
+    announceApproachEvent(ANNOUNCE_STATES.APPROACHING, { stopName: 'High Street', isFinal: false }, { stopId: 'stop-1' }, true);
+
+    expect(announcements.announceState).not.toHaveBeenCalled();
+  });
+});
 
 describe('announceStopEvent', () => {
   beforeEach(() => {

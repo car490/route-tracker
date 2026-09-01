@@ -10,7 +10,7 @@ import {
   listVoices, getSelectedVoiceURI, setSelectedVoiceURI, previewVoice,
 } from './announcements.js';
 import { sbFetch, rpc, fetchStopsForDeparture, fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyName, preloadAllRoutes } from './supabaseApi.js';
-import { announceStopEvent } from './announceStopEvent.js';
+import { announceApproachEvent, announceStopEvent } from './announceStopEvent.js';
 import { triggerDiversionAlert, clearDiversionAlert } from './diversionAlert.js';
 import { selectServiceManually } from './manualSelection.js';
 import { getStoredVehicle, storeVehicle } from './vehicleSetup.js';
@@ -275,12 +275,11 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   const psvairToggleBtn  = document.getElementById('psvair-toggle-btn');
   setAnnouncementsEnabled(!!psvairEnabled);
 
-  // Banner defaults to collapsed — the running caption + mute/voice controls
-  // are a driver convenience, not something needed every trip, and having it
-  // open by default just eats space above the route header. The toggle
-  // button itself only ever shows on PSVAIR-in-scope routes; the driver's
-  // show/hide choice persists across the app (localStorage) rather than
-  // resetting every journey.
+  // Banner shown by default — the running caption + mute/voice controls are
+  // useful every trip; a driver who prefers it out of the way can collapse
+  // it, remembered across the app (localStorage) rather than resetting
+  // every journey. The toggle button itself only ever shows on
+  // PSVAIR-in-scope routes.
   psvairToggleBtn.hidden = !psvairEnabled;
   const applyBannerVisibility = () => {
     const shown = isBannerShown();
@@ -289,13 +288,13 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   };
   applyBannerVisibility();
   psvairToggleBtn.onclick = () => { setBannerShown(!isBannerShown()); applyBannerVisibility(); };
-  // Starts at initialStopIndex, not null: Start of Route (below) already
-  // names the starting stop and the next stop, so if tracking begins
-  // already sitting at/near it (the very first GPS fix can satisfy that
-  // stop's geofence instantly, see gps.js), the natural arrival/departure
-  // announcement for that same stop must be suppressed to avoid saying the
-  // same stop name twice back-to-back.
-  let lastAnnouncedStopIdx = initialStopIndex;
+  // Starts null, not initialStopIndex: Start of Route no longer names the
+  // first stop (see shared/announceStates.js) — its own "This stop is X"
+  // announcement now fires naturally off the atStop edge below, exactly
+  // like every other stop, including when tracking begins already sitting
+  // at/near it (the very first GPS fix can satisfy that stop's geofence
+  // instantly, see gps.js).
+  let lastAnnouncedStopIdx = null;
   // Guards completeTrip() against firing twice — once from GPS arrival at
   // the final stop and again from the manual fallback link, or from GPS
   // reporting arrival on more than one fix while parked at the final stop.
@@ -306,12 +305,7 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   // that's out of PSVAIR's audio-announcement scope (see the unconditional
   // broadcastState below, same reasoning). The spoken half is gated inside
   // the psvairEnabled block below.
-  const routeStartVars = {
-    serviceCode,
-    destination: stripIndicator(lastStop.name),
-    currentStopName: stripIndicator(allStops[initialStopIndex].name),
-    nextStopName: allStops[initialStopIndex + 1] ? stripIndicator(allStops[initialStopIndex + 1].name) : null,
-  };
+  const routeStartVars = { serviceCode, destination: stripIndicator(lastStop.name) };
   pushSignState(ANNOUNCE_STATES.ROUTE_START, routeStartVars);
 
   if (psvairEnabled) {
@@ -350,11 +344,7 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
     psvairVoiceSelect.onchange = () => setSelectedVoiceURI(psvairVoiceSelect.value);
     psvairVoiceTestBtn.onclick = () => previewVoice(psvairVoiceSelect.value);
 
-    announceState(ANNOUNCE_STATES.ROUTE_START, routeStartVars, {
-      serviceCode, destination: lastStop.name,
-      stopId: allStops[initialStopIndex].stop_id,
-      nextStopId: allStops[initialStopIndex + 1] ? allStops[initialStopIndex + 1].stop_id : null,
-    });
+    announceState(ANNOUNCE_STATES.ROUTE_START, routeStartVars, { serviceCode, destination: lastStop.name });
   }
 
   // Remembers whichever non-diversion state was last pushed, so clearing a
@@ -501,18 +491,33 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
           }).catch(() => {}); // fire-and-forget; GPS loop must not block
         }
       : null,
-    onUpdate: ({ timing, nextStopIndex, speedMps, distanceToNextM, stopStates, earlyWait, atStop, lat, lon }) => {
+    onUpdate: ({ timing, nextStopIndex, speedMps, distanceToNextM, stopStates, earlyWait, atStop, approaching, lat, lon }) => {
       stopStatesRef = stopStates;
       lastStopIdx = nextStopIndex;
       if (lat !== undefined) { lastLat = lat; lastLon = lon; }
 
+      // PSVAIR event 2 — approaching (fires once per stop off gps.js's
+      // stopStates 'approaching' status, the same signal the stop list and
+      // status card show) — including the final stop, which now gets its
+      // own terminus wording (state 6, see shared/announceStates.js)
+      // instead of being silently skipped.
+      if (approaching) {
+        const resolved = resolveApproachOrArrivalState({ approaching, atStop: null, allStops });
+        lastNormalState = resolved;
+        if (psvairEnabled) {
+          announceApproachEvent(resolved.stateKey, resolved.vars, {
+            stopId: allStops[approaching.stopIndex].stop_id,
+          }, !!diversionAlertState);
+        }
+      }
+
       // Announce on arrival (atStop set) rather than departure, so it's
-      // heard while the vehicle is actually there — atStop persists while
-      // dwelling, so this only fires once per stop.
+      // heard while the vehicle is actually there (PSVAIR events 3 & 4) —
+      // atStop persists while dwelling, so this only fires once per stop.
       if (atStop && atStop.stopIndex !== lastAnnouncedStopIdx) {
         lastAnnouncedStopIdx = atStop.stopIndex;
         const isFinal = atStop.stopIndex === allStops.length - 1;
-        const arrival = resolveApproachOrArrivalState({ atStop, allStops });
+        const arrival = resolveApproachOrArrivalState({ approaching: null, atStop, allStops });
         lastNormalState = arrival;
         if (psvairEnabled) {
           announceStopEvent(arrival.stateKey, arrival.vars, {

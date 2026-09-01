@@ -121,12 +121,20 @@ function buildJobs(schedule) {
 
   for (const [stopId, name] of stopNames) {
     const clean = stripSpeechAnnotations(name);
+    jobs.set(`stop/${stopId}`, {
+      key: `stop/${stopId}`, relPath: `stop/${stopId}.mp3`,
+      text: `This stop is ${clean}.`,
+    });
     jobs.set(`next/${stopId}`, {
       key: `next/${stopId}`, relPath: `next/${stopId}.mp3`,
       text: `The next stop will be ${clean}.`,
     });
-    // Used both for arrival at a non-final stop and as the first sentence
-    // of Start of Route / final-stop arrival — one clip covers all three.
+    // Approaching the *final* stop (state 6, shared/announceStates.js) —
+    // "is", not "will be" — a distinct clip from next/${stopId} above.
+    jobs.set(`next-final/${stopId}`, {
+      key: `next-final/${stopId}`, relPath: `next-final/${stopId}.mp3`,
+      text: `The next stop is ${clean}.`,
+    });
     jobs.set(`arrive/${stopId}`, {
       key: `arrive/${stopId}`, relPath: `arrive/${stopId}.mp3`,
       text: `This is ${clean}.`,
@@ -137,7 +145,7 @@ function buildJobs(schedule) {
   // route/stop data.
   jobs.set('terminus-tail', {
     key: 'terminus-tail', relPath: 'terminus-tail.mp3',
-    text: 'This bus terminates here. All change please.',
+    text: 'This bus terminates here, all change please.',
   });
   jobs.set('diversion', {
     key: 'diversion', relPath: 'diversion.mp3',

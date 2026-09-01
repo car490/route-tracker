@@ -5,25 +5,16 @@
 // makes Regulation 12(1) ("the audio and visual forms... are consistent
 // with one another") structural. One assertion per state's exact wording.
 
-import {
-  ANNOUNCE_STATES, resolveAnnouncementText, resolveApproachOrArrivalState, articleFor,
-} from '../shared/announceStates.js';
+import { ANNOUNCE_STATES, resolveAnnouncementText, resolveApproachOrArrivalState, articleFor } from '../shared/announceStates.js';
 
 describe('resolveAnnouncementText', () => {
   it('IDLE has no text — brand shown instead', () => {
     expect(resolveAnnouncementText(ANNOUNCE_STATES.IDLE, {})).toBeNull();
   });
 
-  it('ROUTE_START — "an" before S125S (spoken "Ess..."), names current and next stop', () => {
-    expect(resolveAnnouncementText(ANNOUNCE_STATES.ROUTE_START, {
-      serviceCode: 'S125S', destination: 'Boston College', currentStopName: 'Weston', nextStopName: 'Church Road',
-    })).toBe('This is an S125S to Boston College. This is Weston. The next stop will be Church Road.');
-  });
-
-  it('ROUTE_START — omits the next-stop sentence when there is no next stop', () => {
-    expect(resolveAnnouncementText(ANNOUNCE_STATES.ROUTE_START, {
-      serviceCode: 'S125S', destination: 'Boston College', currentStopName: 'Weston', nextStopName: null,
-    })).toBe('This is an S125S to Boston College. This is Weston.');
+  it('ROUTE_START — "an" before S125S (spoken "Ess...")', () => {
+    expect(resolveAnnouncementText(ANNOUNCE_STATES.ROUTE_START, { serviceCode: 'S125S', destination: 'Boston College' }))
+      .toBe('This is an S125S to Boston College.');
   });
 
   it('STOP_DEPARTURE — "a" before 44 (spoken "forty-four")', () => {
@@ -32,14 +23,24 @@ describe('resolveAnnouncementText', () => {
     })).toBe('This is a 44 to Boston College. The next stop will be Church Road.');
   });
 
+  it('APPROACHING, non-final', () => {
+    expect(resolveAnnouncementText(ANNOUNCE_STATES.APPROACHING, { stopName: 'Church Road', isFinal: false }))
+      .toBe('The next stop will be Church Road.');
+  });
+
+  it('APPROACHING, final', () => {
+    expect(resolveAnnouncementText(ANNOUNCE_STATES.APPROACHING, { stopName: 'Bus Station', isFinal: true }))
+      .toBe('The next stop is Bus Station. This bus terminates here, all change please.');
+  });
+
   it('AT_STOP, non-final', () => {
     expect(resolveAnnouncementText(ANNOUNCE_STATES.AT_STOP, { stopName: 'Church Road', isFinal: false }))
-      .toBe('This is Church Road.');
+      .toBe('This stop is Church Road.');
   });
 
   it('AT_STOP, final', () => {
     expect(resolveAnnouncementText(ANNOUNCE_STATES.AT_STOP, { stopName: 'Bus Station', isFinal: true }))
-      .toBe('This is Bus Station. This bus terminates here. All change please.');
+      .toBe('This is Bus Station. This bus terminates here, all change please.');
   });
 
   it('DIVERSION — fixed text, ignores vars', () => {
@@ -86,17 +87,32 @@ describe('articleFor', () => {
 describe('resolveApproachOrArrivalState', () => {
   const allStops = [{ name: 'Weston' }, { name: 'Church Road' }, { name: 'Bus Station' }];
 
+  it('resolves APPROACHING with isFinal:false for a non-last stop', () => {
+    const result = resolveApproachOrArrivalState({ approaching: { stopIndex: 1 }, atStop: null, allStops });
+    expect(result).toEqual({ stateKey: ANNOUNCE_STATES.APPROACHING, vars: { stopName: 'Church Road', isFinal: false } });
+  });
+
+  it('resolves APPROACHING with isFinal:true for the last stop', () => {
+    const result = resolveApproachOrArrivalState({ approaching: { stopIndex: 2 }, atStop: null, allStops });
+    expect(result).toEqual({ stateKey: ANNOUNCE_STATES.APPROACHING, vars: { stopName: 'Bus Station', isFinal: true } });
+  });
+
   it('resolves AT_STOP with isFinal:false for a non-last stop', () => {
-    const result = resolveApproachOrArrivalState({ atStop: { stopIndex: 0 }, allStops });
+    const result = resolveApproachOrArrivalState({ approaching: null, atStop: { stopIndex: 0 }, allStops });
     expect(result).toEqual({ stateKey: ANNOUNCE_STATES.AT_STOP, vars: { stopName: 'Weston', isFinal: false } });
   });
 
   it('resolves AT_STOP with isFinal:true for the last stop', () => {
-    const result = resolveApproachOrArrivalState({ atStop: { stopIndex: 2 }, allStops });
+    const result = resolveApproachOrArrivalState({ approaching: null, atStop: { stopIndex: 2 }, allStops });
     expect(result).toEqual({ stateKey: ANNOUNCE_STATES.AT_STOP, vars: { stopName: 'Bus Station', isFinal: true } });
   });
 
-  it('returns null when atStop is not set', () => {
-    expect(resolveApproachOrArrivalState({ atStop: null, allStops })).toBeNull();
+  it('approaching takes priority when both signals are somehow present', () => {
+    const result = resolveApproachOrArrivalState({ approaching: { stopIndex: 1 }, atStop: { stopIndex: 0 }, allStops });
+    expect(result.stateKey).toBe(ANNOUNCE_STATES.APPROACHING);
+  });
+
+  it('returns null when neither signal is set', () => {
+    expect(resolveApproachOrArrivalState({ approaching: null, atStop: null, allStops })).toBeNull();
   });
 });
