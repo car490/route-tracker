@@ -50,15 +50,29 @@ one-time pattern as `&panel-profile=`/`&panel-diagonal=`:
 1. **Name** — append `&operator-name=<name>` (URL-encoded) to the fixed
    kiosk URL, e.g. `...announce/onboard.html?announce-token=<token>&panel-profile=monitor&operator-name=Acme%20Coaches`.
    Omit entirely and the idle screen stays exactly as it was before (blank
-   background, small corner mark only).
+   background, small corner mark only). **For Option B (kiosk browser on the
+   Controller itself), this param, `&announce-token=` (§6), and
+   `&panel-profile=` (§5) all belong on the same URL** —
+   `mele-server/config/coachmate-kiosk.service`'s `ExecStart` line is the one
+   place all three actually need to end up; missing any one of them silently
+   degrades the idle screen (found live on unit #1, 2026-09-01 — the
+   committed service file's URL had none of the three).
 2. **Logo** — the Controller has no WAN path at runtime (`docs/HARDWARE.md` §3), so the
    image can't be fetched live from Supabase Storage. Instead, from any
    machine with internet access, download the operator's logo from their
    own public Storage URL:
    ```
-   curl -o branding-logo.png "https://<project-ref>.supabase.co/storage/v1/object/public/operator-assets/<company_id>/logo.<ext>"
+   curl -o branding-logo.png "https://<project-ref>.supabase.co/storage/v1/object/public/company-logos/<company_id>/logo.<ext>"
    ```
-   (`company_id`/logo path come from that operator's `companies.logo_path`
+   **Bucket is `company-logos`, not `operator-assets`** (corrected
+   2026-09-01 — `operator-assets` is a real bucket but empty; the Company
+   Settings modal's logo upload, `dashboard/src/features/company/CompanyModal.jsx`,
+   writes to `company-logos`, confirmed against `storage.objects` for Phil
+   Haines Coaches). Following the old wrong URL 404s, which corrupts
+   `branding-logo.png` into an HTML error body and — same end symptom
+   either way — the `<img>`'s own `error` handler hides it, so the idle
+   screen shows no client logo at all. (`company_id`/logo path come from
+   that operator's `companies.logo_path`
    row — see dashboard Branding settings.) Then copy `branding-logo.png`
    into `busops/announce/` on the Controller itself
    (`~/route-tracker/pcv-dashboard/busops/announce/branding-logo.png`

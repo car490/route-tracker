@@ -20,7 +20,28 @@ Environment=XDG_RUNTIME_DIR=/run/user/1000
 # `/usr/lib/systemd/system/seatd.service`'s ExecStart if this differs on a
 # future OS image.
 Environment=LIBSEAT_BACKEND=seatd
-ExecStart=/usr/bin/cage -- /usr/bin/chromium-browser --kiosk --noerrdialogs --disable-session-crashed-bubble --disable-infobars --autoplay-policy=no-user-gesture-required http://localhost:8080/announce/onboard.html
+# The onboard.html URL below must carry three query params, or the sign
+# shows an empty/blank idle screen instead of the operator's branded one
+# (see onboard.js's initIdleScreen()/connectSignFeed() — each param is
+# read independently and each is silently skipped, not errored, when
+# missing):
+#   &operator-name=<name>   URL-encoded operator name (DEPLOY.md "Idle screen
+#                            branding") — without it #onboard-idle never
+#                            unhides at all, so neither the top bar nor the
+#                            centred logo ever appear.
+#   &announce-token=<token> same shared token as coachmate-onboard's
+#                            DRIVER_PUSH_TOKEN (DEPLOY.md §6) — without it
+#                            the /sign-feed WebSocket never even opens.
+#   &panel-profile=<name>   bar|monitor (DEPLOY.md §5) — without it PSVAIR
+#                            text sizing defaults to the Bar profile's 17vh,
+#                            wrong for a Monitor-class panel.
+# Scheme must be https:// once coachmate-onboard has a cert in
+# mele-server/certs/ (DEPLOY.md's TLS section) — server.mjs runs http OR
+# https, never both, so an http:// URL against an https-only server fails
+# to load at all. --ignore-certificate-errors is required alongside https://
+# for the self-signed cert (acceptable for this fully local, isolated kiosk
+# — DEPLOY.md's TLS section).
+ExecStart=/usr/bin/cage -- /usr/bin/chromium-browser --kiosk --noerrdialogs --disable-session-crashed-bubble --disable-infobars --autoplay-policy=no-user-gesture-required --ignore-certificate-errors "https://localhost:8080/announce/onboard.html?operator-name=<OPERATOR_NAME>&announce-token=<ANNOUNCE_TOKEN>&panel-profile=<bar-or-monitor>"
 Restart=on-failure
 RestartSec=3
 
