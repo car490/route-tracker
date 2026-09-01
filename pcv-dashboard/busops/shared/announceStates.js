@@ -18,7 +18,6 @@ export const ANNOUNCE_STATES = Object.freeze({
   IDLE: 'idle',
   ROUTE_START: 'route_start',
   STOP_DEPARTURE: 'stop_departure',
-  APPROACHING: 'approaching',
   AT_STOP: 'at_stop',
   DIVERSION: 'diversion',
 });
@@ -64,9 +63,9 @@ export function articleFor(serviceCode) {
 }
 
 // Pure text resolver — vars per state:
-//   ROUTE_START:    { serviceCode, destination }
+//   ROUTE_START:    { serviceCode, destination, currentStopName, nextStopName }
+//                    nextStopName is optional — omitted only for a single-stop route
 //   STOP_DEPARTURE: { serviceCode, destination, nextStopName }
-//   APPROACHING:    { stopName, isFinal }
 //   AT_STOP:        { stopName, isFinal }
 //   DIVERSION:      none — fixed text, deliberately takes no free-text
 //                    parameters (matches the driver-triggered alert's
@@ -80,18 +79,16 @@ export function resolveAnnouncementText(stateKey, vars) {
   switch (stateKey) {
     case ANNOUNCE_STATES.IDLE:
       return null;
-    case ANNOUNCE_STATES.ROUTE_START:
-      return `This is ${articleFor(vars.serviceCode)} ${vars.serviceCode} to ${vars.destination}.`;
+    case ANNOUNCE_STATES.ROUTE_START: {
+      const intro = `This is ${articleFor(vars.serviceCode)} ${vars.serviceCode} to ${vars.destination}. This is ${vars.currentStopName}.`;
+      return vars.nextStopName ? `${intro} The next stop will be ${vars.nextStopName}.` : intro;
+    }
     case ANNOUNCE_STATES.STOP_DEPARTURE:
       return `This is ${articleFor(vars.serviceCode)} ${vars.serviceCode} to ${vars.destination}. The next stop will be ${vars.nextStopName}.`;
-    case ANNOUNCE_STATES.APPROACHING:
-      return vars.isFinal
-        ? `The next stop is ${vars.stopName}. This bus terminates here, all change please.`
-        : `The next stop will be ${vars.stopName}.`;
     case ANNOUNCE_STATES.AT_STOP:
       return vars.isFinal
-        ? `This is ${vars.stopName}. This bus terminates here, all change please.`
-        : `This stop is ${vars.stopName}.`;
+        ? `This is ${vars.stopName}. This bus terminates here. All change please.`
+        : `This is ${vars.stopName}.`;
     case ANNOUNCE_STATES.DIVERSION:
       return 'Attention, this bus is on diversion.';
     default:
@@ -113,24 +110,14 @@ function stripIndicator(name) {
   return name.replace(/\s*\([^)]*\)\s*$/, '');
 }
 
-// Resolves gps.js's approaching/atStop signals (see shared/gps.js) into one
-// of the two GPS-driven states, with the isFinal branch pre-computed —
-// centralised here so driver/src/main.js and
-// announce/src/announceStandaloneAutopilot.js (the two independent state
-// producers that watch live GPS) don't each reimplement "which signal wins,
-// and is this stop the last one" separately. approaching/atStop are each
-// either null or { stopIndex }; approaching takes priority when (in theory)
-// both are present, since gps.js never actually sets both at once.
-export function resolveApproachOrArrivalState({ approaching, atStop, allStops }) {
+// Resolves gps.js's atStop signal (see shared/gps.js) into the AT_STOP
+// state, with the isFinal branch pre-computed — centralised here so
+// driver/src/main.js and announce/src/announceStandaloneAutopilot.js (the
+// two independent state producers that watch live GPS) don't each
+// reimplement "is this stop the last one" separately.
+export function resolveApproachOrArrivalState({ atStop, allStops }) {
   const lastIndex = allStops.length - 1;
 
-  if (approaching) {
-    const stop = allStops[approaching.stopIndex];
-    return {
-      stateKey: ANNOUNCE_STATES.APPROACHING,
-      vars: { stopName: stripIndicator(stop.name), isFinal: approaching.stopIndex === lastIndex },
-    };
-  }
   if (atStop) {
     const stop = allStops[atStop.stopIndex];
     return {

@@ -77,27 +77,44 @@ describe('announce() Controller broadcast', () => {
     expect(broadcastAnnounce).not.toHaveBeenCalled();
   });
 
-  it('resolves clip keys per state (approaching, non-final)', async () => {
+  it('resolves clip keys per state (at stop, non-final)', async () => {
     const { broadcastAnnounce } = await import('./announceLink.js');
-    announcements.announceState(ANNOUNCE_STATES.APPROACHING, { stopName: 'Example Road', isFinal: false }, { stopId: 'stop-1' });
-    expect(broadcastAnnounce).toHaveBeenCalledWith('The next stop will be Example Road.', ['next/stop-1']);
-  });
-
-  it('resolves clip keys per state (approaching, final)', async () => {
-    const { broadcastAnnounce } = await import('./announceLink.js');
-    announcements.announceState(ANNOUNCE_STATES.APPROACHING, { stopName: 'Terminus', isFinal: true }, { stopId: 'stop-9' });
-    expect(broadcastAnnounce).toHaveBeenCalledWith(
-      'The next stop is Terminus. This bus terminates here, all change please.',
-      ['next-final/stop-9', 'terminus-tail']
-    );
+    announcements.announceState(ANNOUNCE_STATES.AT_STOP, { stopName: 'Example Road', isFinal: false }, { stopId: 'stop-1' });
+    expect(broadcastAnnounce).toHaveBeenCalledWith('This is Example Road.', ['arrive/stop-1']);
   });
 
   it('resolves clip keys per state (at stop, final)', async () => {
     const { broadcastAnnounce } = await import('./announceLink.js');
     announcements.announceState(ANNOUNCE_STATES.AT_STOP, { stopName: 'Terminus', isFinal: true }, { stopId: 'stop-9' });
     expect(broadcastAnnounce).toHaveBeenCalledWith(
-      'This is Terminus. This bus terminates here, all change please.',
+      'This is Terminus. This bus terminates here. All change please.',
       ['arrive/stop-9', 'terminus-tail']
+    );
+  });
+
+  it('resolves clip keys for ROUTE_START, with a next stop', async () => {
+    const { broadcastAnnounce } = await import('./announceLink.js');
+    announcements.announceState(
+      ANNOUNCE_STATES.ROUTE_START,
+      { serviceCode: '44', destination: 'Boston College', currentStopName: 'Weston', nextStopName: 'Church Road' },
+      { serviceCode: '44', destination: 'Boston College', stopId: 'stop-1', nextStopId: 'stop-2' }
+    );
+    expect(broadcastAnnounce).toHaveBeenCalledWith(
+      'This is a 44 to Boston College. This is Weston. The next stop will be Church Road.',
+      ['service/44__boston-college', 'arrive/stop-1', 'next/stop-2']
+    );
+  });
+
+  it('resolves clip keys for ROUTE_START, no next stop', async () => {
+    const { broadcastAnnounce } = await import('./announceLink.js');
+    announcements.announceState(
+      ANNOUNCE_STATES.ROUTE_START,
+      { serviceCode: '44', destination: 'Boston College', currentStopName: 'Weston', nextStopName: null },
+      { serviceCode: '44', destination: 'Boston College', stopId: 'stop-1', nextStopId: null }
+    );
+    expect(broadcastAnnounce).toHaveBeenCalledWith(
+      'This is a 44 to Boston College. This is Weston.',
+      ['service/44__boston-college', 'arrive/stop-1']
     );
   });
 });

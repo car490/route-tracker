@@ -200,8 +200,13 @@ function announce(text, audioKeys) {
 function clipKeysFor(stateKey, vars, ids) {
   switch (stateKey) {
     case ANNOUNCE_STATES.ROUTE_START: {
-      if (!ids.serviceCode || !ids.destination) return null;
-      return [`service/${slug(ids.serviceCode)}__${slug(stripSpeechAnnotations(ids.destination))}`];
+      if (!ids.serviceCode || !ids.destination || !ids.stopId) return null;
+      const keys = [
+        `service/${slug(ids.serviceCode)}__${slug(stripSpeechAnnotations(ids.destination))}`,
+        `arrive/${ids.stopId}`,
+      ];
+      if (ids.nextStopId) keys.push(`next/${ids.nextStopId}`);
+      return keys;
     }
     case ANNOUNCE_STATES.STOP_DEPARTURE: {
       if (!ids.serviceCode || !ids.destination || !ids.nextStopId) return null;
@@ -210,12 +215,9 @@ function clipKeysFor(stateKey, vars, ids) {
         `next/${ids.nextStopId}`,
       ];
     }
-    case ANNOUNCE_STATES.APPROACHING:
-      if (!ids.stopId) return null;
-      return vars.isFinal ? [`next-final/${ids.stopId}`, 'terminus-tail'] : [`next/${ids.stopId}`];
     case ANNOUNCE_STATES.AT_STOP:
       if (!ids.stopId) return null;
-      return vars.isFinal ? [`arrive/${ids.stopId}`, 'terminus-tail'] : [`stop/${ids.stopId}`];
+      return vars.isFinal ? [`arrive/${ids.stopId}`, 'terminus-tail'] : [`arrive/${ids.stopId}`];
     case ANNOUNCE_STATES.DIVERSION:
       return ['diversion'];
     default:

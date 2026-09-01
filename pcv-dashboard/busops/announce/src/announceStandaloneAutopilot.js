@@ -18,7 +18,7 @@
 // explicitly out of scope here.
 //
 // No Driver device is present on this tier, so this module is also the one
-// place that resolves *and speaks* the full 7-state announcement sequence
+// place that resolves *and speaks* the full announcement sequence
 // (see shared/announceStates.js) for a standalone journey — everything the
 // Driver device would otherwise do, via announceSpeech.js's speechSynthesis
 // (no pre-rendered clips exist for this tier). This includes diversion: with
@@ -184,14 +184,21 @@ export function startStandaloneAutopilot(client, deviceRow, { onSchedule, onStat
     });
 
     // Start of Route — fires once, before GPS tracking starts, same as the
-    // Driver device's equivalent call in main.js. Every stop from here on
-    // (including the first) gets its own normal arrival announcement off
-    // the atStop edge below.
-    const routeStartVars = { serviceCode: details.serviceCode, destination: stripIndicator(lastStop.name) };
+    // Driver device's equivalent call in main.js. Names the starting stop
+    // and the next stop directly; lastAnnouncedStopIdx below is seeded to 0
+    // so the natural arrival/departure announcement for stop 0 doesn't
+    // repeat what Start of Route just said if the very first GPS fix
+    // already satisfies its geofence.
+    const routeStartVars = {
+      serviceCode: details.serviceCode,
+      destination: stripIndicator(lastStop.name),
+      currentStopName: stripIndicator(details.allStops[0].name),
+      nextStopName: details.allStops[1] ? stripIndicator(details.allStops[1].name) : null,
+    };
     onState({ type: 'state', ts: Date.now(), journeyId: resolvedId, stateKey: ANNOUNCE_STATES.ROUTE_START, vars: routeStartVars, earlyWait: null });
     speakState(ANNOUNCE_STATES.ROUTE_START, routeStartVars);
 
-    let lastAnnouncedStopIdx = null;
+    let lastAnnouncedStopIdx = 0;
     const announcedDetourStops = new Set(); // one-shot per stop — see file header
     let lastState = { stateKey: ANNOUNCE_STATES.ROUTE_START, vars: routeStartVars };
 
@@ -224,14 +231,9 @@ export function startStandaloneAutopilot(client, deviceRow, { onSchedule, onStat
           speakState(ANNOUNCE_STATES.DIVERSION, {});
           if (state.atStop) lastAnnouncedStopIdx = state.atStop.stopIndex; // still counts as "arrival announced" for this stop
         } else {
-          if (state.approaching) {
-            lastState = resolveApproachOrArrivalState({ approaching: state.approaching, atStop: null, allStops: details.allStops });
-            speakState(lastState.stateKey, lastState.vars);
-          }
-
           if (state.atStop && state.atStop.stopIndex !== lastAnnouncedStopIdx) {
             lastAnnouncedStopIdx = state.atStop.stopIndex;
-            lastState = resolveApproachOrArrivalState({ approaching: null, atStop: state.atStop, allStops: details.allStops });
+            lastState = resolveApproachOrArrivalState({ atStop: state.atStop, allStops: details.allStops });
             speakState(lastState.stateKey, lastState.vars);
 
             if (!isFinal) {
