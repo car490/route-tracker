@@ -8,7 +8,9 @@
 // than one candidate matches (e.g. a shared-terminus outbound/return pair),
 // the nearest scheduled departure time wins.
 
-import { findScheduleMatch, findTestingScheduleMatch, isJourneyComplete } from '../announce/src/scheduleAutopilot.js';
+import {
+  findScheduleMatch, findTestingScheduleMatch, isJourneyComplete, isWithinActiveWindow,
+} from '../announce/src/scheduleAutopilot.js';
 
 // Bus depot terminus — both an outbound and a return service happen to
 // start/end here, per the shared-terminus test below.
@@ -158,5 +160,42 @@ describe('isJourneyComplete', () => {
       atStop: null, allStopsLength: 5, startedAt: STARTED_AT, now: at(10, 1), timeoutMin: 120,
     });
     expect(result).toBe(true);
+  });
+});
+
+describe('isWithinActiveWindow', () => {
+  // 2026-08-24 is a Monday (day_of_week 0 in this project's Mon=0..Sun=6
+  // convention, same as employee_availability); 2026-08-25 is a Tuesday.
+  const MONDAY_MORNING = (hh, mm) => new Date(2026, 7, 24, hh, mm, 0, 0);
+  const TUESDAY_MORNING = (hh, mm) => new Date(2026, 7, 25, hh, mm, 0, 0);
+
+  it('never wakes when no windows are configured at all', () => {
+    expect(isWithinActiveWindow(MONDAY_MORNING(8, 0), [])).toBe(false);
+    expect(isWithinActiveWindow(MONDAY_MORNING(8, 0), null)).toBe(false);
+  });
+
+  it('is active inside a configured window on the right day', () => {
+    const windows = [{ day_of_week: 0, window_start: '07:30', window_end: '09:00' }];
+    expect(isWithinActiveWindow(MONDAY_MORNING(8, 0), windows)).toBe(true);
+  });
+
+  it('is dormant outside the configured time range on the right day', () => {
+    const windows = [{ day_of_week: 0, window_start: '07:30', window_end: '09:00' }];
+    expect(isWithinActiveWindow(MONDAY_MORNING(12, 0), windows)).toBe(false);
+  });
+
+  it('is dormant on a day with no matching window, even at the right time', () => {
+    const windows = [{ day_of_week: 0, window_start: '07:30', window_end: '09:00' }];
+    expect(isWithinActiveWindow(TUESDAY_MORNING(8, 0), windows)).toBe(false);
+  });
+
+  it('supports multiple windows per day (split morning/afternoon run) with a dormant gap between', () => {
+    const windows = [
+      { day_of_week: 0, window_start: '07:30', window_end: '09:00' },
+      { day_of_week: 0, window_start: '15:00', window_end: '16:30' },
+    ];
+    expect(isWithinActiveWindow(MONDAY_MORNING(8, 0), windows)).toBe(true); // morning run
+    expect(isWithinActiveWindow(MONDAY_MORNING(12, 0), windows)).toBe(false); // dead gap between runs
+    expect(isWithinActiveWindow(MONDAY_MORNING(15, 30), windows)).toBe(true); // afternoon run
   });
 });

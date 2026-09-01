@@ -227,8 +227,8 @@ body {
   object-fit: contain;
 }
 
-/* Standalone (driverless) schedule-autopilot's next-departure caption —
-   see announceStandaloneAutopilot.js/onboard.js's showNextDeparture(). Not
+/* Solo (driverless) schedule-autopilot's next-departure caption —
+   see announceSoloAutopilot.js/onboard.js's showNextDeparture(). Not
    held to the active sign's 22mm PSVAIR minimum (--min-text) — that
    requirement is for in-service passenger information, not this
    before-boarding idle caption. */

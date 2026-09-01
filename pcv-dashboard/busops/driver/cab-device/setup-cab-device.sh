@@ -99,11 +99,26 @@ echo "==> Enabling the Accessibility Service (this IS Kiosk Lock)..."
 "$ADB" shell settings put secure accessibility_enabled 1
 
 echo "==> Setting Fully Kiosk as the default Home app..."
-"$ADB" shell cmd package set-home-activity "$PKG/de.ozerov.fully.LauncherReplacement"
+# On at least one Android 16 device (confirmed 2026-09-01, provisioning the
+# Announce Lite/Solo tablet via the sibling ../../announce/cab-device/
+# setup-solo-device.sh) this programmatic path is rejected outright by
+# RoleControllerService ("Package does not qualify for the role") even
+# though it worked fine on this device's original Android 15 target
+# (Blackview Active 5). Not fatal either way: launching Fully Kiosk with
+# kioskMode:true (already set below) triggers its own "Switch Kiosk Mode
+# on?" prompt -- tapping Yes there drives Android's native interactive
+# "Set default home app" chooser, which succeeds where this command
+# doesn't. If this line fails, that in-app prompt is the real fallback.
+"$ADB" shell cmd package set-home-activity "$PKG/de.ozerov.fully.LauncherReplacement" || \
+  echo "   (rejected by this device/Android version — use the in-app 'Switch Kiosk Mode on?' -> Yes prompt after launch instead)"
 
 echo "==> Pushing known-good settings (Start URL, Kiosk Mode on, Single App off)..."
-"$ADB" shell mkdir -p /sdcard/Download
-"$ADB" push "$SETTINGS_JSON" /sdcard/Download/fully-auto-settings.json
+# // (not /) on the on-device path matters under Git Bash on Windows -- MSYS
+# rewrites a lone leading / into a Windows path, silently breaking both the
+# mkdir and the push destination. Confirmed necessary on Git Bash 2026-09-01;
+# harmless on plain Linux/macOS bash, which has no such rewriting to escape.
+"$ADB" shell mkdir -p //sdcard/Download
+"$ADB" push "$SETTINGS_JSON" //sdcard/Download/fully-auto-settings.json
 
 echo "==> Launching Fully Kiosk once so it picks up the pushed settings..."
 "$ADB" shell am force-stop "$PKG"

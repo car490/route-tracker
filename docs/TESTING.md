@@ -438,28 +438,53 @@ reasonable stand-in for testing.
    set candidate_departure_ids = array['<timetable_departures.id>']
    where id = '<announce_devices.id>';
    ```
-2. Open the device's install link — the idle screen should show a
+2. Also configure at least one active window — a device with none never
+   wakes to poll its own GPS at all (see `announce_device_active_windows`,
+   same day_of_week/window_start/window_end shape as
+   `employee_availability`; `day_of_week` is 0=Mon..6=Sun):
+   ```sql
+   insert into announce_device_active_windows (announce_device_id, day_of_week, window_start, window_end)
+   values ('<announce_devices.id>', 0, '00:00', '23:59'); -- wide-open, for testing; tune narrower for a real beta device
+   ```
+   Either set `testing_mode = true` on the device (bypasses the scheduled-
+   time window entirely, geofence-only — see `findTestingScheduleMatch`) so
+   this test isn't gated on running it near the candidate's real departure
+   time, or pick a candidate whose scheduled time is close to now.
+3. Open the device's install link — the idle screen should show a
    **"Next departure HH:MM"** caption once candidates load
-3. Open DevTools (F12) → **Sensors** → set **Custom location** to the
+4. Open DevTools (F12) → **Sensors** → set **Custom location** to the
    candidate's first stop's lat/lon, within `terminus_radius_m` (150m
    default)
-4. Within ~5 seconds (the idle-poll interval) the idle screen should
+5. Within ~5 seconds (the idle-poll interval) the idle screen should
    disappear and the live sign should appear — a journey has started
    automatically, no driver/manual action involved
-5. Simulate GPS progressing through the remaining stops (as in §13) — the
+6. Simulate GPS progressing through the remaining stops (as in §13) — the
    tube-track should advance normally, using the same tracking engine as
    the Driver PWA
-6. Simulate GPS arrival at the final stop — the journey should complete and
-   the device return to the idle/next-departure screen automatically
+7. Simulate GPS arrival at the final stop — the journey should complete and
+   the device return to the idle/next-departure screen automatically, with
+   the previous journey's sign fully hidden (not left showing underneath)
 
 **Pass:** a fully driverless device starts, tracks, and completes a journey
 on its own, matching only when both the geofence and the scheduled-time
-window agree (test outside either condition and confirm it stays idle).
+window agree (test outside either condition and confirm it stays idle), and
+never polls GPS at all outside its configured active windows.
 
-**To restore:** clear the test device's `candidate_departure_ids` and
+**Live-verified 2026-09-01** (not just a written procedure — see
+`docs/ANNOUNCE-PRODUCT-TIERS.md`'s status entry): scripted against dev
+Supabase with a real device row, real minted JWT, and a real browser
+(Playwright driving Chromium's geolocation override in place of manual
+DevTools Sensors clicks). Found and fixed one real bug in the process:
+`announceSoloAutopilot.js`'s `completeActiveJourney()` called
+`client.rpc(...).catch(...)` directly, which threw against the real
+vendored supabase-js client (its query builder is thenable but not an
+actual `Promise`, so it has no `.catch()`) — silently breaking journey
+completion. Fixed with `Promise.resolve(client.rpc(...)).catch(...)`.
+
+**To restore:** clear the test device's `candidate_departure_ids`,
 `link_state`/`gps_source` back to defaults (`'{}'`, `'unlinked'`,
-`'internal'`) once done, and clear DevTools' Sensors override back to
-**No override**.
+`'internal'`), delete its `announce_device_active_windows` rows, and clear
+DevTools' Sensors override back to **No override**.
 
 ### Bench-testing with real devices (real GPS, not DevTools simulation)
 

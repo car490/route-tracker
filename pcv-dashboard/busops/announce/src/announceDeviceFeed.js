@@ -83,8 +83,12 @@ export function connectAnnounceDeviceFeed(deviceToken, { onSchedule, onState, on
       // Solo (driverless) — a no-op idle screen if this device has no
       // candidate_departure_ids configured yet (see
       // startSoloAutopilot's own guard), same as before this feature
-      // existed.
-      startSoloAutopilot(client, data, { onSchedule, onState, onIdleNextDeparture });
+      // existed. onJourneyEnd is threaded through so a completed Solo
+      // journey hides its stale sign the same way the base/Lite tiers'
+      // journey-end signals already do (see announceSoloAutopilot.js's
+      // completeActiveJourney) — previously dropped here, leaving Solo's
+      // sign visible over the idle screen after every completed journey.
+      startSoloAutopilot(client, data, { onSchedule, onState, onIdleNextDeparture, onJourneyEnd });
       return;
     }
 

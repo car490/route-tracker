@@ -766,6 +766,16 @@ Blackview Active 5 — only the Announce-side device in a Lite/Solo install.
   needs no new power-architecture component, just another fused branch
   (§13).
 
+**SUPERSEDED 2026-09-01: never purchased.** The actual beta hardware is a
+**LEVIRTU 14" Android tablet** (OEM: PIXGOOD M328-EEA, Android 16/SDK 36),
+already bought by the user and provisioned/live-tested — see
+`SOLO-DEVICE-SETUP.md` and `docs/DECISIONS.md`'s hardware table. The DOOGEE
+writeup below is kept for its reasoning trail (why 3:2/14.6"-class tablets
+were being considered at all), not as a current spec — don't cite its exact
+model/dimensions as what's actually deployed. The tablet-vs-mount size
+conflict discussed below is unaffected by the swap (still open, still a 14"
+tablet against a 9"–11" mount class).
+
 ### Candidate: DOOGEE Tab E3 Max — proposed, not yet purchased
 
 | Item | Spec |

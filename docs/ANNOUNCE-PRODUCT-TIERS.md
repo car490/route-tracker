@@ -259,7 +259,7 @@ shortcut for a client where the precondition doesn't hold.
 **Diversion alerts on Announce Solo are auto-detected, not
 driver-triggered.** `diversionAlert.js`'s button-press flow still only
 exists on the Driver device (base Announce tier, Lite) — Solo has no
-driver to press it. Instead, `announceStandaloneAutopilot.js` treats
+driver to press it. Instead, `announceSoloAutopilot.js` treats
 `shared/geofence.js`'s existing `skipped_detour` classification (more than
 one timing-point stop bypassed before rejoining) as "strayed significantly
 from the planned route" and fires the same DIVERSION display state
@@ -539,8 +539,10 @@ earlier draft.**
   covers device registration, install-link generation, and a testing-mode
   toggle, but there's no UI yet for setting a Solo device's
   `candidate_departure_ids`/`match_window_before_min`/
-  `match_window_after_min`/`terminus_radius_m` — SQL only for now
-  (`docs/TESTING.md` §17).
+  `match_window_after_min`/`terminus_radius_m`, or its
+  `announce_device_active_windows` rows (added 2026-09-01 — see below) —
+  SQL only for now (`docs/TESTING.md` §17). Deliberately deferred past the
+  beta per an explicit user decision 2026-09-01.
 - The general Solo case (routes that *do* share stops with
   other services) still has no schedule-autopilot design — remains
   genuinely unscoped, distinct from the Phil Haines Travel shortcut above.
@@ -567,3 +569,43 @@ the Jest suite (`tests/scheduleAutopilot.test.js`,
 `tests/scheduleTimeShift.test.js`) and the manual test flow
 (`docs/TESTING.md` §17) for it — see the "Done" note in the Lite section
 above for the full list and what's still missing around it.
+
+**Beta-readiness pass, 2026-09-01:**
+- **Active-window scheduling added**: `announce_device_active_windows`
+  table (day_of_week/window_start/window_end, same shape as
+  `employee_availability`) — a Solo device now only polls its own GPS
+  during configured days/times, staying fully dormant (no geolocation
+  calls, no battery/data cost) the rest of the time. A device with zero
+  windows configured never wakes, same conservative default an empty
+  `candidate_departure_ids` list already gave it. See
+  `scheduleAutopilot.js`'s `isWithinActiveWindow` and
+  `announceSoloAutopilot.js`'s idle-loop gate. Applied to both dev and
+  production.
+- **Real bug found and fixed via the Solo tier's first-ever live test**
+  (previously only unit-tested — see `docs/TESTING.md` §17's own
+  "Live-verified 2026-09-01" note): `announceSoloAutopilot.js`'s
+  `completeActiveJourney()` never signalled journey-end to the renderer,
+  so a completed Solo journey's sign stayed visibly on top of the idle
+  screen (DOM order/z-index in `onboard.html`/`onboard.css`) instead of
+  being replaced by it — the same bug class Standard/Lite already got a
+  fix for on 2026-08-28, but Solo was never wired into it. Fixed by
+  threading `onJourneyEnd` through `announceDeviceFeed.js` into
+  `startSoloAutopilot`. Also found in the same live-test pass: calling
+  `.catch()` directly on the vendored supabase-js query builder throws
+  (`client.rpc(...).catch is not a function`) — it's thenable but not an
+  actual `Promise` — fixed with `Promise.resolve(client.rpc(...)).catch(...)`.
+- **Production beta device commissioned**: vehicle SN06JVZ, candidates
+  = S125S + S116S's four departures (both directions of both routes),
+  active windows = Mon–Fri 06:45–08:15 and 15:00–17:30 (covers both
+  routes' scheduled times with margin against the 15/30min match window).
+  `testing_mode` left `false` — this is a real beta device, not a bench
+  test. Install link not yet minted — generate it from the dashboard's
+  Announce Devices page ("Get Install Link") when ready to commission the
+  physical tablet.
+- **Flagged, not actioned**: as more journey-tracking variants appear
+  (Driver, Lite, Solo, and Solo's own schedule-autopilot layer), there's a
+  real future question of whether the shared GPS/geofence/tracking core
+  (`shared/gps.js`/`geofence.js`/`engine.js`) should become its own
+  package/service rather than being imported per-surface. Not actioned
+  here — revisit once a third or fourth consumer makes the tradeoff
+  concrete. See `docs/DECISIONS.md`.

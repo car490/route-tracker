@@ -11,6 +11,13 @@
 // with no candidates yet just shows the idle screen, same as before this
 // feature existed.
 //
+// Also only actually polls its own GPS during its configured active
+// windows (announce_device_active_windows — day_of_week/window_start/
+// window_end, same shape as employees' own employee_availability table) —
+// a device with none configured stays fully dormant, same conservative
+// default as an empty candidate list. See isWithinActiveWindow in
+// scheduleAutopilot.js.
+//
 // Hard precondition (see docs/ANNOUNCE-PRODUCT-TIERS.md): only safe when the
 // commissioned candidate routes' start/end points don't overlap with any
 // other service's stops — that's what makes matching on geofence+time alone
@@ -29,7 +36,9 @@
 // either (see the deviation-tracking block in tryMatch's onUpdate below).
 
 import { startAnnounceGpsTracking } from './announceGps.js';
-import { findScheduleMatch, findTestingScheduleMatch, isJourneyComplete } from './scheduleAutopilot.js';
+import {
+  findScheduleMatch, findTestingScheduleMatch, isJourneyComplete, isWithinActiveWindow,
+} from './scheduleAutopilot.js';
 import { shiftStopTimes } from '../../shared/scheduleTimeShift.js';
 import {
   ANNOUNCE_STATES, DEVIATION_STOP_STATUS, resolveApproachOrArrivalState,
@@ -66,6 +75,15 @@ async function fetchCandidateDepartures(client, departureIds) {
     }));
 }
 
+async function fetchActiveWindows(client, deviceId) {
+  const { data, error } = await client
+    .from('announce_device_active_windows')
+    .select('day_of_week, window_start, window_end')
+    .eq('announce_device_id', deviceId);
+  if (error || !data) return [];
+  return data;
+}
+
 async function fetchDepartureDetails(client, departureId) {
   const { data, error } = await client
     .from('schedule_view')
@@ -100,8 +118,9 @@ function msUntilNextOccurrence(departureTime, now) {
   return diff;
 }
 
-export function startSoloAutopilot(client, deviceRow, { onSchedule, onState, onIdleNextDeparture }) {
+export function startSoloAutopilot(client, deviceRow, { onSchedule, onState, onIdleNextDeparture, onJourneyEnd }) {
   let candidates = [];
+  let activeWindows = [];
   let activeJourney = null; // { journeyId, startedAt, tracker }
 
   function reportNextDeparture() {
@@ -121,12 +140,34 @@ export function startSoloAutopilot(client, deviceRow, { onSchedule, onState, onI
     if (!activeJourney) reportNextDeparture();
   }
 
+  async function refreshActiveWindows() {
+    activeWindows = await fetchActiveWindows(client, deviceRow.id);
+  }
+
   function completeActiveJourney() {
     if (!activeJourney) return;
     const { journeyId, tracker } = activeJourney;
     tracker.stop();
-    client.rpc('complete_journey', { p_journey_id: journeyId }).catch(() => {});
+    // Promise.resolve(...) adopts the vendored supabase-js query builder into
+    // a real native Promise before calling .catch() -- the builder itself is
+    // thenable (awaiting it elsewhere in this file works fine) but is not an
+    // actual Promise instance, so it has no .catch() of its own. Confirmed
+    // live, 2026-09-01: calling .catch() on it directly threw
+    // "client.rpc(...).catch is not a function" in a real browser, silently
+    // breaking journey completion (the RPC error never actually needed
+    // catching in practice, but the throw happened before the RPC call even
+    // went out).
+    Promise.resolve(client.rpc('complete_journey', { p_journey_id: journeyId })).catch(() => {});
     activeJourney = null;
+    // Hides the now-stale #onboard-sign and clears its reveal timers — same
+    // onJourneyEnd() the base/Lite tiers already call on their own
+    // journey-end signals (onboard.js). Previously missing here entirely,
+    // so a completed Solo journey's sign stayed visibly on top of the idle
+    // screen (see onboard.html's DOM order/z-index) until the next journey
+    // started. reportNextDeparture() (below) is what actually shows the
+    // correct next-departure caption on that idle screen — kept separate
+    // since onJourneyEnd() itself always clears to no caption.
+    onJourneyEnd?.();
     reportNextDeparture();
   }
 
@@ -266,9 +307,16 @@ export function startSoloAutopilot(client, deviceRow, { onSchedule, onState, onI
   }
 
   refreshCandidates();
+  refreshActiveWindows();
 
   const idleTimer = setInterval(() => {
     if (activeJourney || !navigator.geolocation) return;
+    // Stay fully dormant (no geolocation call at all — no battery/data use)
+    // outside this device's configured active windows. A device with no
+    // windows configured at all never wakes — see isWithinActiveWindow's
+    // own comment for why that's the safe default, matching an empty
+    // candidate_departure_ids list's existing no-op behaviour.
+    if (!isWithinActiveWindow(new Date(), activeWindows)) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => tryMatch(pos.coords.latitude, pos.coords.longitude),
       () => {}, // GPS error — just skip this tick, retried on the next one
@@ -282,5 +330,6 @@ export function startSoloAutopilot(client, deviceRow, { onSchedule, onState, onI
       activeJourney?.tracker?.stop();
     },
     refreshCandidates,
+    refreshActiveWindows,
   };
 }

@@ -225,10 +225,27 @@ pushed to `/sdcard/Download/fully-auto-settings.json` on that device, not
 from the repo. Re-push the updated file and restart Fully Kiosk once to
 apply:
 ```
-adb push cab-device/fully-auto-settings.json /sdcard/Download/fully-auto-settings.json
+adb push cab-device/fully-auto-settings.json //sdcard/Download/fully-auto-settings.json
 adb shell am force-stop de.ozerov.fully
 adb shell am start -n de.ozerov.fully/de.ozerov.fully.MainActivity
 ```
+(`//sdcard/...`, not `/sdcard/...` — see the Git Bash quirk below if running this on Windows.)
+
+### Known quirk: Git Bash on Windows mangles `/sdcard/...` paths
+
+Confirmed 2026-09-01 while provisioning the Announce Lite/Solo tablet
+(`../announce/cab-device/setup-solo-device.sh`, same underlying pattern as
+this script): running any `adb shell`/`adb push` command from **Git Bash on
+Windows** with a plain `/sdcard/...` argument gets silently rewritten by
+MSYS's path conversion into a Windows path (e.g.
+`C:/Program Files/Git/sdcard/Download/...`), which then fails on-device with
+`mkdir: 'C:': Read-only file system` or a push destination error — nothing
+wrong with the device or the command itself. Fix: prefix the on-device path
+with a second slash, `//sdcard/...` — MSYS treats a leading `//` as an
+escape and leaves it alone, while `adb` itself is unaffected by the extra
+slash. Both `setup-cab-device.sh` and `setup-solo-device.sh` already use
+this form. Not an issue on plain Linux/macOS bash, which has no such
+rewriting to escape.
 
 ### Known open issue: Kiosk Lock (Accessibility Service) doesn't stay enabled
 
