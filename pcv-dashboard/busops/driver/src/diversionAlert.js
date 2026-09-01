@@ -7,10 +7,14 @@
 // and carries the fixed announcement text.
 //
 // The announcement text is fixed here and never taken from a caller-supplied
-// field, matching announceDiversion()'s zero-argument contract in
-// src/announcements.js — there is no path for free text to reach either.
+// field, matching the DIVERSION state's zero-argument contract in
+// shared/announceStates.js (also this module's own source of truth for the
+// text, so the two can't drift) — there is no path for free text to reach
+// either.
 
-const ANNOUNCEMENT_TEXT = 'This bus is on diversion';
+import { ANNOUNCE_STATES, resolveAnnouncementText } from '../../shared/announceStates.js';
+
+const ANNOUNCEMENT_TEXT = resolveAnnouncementText(ANNOUNCE_STATES.DIVERSION, {});
 
 export function triggerDiversionAlert(activeJourney, { existingAlertState } = {}) {
   if (!activeJourney) {

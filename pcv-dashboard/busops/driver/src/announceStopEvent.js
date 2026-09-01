@@ -1,28 +1,30 @@
 // src/announceStopEvent.js
 //
-// Slice 2: Driver-Triggered Diversion Alert
-// Single gate that main.js calls instead of announceAtStop/
-// announceApproaching directly, so diversion suppression lives in one place.
-// (Announcement audio, and this gate with it, stays Driver-side only — the
-// onboard sign is a pure pushed-state renderer, see src/onboard.js.)
+// Single gate that main.js calls instead of announceState() directly, so
+// diversion suppression lives in one place. (Announcement audio, and this
+// gate with it, stays Driver-side only — the onboard sign is a pure
+// pushed-state renderer, see src/onboard.js.)
 
-import { announceApproaching, announceAtStop, announceDiversion } from './announcements.js';
+import { announceState } from './announcements.js';
+import { ANNOUNCE_STATES } from '../../shared/announceStates.js';
 
 // PSVAIR event 2 — approaching a stop (gps.js's stopStates 'approaching'
 // status — ETA-projected from speed, falling back to a distance band).
-// Silent for the final stop by design: that gets one combined announcement
-// at arrival instead (event 4, via announceStopEvent below), not a
-// separate heads-up.
-export function announceApproachEvent({ stopId, stopName, isFinal, diversionActive }) {
-  if (diversionActive || isFinal) return;
-  announceApproaching({ stopId, stopName });
+// stateKey/vars are already resolved (shared/announceStates.js's
+// resolveApproachOrArrivalState) — this is purely the diversion gate.
+export function announceApproachEvent(stateKey, vars, ids, diversionActive) {
+  if (diversionActive) return;
+  announceState(stateKey, vars, ids);
 }
 
-// PSVAIR events 3 & 4 — vehicle has stopped.
-export function announceStopEvent({ nextStopId, nextStopName, isFinal, diversionActive, serviceCode, destination }) {
+// PSVAIR events 3 & 4 — vehicle has stopped. While a diversion alert is
+// active, every arrival re-announces the diversion instead of the normal
+// arrival text — a repeating reminder for passengers boarding at each stop
+// along the diverted section, same behaviour as before this rebuild.
+export function announceStopEvent(stateKey, vars, ids, diversionActive) {
   if (diversionActive) {
-    announceDiversion();
+    announceState(ANNOUNCE_STATES.DIVERSION, {}, {});
     return;
   }
-  announceAtStop({ nextStopId, nextStopName, isFinal, serviceCode, destination });
+  announceState(stateKey, vars, ids);
 }

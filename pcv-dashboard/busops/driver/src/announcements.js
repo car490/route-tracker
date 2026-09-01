@@ -6,29 +6,24 @@
 // scripts/generate-announcement-audio.mjs), keyed by stop_id/service+
 // destination exactly as built there — natural recorded voice instead of
 // whatever Web Speech API voice happens to be installed on a given
-// tablet. Falls back to live Web Speech API synthesis whenever a clip is
-// missing (new stop not yet regenerated, offline before first cache, etc.)
-// so announcements never silently stop working.
+// tablet. Falls back to live Web Speech API synthesis (shared/speech.js —
+// also announce/src/announceSpeech.js's only audio path, see that file)
+// whenever a clip is missing (new stop not yet regenerated, offline before
+// first cache, etc.) so announcements never silently stop working.
+//
+// The spoken text for every state comes from shared/announceStates.js's
+// resolveAnnouncementText — the same function the onboard sign uses for its
+// on-screen headline — so the two can never drift out of consistency with
+// each other (PSVAIR Regulation 12(1)).
 
 import { broadcastAnnounce } from './announceLink.js';
+import { listVoices, pickVoice, speakUtterance } from '../../shared/speech.js';
+import { ANNOUNCE_STATES, resolveAnnouncementText } from '../../shared/announceStates.js';
 
 const MUTE_KEY = 'psvair-muted';
 const VOICE_KEY = 'psvair-voice-uri';
 const BANNER_SHOWN_KEY = 'psvair-banner-shown';
 const AUDIO_BASE = './audio/announcements/';
-
-// Known-good warmer-sounding voices, checked in order, across the platforms
-// drivers actually use (Android Chrome, iOS Safari, Windows Edge/Chrome).
-// First one installed on the device wins; if none match we fall back to the
-// first en-GB voice, then whatever the browser gives us.
-const PREFERRED_VOICE_NAMES = [
-  'Google UK English Female',
-  'Microsoft Sonia Online (Natural) - English (United Kingdom)',
-  'Serena',
-  'Microsoft Hazel',
-  'Moira',
-  'Karen',
-];
 
 let enabled = false;
 let onAnnounce = null; // (text) => void, wired to the on-screen banner
@@ -66,24 +61,18 @@ export function setMuted(v) {
 }
 
 // Whether the driver has opted to show the on-screen caption/mute/voice
-// banner — collapsed by default so it doesn't sit open on every trip.
+// banner — shown by default; a driver who prefers it out of the way can
+// collapse it (setBannerShown(false)), remembered from then on via the
+// same key.
 export function isBannerShown() {
-  return localStorage.getItem(BANNER_SHOWN_KEY) === '1';
+  return localStorage.getItem(BANNER_SHOWN_KEY) !== '0';
 }
 
 export function setBannerShown(v) {
   localStorage.setItem(BANNER_SHOWN_KEY, v ? '1' : '0');
 }
 
-// speechSynthesis.getVoices() only returns the full list once the
-// 'voiceschanged' event has fired on some browsers (notably Chrome) — callers
-// populating a voice picker should also listen for that event themselves.
-export function listVoices() {
-  if (!('speechSynthesis' in window)) return [];
-  return window.speechSynthesis.getVoices()
-    .filter(v => v.lang.startsWith('en'))
-    .sort((a, b) => a.name.localeCompare(b.name));
-}
+export { listVoices };
 
 export function getSelectedVoiceURI() {
   return localStorage.getItem(VOICE_KEY) || '';
@@ -92,21 +81,6 @@ export function getSelectedVoiceURI() {
 export function setSelectedVoiceURI(uri) {
   if (uri) localStorage.setItem(VOICE_KEY, uri);
   else localStorage.removeItem(VOICE_KEY);
-}
-
-function pickVoice() {
-  const voices = listVoices();
-  if (!voices.length) return null;
-
-  const savedURI = getSelectedVoiceURI();
-  const saved = savedURI && voices.find(v => v.voiceURI === savedURI);
-  if (saved) return saved;
-
-  for (const name of PREFERRED_VOICE_NAMES) {
-    const match = voices.find(v => v.name === name);
-    if (match) return match;
-  }
-  return voices.find(v => v.lang === 'en-GB') || voices[0];
 }
 
 export function onAnnouncementChange(fn) {
@@ -158,29 +132,13 @@ async function playSequence(keys) {
   return true;
 }
 
-// Resolves once the utterance finishes (or immediately if speech synthesis
-// isn't available) — playNow() needs this so it knows when it's safe to
-// start whatever's next queued, same as it waits on playSequence() above.
-function speakSynthesis(text) {
-  return new Promise((resolve) => {
-    if (!('speechSynthesis' in window)) { resolve(); return; }
-    const utterance = new SpeechSynthesisUtterance(stripSpeechAnnotations(text));
-    utterance.lang = 'en-GB';
-    const voice = pickVoice();
-    if (voice) utterance.voice = voice;
-    utterance.onend = () => resolve();
-    utterance.onerror = () => resolve();
-    window.speechSynthesis.speak(utterance);
-  });
-}
-
 // Plays one announcement to completion, then plays whatever's queued (if
 // anything arrived while this one was playing) — never both at once. See
 // speak() below for why a new announcement queues instead of interrupting.
 async function playNow(text, audioKeys) {
   isBusy = true;
   const ok = audioKeys && audioKeys.length ? await playSequence(audioKeys) : false;
-  if (!ok) await speakSynthesis(text);
+  if (!ok) await speakUtterance(stripSpeechAnnotations(text), getSelectedVoiceURI() || null);
   currentAudio = null;
   isBusy = false;
 
@@ -216,7 +174,7 @@ export function previewVoice(voiceURI) {
   const utterance = new SpeechSynthesisUtterance(
     'This is Example Street. The next stop will be Example Road.');
   utterance.lang = 'en-GB';
-  const voice = listVoices().find(v => v.voiceURI === voiceURI) || pickVoice();
+  const voice = listVoices().find((v) => v.voiceURI === voiceURI) || pickVoice(voiceURI);
   if (voice) utterance.voice = voice;
   window.speechSynthesis.speak(utterance);
 }
@@ -235,53 +193,43 @@ function announce(text, audioKeys) {
   if (onAnnounce) onAnnounce(text);
 }
 
-// destination is the last stop's (display) name, exactly as passed by
-// main.js — must match what the generator stripped/slugged for the same
-// route, or the clip lookup misses and falls back to synthesis (not a bug,
-// just a wasted clip until names line up again).
-//
-// PSVAIR event 1 (Start pressed): announces route+destination, then the
-// starting stop, then the stop after it — all three as one spoken block.
-export function announceJourneyStart({ serviceCode, destination, firstStopId, firstStopName, nextStopId, nextStopName }) {
-  const clean = stripSpeechAnnotations(destination);
-  const serviceKey = `service/${slug(serviceCode)}__${slug(clean)}`;
-  const text = `This is a ${serviceCode} to ${clean}. This stop is ${firstStopName}. The next stop will be ${nextStopName}.`;
-  const keys = firstStopId && nextStopId ? [serviceKey, `stop/${firstStopId}`, `next/${nextStopId}`] : null;
-  announce(text, keys);
-}
-
-// PSVAIR event 2 (approaching a stop — see gps.js's stopStates 'approaching'
-// status): names the stop about to be reached. Never called for the final
-// stop — that's event 4's job instead (see announceStopEvent.js's
-// announceApproachEvent).
-export function announceApproaching({ stopId, stopName }) {
-  announce(`This is ${stopName}.`, stopId ? [`arrive/${stopId}`] : null);
-}
-
-// PSVAIR events 3 & 4 (vehicle has stopped): a non-final stop repeats
-// route+destination and names the next stop, for passengers boarding here.
-// The final stop instead gets one fixed announcement — no stop name at all,
-// since event 2's approach announcement or the on-screen sign already named
-// it moments earlier.
-export function announceAtStop({ nextStopId, nextStopName, isFinal, serviceCode, destination }) {
-  if (isFinal) {
-    announce(
-      'This is the final stop. This bus terminates here, all change please.',
-      ['final-stop', 'terminus-tail']
-    );
-  } else {
-    const clean = stripSpeechAnnotations(destination);
-    const serviceKey = `service/${slug(serviceCode)}__${slug(clean)}`;
-    announce(
-      `This is a ${serviceCode} to ${clean}, the next stop will be ${nextStopName}.`,
-      serviceCode && destination && nextStopId ? [serviceKey, `next/${nextStopId}`] : null
-    );
+// ids carries whatever stop/service identifiers the current state needs to
+// look up its pre-rendered clip(s) — a subset of { stopId, nextStopId,
+// serviceCode, destination } depending on stateKey, all optional (missing
+// ids just fall back to live synthesis, same as a missing clip file does).
+function clipKeysFor(stateKey, vars, ids) {
+  switch (stateKey) {
+    case ANNOUNCE_STATES.ROUTE_START: {
+      if (!ids.serviceCode || !ids.destination) return null;
+      return [`service/${slug(ids.serviceCode)}__${slug(stripSpeechAnnotations(ids.destination))}`];
+    }
+    case ANNOUNCE_STATES.STOP_DEPARTURE: {
+      if (!ids.serviceCode || !ids.destination || !ids.nextStopId) return null;
+      return [
+        `service/${slug(ids.serviceCode)}__${slug(stripSpeechAnnotations(ids.destination))}`,
+        `next/${ids.nextStopId}`,
+      ];
+    }
+    case ANNOUNCE_STATES.APPROACHING:
+      if (!ids.stopId) return null;
+      return vars.isFinal ? [`next-final/${ids.stopId}`, 'terminus-tail'] : [`next/${ids.stopId}`];
+    case ANNOUNCE_STATES.AT_STOP:
+      if (!ids.stopId) return null;
+      return vars.isFinal ? [`arrive/${ids.stopId}`, 'terminus-tail'] : [`stop/${ids.stopId}`];
+    case ANNOUNCE_STATES.DIVERSION:
+      return ['diversion'];
+    default:
+      return null;
   }
 }
 
-// Fixed string only — takes no parameters, deliberately, so the "diversion
-// announcements can never carry dynamic/free-text content" property is
-// enforced at this TTS gateway itself, not just by callers behaving.
-export function announceDiversion() {
-  announce('This bus is on diversion', ['diversion']);
+// The one PSVAIR announcement gateway — resolves the spoken text from the
+// same shared template the onboard sign renders on screen, then plays the
+// matching pre-rendered clip sequence (falling back to synthesis of that
+// exact text if a clip is missing). See announceStopEvent.js for the call
+// sites that decide which stateKey/vars apply and when.
+export function announceState(stateKey, vars, ids = {}) {
+  const text = resolveAnnouncementText(stateKey, vars);
+  if (!text) return;
+  announce(text, clipKeysFor(stateKey, vars, ids));
 }

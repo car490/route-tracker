@@ -15,14 +15,15 @@
   <body>
 
     <!--
-      Fixed passenger-facing sign — vehicle-mounted display. Named display
-      profiles (?panel-profile=bar|monitor|monitor-vertical, see
-      PANEL_PROFILES in src/onboard.js) share this same markup and most of
-      the same CSS; monitor-vertical is the one exception, swapping the
-      tube-track's orientation via onboard.css's [data-track-layout]
-      selectors. No touch interaction expected. Deliberately silo'd from the
-      driver PWA (index.html/main.js): no login, no duty card, no incident
-      reporting, no stop-time upload, no writes to Supabase at all.
+      Fixed passenger-facing sign — vehicle-mounted display. One shared
+      layout for both Announce (Standard, Controller-fed) and Announce Lite
+      (paired or standalone) — only the transport differs (see
+      src/onboard.js's header comment). Named display profiles
+      (?panel-profile=bar|monitor, see PANEL_PROFILES in src/onboard.js)
+      only affect PSVAIR text-size calibration, not layout. No touch
+      interaction expected. Deliberately silo'd from the driver PWA
+      (index.html/main.js): no login, no duty card, no incident reporting,
+      no stop-time upload, no writes to Supabase at all.
 
       No manual intervention: this device is a pure pushed-state renderer
       (see docs/HARDWARE.md "Read this first") — it sits on a blank grey screen
@@ -30,11 +31,12 @@
       {type:'schedule'} message (i.e. the driver hits Start on their own
       phone), then wakes on its own.
 
-      Styled as an e-paper sign (onboard.css): mostly monochrome and
-      motion-free, hard corners — not just a different colour scheme from
-      the driver PWA. Deliberate exceptions: the brand mark keeps its real
-      colours, the tube-track uses navy/charcoal/green, and its current-stop
-      dot pulses on a confirmed stop arrival. See onboard.css for why.
+      One headline of text per display state (shared/announceStates.js) —
+      the exact same wording spoken as audio. Styled as an e-paper sign
+      (onboard.css): mostly monochrome and motion-free, hard corners — not
+      just a different colour scheme from the driver PWA. Deliberate
+      exception: the brand mark keeps its real colours. See onboard.css for
+      why, and for the diversion state's background-colour treatment.
     -->
 
     <div id="onboard-brand">
@@ -56,10 +58,10 @@
       commissioning time (mele-server/DEPLOY.md), so a missing file (logo
       never commissioned, or a demo/dev environment) just 404s and
       idle-logo hides itself.
-      Logo only, no operator-name text — top/bottom bars are shown here too
-      (empty, same accent colour as #sign-topbar/#sign-bottom-line) so the
-      idle screen previews the same chrome the active sign will use once a
-      journey starts, rather than switching layouts abruptly.
+      Logo only, no operator-name text — a top bar is shown here too (empty,
+      same accent colour as #sign-topbar) so the idle screen previews the
+      same chrome the active sign will use once a journey starts, rather
+      than switching layouts abruptly.
     -->
     <div id="onboard-idle" hidden>
       <div id="idle-topbar"></div>
@@ -70,7 +72,6 @@
              never populate this, so it stays hidden for them. -->
         <div id="idle-next-departure" hidden></div>
       </div>
-      <div id="idle-bottombar"></div>
     </div>
 
     <div id="onboard-sign" hidden>
@@ -79,21 +80,20 @@
           <span id="sign-service-code"></span>
           <span id="sign-destination"></span>
         </div>
-        <span id="sign-clock"></span>
-      </div>
-
-      <div id="early-wait-banner" hidden>
-        <div class="ewb-title">WAIT HERE</div>
-        <div class="ewb-msg">Running early — depart at <span id="ewb-time"></span></div>
       </div>
 
       <div id="sign-main">
-        <div id="tube-track"></div>
-        <div id="sign-upcoming" hidden></div>
-      </div>
-
-      <div id="sign-bottom-line">
-        <span id="sbl-status"></span>
+        <div id="sign-headline"></div>
+        <!--
+          Running-early caption — not one of the 7 display states (nothing
+          in shared/announceStates.js covers it, and it isn't spoken as
+          audio either), kept as a small secondary caption rather than a
+          competing full-size headline. See src/onboard.js's render().
+        -->
+        <div id="early-wait-banner" hidden>
+          <div class="ewb-title">Wait here</div>
+          <div class="ewb-msg">Running early — depart at <span id="ewb-time"></span></div>
+        </div>
       </div>
     </div>
 

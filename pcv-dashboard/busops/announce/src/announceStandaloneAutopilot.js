@@ -14,12 +14,27 @@
 // Hard precondition (see docs/ANNOUNCE-PRODUCT-TIERS.md): only safe when the
 // commissioned candidate routes' start/end points don't overlap with any
 // other service's stops — that's what makes matching on geofence+time alone
-// sufficient. Diversion alerts and the general shared-terminus-with-other-
-// services case are explicitly out of scope here.
+// sufficient. The general shared-terminus-with-other-services case is
+// explicitly out of scope here.
+//
+// No Driver device is present on this tier, so this module is also the one
+// place that resolves *and speaks* the full 7-state announcement sequence
+// (see shared/announceStates.js) for a standalone journey — everything the
+// Driver device would otherwise do, via announceSpeech.js's speechSynthesis
+// (no pre-rendered clips exist for this tier). This includes diversion: with
+// no driver to press a button, a diversion here is auto-detected from
+// shared/geofence.js's existing 'skipped_detour' classification (more than
+// one timing-point stop bypassed before rejoining) — a one-shot alert per
+// occurrence, not an ongoing mode, since there's no driver to clear it
+// either (see the deviation-tracking block in tryMatch's onUpdate below).
 
 import { startAnnounceGpsTracking } from './announceGps.js';
 import { findScheduleMatch, findTestingScheduleMatch, isJourneyComplete } from './scheduleAutopilot.js';
 import { shiftStopTimes } from '../../shared/scheduleTimeShift.js';
+import {
+  ANNOUNCE_STATES, DEVIATION_STOP_STATUS, resolveApproachOrArrivalState,
+} from '../../shared/announceStates.js';
+import { speakState } from './announceSpeech.js';
 
 const IDLE_POLL_MS = 5000; // own-GPS check interval while no journey is active
 const COMPLETION_TIMEOUT_MIN = 120; // safety net — no driver to notice a stuck journey
@@ -168,25 +183,77 @@ export function startStandaloneAutopilot(client, deviceRow, { onSchedule, onStat
       primaryColor: null,
     });
 
+    // Start of Route — fires once, before GPS tracking starts, same as the
+    // Driver device's equivalent call in main.js. Every stop from here on
+    // (including the first) gets its own normal arrival announcement off
+    // the atStop edge below.
+    const routeStartVars = { serviceCode: details.serviceCode, destination: stripIndicator(lastStop.name) };
+    onState({ type: 'state', ts: Date.now(), journeyId: resolvedId, stateKey: ANNOUNCE_STATES.ROUTE_START, vars: routeStartVars, earlyWait: null });
+    speakState(ANNOUNCE_STATES.ROUTE_START, routeStartVars);
+
+    let lastAnnouncedStopIdx = null;
+    const announcedDetourStops = new Set(); // one-shot per stop — see file header
+    let lastState = { stateKey: ANNOUNCE_STATES.ROUTE_START, vars: routeStartVars };
+
     const startedAt = new Date();
     const tracker = startAnnounceGpsTracking({
       schedule: details.allStops,
       onUpdate: (state) => {
         const isFinal = !!(state.atStop && state.atStop.stopIndex === details.allStops.length - 1);
+
+        // Auto-detected diversion (PSVAIR Regulation 10) — the only trigger
+        // available on this driverless tier. gps.js confirms a detour on
+        // the exact same tick it advances into the rejoined stop's own
+        // arrival (see shared/gps.js's forward-match branch), so a newly
+        // detected deviation here takes over this tick's announcement
+        // entirely — audio and visual alike — the same way a driver-
+        // triggered diversion supersedes (rather than stacks with) the
+        // normal arrival announcement in announceStopEvent.js. One-shot:
+        // only for the tick it's first detected on; the very next real
+        // approaching/atStop edge (a later tick) naturally supersedes the
+        // display again — there's no driver to explicitly clear it the way
+        // the button-triggered path on Standard/paired Lite works.
+        const deviatedStop = (state.stopStates ?? []).findIndex(
+          (s, i) => s.status === DEVIATION_STOP_STATUS && !announcedDetourStops.has(i)
+        );
+        if (deviatedStop !== -1) {
+          (state.stopStates ?? []).forEach((s, i) => {
+            if (s.status === DEVIATION_STOP_STATUS) announcedDetourStops.add(i);
+          });
+          lastState = { stateKey: ANNOUNCE_STATES.DIVERSION, vars: {} };
+          speakState(ANNOUNCE_STATES.DIVERSION, {});
+          if (state.atStop) lastAnnouncedStopIdx = state.atStop.stopIndex; // still counts as "arrival announced" for this stop
+        } else {
+          if (state.approaching) {
+            lastState = resolveApproachOrArrivalState({ approaching: state.approaching, atStop: null, allStops: details.allStops });
+            speakState(lastState.stateKey, lastState.vars);
+          }
+
+          if (state.atStop && state.atStop.stopIndex !== lastAnnouncedStopIdx) {
+            lastAnnouncedStopIdx = state.atStop.stopIndex;
+            lastState = resolveApproachOrArrivalState({ approaching: null, atStop: state.atStop, allStops: details.allStops });
+            speakState(lastState.stateKey, lastState.vars);
+
+            if (!isFinal) {
+              const departureVars = {
+                serviceCode: details.serviceCode,
+                destination: stripIndicator(lastStop.name),
+                nextStopName: stripIndicator(details.allStops[state.atStop.stopIndex + 1].name),
+              };
+              lastState = { stateKey: ANNOUNCE_STATES.STOP_DEPARTURE, vars: departureVars };
+              speakState(ANNOUNCE_STATES.STOP_DEPARTURE, departureVars);
+            }
+          }
+        }
+
+        // Pushed every tick, same reasoning as main.js's equivalent: keeps
+        // earlyWait live on the sign between announcement edges without
+        // re-triggering audio (that's separately edge-guarded above).
         onState({
-          type: 'state',
-          ts: Date.now(),
-          journeyId: resolvedId,
-          nextStopIndex: state.nextStopIndex,
-          nextStopName: details.allStops[state.nextStopIndex]?.name,
-          atStop: state.atStop,
-          approaching: state.approaching,
-          earlyWait: state.earlyWait,
-          timing: state.timing,
-          stopStates: state.stopStates,
-          diversionActive: false, // no driver to trigger one — see file header
-          isFinal,
+          type: 'state', ts: Date.now(), journeyId: resolvedId,
+          stateKey: lastState.stateKey, vars: lastState.vars, earlyWait: state.earlyWait,
         });
+
         if (isJourneyComplete({
           atStop: state.atStop, allStopsLength: details.allStops.length,
           startedAt, now: new Date(), timeoutMin: COMPLETION_TIMEOUT_MIN,

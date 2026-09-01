@@ -12,17 +12,28 @@
 //   AZURE_SPEECH_KEY    — key from an Azure AI Speech resource
 //   AZURE_SPEECH_REGION — e.g. "uksouth"
 // Optional:
-//   AZURE_SPEECH_VOICE  — defaults to en-GB-SoniaNeural (the same voice
-//                         already named first in PREFERRED_VOICE_NAMES)
+//   AZURE_SPEECH_VOICE  — defaults to en-GB-RyanNeural (a natural-sounding
+//                         male English-GB voice — matches the browser
+//                         speechSynthesis fallback's own preferred voice,
+//                         see shared/speech.js's PREFERRED_VOICE_NAMES)
+//
+// Changing AZURE_SPEECH_VOICE (or this default) re-renders every clip, not
+// just new ones — hashText() folds the voice into each clip's hash, so a
+// voice change makes every existing hash mismatch.
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { createHash } from 'crypto';
+// Same a/an logic the live app uses for the visual headline and the
+// synthesis fallback (shared/announceStates.js) — imported directly rather
+// than re-implemented here, so a recorded clip's wording can never drift
+// from what onboard.js displays for the same state.
+import { articleFor } from '../pcv-dashboard/busops/shared/announceStates.js';
 
 const AZURE_KEY = process.env.AZURE_SPEECH_KEY;
 const AZURE_REGION = process.env.AZURE_SPEECH_REGION;
-const VOICE = process.env.AZURE_SPEECH_VOICE || 'en-GB-SoniaNeural';
+const VOICE = process.env.AZURE_SPEECH_VOICE || 'en-GB-RyanNeural';
 
 if (!AZURE_KEY || !AZURE_REGION) {
   console.error('Set AZURE_SPEECH_KEY and AZURE_SPEECH_REGION before running this script.');
@@ -102,7 +113,7 @@ function buildJobs(schedule) {
         jobs.set(key, {
           key,
           relPath: `${key}.mp3`,
-          text: `This is a ${serviceCode} to ${destination}.`,
+          text: `This is ${articleFor(serviceCode)} ${serviceCode} to ${destination}.`,
         });
       }
     }
@@ -118,6 +129,12 @@ function buildJobs(schedule) {
       key: `next/${stopId}`, relPath: `next/${stopId}.mp3`,
       text: `The next stop will be ${clean}.`,
     });
+    // Approaching the *final* stop (state 6, shared/announceStates.js) —
+    // "is", not "will be" — a distinct clip from next/${stopId} above.
+    jobs.set(`next-final/${stopId}`, {
+      key: `next-final/${stopId}`, relPath: `next-final/${stopId}.mp3`,
+      text: `The next stop is ${clean}.`,
+    });
     jobs.set(`arrive/${stopId}`, {
       key: `arrive/${stopId}`, relPath: `arrive/${stopId}.mp3`,
       text: `This is ${clean}.`,
@@ -126,17 +143,13 @@ function buildJobs(schedule) {
 
   // Fully-fixed clips — no variable content, rendered once regardless of
   // route/stop data.
-  jobs.set('final-stop', {
-    key: 'final-stop', relPath: 'final-stop.mp3',
-    text: 'This is the final stop.',
-  });
   jobs.set('terminus-tail', {
     key: 'terminus-tail', relPath: 'terminus-tail.mp3',
     text: 'This bus terminates here, all change please.',
   });
   jobs.set('diversion', {
     key: 'diversion', relPath: 'diversion.mp3',
-    text: 'This bus is on diversion',
+    text: 'Attention, this bus is on diversion.',
   });
 
   return [...jobs.values()];

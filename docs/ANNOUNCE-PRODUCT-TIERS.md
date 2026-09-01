@@ -221,13 +221,18 @@ schedule-reasoning approach that was previously scoped here as "unscoped
 work" — that general case remains genuinely unsolved. Don't reuse this
 shortcut for a client where the precondition doesn't hold.
 
-**Diversion alerts are explicitly out of scope for standalone Announce.**
-`diversionAlert.js` is driver-triggered; a driverless install has no one
-to trigger it. Decided as an accepted limitation for now, not something
-to silently work around — standalone Announce trades diversion-alert
-capability for zero-interaction operation. Revisit only if a client
-specifically needs it (would require ops pushing a diversion flag
-centrally from the dashboard, which is real new scope, not free).
+**Diversion alerts on standalone Announce are auto-detected, not
+driver-triggered.** `diversionAlert.js`'s button-press flow still only
+exists on the Driver device (Standard, paired Lite) — a driverless install
+has no one to press it. Instead, `announceStandaloneAutopilot.js` treats
+`shared/geofence.js`'s existing `skipped_detour` classification (more than
+one timing-point stop bypassed before rejoining) as "strayed significantly
+from the planned route" and fires the same DIVERSION display state
+(`shared/announceStates.js`) itself — one-shot per occurrence (there's no
+driver to explicitly clear it the way the button-triggered path works), and
+spoken locally via `announceSpeech.js`'s speechSynthesis (the one audio path
+this tier has — see the PA announcement audio gap below). No ops-pushed
+diversion flag from the dashboard exists or is needed for this.
 
 **Idle-screen UI.** `onboard.js` already has a real idle scaffold, not a
 blank body — `#onboard-idle` (topbar/main/bottom, same grid shape as the
@@ -494,9 +499,10 @@ earlier draft.**
   genuinely unscoped, distinct from the Phil Haines Travel shortcut above.
   **Still open** — the shipped matcher only covers the non-overlapping
   case.
-- Diversion alerts are accepted as out of scope for standalone Announce
-  (no driver to trigger them) — a standing decision, not a to-do; revisit
-  only if a client needs it.
+- ~~Diversion alerts are accepted as out of scope for standalone
+  Announce~~ — superseded: standalone now auto-detects a diversion off
+  `skipped_detour` and announces it itself, see the auto-detect section
+  above. **Resolved.**
 - Confirm with the team whether Lite is being positioned as a genuinely
   separate SKU or as an entry-tier upsell funnel into Standard — affects
   how it's marketed, not the technical plan above. **Still open.**

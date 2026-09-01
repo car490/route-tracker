@@ -9,7 +9,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   buildConnectionUrl, buildStatePayload, buildSchedulePayload, captureAnnounceSetup,
-  connectAnnounceLink, disconnectAnnounceLink, broadcastState, broadcastSchedule, broadcastAnnounce, setAnnouncing,
+  connectAnnounceLink, disconnectAnnounceLink, broadcastState, broadcastSchedule, broadcastAnnounce,
 } from './announceLink.js';
 
 describe('buildConnectionUrl', () => {
@@ -30,14 +30,10 @@ describe('buildConnectionUrl', () => {
 
 describe('buildStatePayload', () => {
   const baseState = {
-    journeyId: 'jrn-1', nextStopIndex: 2, nextStopName: 'High Street',
-    atStop: null, approaching: { stopIndex: 2 }, earlyWait: null,
-    timing: { status: 'on-time' }, diversionActive: false, isFinal: false,
-    stopStates: [
-      { status: 'departed', arrivedAt: null, departedAt: null },
-      { status: 'skipped_signal', arrivedAt: null, departedAt: null },
-      { status: 'approaching', arrivedAt: null, departedAt: null },
-    ],
+    journeyId: 'jrn-1',
+    stateKey: 'approaching',
+    vars: { stopName: 'High Street', isFinal: false },
+    earlyWait: null,
     lat: 51.5, lon: -0.1, // must never leak into the payload — see file header of announceLink.js
   };
 
@@ -47,24 +43,23 @@ describe('buildStatePayload', () => {
     expect(payload).not.toHaveProperty('lon');
   });
 
-  it('carries the expected fields and defaults announcing to null', () => {
+  it('carries the resolved stateKey/vars and journeyId', () => {
     const payload = buildStatePayload(baseState);
     expect(payload.type).toBe('state');
     expect(payload.journeyId).toBe('jrn-1');
-    expect(payload.nextStopName).toBe('High Street');
-    expect(payload.announcing).toBeNull();
+    expect(payload.stateKey).toBe('approaching');
+    expect(payload.vars).toEqual({ stopName: 'High Street', isFinal: false });
     expect(typeof payload.ts).toBe('number');
   });
 
-  it('carries the full stopStates array — gps.js\'s single source of truth for per-stop status, not a hand-picked subset', () => {
-    const payload = buildStatePayload(baseState);
-    expect(payload.stopStates).toEqual(baseState.stopStates);
-    expect(payload.stopStates.map((s) => s.status)).toEqual(['departed', 'skipped_signal', 'approaching']);
+  it('defaults earlyWait to null when omitted', () => {
+    const payload = buildStatePayload({ journeyId: 'jrn-1', stateKey: 'idle', vars: {} });
+    expect(payload.earlyWait).toBeNull();
   });
 
-  it('carries the announcing field when provided', () => {
-    const payload = buildStatePayload(baseState, { announcing: 'High Street' });
-    expect(payload.announcing).toBe('High Street');
+  it('carries earlyWait when provided', () => {
+    const payload = buildStatePayload({ ...baseState, earlyWait: { stopIndex: 2 } });
+    expect(payload.earlyWait).toEqual({ stopIndex: 2 });
   });
 });
 
@@ -178,28 +173,13 @@ describe('live connection (stubbed WebSocket/localStorage)', () => {
     const ws = MockWebSocket.instances[0];
     expect(ws.url).toBe('ws://192.168.4.1:8080/driver-push?token=tok');
 
-    broadcastState({ journeyId: 'j1', nextStopIndex: 0 }); // not open yet
+    broadcastState({ journeyId: 'j1', stateKey: 'idle', vars: {} }); // not open yet
     expect(ws.sent).toHaveLength(0);
 
     ws.open();
-    broadcastState({ journeyId: 'j1', nextStopIndex: 0 });
+    broadcastState({ journeyId: 'j1', stateKey: 'idle', vars: {} });
     expect(ws.sent).toHaveLength(1);
     expect(JSON.parse(ws.sent[0]).journeyId).toBe('j1');
-  });
-
-  it('includes whatever setAnnouncing() last set', () => {
-    store.set('announceLinkUrl', 'ws://192.168.4.1:8080/driver-push');
-    connectAnnounceLink();
-    const ws = MockWebSocket.instances[0];
-    ws.open();
-
-    setAnnouncing('High Street');
-    broadcastState({ journeyId: 'j1' });
-    expect(JSON.parse(ws.sent[0]).announcing).toBe('High Street');
-
-    setAnnouncing(null);
-    broadcastState({ journeyId: 'j1' });
-    expect(JSON.parse(ws.sent[1]).announcing).toBeNull();
   });
 
   it('reconnects after the socket closes', () => {

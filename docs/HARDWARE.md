@@ -747,7 +747,7 @@ Blackview Active 5 — only the Announce-side device in a Lite install.
   LTE modem, while WiFi-only tablets routinely omit a GPS chip entirely.
 - **Screen large enough to pass §6's MUST-haves** — ≥51% per-deck seat
   visibility, ≥22mm text height (computed at runtime by `onboard.js`'s
-  `computeMinTextVh()` from `?panel-diagonal=`). Target: ~14", in line with
+  `computeMinTextVh()` from `?panel-diagonal=`). Target: 14.6", in line with
   the panel diagonals already validated in §6 — not a phone-tablet
   diagonal. **In tension with the mount decision below** — see "Mount"
   and "Compliance risk" subsections.
@@ -769,7 +769,7 @@ Blackview Active 5 — only the Announce-side device in a Lite install.
 
 | Item | Spec |
 |---|---|
-| Screen | 14" IPS LCD, 2160×1440 — **3:2, not 16:9** (see below) |
+| Screen | 14.6" IPS LCD, 2160×1440 — **3:2, not 16:9** (see below) |
 | OS | Android 15 |
 | SoC / RAM / storage | MediaTek Helio G99, 8GB RAM / 256GB storage |
 | Connectivity | Dual Nano-SIM 4G LTE + WiFi + Bluetooth; GPS/GLONASS/Galileo/BDS confirmed on the LTE SKU |

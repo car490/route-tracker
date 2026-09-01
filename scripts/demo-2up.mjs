@@ -299,8 +299,12 @@ const PWA_X = MARGIN;
 const PWA_Y = Math.round((SCREEN_H - PWA_H) / 2); // vertically centred, left edge
 
 const NS_X = PWA_X + PWA_W + MARGIN;
-const NS_W = SCREEN_W - NS_X - MARGIN; // fills remaining width
-const NS_H = 200; // 880x200 = 4.4:1, safely past onboard.js's 4:1 wide-layout breakpoint
+// Shaped like the Announce Lite tablet candidate (DOOGEE Tab E3 Max, 14.6",
+// 2160x1440 — 3:2, see PANEL_PROFILES in src/onboard.js), not an arbitrary
+// wide strip — there's no wide/narrow layout branching left to demonstrate
+// (see onboard.js's file header), so the window shape should represent a
+// real deployable target instead.
+const NS_W = 780, NS_H = Math.round(NS_W * 1440 / 2160);
 const NS_Y = Math.round((SCREEN_H - NS_H) / 2); // vertically centred, right of the PWA
 
 let serverChild = null;
@@ -328,6 +332,7 @@ process.on('SIGTERM', shutdown);
 
   const onboardUrl = new URL('/announce/onboard.html', BASE_URL);
   onboardUrl.searchParams.set('announce-token', DEMO_TOKEN);
+  onboardUrl.searchParams.set('panel-profile', 'lite');
 
   const [driver, announce] = await Promise.all([
     openWindow({

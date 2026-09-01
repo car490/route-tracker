@@ -1,29 +1,24 @@
 // src/announcements.test.js
 //
-// Covers the announceDiversion() addition to src/announcements.js for
-// Slice 2. Co-located in src/ to match vitest.config.js's
-// `src/**/*.test.js` include pattern (see audioConfigPipeline.test.js for
-// the established Slice 1 precedent; tests/**/*.test.js runs on Jest).
+// Covers announceState()'s clip-key resolution and the DIVERSION state
+// (shared/announceStates.js) in src/announcements.js. Co-located in src/ to
+// match vitest.config.js's `src/**/*.test.js` include pattern (see
+// audioConfigPipeline.test.js for the established Slice 1 precedent;
+// tests/**/*.test.js runs on Jest).
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as announcements from './announcements.js';
+import { ANNOUNCE_STATES } from '../../shared/announceStates.js';
 
-describe('announceDiversion', () => {
-  it('is exported', () => {
-    expect(typeof announcements.announceDiversion).toBe('function');
+describe('announceState — DIVERSION', () => {
+  it('takes no vars/ids — the announcement text is fixed inside the shared module', () => {
+    expect(() => announcements.announceState(ANNOUNCE_STATES.DIVERSION, {}, {})).not.toThrow();
   });
 
-  it('takes no text argument — the announcement text is fixed inside the module', () => {
-    // Function arity check: announceDiversion() should declare zero params.
-    expect(announcements.announceDiversion.length).toBe(0);
-  });
-
-  it('ignores any arguments passed to it rather than using them as text', () => {
-    // Even if a caller (malicious or buggy) passes text, it must not surface.
-    // We can't inspect the private announce() call directly, but we can
-    // assert the function doesn't throw or behave differently when called
-    // with unexpected args — proving it isn't reading them.
-    expect(() => announcements.announceDiversion('ignore this and say something else')).not.toThrow();
+  it('ignores any extra fields passed in vars/ids rather than using them as text', () => {
+    // Even if a caller (malicious or buggy) passes extra data, it must not
+    // surface — the resolved text always comes from shared/announceStates.js.
+    expect(() => announcements.announceState(ANNOUNCE_STATES.DIVERSION, { text: 'ignore this' }, {})).not.toThrow();
   });
 });
 
@@ -64,21 +59,45 @@ describe('announce() Controller broadcast', () => {
 
   it('broadcasts when not muted', async () => {
     const { broadcastAnnounce } = await import('./announceLink.js');
-    announcements.announceDiversion();
-    expect(broadcastAnnounce).toHaveBeenCalledWith('This bus is on diversion', ['diversion']);
+    announcements.announceState(ANNOUNCE_STATES.DIVERSION, {}, {});
+    expect(broadcastAnnounce).toHaveBeenCalledWith('Attention, this bus is on diversion.', ['diversion']);
   });
 
   it('does not broadcast when muted — same gate as local playback', async () => {
     const { broadcastAnnounce } = await import('./announceLink.js');
     announcements.setMuted(true);
-    announcements.announceDiversion();
+    announcements.announceState(ANNOUNCE_STATES.DIVERSION, {}, {});
     expect(broadcastAnnounce).not.toHaveBeenCalled();
   });
 
   it('does nothing at all (no broadcast) when PSVAIR announcements are disabled', async () => {
     const { broadcastAnnounce } = await import('./announceLink.js');
     announcements.setAnnouncementsEnabled(false);
-    announcements.announceDiversion();
+    announcements.announceState(ANNOUNCE_STATES.DIVERSION, {}, {});
     expect(broadcastAnnounce).not.toHaveBeenCalled();
+  });
+
+  it('resolves clip keys per state (approaching, non-final)', async () => {
+    const { broadcastAnnounce } = await import('./announceLink.js');
+    announcements.announceState(ANNOUNCE_STATES.APPROACHING, { stopName: 'Example Road', isFinal: false }, { stopId: 'stop-1' });
+    expect(broadcastAnnounce).toHaveBeenCalledWith('The next stop will be Example Road.', ['next/stop-1']);
+  });
+
+  it('resolves clip keys per state (approaching, final)', async () => {
+    const { broadcastAnnounce } = await import('./announceLink.js');
+    announcements.announceState(ANNOUNCE_STATES.APPROACHING, { stopName: 'Terminus', isFinal: true }, { stopId: 'stop-9' });
+    expect(broadcastAnnounce).toHaveBeenCalledWith(
+      'The next stop is Terminus. This bus terminates here, all change please.',
+      ['next-final/stop-9', 'terminus-tail']
+    );
+  });
+
+  it('resolves clip keys per state (at stop, final)', async () => {
+    const { broadcastAnnounce } = await import('./announceLink.js');
+    announcements.announceState(ANNOUNCE_STATES.AT_STOP, { stopName: 'Terminus', isFinal: true }, { stopId: 'stop-9' });
+    expect(broadcastAnnounce).toHaveBeenCalledWith(
+      'This is Terminus. This bus terminates here, all change please.',
+      ['arrive/stop-9', 'terminus-tail']
+    );
   });
 });

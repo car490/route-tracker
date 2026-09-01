@@ -5,8 +5,8 @@ import { initMap, updateMapPosition, invalidateSize } from './map.js';
 import { log, getEntries } from '../../shared/logger.js';
 import { initDirections, syncCurrentStop, updateDirections } from './directions.js';
 import {
-  setAnnouncementsEnabled, onAnnouncementChange, announceJourneyStart,
-  announceDiversion, isMuted, setMuted, isBannerShown, setBannerShown,
+  setAnnouncementsEnabled, onAnnouncementChange, announceState,
+  isMuted, setMuted, isBannerShown, setBannerShown,
   listVoices, getSelectedVoiceURI, setSelectedVoiceURI, previewVoice,
 } from './announcements.js';
 import { sbFetch, rpc, fetchStopsForDeparture, fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyName, preloadAllRoutes } from './supabaseApi.js';
@@ -16,9 +16,10 @@ import { selectServiceManually } from './manualSelection.js';
 import { getStoredVehicle, storeVehicle } from './vehicleSetup.js';
 import {
   captureAnnounceSetup, connectAnnounceLink, disconnectAnnounceLink,
-  broadcastState, broadcastSchedule, setAnnouncing,
+  broadcastState, broadcastSchedule,
   buildStatePayload, buildSchedulePayload,
 } from './announceLink.js';
+import { ANNOUNCE_STATES, resolveApproachOrArrivalState } from '../../shared/announceStates.js';
 import { fetchLinkedAnnounceDeviceId, pushAnnounceDeviceState, endAnnounceDeviceJourney } from './announceDeviceLinkApi.js';
 import {
   enqueuePendingTrip, getPendingTrips, removePendingTrip, markPendingTripAttempt,
@@ -26,6 +27,10 @@ import {
 } from './localStore.js';
 
 const DEBUG = new URLSearchParams(window.location.search).has('debug');
+
+// How long the sign keeps showing the terminus state (state 7) before
+// completeTrip() disconnects its link — see that function's own comment.
+const TERMINUS_DISPLAY_MS = 10000;
 
 // NaPTAN indicator suffixes like "(adj)"/"(opp)" give the precise pole/bay/
 // side of the road — useful in the stop list and on the map where the driver
@@ -211,9 +216,6 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   }).catch(() => {});
 
   const firstStop  = allStops[0];
-  // Second real stop — always exists: a route needs at least a first and a
-  // last passenger stop, and on a 2-stop route this simply equals lastStop.
-  const secondStop = allStops[1];
   const lastStop   = allStops[allStops.length - 1];
   document.getElementById('header-service-code').textContent = serviceCode;
   document.getElementById('header-line1').textContent =
@@ -241,6 +243,20 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   lastAnnounceLiteSchedule = buildSchedulePayload(scheduleState);
   if (linkedAnnounceDeviceId) {
     pushAnnounceDeviceState(linkedAnnounceDeviceId, lastAnnounceLiteSchedule, null).catch(() => {});
+  }
+
+  // Pushes the sign's current display state to both transports at once —
+  // the Controller WebSocket (no-op unless commissioned/connected, see
+  // broadcastState) and a paired BusOps Announce Lite device (no-op unless
+  // linked). Same {journeyId, stateKey, vars, earlyWait} shape either way —
+  // shared/announceStates.js's resolveAnnouncementText is what the sign
+  // renders from, on both transports.
+  function pushSignState(stateKey, vars, earlyWait = null) {
+    const state = { journeyId, stateKey, vars, earlyWait };
+    broadcastState(state);
+    if (linkedAnnounceDeviceId) {
+      pushAnnounceDeviceState(linkedAnnounceDeviceId, null, buildStatePayload(state)).catch(() => {});
+    }
   }
 
   log('info', `Started: ${serviceCode}${servicePeriod ? ' ' + servicePeriod : ''} from "${allStops[initialStopIndex].name}"`);
@@ -273,16 +289,25 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   };
   applyBannerVisibility();
   psvairToggleBtn.onclick = () => { setBannerShown(!isBannerShown()); applyBannerVisibility(); };
-  // Starts at initialStopIndex, not null: if tracking begins already sitting
-  // at/near the starting stop (a normal case, not just a demo artifact — the
-  // very first GPS fix can satisfy that stop's geofence instantly, see
-  // gps.js), that arrival would otherwise be (re-)announced on top of
-  // announceJourneyStart above, which already covers the starting context.
-  let lastAnnouncedStopIdx = initialStopIndex;
+  // Starts null, not initialStopIndex: Start of Route no longer names the
+  // first stop (see shared/announceStates.js) — its own "This stop is X"
+  // announcement now fires naturally off the atStop edge below, exactly
+  // like every other stop, including when tracking begins already sitting
+  // at/near it (the very first GPS fix can satisfy that stop's geofence
+  // instantly, see gps.js).
+  let lastAnnouncedStopIdx = null;
   // Guards completeTrip() against firing twice — once from GPS arrival at
   // the final stop and again from the manual fallback link, or from GPS
   // reporting arrival on more than one fix while parked at the final stop.
   let tripCompleted = false;
+
+  // Fires once per journey, regardless of psvairEnabled — the sign's Start
+  // of Route headline is useful passenger information even on a route
+  // that's out of PSVAIR's audio-announcement scope (see the unconditional
+  // broadcastState below, same reasoning). The spoken half is gated inside
+  // the psvairEnabled block below.
+  const routeStartVars = { serviceCode, destination: stripIndicator(lastStop.name) };
+  pushSignState(ANNOUNCE_STATES.ROUTE_START, routeStartVars);
 
   if (psvairEnabled) {
     onAnnouncementChange(text => { psvairText.textContent = text; });
@@ -320,25 +345,31 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
     psvairVoiceSelect.onchange = () => setSelectedVoiceURI(psvairVoiceSelect.value);
     psvairVoiceTestBtn.onclick = () => previewVoice(psvairVoiceSelect.value);
 
-    announceJourneyStart({
-      serviceCode,
-      destination: lastStop.name,
-      firstStopId: firstStop.stop_id,
-      firstStopName: firstStop.name,
-      nextStopId: secondStop.stop_id,
-      nextStopName: secondStop.name,
-    });
+    announceState(ANNOUNCE_STATES.ROUTE_START, routeStartVars, { serviceCode, destination: lastStop.name });
   }
 
+  // Remembers whichever non-diversion state was last pushed, so clearing a
+  // diversion alert has something to resume the sign back to (see the
+  // diversionConfirmBtn handler below) — the sign has no clock/history of
+  // its own, it only ever shows the last thing it was told (see onSchedule/
+  // onState in onboard.js).
+  let lastNormalState = { stateKey: ANNOUNCE_STATES.ROUTE_START, vars: routeStartVars };
+
   // ── Diversion alert ────────────────────────────────────────────────────────
-  // Driver-triggered fixed alert tone + fixed announcement, suppressing the
-  // normal stop announcement while active. Only relevant on in-scope
-  // PSVAIR routes, same gating as the banner above.
+  // Two triggers, both resulting in the same fixed DIVERSION state (see
+  // shared/announceStates.js) — audio + a visual background change on the
+  // sign, suppressing the normal stop announcement while active (PSVAIR
+  // Regulation 10). Only relevant on in-scope PSVAIR routes, same gating as
+  // the banner above.
   //
-  // Collapsed like Announcements: tapping the top bar only reveals a
-  // confirm/cancel panel, it doesn't fire the alert itself — broadcasting a
-  // diversion alert to passengers deserves a deliberate second tap, not a
-  // single accidental one.
+  // 1. Driver-triggered (below): collapsed like Announcements — tapping the
+  //    top bar only reveals a confirm/cancel panel, it doesn't fire the
+  //    alert itself; broadcasting a diversion alert to passengers deserves a
+  //    deliberate second tap, not a single accidental one. Stays active
+  //    until the driver explicitly clears it.
+  // 2. Auto-detected on standalone Announce Lite only (no driver device
+  //    present there to use this button) — see
+  //    announce/src/announceStandaloneAutopilot.js.
   const btnDiversion        = document.getElementById('btn-diversion');
   const diversionPanel      = document.getElementById('diversion-panel');
   const diversionConfirmBtn = document.getElementById('diversion-confirm-btn');
@@ -365,6 +396,7 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
       const cleared = clearDiversionAlert(diversionAlertState);
       diversionAlertState = cleared.diversionActive ? diversionAlertState : null;
       setDiversionBtnLabel();
+      pushSignState(lastNormalState.stateKey, lastNormalState.vars);
       log('info', 'Diversion alert cleared');
       if (eventId) {
         sbFetch(`/rest/v1/diversion_alert_event?id=eq.${eventId}`, {
@@ -383,7 +415,8 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
 
     diversionAlertState = result.alertState;
     setDiversionBtnLabel();
-    announceDiversion();
+    pushSignState(ANNOUNCE_STATES.DIVERSION, {});
+    if (psvairEnabled) announceState(ANNOUNCE_STATES.DIVERSION, {}, {});
     log('info', 'Diversion alert triggered');
 
     if (journeyId) {
@@ -466,49 +499,51 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
 
       // PSVAIR event 2 — approaching (fires once per stop off gps.js's
       // stopStates 'approaching' status, the same signal the stop list and
-      // status card show). Silent for the final stop (announceApproachEvent
-      // itself suppresses that case).
-      if (psvairEnabled && approaching) {
-        const isFinal = approaching.stopIndex === allStops.length - 1;
-        announceApproachEvent({
-          stopId: allStops[approaching.stopIndex].stop_id,
-          stopName: allStops[approaching.stopIndex].name,
-          isFinal,
-          diversionActive: !!diversionAlertState,
-        });
-        // Display-only metadata for the onboard sign's push feed (see
-        // announceLink.js) — audio itself stays on this device (also
-        // broadcast to a commissioned Controller, see docs/HARDWARE.md §4).
-        // Cleared after a fixed window rather than tracking actual
-        // playback completion — good enough for a "now announcing" hint.
-        setAnnouncing(allStops[approaching.stopIndex].name);
-        setTimeout(() => setAnnouncing(null), 6000);
+      // status card show) — including the final stop, which now gets its
+      // own terminus wording (state 6, see shared/announceStates.js)
+      // instead of being silently skipped.
+      if (approaching) {
+        const resolved = resolveApproachOrArrivalState({ approaching, atStop: null, allStops });
+        lastNormalState = resolved;
+        if (psvairEnabled) {
+          announceApproachEvent(resolved.stateKey, resolved.vars, {
+            stopId: allStops[approaching.stopIndex].stop_id,
+          }, !!diversionAlertState);
+        }
       }
 
       // Announce on arrival (atStop set) rather than departure, so it's
-      // heard while the vehicle is actually there (PSVAIR events 3 & 4).
-      if (psvairEnabled && atStop && atStop.stopIndex !== lastAnnouncedStopIdx) {
+      // heard while the vehicle is actually there (PSVAIR events 3 & 4) —
+      // atStop persists while dwelling, so this only fires once per stop.
+      if (atStop && atStop.stopIndex !== lastAnnouncedStopIdx) {
         lastAnnouncedStopIdx = atStop.stopIndex;
         const isFinal = atStop.stopIndex === allStops.length - 1;
-        announceStopEvent({
-          nextStopId: isFinal ? null : allStops[atStop.stopIndex + 1].stop_id,
-          nextStopName: isFinal ? null : allStops[atStop.stopIndex + 1].name,
-          isFinal,
-          diversionActive: !!diversionAlertState,
-          serviceCode,
-          destination: lastStop.name,
-        });
-        setAnnouncing(allStops[atStop.stopIndex].name);
-        setTimeout(() => setAnnouncing(null), 6000);
-      }
+        const arrival = resolveApproachOrArrivalState({ approaching: null, atStop, allStops });
+        lastNormalState = arrival;
+        if (psvairEnabled) {
+          announceStopEvent(arrival.stateKey, arrival.vars, {
+            stopId: allStops[atStop.stopIndex].stop_id,
+          }, !!diversionAlertState);
+        }
 
-      // Trip completes on its own once the vehicle is confirmed at the
-      // final stop — no driver action needed. completeTrip() itself is
-      // also guarded by tripCompleted, but checking here too skips the
-      // (harmless but pointless) extra calls from repeat GPS fixes while
-      // still parked there.
-      if (!tripCompleted && atStop && atStop.stopIndex === allStops.length - 1) {
-        completeTrip();
+        // State 3 (Departure from stop) — a second, separate announcement
+        // right after arrival's, naming the next stop for passengers
+        // boarding here. Never fires for the final stop (nothing to depart
+        // towards) or while diverted (announceStopEvent above already
+        // covers the diversion case for this same edge).
+        if (!isFinal) {
+          const departureVars = {
+            serviceCode,
+            destination: stripIndicator(lastStop.name),
+            nextStopName: stripIndicator(allStops[atStop.stopIndex + 1].name),
+          };
+          lastNormalState = { stateKey: ANNOUNCE_STATES.STOP_DEPARTURE, vars: departureVars };
+          if (psvairEnabled && !diversionAlertState) {
+            announceState(ANNOUNCE_STATES.STOP_DEPARTURE, departureVars, {
+              serviceCode, destination: lastStop.name, nextStopId: allStops[atStop.stopIndex + 1].stop_id,
+            });
+          }
+        }
       }
 
       updateUi({ timing, nextStopIndex, schedule: allStops, speedMps, distanceToNextM, stopStates, earlyWait, atStop });
@@ -517,27 +552,28 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
       if (activeTab === 'dir') updateDirections();
       if (activeTab === 'log') renderLog(getEntries());
 
-      // No-op unless this device is commissioned + connected to a Controller (see
-      // announceLink.js) — never blocks tracking either way.
-      const trackState = {
-        journeyId,
-        nextStopIndex,
-        nextStopName: timing.nextStopName,
-        atStop,
-        approaching,
-        earlyWait,
-        timing,
-        stopStates,
-        diversionActive: !!diversionAlertState,
-        isFinal: !!(atStop && atStop.stopIndex === allStops.length - 1),
-      };
-      broadcastState(trackState);
+      // Pushed every tick (not just on a state transition) so earlyWait
+      // stays live on the sign even between announcement edges — stateKey/
+      // vars themselves only actually change value on the transitions
+      // above, so this doesn't re-trigger audio (that's separately
+      // edge-guarded). While a diversion alert is active it overrides
+      // whatever the last normal state was, exactly like the audio gating
+      // above. Deliberately BEFORE the completeTrip() call below — that
+      // disconnects the sign's link, and a push after disconnecting would
+      // silently never arrive, leaving the terminus headline (state 7)
+      // unseen even though its audio (fired earlier, above) already played.
+      const displayState = diversionAlertState
+        ? { stateKey: ANNOUNCE_STATES.DIVERSION, vars: {} }
+        : lastNormalState;
+      pushSignState(displayState.stateKey, displayState.vars, earlyWait);
 
-      // BusOps Announce Lite (paired install) — same payload shape, pushed
-      // via Supabase instead of the Controller WebSocket. A no-op until the
-      // device lookup above resolves to a linked device.
-      if (linkedAnnounceDeviceId) {
-        pushAnnounceDeviceState(linkedAnnounceDeviceId, null, buildStatePayload(trackState)).catch(() => {});
+      // Trip completes on its own once the vehicle is confirmed at the
+      // final stop — no driver action needed. completeTrip() itself is
+      // also guarded by tripCompleted, but checking here too skips the
+      // (harmless but pointless) extra calls from repeat GPS fixes while
+      // still parked there.
+      if (!tripCompleted && atStop && atStop.stopIndex === allStops.length - 1) {
+        completeTrip();
       }
     },
   });
@@ -595,14 +631,23 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
     tripCompleted = true;
 
     tracker.stop();
-    disconnectAnnounceLink();
-    // Paired Lite's equivalent of the WebSocket 'complete' message above —
-    // fire-and-forget, same treatment as every other Announce Lite push in
-    // this function, and a safe no-op when linkedAnnounceDeviceId is still
-    // null (no linked device, or the lookup hadn't resolved yet).
-    if (linkedAnnounceDeviceId) {
-      endAnnounceDeviceJourney(linkedAnnounceDeviceId).catch(() => {});
-    }
+    // Delayed, not immediate: the terminus state (state 7, just pushed to
+    // the sign in onUpdate above, same tick this fired from) needs a real
+    // few seconds on screen — an instant disconnect here would flip the
+    // sign back to idle right behind it, effectively never showing it.
+    // Harmless when completeTrip() instead runs from the manual-completion
+    // fallback link (no fresh terminus push to protect there) — just a
+    // few extra seconds before the sign goes idle either way.
+    setTimeout(() => {
+      disconnectAnnounceLink();
+      // Paired Lite's equivalent of the WebSocket 'complete' message above —
+      // fire-and-forget, same treatment as every other Announce Lite push in
+      // this function, and a safe no-op when linkedAnnounceDeviceId is still
+      // null (no linked device, or the lookup hadn't resolved yet).
+      if (linkedAnnounceDeviceId) {
+        endAnnounceDeviceJourney(linkedAnnounceDeviceId).catch(() => {});
+      }
+    }, TERMINUS_DISPLAY_MS);
     btnIncident.hidden = true;
     btnDiversion.hidden = true;
     diversionPanel.hidden = true;
