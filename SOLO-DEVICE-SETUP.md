@@ -1,5 +1,33 @@
 # Announce Lite/Solo device kiosk setup
 
+> **⚠️ Real incident, 2026-09-01 — read before testing a device that has no
+> independent internet connection.** While bench-testing via `adb reverse`
+> (tunneling the device's `localhost:<port>` through USB to a machine
+> running a local dev server — see "Bench-testing without WiFi/SIM" below),
+> a reboot silently dropped the `adb reverse` tunnel. The device came back
+> up, Kiosk Lock (Accessibility Service) happened to still be active, and
+> Fully Kiosk tried to reload its start URL — which now pointed at nothing
+> reachable. Result: a **blank screen with no way out** — Kiosk Lock blocks
+> Home/Recents/notification-shade/system-dialogs by design, and there was no
+> content to interact with either. **The only way out was a hardware
+> long-press of the Power button (~10s) to force a restart** — this is an
+> OS-level interrupt no app can block, and it's safe. (A second, unrelated
+> scare during the same recovery: `adb` reported the device as
+> `unauthorized` with no visible prompt after the forced restart — this
+> briefly looked like the settings' `mdmDisableADB: true` field might have
+> let Fully Kiosk's Device Admin grant disable USB debugging outright, but
+> that theory doesn't hold up — `adb shell dpm list-owners` showed Fully
+> Kiosk is only a basic Device Admin, not a Device Owner/Profile Owner, and
+> that lower privilege tier can't call the APIs that would do that. The
+> mundane explanation fits the evidence just as well: this device doesn't
+> retain adb authorization across a reboot, and the re-authorization dialog
+> needed the home screen to fully settle before it would render — a few
+> USB-cable reconnects and waiting it out was all it took.) **Practical
+> rule: never test a reboot on a device whose start URL depends on a USB
+> tether to your own machine — use real WiFi/SIM connectivity (even a phone
+> hotspot) for any reboot-survival check**, so the device has something to
+> actually load when it comes back up regardless of USB/adb state.
+
 Fixed, always-on **BusOps Announce** installs for the Controller-less tiers
 (Lite: paired to a Driver device; Solo: driverless schedule-autopilot — see
 `docs/ANNOUNCE-PRODUCT-TIERS.md`). This is a different device class from
@@ -76,6 +104,28 @@ driver URL, and after enabling Kiosk Mode, also grant **Location** under
 Fully Kiosk's app permissions (Android Settings → Apps → Fully Kiosk
 Browser → Permissions → Location → Allow) — this is the OS-level runtime
 grant the script does non-interactively via `pm grant`.
+
+### Bench-testing without WiFi/SIM (adb reverse)
+
+A device connected only via USB, with no SIM and no configured WiFi, can
+still load a real dev-Supabase-backed install link by tunneling through the
+USB connection instead of a network:
+
+```sh
+adb reverse tcp:8080 tcp:8080   # device's localhost:8080 -> this machine's localhost:8080
+```
+
+Then use an install link built against `http://localhost:8080/...` (dev
+Supabase, per `driver/src/config.js`'s `IS_DEV` check) as the `startURL`
+argument to `setup-solo-device.sh`. This is genuinely useful for a first
+smoke test (confirms permissions, Kiosk Lock, rendering) without needing
+real connectivity sorted first — **but see the warning at the top of this
+doc**: `adb reverse` mappings don't survive a reboot, so never combine this
+with a reboot-survival test. For anything beyond an initial smoke test,
+get the device onto real WiFi (even a phone hotspot) or a SIM instead —
+`https://driver-dev.pcvtechnologies.co.uk/announce/...` is the equivalent
+real, network-independent dev-Supabase target once the device has its own
+connectivity, with no tether/tunnel fragility at all.
 
 ## The LEVIRTU 14" tablet (beta unit)
 
