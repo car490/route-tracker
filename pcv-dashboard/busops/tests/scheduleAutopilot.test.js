@@ -1,6 +1,6 @@
 // tests/scheduleAutopilot.test.js
 //
-// BusOps Announce Lite — standalone schedule-autopilot idle-loop matcher.
+// BusOps Announce Solo — schedule-autopilot idle-loop matcher.
 // Same idiom as geofence.test.js/engine.test.js: pure function import,
 // synthetic fixtures, no mocking. See docs/ANNOUNCE-PRODUCT-TIERS.md's
 // "Schedule-autopilot" section (Phil Haines Travel case) for the design

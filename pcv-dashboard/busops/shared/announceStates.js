@@ -10,8 +10,8 @@
 // Lives in busops/shared/, not driver/, because it has three independent
 // consumers, not two: the Driver device (driver/src/announcements.js,
 // driver/src/main.js), the onboard sign itself (announce/src/onboard.js),
-// and announce/src/announceStandaloneAutopilot.js — the Lite standalone/
-// driverless tier, which resolves state itself with no Driver device in the
+// and announce/src/announceSoloAutopilot.js — the Announce Solo (driverless)
+// tier, which resolves state itself with no Driver device in the
 // loop at all.
 
 export const ANNOUNCE_STATES = Object.freeze({
@@ -107,7 +107,7 @@ export function resolveAnnouncementText(stateKey, vars) {
 // its own allStops verbatim (as fetched, indicator intact), so stripping
 // happens once, here, rather than duplicated at each call site — matches
 // stripIndicator()'s existing per-file convention elsewhere in this codebase
-// (main.js, announceStandaloneAutopilot.js), just centralised for this one
+// (main.js, announceSoloAutopilot.js), just centralised for this one
 // shared entry point.
 function stripIndicator(name) {
   return name.replace(/\s*\([^)]*\)\s*$/, '');
@@ -116,7 +116,7 @@ function stripIndicator(name) {
 // Resolves gps.js's approaching/atStop signals (see shared/gps.js) into one
 // of the two GPS-driven states, with the isFinal branch pre-computed —
 // centralised here so driver/src/main.js and
-// announce/src/announceStandaloneAutopilot.js (the two independent state
+// announce/src/announceSoloAutopilot.js (the two independent state
 // producers that watch live GPS) don't each reimplement "which signal wins,
 // and is this stop the last one" separately. approaching/atStop are each
 // either null or { stopIndex }; approaching takes priority when (in theory)
@@ -144,7 +144,7 @@ export function resolveApproachOrArrivalState({ approaching, atStop, allStops })
 // Reused by shared/geofence.js's classifier output — a per-stop status of
 // 'skipped_detour' (more than SKIPPED_SIGNAL_MAX_TIMING_POINTS timing-point
 // stops bypassed before rejoining) is treated as "strayed significantly from
-// the planned route" for the standalone-Lite auto-detect diversion trigger
-// (see announce/src/announceStandaloneAutopilot.js). Centralised here so
+// the planned route" for the Announce Solo auto-detect diversion trigger
+// (see announce/src/announceSoloAutopilot.js). Centralised here so
 // that call site doesn't hardcode geofence.js's status string.
 export const DEVIATION_STOP_STATUS = 'skipped_detour';

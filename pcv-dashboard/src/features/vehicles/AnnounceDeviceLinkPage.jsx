@@ -63,7 +63,7 @@ export default function AnnounceDeviceLinkPage() {
     load()
   }
 
-  // Standalone autopilot only — lets a device matched well outside its
+  // Announce Solo's autopilot only — lets a device matched well outside its
   // normal match window (device deliberately driven to the terminus at an
   // odd hour to test) start anyway, with its stop schedule shifted to now.
   // See scheduleAutopilot.js's findTestingScheduleMatch. Off by default so
@@ -100,15 +100,16 @@ export default function AnnounceDeviceLinkPage() {
       })
       const data = await res.json()
       if (!res.ok) setLinkError(data.error ?? 'Signing failed')
-      // NOT ?announce-token= — that param is already the Standard tier's
-      // /sign-feed WebSocket relay secret (onboard.js's connectSignFeed()).
-      // ?announce-device-token= is the distinct Lite-tier device JWT param
-      // (doc's own standalone-commissioning naming, reused here for paired
-      // mode too — see busops/announce/src/announceLiteSetup.js).
+      // NOT ?announce-token= — that param is already the base Announce
+      // tier's /sign-feed WebSocket relay secret (onboard.js's
+      // connectSignFeed()). ?announce-device-token= is the distinct
+      // Lite/Solo device JWT param (doc's own Solo-commissioning naming,
+      // reused here for Lite's paired mode too — see
+      // busops/announce/src/announceDeviceSetup.js).
       // ?operator-name= drives onboard.js's initIdleScreen() (existing
-      // Standard-tier mechanism, previously only ever set by hand during
+      // base-tier mechanism, previously only ever set by hand during
       // Controller commissioning) — without it the idle screen's logo box
-      // never unhides on a Lite device either, so wire it in here too. Still
+      // never unhides on a Lite/Solo device either, so wire it in here too. Still
       // reads branding-logo.png as a local file next to onboard.html (see
       // that function's own comment) — a per-company logo fetched live from
       // Supabase is a separate, bigger change not attempted here.
@@ -132,7 +133,7 @@ export default function AnnounceDeviceLinkPage() {
   return (
     <>
       <div className="page-header">
-        <h1 className="page-title">Announce Lite Devices</h1>
+        <h1 className="page-title">Announce Devices</h1>
         <button className="btn btn-primary" onClick={openAdd}>+ Add Device</button>
       </div>
 
@@ -141,7 +142,7 @@ export default function AnnounceDeviceLinkPage() {
           {loading ? (
             <div className="empty-state">Loading…</div>
           ) : devices.length === 0 ? (
-            <div className="empty-state">No Announce Lite devices yet. Add one to get started.</div>
+            <div className="empty-state">No Announce Lite/Solo devices yet. Add one to get started.</div>
           ) : (
             <table>
               <thead>
@@ -159,7 +160,7 @@ export default function AnnounceDeviceLinkPage() {
                     <td>{d.label || '—'}</td>
                     <td style={{ fontFamily: 'monospace' }}>{d.vehicles?.registration ?? '—'}</td>
                     <td style={{ color: 'var(--text-muted)' }}>
-                      {d.link_state === 'linked' ? 'Linked to driver device' : 'Standalone'}
+                      {d.link_state === 'linked' ? 'Linked to driver device (Lite)' : 'Solo'}
                     </td>
                     <td>
                       {d.link_state !== 'linked' && (

@@ -22,7 +22,7 @@ Step-by-step instructions for testing every component of the RouteTracker platfo
 14. [Test: Driver PWA — debug mode](#14-test-driver-pwa--debug-mode)
 15. [Test: Driver PWA — offline fallback](#15-test-driver-pwa--offline-fallback)
 16. [Test: End-to-end (dashboard + PWA together)](#16-test-end-to-end-dashboard--pwa-together)
-17. [Test: BusOps Announce Lite](#17-test-busops-announce-lite)
+17. [Test: BusOps Announce Lite / Solo](#17-test-busops-announce-lite--solo)
 18. [Resetting test data](#18-resetting-test-data)
 
 ---
@@ -386,13 +386,14 @@ This verifies the two halves of the system work together.
 
 ---
 
-## 17. Test: BusOps Announce Lite
+## 17. Test: BusOps Announce Lite / Solo
 
-Covers the Controller-less "Lite" tier (see `docs/ANNOUNCE-PRODUCT-TIERS.md`): a
+Covers the two Controller-less tiers (see `docs/ANNOUNCE-PRODUCT-TIERS.md`): a
 second GPS-capable tablet running `busops/announce/onboard.html` directly,
-either paired to a Driver device or fully standalone (driverless). Both modes
-read/write Supabase directly via a device-scoped JWT — no Bus Controller
-involved.
+either paired to a Driver device (**Lite**) or fully driverless (**Solo**).
+Both modes read/write Supabase directly via a device-scoped JWT — no Bus
+Controller involved, and both run on the same device/software, distinguished
+only by whether a Driver device is linked.
 
 ### Register a device and get its install link
 1. Dashboard → **Announce Devices** → **+ Add Device**
@@ -403,7 +404,7 @@ involved.
 4. Open that URL in a **second** browser tab/window — it should render the
    idle screen with the BusOps Announce brand mark and no console errors
 
-### Test: paired mode (linked to a Driver device)
+### Test: Lite (paired mode, linked to a Driver device)
 > **Known gap (not yet built):** there is no "Link Announce device" button
 > in the Driver PWA yet — only the underlying RPCs
 > (`link_announce_device`/`unlink_announce_device`) and the dashboard-side
@@ -425,7 +426,7 @@ involved.
 **Pass:** the Announce tab mirrors the Driver PWA's tracking state via
 Supabase Realtime, with no direct interaction on the Announce device itself.
 
-### Test: standalone mode (driverless, schedule-autopilot)
+### Test: Solo (driverless, schedule-autopilot)
 Only safe for routes whose start/end stops don't overlap with any other
 service (see the doc's "hard precondition") — the seeded S125S route is a
 reasonable stand-in for testing.
@@ -462,10 +463,11 @@ window agree (test outside either condition and confirm it stays idle).
 
 ### Bench-testing with real devices (real GPS, not DevTools simulation)
 
-Unlike Standard (needs the Bus Controller + its own WiFi hotspot, see
-`mele-server/`), Lite needs no local link at all — any phone/tablet with a
-browser and an internet connection (mobile data or the same WiFi as your
-laptop) can run it, moving/walking it physically instead of simulating GPS.
+Unlike the base Announce tier (needs the Bus Controller + its own WiFi
+hotspot, see `mele-server/`), Lite/Solo need no local link at all — any
+phone/tablet with a browser and an internet connection (mobile data or the
+same WiFi as your laptop) can run it, moving/walking it physically instead
+of simulating GPS.
 
 **Gotcha**: `driver/src/config.js`'s `IS_DEV` check only matches hostname
 `localhost`/`127.0.0.1` — a real device reaching your laptop over its LAN IP

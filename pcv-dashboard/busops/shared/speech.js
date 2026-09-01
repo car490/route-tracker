@@ -2,7 +2,7 @@
 // driver/src/announcements.js (used there as the fallback when a
 // pre-rendered Azure clip is missing/uncached) and
 // announce/src/announceSpeech.js (used there as the *only* audio path —
-// standalone Announce Lite ships no pre-rendered clips at all, see that
+// Announce Solo ships no pre-rendered clips at all, see that
 // file's header comment). Side-effecting (real Web Speech API calls), same
 // category as shared/gps.js's live-GPS layer — not a pure module.
 

@@ -2,39 +2,39 @@
 // no login, no duty card UI, no incident reporting, no stop-time upload.
 // This file itself still writes nothing to Supabase directly.
 //
-// Two tiers, two feeds, mutually exclusive per device (see docs/
+// Three tiers, two feeds, mutually exclusive per device (see docs/
 // ANNOUNCE-PRODUCT-TIERS.md):
 //
-// - Standard (Controller-fed): NO reads of its own — no independent
-//   get_duty_card polling, no GPS, no schedule_view queries, no Supabase
-//   writes. A pure renderer driven entirely by what the Driver device
-//   pushes over a local WebSocket (see src/announceLink.js — the sender —
-//   and mele-server/announceRelay.mjs — the relay this device connects
-//   to). Told nothing about which journey to watch via its own URL beyond
-//   ?announce-token=<token> (the relay's shared secret — see
+// - Announce (base tier, Controller-fed): NO reads of its own — no
+//   independent get_duty_card polling, no GPS, no schedule_view queries, no
+//   Supabase writes. A pure renderer driven entirely by what the Driver
+//   device pushes over a local WebSocket (see src/announceLink.js — the
+//   sender — and mele-server/announceRelay.mjs — the relay this device
+//   connects to). Told nothing about which journey to watch via its own URL
+//   beyond ?announce-token=<token> (the relay's shared secret — see
 //   mele-server/DEPLOY.md). Sits blank until an authenticated /sign-feed
 //   connection receives a {type:'schedule'} message, then wakes on its own
 //   as {type:'state'} messages arrive.
 //
-// - Announce Lite, paired mode (Controller-less): an intentional, scoped
-//   exception to "no reads of its own" — see announceLiteFeed.js. Reads its
-//   own announce_devices row (anon, scoped by the device_id claim in
-//   ?announce-device-token=<token> — a distinct param from Standard's
-//   ?announce-token=, never both on the same device) and subscribes to
-//   Supabase Realtime for driver-pushed schedule/state updates, calling the
-//   exact same onSchedule()/onState() below — the rendering code is shared
-//   unchanged between both tiers, only the transport differs. Announce
-//   Lite's standalone (driverless) mode also calls these same two
-//   functions, resolving its own state locally instead of receiving a push
-//   — see announceStandaloneAutopilot.js.
+// - Announce Lite (paired) and Announce Solo (driverless), both
+//   Controller-less: an intentional, scoped exception to "no reads of its
+//   own" — see announceDeviceFeed.js. Reads its own announce_devices row
+//   (anon, scoped by the device_id claim in ?announce-device-token=<token>
+//   — a distinct param from the base tier's ?announce-token=, never both on
+//   the same device). Lite subscribes to Supabase Realtime for
+//   driver-pushed schedule/state updates, calling the exact same
+//   onSchedule()/onState() below — the rendering code is shared unchanged
+//   across all three tiers, only the transport differs. Solo also calls
+//   these same two functions, resolving its own state locally instead of
+//   receiving a push — see announceSoloAutopilot.js.
 //
 // Renders one headline of text per display state (shared/announceStates.js)
 // — the exact same text spoken as audio, wherever the audio happens (the
-// Driver device for Standard/paired Lite, this device itself for standalone
-// Lite — see announceSpeech.js). This device never decides *what* state
+// Driver device for the base tier or Lite, this device itself for Solo —
+// see announceSpeech.js). This device never decides *what* state
 // applies; it only ever displays whatever {stateKey, vars} it's told.
-import { connectAnnounceLiteFeed } from './announceLiteFeed.js';
-import { captureAnnounceDeviceSetup, getAnnounceDeviceToken } from './announceLiteSetup.js';
+import { connectAnnounceDeviceFeed } from './announceDeviceFeed.js';
+import { captureAnnounceDeviceSetup, getAnnounceDeviceToken } from './announceDeviceSetup.js';
 import { ANNOUNCE_STATES, resolveAnnouncementText } from '../../shared/announceStates.js';
 
 // Named display profiles — commissioned via ?panel-profile=<key> (same
@@ -45,8 +45,8 @@ import { ANNOUNCE_STATES, resolveAnnouncementText } from '../../shared/announceS
 // once at commissioning time. Bar is the original ultra-wide
 // destination-board plan (not yet built, kept for later); monitor is the
 // Dell Pro P2426H, the confirmed demo/validation unit in use today
-// (mele-server/DEPLOY.md §5); lite is the Announce Lite tablet candidate,
-// DOOGEE Tab E3 Max, 14.6", 2160x1440 — 3:2, not 16:9, a deliberate
+// (mele-server/DEPLOY.md §5); lite is the Announce Lite/Solo tablet
+// candidate, DOOGEE Tab E3 Max, 14.6", 2160x1440 — 3:2, not 16:9, a deliberate
 // compromise (see docs/HARDWARE.md §14) — the layout itself doesn't care
 // about aspect ratio (no wide/narrow branching any more, see the file
 // header), only this diagonal figure for --min-text sizing.
@@ -133,14 +133,14 @@ window.addEventListener('resize', positionBrand);
 
 // ── Rendering — purely visual: no audio, no Supabase, no GPS — just DOM
 // updates off an already-resolved {stateKey, vars} pushed from whichever
-// device is driving this journey (Driver, or this device's own standalone
-// autopilot — see announceStandaloneAutopilot.js). Never recomputes which
+// device is driving this journey (Driver, or this device's own Solo
+// autopilot — see announceSoloAutopilot.js). Never recomputes which
 // state applies itself. ──────────────────────────────────────────────────
 
 // A handful of states resolve to two sentences (e.g. STOP_DEPARTURE: "This
 // is a X to Y. The next stop will be Z.") — spoken as one flowing sentence,
-// but showing both at once on screen reads messily, especially on the Lite
-// tablet's more square 3:2 aspect (less horizontal room than Monitor/Bar to
+// but showing both at once on screen reads messily, especially on the
+// Lite/Solo tablet's more square 3:2 aspect (less horizontal room than Monitor/Bar to
 // wrap into before things get cramped). Instead: the first sentence shows
 // alone, clears briefly, then the second sentence takes over and stays up
 // until the next real state change. Fixed durations, not scaled to text
@@ -303,11 +303,11 @@ function initIdleScreen() {
   positionBrand(); // idle screen's topbar/main/bottom band now exists to measure — pins the mark above the bottom bar here too
 }
 
-// Standalone (driverless) schedule-autopilot only (see
-// announceStandaloneAutopilot.js) — always unhides the idle screen, even
+// Solo (driverless) schedule-autopilot only (see
+// announceSoloAutopilot.js) — always unhides the idle screen, even
 // without ?operator-name= and even with no candidate yet (a device freshly
 // registered with no candidate_departure_ids configured), so the kiosk
-// visibly confirms it booted into standalone mode rather than looking
+// visibly confirms it booted into Solo mode rather than looking
 // identical to a broken/not-yet-connected device. Only the next-departure
 // caption itself is conditional. candidate is
 // { departureId, firstStopLat, firstStopLon, departureTime } (scheduleAutopilot.js's
@@ -334,9 +334,9 @@ const RECONNECT_DELAY_MS = 3000;
 let socket = null;
 let signShown = false;
 
-// Exported for announceLiteFeed.js/announceStandaloneAutopilot.js — the
-// Lite tier's alternative to this section's WebSocket feed calls these with
-// the exact same message shape, so the rendering code below is shared
+// Exported for announceDeviceFeed.js/announceSoloAutopilot.js — the
+// Lite/Solo tiers' alternative to this section's WebSocket feed calls these
+// with the exact same message shape, so the rendering code below is shared
 // unchanged across every transport/tier.
 export function onSchedule(msg) {
   el('sign-service-code').textContent = msg.serviceCode;
@@ -363,10 +363,10 @@ export function onState(msg) {
   render(msg.stateKey, msg.vars, msg.earlyWait);
 }
 
-// Journey ended — Standard via {type:'complete'} over the WebSocket
+// Journey ended — base tier via {type:'complete'} over the WebSocket
 // (announceLink.js's disconnectAnnounceLink, relayed by announceRelay.mjs),
-// Lite via announce_devices' latest_schedule/latest_state being cleared
-// (end_announce_device_journey, see announceLiteFeed.js). Reuses
+// Lite/Solo via announce_devices' latest_schedule/latest_state being cleared
+// (end_announce_device_journey, see announceDeviceFeed.js). Reuses
 // showNextDeparture(null)'s "unhide idle, no candidate caption" behaviour
 // rather than a new idle-rendering path.
 export function onJourneyEnd() {
@@ -418,16 +418,17 @@ function init() {
   applyPanelSizing();
   initIdleScreen();
 
-  // Mutually exclusive per device: ?announce-device-token= (Lite, Supabase
-  // Realtime — see announceLiteFeed.js) vs the Standard /sign-feed
-  // WebSocket. A device is provisioned with exactly one of the two URL
-  // params, never both. The Lite token is captured once and persisted (see
-  // announceLiteSetup.js) rather than re-read from the URL every load — a
-  // kiosk isn't guaranteed to reopen with its original query string.
+  // Mutually exclusive per device: ?announce-device-token= (Lite/Solo,
+  // Supabase Realtime — see announceDeviceFeed.js) vs the base tier's
+  // /sign-feed WebSocket. A device is provisioned with exactly one of the
+  // two URL params, never both. The Lite/Solo token is captured once and
+  // persisted (see announceDeviceSetup.js) rather than re-read from the URL
+  // every load — a kiosk isn't guaranteed to reopen with its original query
+  // string.
   captureAnnounceDeviceSetup(new URLSearchParams(window.location.search));
-  const liteDeviceToken = getAnnounceDeviceToken();
-  if (liteDeviceToken) {
-    connectAnnounceLiteFeed(liteDeviceToken, { onSchedule, onState, onJourneyEnd, onIdleNextDeparture: showNextDeparture });
+  const announceDeviceToken = getAnnounceDeviceToken();
+  if (announceDeviceToken) {
+    connectAnnounceDeviceFeed(announceDeviceToken, { onSchedule, onState, onJourneyEnd, onIdleNextDeparture: showNextDeparture });
   } else {
     connectSignFeed();
   }

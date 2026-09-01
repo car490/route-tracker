@@ -1,9 +1,10 @@
-// BusOps Announce Lite — Supabase-based feed for this device's own
-// announce_devices row, as an alternative to Standard's /sign-feed
+// BusOps Announce — Supabase-based feed for this device's own
+// announce_devices row, shared by both the Lite (paired) and Solo
+// (driverless) tiers, as an alternative to the base tier's /sign-feed
 // WebSocket (onboard.js's connectSignFeed()). This is onboard.js's
 // first-ever Supabase dependency — an intentional, scoped exception (see
 // that file's header comment), gated entirely behind ?announce-device-token=
-// being present, so a Standard device never loads or executes any of this.
+// being present, so a base-tier device never loads or executes any of this.
 //
 // Uses the vendored @supabase/supabase-js UMD bundle (../lib/supabase.min.js,
 // loaded via a plain <script> tag in onboard.html — same treatment as
@@ -14,7 +15,7 @@
 // import — there is no bundler here (see CLAUDE.md, no build step for this app).
 
 import { SUPABASE_URL, SUPABASE_KEY } from '../../driver/src/config.js';
-import { startStandaloneAutopilot } from './announceStandaloneAutopilot.js';
+import { startSoloAutopilot } from './announceSoloAutopilot.js';
 
 const RECONNECT_DELAY_MS = 3000;
 
@@ -31,16 +32,16 @@ function scheduleChanged(a, b) {
 // deviceToken is the JWT minted by api/sign-announce-token.js (device_id/
 // company_id/vehicle_id claims, no exp — see that file). onSchedule/onState
 // are onboard.js's own exported render functions; onIdleNextDeparture is
-// onboard.js's idle-screen extension (standalone mode only) — all
+// onboard.js's idle-screen extension (Solo mode only) — all
 // dependency-injected so this module doesn't need to import onboard.js
 // (which would create a circular import, since onboard.js imports
-// connectAnnounceLiteFeed).
+// connectAnnounceDeviceFeed).
 //
-// Mode is decided once, from the row read at startup, and not hot-switched
-// mid-session — a device changing gps_source (e.g. linked while running)
-// takes effect on its next reload, same as a Standard device's own
-// commissioning is fixed per boot.
-export function connectAnnounceLiteFeed(deviceToken, { onSchedule, onState, onJourneyEnd, onIdleNextDeparture }) {
+// Mode (Lite vs. Solo) is decided once, from the row read at startup, and
+// not hot-switched mid-session — a device changing gps_source (e.g. linked
+// while running) takes effect on its next reload, same as a base-tier
+// device's own commissioning is fixed per boot.
+export function connectAnnounceDeviceFeed(deviceToken, { onSchedule, onState, onJourneyEnd, onIdleNextDeparture }) {
   const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     global: { headers: { Authorization: `Bearer ${deviceToken}` } },
   });
@@ -60,8 +61,8 @@ export function connectAnnounceLiteFeed(deviceToken, { onSchedule, onState, onJo
       onSchedule(row.latest_schedule);
     } else if (!row.latest_schedule && lastSchedule !== null) {
       // Journey ended (end_announce_device_journey cleared both columns) —
-      // the Realtime-transport equivalent of Standard's {type:'complete'}
-      // WebSocket message (see onboard.js's onJourneyEnd).
+      // the Realtime-transport equivalent of the base tier's
+      // {type:'complete'} WebSocket message (see onboard.js's onJourneyEnd).
       lastSchedule = null;
       onJourneyEnd?.();
     }
@@ -73,27 +74,28 @@ export function connectAnnounceLiteFeed(deviceToken, { onSchedule, onState, onJo
     // no .eq('id', ...) needed, there is only ever one possible match.
     const { data, error } = await client.from('announce_devices').select('*').single();
     if (error || !data) {
-      console.warn('announceLiteFeed: could not read own announce_devices row — retrying', error);
+      console.warn('announceDeviceFeed: could not read own announce_devices row — retrying', error);
       setTimeout(start, RECONNECT_DELAY_MS);
       return;
     }
 
     if (data.gps_source === 'internal') {
-      // Standalone (driverless) — a no-op idle screen if this device has no
+      // Solo (driverless) — a no-op idle screen if this device has no
       // candidate_departure_ids configured yet (see
-      // startStandaloneAutopilot's own guard), same as before this feature
+      // startSoloAutopilot's own guard), same as before this feature
       // existed.
-      startStandaloneAutopilot(client, data, { onSchedule, onState, onIdleNextDeparture });
+      startSoloAutopilot(client, data, { onSchedule, onState, onIdleNextDeparture });
       return;
     }
 
-    // Paired mode has no schedule pushed yet on a fresh link (or a device
-    // that's simply between journeys) — unlike standalone mode, nothing else
-    // unhides #onboard-idle for this case, so the device would otherwise sit
-    // fully blank (both #onboard-idle and #onboard-sign hidden, see
-    // onboard.html) until the first push arrives. onIdleNextDeparture(null)
-    // unhides the idle board without showing a next-departure caption (that
-    // caption is standalone-only) — reused rather than adding a new function.
+    // Lite (paired) mode has no schedule pushed yet on a fresh link (or a
+    // device that's simply between journeys) — unlike Solo mode, nothing
+    // else unhides #onboard-idle for this case, so the device would
+    // otherwise sit fully blank (both #onboard-idle and #onboard-sign
+    // hidden, see onboard.html) until the first push arrives.
+    // onIdleNextDeparture(null) unhides the idle board without showing a
+    // next-departure caption (that caption is Solo-only) — reused rather
+    // than adding a new function.
     if (!data.latest_schedule) onIdleNextDeparture?.(null);
 
     applyPushedRow(data);
@@ -110,7 +112,7 @@ export function connectAnnounceLiteFeed(deviceToken, { onSchedule, onState, onJo
       // looked identical from the outside to "just nothing pushed yet".
       .subscribe((status, err) => {
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('announceLiteFeed: Realtime subscription failed', status, err);
+          console.error('announceDeviceFeed: Realtime subscription failed', status, err);
         }
       });
   }

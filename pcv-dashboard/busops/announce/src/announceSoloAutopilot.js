@@ -1,13 +1,13 @@
-// BusOps Announce Lite — standalone (driverless) schedule-autopilot mode.
+// BusOps Announce Solo — driverless schedule-autopilot mode.
 // Wires the pure matcher (scheduleAutopilot.js) to this device's own GPS
 // (announceGps.js) and the existing manual-selection RPCs
 // (get_or_create_manual_journey/start_journey/complete_journey — reused
 // verbatim, no new tracking logic), driven by the Supabase client
-// announceLiteFeed.js already authenticated with this device's token.
+// announceDeviceFeed.js already authenticated with this device's token.
 //
 // Only reached when a device's gps_source is 'internal' and it has at
 // least one candidate_departure_id configured (see AnnounceDeviceLinkPage.jsx
-// and the announce_devices schema) — a freshly registered standalone device
+// and the announce_devices schema) — a freshly registered Solo device
 // with no candidates yet just shows the idle screen, same as before this
 // feature existed.
 //
@@ -19,7 +19,7 @@
 //
 // No Driver device is present on this tier, so this module is also the one
 // place that resolves *and speaks* the full 7-state announcement sequence
-// (see shared/announceStates.js) for a standalone journey — everything the
+// (see shared/announceStates.js) for a Solo journey — everything the
 // Driver device would otherwise do, via announceSpeech.js's speechSynthesis
 // (no pre-rendered clips exist for this tier). This includes diversion: with
 // no driver to press a button, a diversion here is auto-detected from
@@ -100,7 +100,7 @@ function msUntilNextOccurrence(departureTime, now) {
   return diff;
 }
 
-export function startStandaloneAutopilot(client, deviceRow, { onSchedule, onState, onIdleNextDeparture }) {
+export function startSoloAutopilot(client, deviceRow, { onSchedule, onState, onIdleNextDeparture }) {
   let candidates = [];
   let activeJourney = null; // { journeyId, startedAt, tracker }
 
@@ -212,7 +212,7 @@ export function startStandaloneAutopilot(client, deviceRow, { onSchedule, onStat
         // only for the tick it's first detected on; the very next real
         // approaching/atStop edge (a later tick) naturally supersedes the
         // display again — there's no driver to explicitly clear it the way
-        // the button-triggered path on Standard/paired Lite works.
+        // the button-triggered path on the base Announce tier or Lite works.
         const deviatedStop = (state.stopStates ?? []).findIndex(
           (s, i) => s.status === DEVIATION_STOP_STATUS && !announcedDetourStops.has(i)
         );

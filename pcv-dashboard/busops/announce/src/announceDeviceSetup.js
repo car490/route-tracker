@@ -1,6 +1,7 @@
-// src/announceLiteSetup.js
+// src/announceDeviceSetup.js
 //
-// BusOps Announce Lite — one-time device-token commissioning. Same pattern
+// BusOps Announce — one-time device-token commissioning, shared by both the
+// Lite (paired) and Solo (driverless) tiers. Same pattern
 // as announceLink.js's captureAnnounceSetup(): a kiosk device isn't
 // guaranteed to be reopened with its original ?announce-device-token=<jwt>
 // query string on every load (browser restart, kiosk-mode reload, etc.), so

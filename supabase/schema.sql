@@ -1250,9 +1250,9 @@ $$;
 grant execute on function public.is_diversion_active(uuid) to anon;
 
 
--- ── BusOps Announce Lite tier ──────────────────────────────────────────────────
--- One row per Lite-tier passenger-sign tablet (Controller-less): either
--- standalone/"internal" GPS mode or "driver-device"-linked mode. See
+-- ── BusOps Announce Lite/Solo tiers ─────────────────────────────────────────
+-- One row per Lite/Solo passenger-sign tablet (Controller-less): either
+-- Solo/"internal" GPS mode or Lite's "driver-device"-linked mode. See
 -- docs/ANNOUNCE-PRODUCT-TIERS.md for the full product spec.
 --
 -- Anon writes go exclusively through the RPCs below (validated inside the
@@ -1279,8 +1279,8 @@ create table if not exists public.announce_devices (
   latest_state      jsonb,
   state_updated_at  timestamptz,
 
-  -- Standalone-mode ("schedule-autopilot") commissioning — null/empty for
-  -- paired-mode devices, populated for standalone ones.
+  -- Solo-mode ("schedule-autopilot") commissioning — null/empty for
+  -- Lite/paired-mode devices, populated for Solo ones.
   candidate_departure_ids  uuid[] not null default '{}',
   match_window_before_min  int not null default 15,
   match_window_after_min   int not null default 30,
@@ -1315,7 +1315,7 @@ create policy "device_self" on public.announce_devices
 
 -- RLS alone doesn't make a table emit postgres_changes events -- Realtime
 -- only replicates changes for tables added to this publication. Without
--- this, announceLiteFeed.js's paired-mode subscription (above comment)
+-- this, announceDeviceFeed.js's paired-mode subscription (above comment)
 -- never receives anything, even though the RLS policy and the push RPC
 -- below are both correct (confirmed missing on the dev project, 2026-08-28 --
 -- see migration_announce_devices_realtime_publication.sql).
@@ -1323,8 +1323,8 @@ alter publication supabase_realtime add table public.announce_devices;
 
 -- Called by the Driver PWA (anon) when linked, to push derived schedule/state
 -- to the paired Announce device. Mirrors announceLink.js's buildSchedulePayload/
--- buildStatePayload shapes — only the transport differs from Standard's
--- WebSocket push, not the message contract.
+-- buildStatePayload shapes — only the transport differs from the base
+-- Announce tier's WebSocket push, not the message contract.
 --
 -- p_schedule and p_state are independently optional (coalesced against the
 -- existing value, not overwritten with null) because main.js pushes them on

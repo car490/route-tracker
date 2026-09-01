@@ -1,5 +1,5 @@
 /**
- * BusOps Announce Lite — standalone schedule-autopilot idle-loop matcher.
+ * BusOps Announce Solo — schedule-autopilot idle-loop matcher.
  * Pure — no side effects, no I/O, no Supabase/GPS access of its own — same
  * treatment as shared/geofence.js/engine.js. See docs/ANNOUNCE-PRODUCT-TIERS.md's
  * "Schedule-autopilot" section (built for Phil Haines Travel's two-route
@@ -107,7 +107,7 @@ export function findTestingScheduleMatch({ candidates, lat, lon, now, terminusRa
 }
 
 /**
- * Completion for a standalone (driverless) journey: no driver to notice a
+ * Completion for a Solo (driverless) journey: no driver to notice a
  * journey stuck in_progress, so final-stop geofence arrival is backed by a
  * wall-clock timeout safety net. Mirrors main.js's own final-stop check
  * (`atStop.stopIndex === allStops.length - 1`) — deliberately not

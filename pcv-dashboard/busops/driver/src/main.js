@@ -200,8 +200,9 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   connectAnnounceLink();
 
   // BusOps Announce Lite (paired install) — this vehicle's linked Announce
-  // device, if any (most vehicles have none — Standard/unpaired-Lite are the
-  // common case). Resolved async, fire-and-forget, so it can race the
+  // device, if any (most vehicles have none — the base Announce tier, or an
+  // unlinked device running as Solo, are the common case). Resolved async,
+  // fire-and-forget, so it can race the
   // schedule broadcast below — same race announceLink.js's own
   // sendSchedule()-on-'open' already handles for the Controller WebSocket,
   // solved the same way here: remember the last schedule payload and push it
@@ -366,9 +367,9 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   //    alert itself; broadcasting a diversion alert to passengers deserves a
   //    deliberate second tap, not a single accidental one. Stays active
   //    until the driver explicitly clears it.
-  // 2. Auto-detected on standalone Announce Lite only (no driver device
+  // 2. Auto-detected on Announce Solo only (no driver device
   //    present there to use this button) — see
-  //    announce/src/announceStandaloneAutopilot.js.
+  //    announce/src/announceSoloAutopilot.js.
   const btnDiversion        = document.getElementById('btn-diversion');
   const diversionPanel      = document.getElementById('diversion-panel');
   const diversionConfirmBtn = document.getElementById('diversion-confirm-btn');

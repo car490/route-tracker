@@ -1,8 +1,8 @@
--- Migration: Announce Lite standalone autopilot — per-device testing_mode flag
+-- Migration: Announce Solo autopilot — per-device testing_mode flag
 -- Apply in Supabase SQL Editor (Settings → SQL Editor → New query)
 -- Date: 2026-08-27
 --
--- Lets a standalone Announce Lite device match a candidate departure well
+-- Lets an Announce Solo device match a candidate departure well
 -- outside its normal match_window_before_min/match_window_after_min window
 -- (see scheduleAutopilot.js's TESTING_TIME_SHIFT_THRESHOLD_MIN, 60+ min) and
 -- start the journey with its stop schedule shifted to the current time —

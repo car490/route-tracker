@@ -1,9 +1,11 @@
--- Migration: BusOps Announce Lite tier — announce_devices table + linking RPCs
+-- Migration: BusOps Announce Lite/Solo tiers — announce_devices table + linking RPCs
 -- Apply in Supabase SQL Editor (Settings → SQL Editor → New query)
 -- Date: 2026-08-27
+-- (Lite/Solo naming split 2026-09-01 — this table predates it and was
+-- already tier-neutral, no schema change needed.)
 --
--- Adds the announce_devices table (one row per Lite-tier passenger-sign
--- tablet: Controller-less, either standalone/"internal" GPS mode or
+-- Adds the announce_devices table (one row per Lite/Solo passenger-sign
+-- tablet: Controller-less, either Solo/"internal" GPS mode or Lite's
 -- "driver-device"-linked mode) plus three anon-callable RPCs for the
 -- device to update its pushed state and for the Driver PWA to link/unlink
 -- a device to itself. See docs/ANNOUNCE-PRODUCT-TIERS.md for the full
@@ -33,8 +35,8 @@ create table if not exists public.announce_devices (
   latest_state      jsonb,
   state_updated_at  timestamptz,
 
-  -- Standalone-mode ("schedule-autopilot") commissioning — null/empty for
-  -- paired-mode devices, populated for standalone ones.
+  -- Solo-mode ("schedule-autopilot") commissioning — null/empty for
+  -- Lite/paired-mode devices, populated for Solo ones.
   candidate_departure_ids  uuid[] not null default '{}',
   match_window_before_min  int not null default 15,
   match_window_after_min   int not null default 30,

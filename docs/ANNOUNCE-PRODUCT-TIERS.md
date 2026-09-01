@@ -100,14 +100,15 @@ not left as unmaintained history:
 - **Done, 2026-08-27 ("Announce Lite tier, Phase 0" commit):** the
   independent-polling path was restored as real scoped work, not a flag
   flip — `announceGps.js`/`shared/gps.js` (internal-mode tracking),
-  `announceStandaloneAutopilot.js`/`scheduleAutopilot.js` (the geofence+time
-  matcher below), `announceLiteFeed.js` (transport, both modes), the
+  `announceSoloAutopilot.js`/`scheduleAutopilot.js` (the geofence+time
+  matcher below), `announceDeviceFeed.js` (transport, both modes), the
   `announce_devices` table/RPCs, and the dashboard device-link page all
   exist and are wired in, not just designed here. Tested flow is in
-  `docs/TESTING.md` §17 ("Test: BusOps Announce Lite") — it did not
-  bit-rot unnoticed. (Note: this commit predates the 2026-09-01 Lite/Solo
-  naming split, so its own name and the module names below still say
-  "Lite"/"standalone" rather than "Solo" — same code, renamed tier.)
+  `docs/TESTING.md` §17 ("Test: BusOps Announce Lite / Solo") — it did not
+  bit-rot unnoticed. (Note: this commit's own name predates the 2026-09-01
+  Lite/Solo naming split and still says "Lite tier, Phase 0" — the module
+  names above are current, renamed the same day as the naming split, not
+  as originally shipped.)
   **Remaining real gaps**, confirmed against the code directly, not
   assumed: no "Link Announce device" button in the Driver PWA yet (the
   underlying API exists — `announceDeviceLinkApi.js` — link today via
@@ -520,10 +521,15 @@ earlier draft.**
   `BusOps Announce — Lite`~~ — **Resolved 2026-09-01**: `BusOps Announce`
   / `BusOps Announce Lite` / `BusOps Announce Solo`, consistent with the
   existing BusOps Driver / BusOps Announce naming in `CLAUDE.md`. Docs in
-  this file updated to match; `docs/DECISIONS.md` still needs its naming
-  row added/updated, and no code identifiers were renamed (module/table
-  names still say "Lite"/"standalone" — see the note in the "Done,
-  2026-08-27" callout above).
+  this file and `docs/DECISIONS.md` updated to match, and code identifiers
+  realigned the same day (`announceStandaloneAutopilot.js` →
+  `announceSoloAutopilot.js`, `announceLiteFeed.js` →
+  `announceDeviceFeed.js`, `announceLiteSetup.js` → `announceDeviceSetup.js`,
+  plus comments/UI text throughout `busops/`, `docs/TESTING.md` §17,
+  `docs/HARDWARE.md` §14, and SQL comments in `supabase/`). **Fully
+  resolved, not just decided** — verify with a repo-wide grep for
+  "standalone"/"Standard" near "Announce" before assuming this drifted
+  again.
 - **Driver PWA "Link Announce device" UI** — `announceDeviceLinkApi.js`
   exists and is imported into `main.js`, but there's no picker action to
   actually trigger a link yet; linking today is a manual

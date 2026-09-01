@@ -1,10 +1,10 @@
-// Standalone Announce Lite's only audio path. This tier has no driver
+// Announce Solo's only audio path. This tier has no driver
 // device and ships no pre-rendered clips (driver/audio/ is driver-only —
 // see CLAUDE.md's repo layout) — speechSynthesis is the whole story here,
 // not a fallback for a missing clip the way it is for the Driver device
 // (driver/src/announcements.js). Never imported by onboard.js itself —
 // onboard.js stays purely visual (see its own header comment); only
-// announceStandaloneAutopilot.js calls this, since that's the one producer
+// announceSoloAutopilot.js calls this, since that's the one producer
 // with no Driver device around to speak on its behalf.
 
 import { speakUtterance } from '../../shared/speech.js';
