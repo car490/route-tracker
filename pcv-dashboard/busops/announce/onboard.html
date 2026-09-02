@@ -2,7 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- maximum-scale=1.0/user-scalable=no — this is a fixed, unattended
+         passenger sign, not an interactive touch surface; pinch-zoom should
+         never be possible here. Found live on the physical Solo tablet,
+         2026-09-02: it was zoomable, which it never should have been. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="theme-color" content="#ECEAE2" />
     <title>CoachMate Onboard Display</title>

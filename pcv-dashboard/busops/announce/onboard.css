@@ -59,6 +59,18 @@
      mele-server/DEPLOY.md §5). Bump this value if Bar's real physical size
      changes. */
   --min-text:     17vh;
+
+  /* Single source of truth for the topbar's height, shared byte-for-byte by
+     #sign-topbar and #idle-topbar (below) — previously #idle-topbar carried
+     its own separate hand-guessed approximation ("calc(var(--min-text) *
+     1.2 + 4vh)") meant to *match* #sign-topbar's organically-sized height
+     (padding + line-height), which could drift out of sync between the two
+     screens and, on a small --min-text, added a disproportionately large
+     flat 4vh on top. 1.3x is just enough headroom above the raw 22mm text
+     for normal line-height (ascenders/descenders) plus a little wriggle
+     room — not a separate padding budget. Changed 2026-09-02 per user
+     feedback that the bar read as oversized on the physical device. */
+  --topbar-height: calc(var(--min-text) * 1.3);
 }
 
 *,
@@ -201,9 +213,7 @@ body {
 
 #idle-topbar {
   grid-area: topbar;
-  /* Matches #sign-topbar's rendered height (padding + one line of
-     --min-text content) despite having no text of its own to size against. */
-  min-height: calc(var(--min-text) * 1.2 + 4vh);
+  height: var(--topbar-height); /* same shared value #sign-topbar uses — guaranteed identical, not just approximated */
   background: var(--operator-accent, var(--ep-purple));
 }
 
@@ -245,9 +255,10 @@ body {
 
 #sign-topbar {
   grid-area: topbar;
+  height: var(--topbar-height); /* fixed, explicit height — was padding: 2vh 3vw letting the box size itself organically, which is what let it balloon on top of the (now-reverted) dvh bug and made it drift from #idle-topbar's separate approximation */
   display: flex;
   align-items: center;
-  padding: 2vh 3vw;
+  padding: 0 3vw;
   background: var(--operator-accent, var(--ep-purple));
   color: var(--ep-paper);
 }
