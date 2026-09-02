@@ -122,7 +122,19 @@ echo "==> Baking this device's install link into the settings payload..."
 # The install link is a per-device secret (JWT) -- never baked into the
 # committed fully-auto-settings.json template, only substituted in here at
 # provisioning time for this one physical unit.
-sed "s|__START_URL__|${INSTALL_LINK//|/\\|}|" "$SETTINGS_TEMPLATE" > "$SETTINGS_OUT"
+#
+# Every real install link contains a literal & (it's always
+# ...token=...&operator-name=...), which is NOT safe to drop into a sed
+# replacement unescaped: & is sed's own "insert the matched text" token in
+# the replacement half of s///, so an un-escaped & silently splices the
+# literal string __START_URL__ back into the output right where the & was
+# -- confirmed live 2026-09-01, produced a startURL of
+# "...<token>__START_URL__operator-name=..." that Fully Kiosk then 404'd on
+# forever with no error surfaced anywhere. \ is also special in sed
+# replacement text and must be escaped for the same reason; | is escaped
+# because it's this substitution's own delimiter.
+ESCAPED_LINK=$(printf '%s' "$INSTALL_LINK" | sed -e 's/[\&|]/\\&/g')
+sed "s|__START_URL__|$ESCAPED_LINK|" "$SETTINGS_TEMPLATE" > "$SETTINGS_OUT"
 
 echo "==> Pushing settings (Start URL = this device's install link, Kiosk Mode on)..."
 # The leading // (not /) on the on-device path matters when this script runs

@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { supabase } from '../../shared/supabase'
+import { supabase, PWA_BASE } from '../../shared/supabase'
 import { getCompanyId } from '../../shared/company'
 import Modal from '../../shared/components/Modal'
-
-const PWA_BASE = import.meta.env.DEV ? 'http://localhost:8080' : 'https://car490.github.io/route-tracker'
 
 const STATUS_BADGE = {
   scheduled:   <span className="badge badge-gray">Scheduled</span>,

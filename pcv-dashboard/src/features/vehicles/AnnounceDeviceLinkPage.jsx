@@ -1,13 +1,7 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../../shared/supabase'
+import { supabase, PWA_BASE } from '../../shared/supabase'
 import { getCompanyId, getCompanyName } from '../../shared/company'
 import Modal from '../../shared/components/Modal'
-
-// Same origin the driver PWA duty-card links use (DutyCardsPage.jsx) — the
-// Announce app is a sibling static page under the same deploy
-// (busops/announce/onboard.html, served alongside busops/driver/index.html
-// by both server.js locally and GitHub Pages in production).
-const PWA_BASE = import.meta.env.DEV ? 'http://localhost:8080' : 'https://car490.github.io/route-tracker'
 
 const EMPTY = { vehicle_id: '', label: '' }
 
