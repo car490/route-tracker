@@ -74,6 +74,15 @@
 html, body {
   height: 100%;
   width: 100%;
+  /* dvh = the real visible viewport on a mobile browser (excludes the
+     space behind an address bar that hasn't collapsed yet) — plain vh/%
+     there measures the *largest possible* viewport, so this page rendered
+     taller than what was actually visible until the user scrolled once
+     (which is what triggers the browser to collapse its own toolbar).
+     Declared after the % fallback so older browsers without dvh support
+     just keep using that. Found live on the physical Solo tablet, 2026-09-02. */
+  height: 100dvh;
+  width: 100dvw;
   overflow: hidden; /* fixed kiosk display, nothing to scroll */
 }
 
@@ -98,6 +107,8 @@ body {
 #onboard-sign {
   height: 100vh;
   width: 100vw;
+  height: 100dvh; /* see html,body's own comment above — same mobile-viewport fix */
+  width: 100dvw;
   display: grid;
   grid-template-rows: auto 1fr;
   grid-template-areas:
