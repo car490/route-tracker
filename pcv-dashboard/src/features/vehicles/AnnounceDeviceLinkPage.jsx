@@ -109,7 +109,13 @@ export default function AnnounceDeviceLinkPage() {
       // Supabase is a separate, bigger change not attempted here.
       else if (data.token) {
         const operatorName = (await getCompanyName()) ?? ''
-        setLink(`${PWA_BASE}/announce/onboard.html?announce-device-token=${data.token}&operator-name=${encodeURIComponent(operatorName)}`)
+        // panel-profile=lite — without this, onboard.css's --min-text falls
+        // back to its 17vh default, calibrated for the 28" Bar panel (see
+        // that CSS variable's own comment). On the actual Lite/Solo tablet
+        // (DOOGEE Tab E3 Max, 14.6", the only PANEL_PROFILES entry defined
+        // for this tier — see onboard.js) that default is wildly oversized,
+        // overflowing text off-screen. Confirmed live, 2026-09-02.
+        setLink(`${PWA_BASE}/announce/onboard.html?announce-device-token=${data.token}&operator-name=${encodeURIComponent(operatorName)}&panel-profile=lite`)
       }
       else setLinkError('No token returned')
     } catch (err) {

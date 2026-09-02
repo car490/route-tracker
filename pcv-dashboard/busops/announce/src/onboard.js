@@ -303,6 +303,36 @@ function initIdleScreen() {
   positionBrand(); // idle screen's topbar/main/bottom band now exists to measure — pins the mark above the bottom bar here too
 }
 
+// Lite/Solo only — a *live* company logo, superseding the static
+// branding-logo.png file above (which only ever made sense for the base
+// tier's per-Controller-box local file placed at commissioning time; a
+// Lite/Solo device is just this one shared web app, so it can't have a
+// different local file per company the way a physical Controller can).
+// Called once from announceDeviceFeed.js's start(), right after it reads
+// this device's own row (so it knows which company to fetch) — same
+// "company identity can't come from get_duty_card, so read it another way"
+// reasoning as initIdleScreen() above, just Supabase-backed instead of a
+// URL param. { name, logoUrl, accentColor } — logoUrl is already resolved
+// to a public Storage URL by the caller (getPublicUrl()), null if the
+// company has no logo set (BrandingPage.jsx never requires one). Found
+// 2026-09-02: without this, every Lite/Solo device across every company
+// showed the same single placeholder file (or nothing), never the actual
+// customer's logo the user expected centred in the idle screen.
+export function applyIdleBranding({ name, logoUrl, accentColor }) {
+  if (accentColor) applyOperatorBranding({ accentColor }); // idle topbar now matches the company's own accent too, not just the active sign's
+
+  if (logoUrl) {
+    const logo = el('idle-logo');
+    logo.alt = name ? `${name} logo` : 'Company logo';
+    logo.addEventListener('load', () => { logo.hidden = false; }, { once: true });
+    logo.addEventListener('error', () => { logo.hidden = true; }, { once: true });
+    logo.src = logoUrl;
+  }
+
+  el('onboard-idle').hidden = false;
+  positionBrand();
+}
+
 // Solo (driverless) schedule-autopilot only (see
 // announceSoloAutopilot.js) — always unhides the idle screen, even
 // without ?operator-name= and even with no candidate yet (a device freshly
@@ -428,7 +458,11 @@ function init() {
   captureAnnounceDeviceSetup(new URLSearchParams(window.location.search));
   const announceDeviceToken = getAnnounceDeviceToken();
   if (announceDeviceToken) {
-    connectAnnounceDeviceFeed(announceDeviceToken, { onSchedule, onState, onJourneyEnd, onIdleNextDeparture: showNextDeparture });
+    connectAnnounceDeviceFeed(announceDeviceToken, {
+      onSchedule, onState, onJourneyEnd,
+      onIdleNextDeparture: showNextDeparture,
+      onIdleBranding: applyIdleBranding,
+    });
   } else {
     connectSignFeed();
   }

@@ -270,7 +270,10 @@ body {
 
 #sign-destination {
   letter-spacing: 0.01em;
-  text-transform: uppercase;
+  /* No text-transform: uppercase — passenger-facing text must stay proper/
+     camel case (RNIB clear-print guidance: long runs of capitals are
+     measurably harder to read); this was forcing "Boston College" to
+     "BOSTON COLLEGE". Removed 2026-09-02. */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -301,11 +304,14 @@ body {
 
 #sign-headline {
   font-family: var(--ep-font);
-  /* Scaled up from the literal 22mm minimum — this is now the sign's one
-     dominant element, not a single status line sharing space with a
-     tube-track — but still derived from --min-text, never an independent
-     vw/vh number, so it stays panel-diagonal-calibrated. */
-  font-size: calc(var(--min-text) * 1.3);
+  /* Same size as the topbar (var(--min-text), the literal 22mm minimum) —
+     not scaled up. An earlier version multiplied this by 1.3 to make the
+     headline "the sign's one dominant element"; user feedback 2026-09-02
+     was that all in-service text should read as one consistent size, not
+     some letters visibly larger than others just because they're in the
+     headline vs. the topbar. Still derived from --min-text, never an
+     independent vw/vh number, so it stays panel-diagonal-calibrated. */
+  font-size: var(--min-text);
   font-weight: 800;
   line-height: 1.25;
   text-align: center;
@@ -337,7 +343,12 @@ body {
 
 .ewb-msg {
   font-family: var(--ep-font);
-  font-size: 3vh;
+  /* Was a flat 3vh, independent of panel size, while its sibling .ewb-title
+     (above) scales with --min-text — meant this line was disproportionately
+     tiny on a large panel (e.g. Bar) and disproportionately large on a
+     small one (e.g. Lite). Tied to the same panel-calibrated base, smaller
+     than the title, consistent with every other text on this sign. */
+  font-size: calc(var(--min-text) * 0.35);
   font-weight: 400;
   margin-top: 0.6vh;
   color: var(--ep-ink-soft);

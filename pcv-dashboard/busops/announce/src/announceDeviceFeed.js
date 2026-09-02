@@ -29,6 +29,29 @@ function scheduleChanged(a, b) {
   return JSON.stringify(a) !== JSON.stringify(b);
 }
 
+// companies is anon-readable (schema.sql's "anon_read" policy, `using
+// (true)` — same one driver/src/supabaseApi.js's fetchCompanyName() already
+// relies on), so no new RLS surface is needed for this. logo_path is a
+// Supabase Storage path ('operator-assets/{company_id}/logo.*', per
+// schema.sql's column comment), not a URL — resolved the same way the
+// dashboard already does it (Layout.jsx/BrandingPage.jsx's getPublicUrl()),
+// not duplicated as a second lookup pattern. null fields (no row, no logo
+// set) just mean onboard.js's applyIdleBranding() has nothing extra to
+// apply — never blocks the idle screen itself from showing.
+async function fetchCompanyBranding(client, companyId) {
+  if (!companyId) return { name: null, logoUrl: null, accentColor: null };
+  const { data, error } = await client
+    .from('companies')
+    .select('name, logo_path, accent_color')
+    .eq('id', companyId)
+    .single();
+  if (error || !data) return { name: null, logoUrl: null, accentColor: null };
+  const logoUrl = data.logo_path
+    ? client.storage.from('operator-assets').getPublicUrl(data.logo_path).data.publicUrl
+    : null;
+  return { name: data.name, logoUrl, accentColor: data.accent_color };
+}
+
 // deviceToken is the JWT minted by api/sign-announce-token.js (device_id/
 // company_id/vehicle_id claims, no exp — see that file). onSchedule/onState
 // are onboard.js's own exported render functions; onIdleNextDeparture is
@@ -41,7 +64,7 @@ function scheduleChanged(a, b) {
 // not hot-switched mid-session — a device changing gps_source (e.g. linked
 // while running) takes effect on its next reload, same as a base-tier
 // device's own commissioning is fixed per boot.
-export function connectAnnounceDeviceFeed(deviceToken, { onSchedule, onState, onJourneyEnd, onIdleNextDeparture }) {
+export function connectAnnounceDeviceFeed(deviceToken, { onSchedule, onState, onJourneyEnd, onIdleNextDeparture, onIdleBranding }) {
   const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     global: { headers: { Authorization: `Bearer ${deviceToken}` } },
   });
@@ -78,6 +101,13 @@ export function connectAnnounceDeviceFeed(deviceToken, { onSchedule, onState, on
       setTimeout(start, RECONNECT_DELAY_MS);
       return;
     }
+
+    // Fire-and-forget — the idle screen's own logo/name fallback (see
+    // onboard.js's initIdleScreen()) already covers the case where this is
+    // slow or the company has no logo set; not worth blocking device
+    // startup on. Applies to both Lite and Solo (fetched here, before the
+    // mode branch below), since both tiers share the same idle screen.
+    fetchCompanyBranding(client, data.company_id).then((branding) => onIdleBranding?.(branding));
 
     if (data.gps_source === 'internal') {
       // Solo (driverless) — a no-op idle screen if this device has no
