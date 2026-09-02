@@ -147,6 +147,20 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
       const atStop = dwellIndex !== null ? { stopIndex: dwellIndex } : null;
       const earlyWait = computeEarlyWait(now, dwellIndex);
 
+      // PSVAIR event 2 — mirrors atStop's own derivation immediately above.
+      // Found live, 2026-09-02: this was never actually computed at all —
+      // the status branch above sets stopStates[nextStopIndex].status to
+      // 'approaching', but nothing ever turned that into an `approaching`
+      // field on the onUpdate payload, even though every consumer
+      // (driver/src/main.js, announce/src/announceSoloAutopilot.js) already
+      // destructures `approaching` expecting one. That `if (approaching)`
+      // branch has been dead code on both tiers since PSVAIR event 2 was
+      // written — masked because the old STOP_DEPARTURE wording also named
+      // the next stop, so passengers still heard *a* next-stop announcement,
+      // just never the dedicated approach one a beat earlier.
+      const approachingIndex = stopStates[nextStopIndex].status === 'approaching' ? nextStopIndex : null;
+      const approaching = approachingIndex !== null ? { stopIndex: approachingIndex } : null;
+
       const timing = computeTiming({
         now,
         currentDistanceM: distanceToNextM,
@@ -155,7 +169,7 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
         lateAllowanceMin,
       });
 
-      onUpdate({ timing, nextStopIndex, speedMps, distanceToNextM, stopStates, earlyWait, atStop, lat: latitude, lon: longitude });
+      onUpdate({ timing, nextStopIndex, speedMps, distanceToNextM, stopStates, earlyWait, atStop, approaching, lat: latitude, lon: longitude });
     },
     (err) => {
       if (gpsLostAt === null) {

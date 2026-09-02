@@ -17,10 +17,18 @@ describe('resolveAnnouncementText', () => {
       .toBe('This is an S125S to Boston College.');
   });
 
-  it('STOP_DEPARTURE — "a" before 44 (spoken "forty-four")', () => {
-    expect(resolveAnnouncementText(ANNOUNCE_STATES.STOP_DEPARTURE, {
-      serviceCode: '44', destination: 'Boston College', nextStopName: 'Church Road',
-    })).toBe('This is a 44 to Boston College. The next stop will be Church Road.');
+  it('ROUTE_START — "a" before 44 (spoken "forty-four")', () => {
+    expect(resolveAnnouncementText(ANNOUNCE_STATES.ROUTE_START, { serviceCode: '44', destination: 'Boston College' }))
+      .toBe('This is a 44 to Boston College.');
+  });
+
+  // Redesigned 2026-09-02 (second pass, same day) — no longer repeats the
+  // route/destination at every departure (that's ROUTE_START's job, once,
+  // per journey); no serviceCode/destination in vars any more, just names
+  // the next stop.
+  it('STOP_DEPARTURE', () => {
+    expect(resolveAnnouncementText(ANNOUNCE_STATES.STOP_DEPARTURE, { nextStopName: 'Church Road' }))
+      .toBe('The next stop is Church Road.');
   });
 
   // Redesigned 2026-09-02 — see resolveAnnouncementText's own header

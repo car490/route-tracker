@@ -80,24 +80,33 @@ describe('announce() Controller broadcast', () => {
   it('resolves clip keys per state (approaching, non-final)', async () => {
     const { broadcastAnnounce } = await import('./announceLink.js');
     announcements.announceState(ANNOUNCE_STATES.APPROACHING, { stopName: 'Example Road', isFinal: false }, { stopId: 'stop-1' });
-    expect(broadcastAnnounce).toHaveBeenCalledWith('This is Example Road.', ['next/stop-1']);
+    expect(broadcastAnnounce).toHaveBeenCalledWith('This is Example Road.', ['approach/stop-1']);
   });
 
+  // APPROACHING no longer has a final/non-final split (same wording, same
+  // key scheme, either way) — see shared/announceStates.js and
+  // scripts/generate-announcement-audio.mjs, both redesigned 2026-09-02.
   it('resolves clip keys per state (approaching, final)', async () => {
     const { broadcastAnnounce } = await import('./announceLink.js');
     announcements.announceState(ANNOUNCE_STATES.APPROACHING, { stopName: 'Terminus', isFinal: true }, { stopId: 'stop-9' });
-    expect(broadcastAnnounce).toHaveBeenCalledWith(
-      'This is Terminus.',
-      ['next-final/stop-9', 'terminus-tail']
-    );
+    expect(broadcastAnnounce).toHaveBeenCalledWith('This is Terminus.', ['approach/stop-9']);
   });
 
+  it('resolves clip keys per state (departure)', async () => {
+    const { broadcastAnnounce } = await import('./announceLink.js');
+    announcements.announceState(ANNOUNCE_STATES.STOP_DEPARTURE, { nextStopName: 'Example Road' }, { nextStopId: 'stop-2' });
+    expect(broadcastAnnounce).toHaveBeenCalledWith('The next stop is Example Road.', ['departure/stop-2']);
+  });
+
+  // AT_STOP only ever fires for the final stop now, and its text no
+  // longer repeats the stop name — a single fixed 'terminus' clip, not a
+  // stop-keyed one spliced with a tail clip.
   it('resolves clip keys per state (at stop, final)', async () => {
     const { broadcastAnnounce } = await import('./announceLink.js');
     announcements.announceState(ANNOUNCE_STATES.AT_STOP, { stopName: 'Terminus', isFinal: true }, { stopId: 'stop-9' });
     expect(broadcastAnnounce).toHaveBeenCalledWith(
       'This service terminates here, all change please.',
-      ['arrive/stop-9', 'terminus-tail']
+      ['terminus']
     );
   });
 });

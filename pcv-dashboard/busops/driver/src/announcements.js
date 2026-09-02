@@ -138,7 +138,10 @@ async function playSequence(keys) {
 async function playNow(text, audioKeys) {
   isBusy = true;
   const ok = audioKeys && audioKeys.length ? await playSequence(audioKeys) : false;
-  if (!ok) await speakUtterance(stripSpeechAnnotations(text), getSelectedVoiceURI() || null);
+  // No saved-voice override passed here any more (see shared/speech.js's
+  // pickVoice()) — a real announcement always uses the one canonical UK
+  // male voice, never a per-device picker choice.
+  if (!ok) await speakUtterance(stripSpeechAnnotations(text));
   currentAudio = null;
   isBusy = false;
 
@@ -174,7 +177,7 @@ export function previewVoice(voiceURI) {
   const utterance = new SpeechSynthesisUtterance(
     'This is Example Street. The next stop will be Example Road.');
   utterance.lang = 'en-GB';
-  const voice = listVoices().find((v) => v.voiceURI === voiceURI) || pickVoice(voiceURI);
+  const voice = listVoices().find((v) => v.voiceURI === voiceURI) || pickVoice();
   if (voice) utterance.voice = voice;
   window.speechSynthesis.speak(utterance);
 }
@@ -197,25 +200,32 @@ function announce(text, audioKeys) {
 // look up its pre-rendered clip(s) — a subset of { stopId, nextStopId,
 // serviceCode, destination } depending on stateKey, all optional (missing
 // ids just fall back to live synthesis, same as a missing clip file does).
+//
+// Key scheme redesigned 2026-09-02 alongside shared/announceStates.js's
+// text (see that file's header comment) — one clip per state now, no more
+// splicing two clips together for APPROACHING-final or AT_STOP-final,
+// since neither of those combines two sentences any more:
+//   approach/<stopId>   "This is X."               (APPROACHING, any stop)
+//   departure/<stopId>  "The next stop is X."       (STOP_DEPARTURE, keyed
+//                        by the *next* stop's id, same as before)
+//   terminus             "This service terminates here, all change
+//                         please." — fixed text, no stop name, no longer
+//                         needs a stop-keyed variant at all
+// service/<code>__<dest> and diversion are unchanged.
 function clipKeysFor(stateKey, vars, ids) {
   switch (stateKey) {
     case ANNOUNCE_STATES.ROUTE_START: {
       if (!ids.serviceCode || !ids.destination) return null;
       return [`service/${slug(ids.serviceCode)}__${slug(stripSpeechAnnotations(ids.destination))}`];
     }
-    case ANNOUNCE_STATES.STOP_DEPARTURE: {
-      if (!ids.serviceCode || !ids.destination || !ids.nextStopId) return null;
-      return [
-        `service/${slug(ids.serviceCode)}__${slug(stripSpeechAnnotations(ids.destination))}`,
-        `next/${ids.nextStopId}`,
-      ];
-    }
+    case ANNOUNCE_STATES.STOP_DEPARTURE:
+      if (!ids.nextStopId) return null;
+      return [`departure/${ids.nextStopId}`];
     case ANNOUNCE_STATES.APPROACHING:
       if (!ids.stopId) return null;
-      return vars.isFinal ? [`next-final/${ids.stopId}`, 'terminus-tail'] : [`next/${ids.stopId}`];
+      return [`approach/${ids.stopId}`];
     case ANNOUNCE_STATES.AT_STOP:
-      if (!ids.stopId) return null;
-      return vars.isFinal ? [`arrive/${ids.stopId}`, 'terminus-tail'] : [`stop/${ids.stopId}`];
+      return ['terminus'];
     case ANNOUNCE_STATES.DIVERSION:
       return ['diversion'];
     default:

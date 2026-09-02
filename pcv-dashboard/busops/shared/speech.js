@@ -31,16 +31,24 @@ export function listVoices() {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-// savedURI is caller-supplied (driver/src/announcements.js persists one via
-// localStorage; announce/src/announceSpeech.js has no voice-picker UI and
-// always passes null) rather than read from storage here, so this stays a
-// pure function of its arguments.
-export function pickVoice(savedURI) {
+// Deliberately deterministic — always resolves the same way given the same
+// installed voice list, never influenced by a per-device saved preference.
+// Used to accept a savedURI override (driver/src/announcements.js's voice
+// picker persisted one via localStorage) that took priority over
+// PREFERRED_VOICE_NAMES; found live, 2026-09-02, as the actual cause of
+// "we have a mixture" of voices across devices — the picker's own <select>
+// defaults to whichever installed voice sorts first alphabetically
+// (listVoices() below), completely unrelated to voice *quality*, and once
+// picked (even accidentally) it silently overrode the preferred list on
+// that device from then on. Every real announcement must always use the
+// one canonical UK male voice — never a per-device choice, never whatever
+// the browser considers "default". The driver PWA's voice-picker UI still
+// exists for previewing an installed voice on demand (previewVoice() in
+// announcements.js calls listVoices() directly, not this function), it
+// just no longer has any effect on what a real announcement actually uses.
+export function pickVoice() {
   const voices = listVoices();
   if (!voices.length) return null;
-
-  const saved = savedURI && voices.find((v) => v.voiceURI === savedURI);
-  if (saved) return saved;
 
   for (const name of PREFERRED_VOICE_NAMES) {
     const match = voices.find((v) => v.name === name);
@@ -50,14 +58,13 @@ export function pickVoice(savedURI) {
 }
 
 // Resolves once the utterance finishes (or immediately if speech synthesis
-// isn't available). savedVoiceURI is threaded straight through to
-// pickVoice — see its own comment.
-export function speakUtterance(text, savedVoiceURI = null) {
+// isn't available).
+export function speakUtterance(text) {
   return new Promise((resolve) => {
     if (!('speechSynthesis' in window)) { resolve(); return; }
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'en-GB';
-    const voice = pickVoice(savedVoiceURI);
+    const voice = pickVoice();
     if (voice) utterance.voice = voice;
     utterance.onend = () => resolve();
     utterance.onerror = () => resolve();

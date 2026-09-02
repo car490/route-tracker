@@ -64,8 +64,9 @@ export function articleFor(serviceCode) {
 }
 
 // Pure text resolver — vars per state:
-//   ROUTE_START:    { serviceCode, destination }
-//   STOP_DEPARTURE: { serviceCode, destination, nextStopName }
+//   ROUTE_START:    { serviceCode, destination } — the only state that
+//                    says the route/destination out loud, once, per journey
+//   STOP_DEPARTURE: { nextStopName }
 //   APPROACHING:    { stopName, isFinal }
 //   AT_STOP:        { stopName, isFinal } — only ever fired for the final
 //                    stop now (see below); stopName is carried for callers
@@ -80,12 +81,12 @@ export function articleFor(serviceCode) {
 // byte-identical (driver/src/announcements.js splices clips together at
 // sentence boundaries) without changing the wording itself.
 //
-// Redesigned 2026-09-02 per user feedback that the old sequence repeated
-// itself too much — every stop used to get 3 separate announcements
-// (approaching: "next stop will be X" / arrival: "this stop is X" /
-// departure: "this is a X to Y, next stop Z"), saying the stop's name
-// twice and the route/destination on every single departure. New shape,
-// 2 events per intermediate stop instead of 3:
+// Redesigned 2026-09-02, twice, per user feedback that the sequence
+// repeated itself too much. First pass cut arrival's "this stop is X" but
+// kept STOP_DEPARTURE saying the full route/destination at every single
+// stop — user feedback on that pass was that it was *still* too much
+// repetition, so the route/destination sentence is now said exactly once
+// per journey (ROUTE_START only). 2 events per intermediate stop:
 //   - APPROACHING: "This is X." (same wording whether or not it's the
 //     final stop — the old isFinal-only "this bus terminates here" text
 //     moved to arrival, below, so it isn't said twice)
@@ -93,9 +94,10 @@ export function articleFor(serviceCode) {
 //     all — main.js/announceSoloAutopilot.js simply don't call this for
 //     them any more, straight to STOP_DEPARTURE instead. The sign's
 //     headline holds whatever APPROACHING last showed through the dwell.
-//   - STOP_DEPARTURE unchanged: "This is a X to Y. The next stop will be
-//     Z." — still said at every departure, this is the one deliberate
-//     repeat the user asked to keep (item 1 of their spec).
+//   - STOP_DEPARTURE: "The next stop is Z." — no longer repeats the
+//     route/destination (that's ROUTE_START's job, once, at journey
+//     start) — just names the next stop, every departure including the
+//     very first (leaving the origin).
 //   - AT_STOP now only ever fires for the final stop, standalone: "This
 //     service terminates here, all change please." — paired with a
 //     full-page colour change (onboard.js's render()/onboard.css's
@@ -107,7 +109,7 @@ export function resolveAnnouncementText(stateKey, vars) {
     case ANNOUNCE_STATES.ROUTE_START:
       return `This is ${articleFor(vars.serviceCode)} ${vars.serviceCode} to ${vars.destination}.`;
     case ANNOUNCE_STATES.STOP_DEPARTURE:
-      return `This is ${articleFor(vars.serviceCode)} ${vars.serviceCode} to ${vars.destination}. The next stop will be ${vars.nextStopName}.`;
+      return `The next stop is ${vars.nextStopName}.`;
     case ANNOUNCE_STATES.APPROACHING:
       return `This is ${vars.stopName}.`;
     case ANNOUNCE_STATES.AT_STOP:

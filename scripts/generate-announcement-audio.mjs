@@ -119,33 +119,28 @@ function buildJobs(schedule) {
     }
   }
 
+  // Redesigned 2026-09-02 alongside shared/announceStates.js's text (see
+  // that file's header comment) — one clip per state, keyed by stop, no
+  // more final/non-final variants and no more splicing two clips together
+  // (APPROACHING and AT_STOP-final used to each combine two sentences;
+  // neither does any more).
   for (const [stopId, name] of stopNames) {
     const clean = stripSpeechAnnotations(name);
-    jobs.set(`stop/${stopId}`, {
-      key: `stop/${stopId}`, relPath: `stop/${stopId}.mp3`,
-      text: `This stop is ${clean}.`,
-    });
-    jobs.set(`next/${stopId}`, {
-      key: `next/${stopId}`, relPath: `next/${stopId}.mp3`,
-      text: `The next stop will be ${clean}.`,
-    });
-    // Approaching the *final* stop (state 6, shared/announceStates.js) —
-    // "is", not "will be" — a distinct clip from next/${stopId} above.
-    jobs.set(`next-final/${stopId}`, {
-      key: `next-final/${stopId}`, relPath: `next-final/${stopId}.mp3`,
-      text: `The next stop is ${clean}.`,
-    });
-    jobs.set(`arrive/${stopId}`, {
-      key: `arrive/${stopId}`, relPath: `arrive/${stopId}.mp3`,
+    jobs.set(`approach/${stopId}`, {
+      key: `approach/${stopId}`, relPath: `approach/${stopId}.mp3`,
       text: `This is ${clean}.`,
+    });
+    jobs.set(`departure/${stopId}`, {
+      key: `departure/${stopId}`, relPath: `departure/${stopId}.mp3`,
+      text: `The next stop is ${clean}.`,
     });
   }
 
   // Fully-fixed clips — no variable content, rendered once regardless of
   // route/stop data.
-  jobs.set('terminus-tail', {
-    key: 'terminus-tail', relPath: 'terminus-tail.mp3',
-    text: 'This bus terminates here, all change please.',
+  jobs.set('terminus', {
+    key: 'terminus', relPath: 'terminus.mp3',
+    text: 'This service terminates here, all change please.',
   });
   jobs.set('diversion', {
     key: 'diversion', relPath: 'diversion.mp3',
