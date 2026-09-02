@@ -161,31 +161,64 @@ describe('startSoloAutopilot', () => {
     expect(onIdleNextDeparture).toHaveBeenCalled(); // still reports the next departure afterwards
   });
 
-  it('does not poll GPS at all outside its configured active windows', async () => {
+  it('does not poll GPS at all outside its configured active windows, and shows the sleep screen instead of idle branding', async () => {
     vi.setSystemTime(new Date(2026, 7, 24, 12, 0, 0)); // Monday noon — outside the window below
     const getCurrentPosition = vi.fn();
     vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } });
 
+    const onIdleNextDeparture = vi.fn();
+    const onSleep = vi.fn();
     const client = makeClient({ activeWindows: [{ day_of_week: 0, window_start: '07:00', window_end: '09:00' }] });
-    startSoloAutopilot(client, BASE_DEVICE_ROW, { onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture: vi.fn(), onJourneyEnd: vi.fn() });
+    startSoloAutopilot(client, BASE_DEVICE_ROW, { onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture, onJourneyEnd: vi.fn(), onSleep });
     await flush();
 
     await vi.advanceTimersByTimeAsync(5000);
 
     expect(getCurrentPosition).not.toHaveBeenCalled();
+    // The fix under test: previously the idle screen (branding, next-
+    // departure caption) stayed shown around the clock regardless of the
+    // window — only GPS polling was gated. Now the screen itself sleeps too.
+    expect(onSleep).toHaveBeenCalledTimes(1);
+    expect(onIdleNextDeparture).not.toHaveBeenCalled();
   });
 
-  it('does not poll GPS at all when no active windows are configured', async () => {
+  it('does not poll GPS at all when no active windows are configured, and shows the sleep screen', async () => {
     vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0)); // would be inside a window, if any were configured
     const getCurrentPosition = vi.fn();
     vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } });
 
+    const onIdleNextDeparture = vi.fn();
+    const onSleep = vi.fn();
     const client = makeClient({ activeWindows: [] });
-    startSoloAutopilot(client, BASE_DEVICE_ROW, { onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture: vi.fn(), onJourneyEnd: vi.fn() });
+    startSoloAutopilot(client, BASE_DEVICE_ROW, { onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture, onJourneyEnd: vi.fn(), onSleep });
     await flush();
 
     await vi.advanceTimersByTimeAsync(5000);
 
     expect(getCurrentPosition).not.toHaveBeenCalled();
+    expect(onSleep).toHaveBeenCalledTimes(1);
+    expect(onIdleNextDeparture).not.toHaveBeenCalled();
+  });
+
+  it('wakes (shows idle branding, starts polling) the instant an active window opens, with no restart needed', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 6, 59, 57)); // Monday 06:59:57 — 3s before the window opens, so one 5s idle tick crosses it
+    const getCurrentPosition = vi.fn((success) => success({ coords: { latitude: DEPOT.lat, longitude: DEPOT.lon } }));
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } });
+
+    const onIdleNextDeparture = vi.fn();
+    const onSleep = vi.fn();
+    const client = makeClient({ activeWindows: [{ day_of_week: 0, window_start: '07:00', window_end: '09:00' }] });
+    startSoloAutopilot(client, BASE_DEVICE_ROW, { onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture, onJourneyEnd: vi.fn(), onSleep });
+    await flush();
+
+    expect(onSleep).toHaveBeenCalledTimes(1); // asleep at boot, 3s before the window
+    expect(getCurrentPosition).not.toHaveBeenCalled();
+
+    // Crosses 07:00 on this tick — the idle loop's own applyWakeState()
+    // check should catch it without anything else restarting the device.
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(onIdleNextDeparture).toHaveBeenCalledTimes(1); // woke up, showed idle branding
+    expect(getCurrentPosition).toHaveBeenCalledTimes(1); // and started polling GPS the same tick
   });
 });

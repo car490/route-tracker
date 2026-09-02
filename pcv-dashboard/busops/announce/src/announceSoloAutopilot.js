@@ -125,10 +125,17 @@ function msUntilNextOccurrence(departureTime, now) {
   return diff;
 }
 
-export function startSoloAutopilot(client, deviceRow, { onSchedule, onState, onIdleNextDeparture, onJourneyEnd }) {
+export function startSoloAutopilot(client, deviceRow, { onSchedule, onState, onIdleNextDeparture, onJourneyEnd, onSleep }) {
   let candidates = [];
   let activeWindows = [];
   let activeJourney = null; // { journeyId, startedAt, tracker }
+  // Starts undetermined (not false!) — applyWakeState()'s transition check
+  // is `awake === isAwake`, and false is a real, reachable outcome (asleep
+  // outside any window), so starting there would make the very first
+  // "we're asleep" determination look like a no-op non-transition and
+  // silently never call onSleep at boot. null guarantees the first real
+  // determination, whichever way it goes, always fires its callback once.
+  let isAwake = null;
 
   function reportNextDeparture() {
     if (!candidates.length) {
@@ -142,13 +149,31 @@ export function startSoloAutopilot(client, deviceRow, { onSchedule, onState, onI
     onIdleNextDeparture?.(next);
   }
 
+  // Shows/hides the idle screen itself based on whether *now* falls inside
+  // a configured active window. Previously only GPS polling (the idleTimer
+  // below) was gated by the window — the idle screen (branding, logo,
+  // next-departure caption) stayed lit around the clock regardless, which
+  // made no sense for a device that only runs a school-run twice a day.
+  // Never touches anything while a journey is actually active — a window
+  // ending mid-route must not blank the sign out from under real
+  // passengers; only ever affects the idle state either side of one.
+  function applyWakeState() {
+    if (activeJourney) return;
+    const awake = isWithinActiveWindow(new Date(), activeWindows);
+    if (awake === isAwake) return;
+    isAwake = awake;
+    if (awake) reportNextDeparture();
+    else onSleep?.();
+  }
+
   async function refreshCandidates() {
     candidates = await fetchCandidateDepartures(client, deviceRow.candidate_departure_ids ?? []);
-    if (!activeJourney) reportNextDeparture();
+    if (isAwake) reportNextDeparture();
   }
 
   async function refreshActiveWindows() {
     activeWindows = await fetchActiveWindows(client, deviceRow.id);
+    applyWakeState(); // first real determination of awake/asleep, now that windows are actually loaded
   }
 
   function completeActiveJourney() {
@@ -186,7 +211,12 @@ export function startSoloAutopilot(client, deviceRow, { onSchedule, onState, onI
     setTimeout(() => {
       if (activeJourney) return;
       onJourneyEnd?.();
-      reportNextDeparture();
+      // Recompute fresh rather than trusting isAwake — TERMINUS_HOLD_MS is
+      // 5 minutes, easily enough for the device's active window to have
+      // closed while this journey's terminus message was still showing.
+      isAwake = isWithinActiveWindow(new Date(), activeWindows);
+      if (isAwake) reportNextDeparture();
+      else onSleep?.();
     }, TERMINUS_HOLD_MS);
   }
 
@@ -336,13 +366,13 @@ export function startSoloAutopilot(client, deviceRow, { onSchedule, onState, onI
   refreshActiveWindows();
 
   const idleTimer = setInterval(() => {
-    if (activeJourney || !navigator.geolocation) return;
+    applyWakeState(); // catches a window opening/closing since the last tick — see its own comment
+    if (activeJourney || !navigator.geolocation || !isAwake) return;
     // Stay fully dormant (no geolocation call at all — no battery/data use)
     // outside this device's configured active windows. A device with no
     // windows configured at all never wakes — see isWithinActiveWindow's
     // own comment for why that's the safe default, matching an empty
     // candidate_departure_ids list's existing no-op behaviour.
-    if (!isWithinActiveWindow(new Date(), activeWindows)) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => tryMatch(pos.coords.latitude, pos.coords.longitude),
       () => {}, // GPS error — just skip this tick, retried on the next one

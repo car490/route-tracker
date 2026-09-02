@@ -361,7 +361,23 @@ export function showNextDeparture(candidate) {
   box.hidden = !candidate;
   box.textContent = candidate ? `Next departure ${candidate.departureTime}` : '';
   el('onboard-idle').hidden = false;
+  el('onboard-brand').hidden = false; // undo showSleepScreen()'s hide, if it ran
   positionBrand();
+}
+
+// Solo only — fully blank screen (no branding, no logo, no next-departure
+// caption, not even the small corner brand mark) outside this device's
+// configured active windows. Previously only GPS *polling* was gated by
+// the window (announceSoloAutopilot.js's idleTimer) — the idle screen
+// itself stayed lit and branded around the clock regardless, which made
+// no sense for a device that only runs a school-run twice a day. Never
+// called while a journey is actually active — announceSoloAutopilot.js's
+// applyWakeState() guards that, a window ending mid-route must not blank
+// the sign out from under real passengers.
+export function showSleepScreen() {
+  el('onboard-idle').hidden = true;
+  el('onboard-sign').hidden = true;
+  el('onboard-brand').hidden = true;
 }
 
 // ── Pushed feed (Driver -> Controller -> this sign) — the only source of
@@ -388,6 +404,7 @@ export function onSchedule(msg) {
   applyOperatorBranding({ accentColor: msg.accentColor });
   el('onboard-idle').hidden = true;
   el('onboard-sign').hidden = false;
+  el('onboard-brand').hidden = false; // undo showSleepScreen()'s hide, if a Solo journey matched right as its window opened
   // Forces the first state of this journey to always start a fresh reveal
   // sequence, even in the unlikely case its {stateKey, vars} happens to
   // match whatever the sign was last showing at the end of a prior journey
@@ -476,6 +493,7 @@ function init() {
       onSchedule, onState, onJourneyEnd,
       onIdleNextDeparture: showNextDeparture,
       onIdleBranding: applyIdleBranding,
+      onSleep: showSleepScreen,
     });
   } else {
     connectSignFeed();

@@ -64,7 +64,7 @@ async function fetchCompanyBranding(client, companyId) {
 // not hot-switched mid-session — a device changing gps_source (e.g. linked
 // while running) takes effect on its next reload, same as a base-tier
 // device's own commissioning is fixed per boot.
-export function connectAnnounceDeviceFeed(deviceToken, { onSchedule, onState, onJourneyEnd, onIdleNextDeparture, onIdleBranding }) {
+export function connectAnnounceDeviceFeed(deviceToken, { onSchedule, onState, onJourneyEnd, onIdleNextDeparture, onIdleBranding, onSleep }) {
   const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     global: { headers: { Authorization: `Bearer ${deviceToken}` } },
   });
@@ -118,7 +118,7 @@ export function connectAnnounceDeviceFeed(deviceToken, { onSchedule, onState, on
       // journey-end signals already do (see announceSoloAutopilot.js's
       // completeActiveJourney) — previously dropped here, leaving Solo's
       // sign visible over the idle screen after every completed journey.
-      startSoloAutopilot(client, data, { onSchedule, onState, onIdleNextDeparture, onJourneyEnd });
+      startSoloAutopilot(client, data, { onSchedule, onState, onIdleNextDeparture, onJourneyEnd, onSleep });
       return;
     }
 
