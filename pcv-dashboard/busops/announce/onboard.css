@@ -232,8 +232,14 @@ body {
 }
 
 #idle-logo {
-  max-width: 50vw;
-  max-height: 35vh;
+  /* ~3x the previous 50vw/35vh, still capped well inside the panel (never
+     the full viewport) so it can't crowd the topbar or the next-departure
+     caption below it (Solo tier) — object-fit: contain means the source
+     image's own aspect ratio picks whichever of these two caps actually
+     binds, not a forced square. User feedback 2026-09-02: make the
+     customer logo bigger, up to ~3x, while staying fully on the panel. */
+  max-width: 80vw;
+  max-height: 65vh;
   object-fit: contain;
 }
 
