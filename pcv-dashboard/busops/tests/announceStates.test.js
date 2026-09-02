@@ -23,24 +23,29 @@ describe('resolveAnnouncementText', () => {
     })).toBe('This is a 44 to Boston College. The next stop will be Church Road.');
   });
 
+  // Redesigned 2026-09-02 — see resolveAnnouncementText's own header
+  // comment: APPROACHING no longer branches on isFinal (both say "This is
+  // X" — the old final-only "terminates here" text moved to AT_STOP,
+  // which itself is no longer called for a non-final stop at all, only
+  // asserted here for text-resolver completeness).
   it('APPROACHING, non-final', () => {
     expect(resolveAnnouncementText(ANNOUNCE_STATES.APPROACHING, { stopName: 'Church Road', isFinal: false }))
-      .toBe('The next stop will be Church Road.');
+      .toBe('This is Church Road.');
   });
 
-  it('APPROACHING, final', () => {
+  it('APPROACHING, final — same wording as non-final, no longer combined with terminus text', () => {
     expect(resolveAnnouncementText(ANNOUNCE_STATES.APPROACHING, { stopName: 'Bus Station', isFinal: true }))
-      .toBe('The next stop is Bus Station. This bus terminates here, all change please.');
+      .toBe('This is Bus Station.');
   });
 
-  it('AT_STOP, non-final', () => {
+  it('AT_STOP — standalone terminus text, ignores stopName/isFinal (only ever called for the final stop by real callers)', () => {
     expect(resolveAnnouncementText(ANNOUNCE_STATES.AT_STOP, { stopName: 'Church Road', isFinal: false }))
-      .toBe('This stop is Church Road.');
+      .toBe('This service terminates here, all change please.');
   });
 
   it('AT_STOP, final', () => {
     expect(resolveAnnouncementText(ANNOUNCE_STATES.AT_STOP, { stopName: 'Bus Station', isFinal: true }))
-      .toBe('This is Bus Station. This bus terminates here, all change please.');
+      .toBe('This service terminates here, all change please.');
   });
 
   it('DIVERSION — fixed text, ignores vars', () => {

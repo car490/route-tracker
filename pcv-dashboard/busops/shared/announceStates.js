@@ -67,7 +67,10 @@ export function articleFor(serviceCode) {
 //   ROUTE_START:    { serviceCode, destination }
 //   STOP_DEPARTURE: { serviceCode, destination, nextStopName }
 //   APPROACHING:    { stopName, isFinal }
-//   AT_STOP:        { stopName, isFinal }
+//   AT_STOP:        { stopName, isFinal } — only ever fired for the final
+//                    stop now (see below); stopName is carried for callers
+//                    that still branch on it, but the terminus text itself
+//                    doesn't repeat the stop name (already said on approach).
 //   DIVERSION:      none — fixed text, deliberately takes no free-text
 //                    parameters (matches the driver-triggered alert's
 //                    existing zero-argument contract — see diversionAlert.js)
@@ -76,6 +79,27 @@ export function articleFor(serviceCode) {
 // pre-rendered audio clip sequence and the on-screen text stay
 // byte-identical (driver/src/announcements.js splices clips together at
 // sentence boundaries) without changing the wording itself.
+//
+// Redesigned 2026-09-02 per user feedback that the old sequence repeated
+// itself too much — every stop used to get 3 separate announcements
+// (approaching: "next stop will be X" / arrival: "this stop is X" /
+// departure: "this is a X to Y, next stop Z"), saying the stop's name
+// twice and the route/destination on every single departure. New shape,
+// 2 events per intermediate stop instead of 3:
+//   - APPROACHING: "This is X." (same wording whether or not it's the
+//     final stop — the old isFinal-only "this bus terminates here" text
+//     moved to arrival, below, so it isn't said twice)
+//   - Arrival (AT_STOP) is no longer announced for intermediate stops at
+//     all — main.js/announceSoloAutopilot.js simply don't call this for
+//     them any more, straight to STOP_DEPARTURE instead. The sign's
+//     headline holds whatever APPROACHING last showed through the dwell.
+//   - STOP_DEPARTURE unchanged: "This is a X to Y. The next stop will be
+//     Z." — still said at every departure, this is the one deliberate
+//     repeat the user asked to keep (item 1 of their spec).
+//   - AT_STOP now only ever fires for the final stop, standalone: "This
+//     service terminates here, all change please." — paired with a
+//     full-page colour change (onboard.js's render()/onboard.css's
+//     .terminus), not just a text change.
 export function resolveAnnouncementText(stateKey, vars) {
   switch (stateKey) {
     case ANNOUNCE_STATES.IDLE:
@@ -85,13 +109,9 @@ export function resolveAnnouncementText(stateKey, vars) {
     case ANNOUNCE_STATES.STOP_DEPARTURE:
       return `This is ${articleFor(vars.serviceCode)} ${vars.serviceCode} to ${vars.destination}. The next stop will be ${vars.nextStopName}.`;
     case ANNOUNCE_STATES.APPROACHING:
-      return vars.isFinal
-        ? `The next stop is ${vars.stopName}. This bus terminates here, all change please.`
-        : `The next stop will be ${vars.stopName}.`;
+      return `This is ${vars.stopName}.`;
     case ANNOUNCE_STATES.AT_STOP:
-      return vars.isFinal
-        ? `This is ${vars.stopName}. This bus terminates here, all change please.`
-        : `This stop is ${vars.stopName}.`;
+      return 'This service terminates here, all change please.';
     case ANNOUNCE_STATES.DIVERSION:
       return 'Attention, this bus is on diversion.';
     default:

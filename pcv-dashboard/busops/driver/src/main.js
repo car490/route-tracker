@@ -30,7 +30,21 @@ const DEBUG = new URLSearchParams(window.location.search).has('debug');
 
 // How long the sign keeps showing the terminus state (state 7) before
 // completeTrip() disconnects its link — see that function's own comment.
-const TERMINUS_DISPLAY_MS = 10000;
+// 5 minutes (was 10s) per user feedback 2026-09-02: passengers need real
+// time to actually read/hear "all change please" and disembark, not a
+// blink-and-you-miss-it flash.
+const TERMINUS_DISPLAY_MS = 5 * 60 * 1000;
+
+// Guards the delayed disconnect below against a second journey starting
+// on this same device within the 5-minute window — disconnectAnnounceLink()
+// operates on module-level socket state (announceLink.js), not anything
+// scoped to a single journey, so a stale timeout from journey A firing
+// after journey B has already reconnected would incorrectly send B's sign
+// back to idle mid-journey. Bumped from a 10s window (where this was
+// theoretical) to 5 minutes (where a driver starting their next duty
+// inside that window is a real scenario) makes this a real bug, not a
+// hypothetical one.
+let activeTrackerId = 0;
 
 // NaPTAN indicator suffixes like "(adj)"/"(opp)" give the precise pole/bay/
 // side of the road — useful in the stop list and on the map where the driver
@@ -190,6 +204,7 @@ function showTripCompleteBanner(onDismiss) {
 // ── Tracker ───────────────────────────────────────────────────────────────────
 
 function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex, serviceCode, servicePeriod, psvairEnabled, accentColor, primaryColor, onComplete }) {
+  const myTrackerId = ++activeTrackerId; // see this var's own comment — race guard for completeTrip()'s delayed disconnect
   document.getElementById('picker').hidden  = true;
   document.getElementById('tracker').hidden = false;
   document.getElementById('route-header').scrollIntoView();
@@ -499,9 +514,10 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
 
       // PSVAIR event 2 — approaching (fires once per stop off gps.js's
       // stopStates 'approaching' status, the same signal the stop list and
-      // status card show) — including the final stop, which now gets its
-      // own terminus wording (state 6, see shared/announceStates.js)
-      // instead of being silently skipped.
+      // status card show) — including the final stop, now with the same
+      // "This is X" wording as any other stop (see shared/announceStates.js
+      // — the terminus-specific "all change please" wording moved to
+      // arrival, below, so it isn't said twice).
       if (approaching) {
         const resolved = resolveApproachOrArrivalState({ approaching, atStop: null, allStops });
         lastNormalState = resolved;
@@ -512,26 +528,38 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
         }
       }
 
-      // Announce on arrival (atStop set) rather than departure, so it's
-      // heard while the vehicle is actually there (PSVAIR events 3 & 4) —
-      // atStop persists while dwelling, so this only fires once per stop.
+      // Arrival (atStop set) — PSVAIR events 3 & 4. Redesigned 2026-09-02:
+      // only the final stop gets its own arrival announcement any more
+      // (the terminus "all change please" message) — an intermediate
+      // stop's arrival used to also announce "This stop is X" right after
+      // approach had just said "This is X" moments earlier, which is
+      // exactly the repetition flagged in user feedback. An intermediate
+      // stop now goes straight to departure below, and the sign's headline
+      // simply holds whatever approach last showed through the dwell.
+      // atStop persists while dwelling, so this whole block only fires
+      // once per stop either way.
       if (atStop && atStop.stopIndex !== lastAnnouncedStopIdx) {
         lastAnnouncedStopIdx = atStop.stopIndex;
         const isFinal = atStop.stopIndex === allStops.length - 1;
-        const arrival = resolveApproachOrArrivalState({ approaching: null, atStop, allStops });
-        lastNormalState = arrival;
-        if (psvairEnabled) {
-          announceStopEvent(arrival.stateKey, arrival.vars, {
-            stopId: allStops[atStop.stopIndex].stop_id,
-          }, !!diversionAlertState);
-        }
 
-        // State 3 (Departure from stop) — a second, separate announcement
-        // right after arrival's, naming the next stop for passengers
-        // boarding here. Never fires for the final stop (nothing to depart
-        // towards) or while diverted (announceStopEvent above already
-        // covers the diversion case for this same edge).
-        if (!isFinal) {
+        if (isFinal) {
+          const arrival = resolveApproachOrArrivalState({ approaching: null, atStop, allStops });
+          lastNormalState = arrival;
+          if (psvairEnabled) {
+            announceStopEvent(arrival.stateKey, arrival.vars, {
+              stopId: allStops[atStop.stopIndex].stop_id,
+            }, !!diversionAlertState);
+          }
+        } else {
+          // State 3 (Departure from stop) — names the next stop for
+          // passengers boarding here. Never fires for the final stop
+          // (nothing to depart towards, handled in the isFinal branch
+          // above instead) or while diverted (announceStopEvent's
+          // diversion handling only applies to the isFinal branch now,
+          // since that's the only one still calling it on arrival — a
+          // diversion mid-route still gets its own DIVERSION state pushed
+          // separately, see triggerDiversionAlert below, unaffected by
+          // this restructure).
           const departureVars = {
             serviceCode,
             destination: stripIndicator(lastStop.name),
@@ -639,6 +667,12 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
     // fallback link (no fresh terminus push to protect there) — just a
     // few extra seconds before the sign goes idle either way.
     setTimeout(() => {
+      // A second journey may have started on this device within the 5-
+      // minute hold (see TERMINUS_DISPLAY_MS's own comment) — if so, its
+      // own connectAnnounceLink() already bumped activeTrackerId, and this
+      // stale disconnect must not tear down its (module-level, shared)
+      // socket/link state.
+      if (myTrackerId !== activeTrackerId) return;
       disconnectAnnounceLink();
       // Paired Lite's equivalent of the WebSocket 'complete' message above —
       // fire-and-forget, same treatment as every other Announce Lite push in

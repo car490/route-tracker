@@ -108,11 +108,10 @@ describe('startSoloAutopilot', () => {
     startAnnounceGpsTracking.mockReset();
   });
 
-  it('starts a journey once matched, then calls onJourneyEnd (not just the idle callback) on completion', async () => {
+  it('starts a journey once matched, then calls onJourneyEnd (not just the idle callback) on completion, after the terminus hold delay', async () => {
     vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0)); // Monday 08:00 — inside the window below
-    vi.stubGlobal('navigator', {
-      geolocation: { getCurrentPosition: vi.fn((success) => success({ coords: { latitude: DEPOT.lat, longitude: DEPOT.lon } })) },
-    });
+    const getCurrentPosition = vi.fn((success) => success({ coords: { latitude: DEPOT.lat, longitude: DEPOT.lon } }));
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } });
     vi.stubGlobal('crypto', { randomUUID: () => 'client-generated-id' });
 
     let onUpdate;
@@ -141,6 +140,22 @@ describe('startSoloAutopilot', () => {
     // Drive the mocked GPS tracker to final-stop arrival — this is what
     // isJourneyComplete/completeActiveJourney react to.
     onUpdate({ atStop: { stopIndex: 1 }, approaching: null, stopStates: [] });
+
+    // The vehicle has actually left by now (real GPS would no longer read
+    // Depot's coordinates) — without this, the idle loop's next 5s poll
+    // would still be sitting inside dep-1's own start geofence and match
+    // it again, which is a real "someone started another journey" case as
+    // far as this module can tell, not a test bug (see completeActiveJourney's
+    // activeJourney guard) — just not the scenario this test means to cover.
+    getCurrentPosition.mockImplementation((success) => success({ coords: { latitude: 0, longitude: 0 } }));
+
+    // onJourneyEnd is deliberately delayed (TERMINUS_HOLD_MS, 5 minutes) —
+    // see completeActiveJourney's own comment — so the terminus message
+    // stays on screen long enough for passengers to actually read/hear it,
+    // rather than the sign flipping back to idle right behind it.
+    expect(onJourneyEnd).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+    await flush();
 
     expect(onJourneyEnd).toHaveBeenCalledTimes(1); // the fix under test: previously never called for Solo
     expect(onIdleNextDeparture).toHaveBeenCalled(); // still reports the next departure afterwards

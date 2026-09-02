@@ -47,6 +47,13 @@ import { speakState } from './announceSpeech.js';
 
 const IDLE_POLL_MS = 5000; // own-GPS check interval while no journey is active
 const COMPLETION_TIMEOUT_MIN = 120; // safety net — no driver to notice a stuck journey
+// How long the sign keeps showing the terminus state before reverting to
+// idle — matches driver/src/main.js's TERMINUS_DISPLAY_MS exactly (same
+// user feedback 2026-09-02: passengers need real time to read/hear "all
+// change please" and disembark). Only the *display* reset is delayed —
+// complete_journey (below) still fires immediately, since that's a
+// backend/reporting concern, not a passenger-facing one.
+const TERMINUS_HOLD_MS = 5 * 60 * 1000;
 
 function stripIndicator(name) {
   return name.replace(/\s*\([^)]*\)\s*$/, '');
@@ -164,11 +171,23 @@ export function startSoloAutopilot(client, deviceRow, { onSchedule, onState, onI
     // journey-end signals (onboard.js). Previously missing here entirely,
     // so a completed Solo journey's sign stayed visibly on top of the idle
     // screen (see onboard.html's DOM order/z-index) until the next journey
-    // started. reportNextDeparture() (below) is what actually shows the
-    // correct next-departure caption on that idle screen — kept separate
-    // since onJourneyEnd() itself always clears to no caption.
-    onJourneyEnd?.();
-    reportNextDeparture();
+    // started. reportNextDeparture() is what actually shows the correct
+    // next-departure caption on that idle screen — kept together with
+    // onJourneyEnd() here since both only make sense once idle is actually
+    // being shown.
+    //
+    // Delayed (TERMINUS_HOLD_MS), not immediate — mirrors driver/src/
+    // main.js's completeTrip(). activeJourney was just set to null above;
+    // if tryMatch() finds a new candidate before this timer fires, it's
+    // non-null again by the time this runs, and this guard skips clearing
+    // the sign out from under that new journey (same race this device's
+    // idle loop could otherwise hit that main.js's own activeTrackerId
+    // guard protects against).
+    setTimeout(() => {
+      if (activeJourney) return;
+      onJourneyEnd?.();
+      reportNextDeparture();
+    }, TERMINUS_HOLD_MS);
   }
 
   async function tryMatch(lat, lon) {
@@ -270,12 +289,19 @@ export function startSoloAutopilot(client, deviceRow, { onSchedule, onState, onI
             speakState(lastState.stateKey, lastState.vars);
           }
 
+          // Redesigned 2026-09-02, mirrors driver/src/main.js's same
+          // restructure: only the final stop gets its own arrival
+          // announcement (the terminus message) — an intermediate stop's
+          // arrival used to also speak "This stop is X" right after
+          // approach had just said "This is X" moments earlier. Straight
+          // to departure for an intermediate stop now instead.
           if (state.atStop && state.atStop.stopIndex !== lastAnnouncedStopIdx) {
             lastAnnouncedStopIdx = state.atStop.stopIndex;
-            lastState = resolveApproachOrArrivalState({ approaching: null, atStop: state.atStop, allStops: details.allStops });
-            speakState(lastState.stateKey, lastState.vars);
 
-            if (!isFinal) {
+            if (isFinal) {
+              lastState = resolveApproachOrArrivalState({ approaching: null, atStop: state.atStop, allStops: details.allStops });
+              speakState(lastState.stateKey, lastState.vars);
+            } else {
               const departureVars = {
                 serviceCode: details.serviceCode,
                 destination: stripIndicator(lastStop.name),

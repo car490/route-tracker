@@ -195,9 +195,23 @@ function render(stateKey, vars, earlyWait) {
   // also change for a diversion; this is a supplementary visual emphasis,
   // not the only signal.
   el('onboard-sign').classList.toggle('diversion', stateKey === ANNOUNCE_STATES.DIVERSION);
+  // Terminus — AT_STOP only ever fires for the final stop now (see
+  // shared/announceStates.js), so no extra isFinal check needed here.
+  // Same "never colour alone" reasoning as diversion above: the headline
+  // text ("This service terminates here, all change please.") and, on
+  // tiers with audio, the spoken announcement both already carry the
+  // message — this full-page colour is a supplementary "notice me" cue on
+  // top, per user feedback 2026-09-02, not the only signal.
+  el('onboard-sign').classList.toggle('terminus', stateKey === ANNOUNCE_STATES.AT_STOP);
 
+  // Suppressed at terminus — "running early, depart at X" doesn't mean
+  // anything once the bus has actually reached its final stop and
+  // passengers are being told to get off; found live, 2026-09-02, showing
+  // confusingly on top of the new terminus colour (pre-existing gap, not
+  // something this change introduced — earlyWait and stateKey were always
+  // independent — just made newly obvious by that background).
   const banner = el('early-wait-banner');
-  if (earlyWait) {
+  if (earlyWait && stateKey !== ANNOUNCE_STATES.AT_STOP) {
     banner.hidden = false;
     el('ewb-time').textContent = new Date(earlyWait.scheduledTime)
       .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });

@@ -125,6 +125,23 @@ body {
   background: var(--ep-diversion);
 }
 
+/* Terminus ("all change please") — the one state that changes the WHOLE
+   page, not just the headline band, per user feedback 2026-09-02 ("give
+   the page a notice me colour"). Distinct red (--ep-late, already the
+   design system's own "urgent" token, reused rather than inventing a new
+   one) rather than diversion's amber, since the two mean different things
+   and shouldn't look alike. Text flips to paper-white for contrast against
+   the new background — #sign-topbar's text was already white; only
+   #sign-headline needs overriding here. */
+#onboard-sign.terminus #sign-topbar,
+#onboard-sign.terminus #sign-main {
+  background: var(--ep-late);
+}
+
+#onboard-sign.terminus #sign-headline {
+  color: var(--ep-paper);
+}
+
 /* Bottom-left of the headline band, not the top-left corner — that spot
    sits directly under the (purple, white-text) topbar's left-aligned route
    line once the sign is active, and the brand mark's own ink-on-paper

@@ -80,14 +80,14 @@ describe('announce() Controller broadcast', () => {
   it('resolves clip keys per state (approaching, non-final)', async () => {
     const { broadcastAnnounce } = await import('./announceLink.js');
     announcements.announceState(ANNOUNCE_STATES.APPROACHING, { stopName: 'Example Road', isFinal: false }, { stopId: 'stop-1' });
-    expect(broadcastAnnounce).toHaveBeenCalledWith('The next stop will be Example Road.', ['next/stop-1']);
+    expect(broadcastAnnounce).toHaveBeenCalledWith('This is Example Road.', ['next/stop-1']);
   });
 
   it('resolves clip keys per state (approaching, final)', async () => {
     const { broadcastAnnounce } = await import('./announceLink.js');
     announcements.announceState(ANNOUNCE_STATES.APPROACHING, { stopName: 'Terminus', isFinal: true }, { stopId: 'stop-9' });
     expect(broadcastAnnounce).toHaveBeenCalledWith(
-      'The next stop is Terminus. This bus terminates here, all change please.',
+      'This is Terminus.',
       ['next-final/stop-9', 'terminus-tail']
     );
   });
@@ -96,7 +96,7 @@ describe('announce() Controller broadcast', () => {
     const { broadcastAnnounce } = await import('./announceLink.js');
     announcements.announceState(ANNOUNCE_STATES.AT_STOP, { stopName: 'Terminus', isFinal: true }, { stopId: 'stop-9' });
     expect(broadcastAnnounce).toHaveBeenCalledWith(
-      'This is Terminus. This bus terminates here, all change please.',
+      'This service terminates here, all change please.',
       ['arrive/stop-9', 'terminus-tail']
     );
   });
