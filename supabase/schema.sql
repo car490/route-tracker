@@ -5,6 +5,25 @@
 -- ============================================================
 
 
+-- ── PCV Technologies brand defaults ───────────────────────────────────────────
+-- Canonical source is brand-tokens.css (pcv-dashboard/busops/shared/) — Postgres can't import a
+-- CSS file, so these two literal values must be kept in sync with it by hand.
+-- Used as companies.primary_color/accent_color's column defaults and as the
+-- fallback in get_duty_card() below, so both draw from one place instead of
+-- repeating the literals at each call site.
+
+create or replace function public.pcv_default_primary_color()
+returns text
+language sql
+immutable
+as $$ select '#242F35' $$;
+
+create or replace function public.pcv_default_accent_color()
+returns text
+language sql
+immutable
+as $$ select '#00B4D8' $$;
+
 -- ── Companies ────────────────────────────────────────────────────────────────
 -- Top of the ownership tree. Every other record is scoped to a company.
 
@@ -47,10 +66,10 @@ create table companies (
   -- Multi-tenant branding ("The Wrap")
   -- slug: URL-safe identifier used in future public tracking pages (e.g. 'phil-haines-coaches')
   slug                      text        unique,
-  -- Sidebar/header colour — defaults to CoachMate Tarmac Charcoal
-  primary_color             text        not null default '#242F35',
-  -- Button/highlight colour — defaults to CoachMate Signal Cyan
-  accent_color              text        not null default '#00B4D8',
+  -- Sidebar/header colour — defaults to PCV Charcoal
+  primary_color             text        not null default public.pcv_default_primary_color(),
+  -- Button/highlight colour — defaults to PCV Cyan
+  accent_color              text        not null default public.pcv_default_accent_color(),
   created_at                timestamptz not null default now()
 );
 
@@ -882,12 +901,20 @@ grant execute on function complete_journey(uuid) to anon;
 -- p_vehicle_id (optional) is the device's once-commissioned vehicle (see
 -- src/vehicleSetup.js) — validated against the departure's own company
 -- below so anon can't attach an arbitrary vehicle UUID from another company.
+-- p_journey_id (optional) lets the client supply the id up front, so a
+-- manual-selection start made while offline can use the same journey_id
+-- locally as the one that eventually lands here once queued/retried — see
+-- manualSelection.js and migration 20260825100305. Falls through to
+-- gen_random_uuid() when omitted, same as the implicit column default
+-- before this param existed.
+DROP FUNCTION IF EXISTS public.get_or_create_manual_journey(uuid, date, uuid);
 DROP FUNCTION IF EXISTS public.get_or_create_manual_journey(uuid, date);
 
 create or replace function get_or_create_manual_journey(
   p_timetable_departure_id uuid,
   p_journey_date date default current_date,
-  p_vehicle_id uuid default null
+  p_vehicle_id uuid default null,
+  p_journey_id uuid default null
 )
 returns table (journey_id uuid)
 language plpgsql
@@ -939,8 +966,8 @@ begin
     raise exception 'vehicle % not found for this company', p_vehicle_id;
   end if;
 
-  insert into journeys (company_id, timetable_departure_id, journey_date, status, vehicle_id)
-  values (v_company_id, p_timetable_departure_id, p_journey_date, 'scheduled', p_vehicle_id)
+  insert into journeys (id, company_id, timetable_departure_id, journey_date, status, vehicle_id)
+  values (coalesce(p_journey_id, gen_random_uuid()), v_company_id, p_timetable_departure_id, p_journey_date, 'scheduled', p_vehicle_id)
   on conflict (timetable_departure_id, journey_date)
     where status != 'cancelled' and timetable_departure_id is not null
   do nothing
@@ -959,7 +986,7 @@ begin
 end;
 $$;
 
-grant execute on function get_or_create_manual_journey(uuid, date, uuid) to anon;
+grant execute on function get_or_create_manual_journey(uuid, date, uuid, uuid) to anon;
 
 DROP FUNCTION IF EXISTS public.get_duty_card(uuid[]);
 
@@ -1006,8 +1033,8 @@ AS $function$
      join stops st on st.id = ts3.stop_id
      where ts3.timetable_id = t.id order by ts3.sequence desc limit 1) as last_stop_name,
     j.notes,
-    coalesce(c.primary_color, '#242F35')                     as primary_color,
-    coalesce(c.accent_color,  '#00B4D8')                     as accent_color
+    coalesce(c.primary_color, public.pcv_default_primary_color()) as primary_color,
+    coalesce(c.accent_color,  public.pcv_default_accent_color())  as accent_color
   from journeys j
   left join employees           e  on e.id  = j.driver_id
   left join vehicles            v  on v.id  = j.vehicle_id
@@ -1020,6 +1047,51 @@ AS $function$
 $function$;
 
 grant execute on function get_duty_card(uuid[]) to anon;
+
+-- Manual-selection/cab-device active-journey recovery (BusOps Driver).
+-- Lets a device ask "is there already an active journey for my
+-- commissioned vehicle" on boot, mirroring get_duty_card's row shape so the
+-- driver PWA can reuse its existing stop-confirm picker flow. See
+-- migration_get_active_manual_journey.sql and
+-- driver/src/activeJourneyRecovery.js for the full rationale (deliberately
+-- does not derive the current stop automatically -- confirm step stays
+-- manual).
+create or replace function public.get_active_manual_journey(p_vehicle_id uuid)
+returns table (
+  journey_id             uuid,
+  driver_id              uuid,
+  vehicle_id              uuid,
+  status                 text,
+  started_at             timestamptz,
+  completed_at           timestamptz,
+  driver_name            text,
+  vehicle_registration   text,
+  service_code           text,
+  route_name             text,
+  timetable_name         text,
+  direction               text,
+  timetable_departure_id uuid,
+  first_stop_time        text,
+  last_stop_name         text,
+  notes                  text,
+  primary_color          text,
+  accent_color           text
+)
+language sql
+stable security definer
+as $$
+  select * from public.get_duty_card(
+    array(
+      select id from public.journeys
+      where vehicle_id = p_vehicle_id
+        and status = 'in_progress'
+      order by started_at desc nulls last
+      limit 1
+    )
+  )
+$$;
+
+grant execute on function public.get_active_manual_journey(uuid) to anon;
 
 
 -- ── naptan_near_point ─────────────────────────────────────────────────────────
@@ -1221,6 +1293,319 @@ as $$
 $$;
 
 grant execute on function public.is_diversion_active(uuid) to anon;
+
+
+-- ── BusOps Announce Lite/Solo tiers ─────────────────────────────────────────
+-- One row per Lite/Solo passenger-sign tablet (Controller-less): either
+-- Solo/"internal" GPS mode or Lite's "driver-device"-linked mode. See
+-- docs/ANNOUNCE-PRODUCT-TIERS.md for the full product spec.
+--
+-- Anon writes go exclusively through the RPCs below (validated inside the
+-- security-definer function body), not via direct table INSERT/UPDATE +
+-- RLS — same model as get_or_create_manual_journey()/start_journey(),
+-- chosen because driver/announce anon callers can carry no JWT claims at
+-- all (see supabaseApi.js's driverToken() fallback to the bare anon key).
+-- The only anon table access is the device_self SELECT policy below, used
+-- for the Announce device's own Realtime subscription to its row.
+
+create table if not exists public.announce_devices (
+  id            uuid primary key default gen_random_uuid(),
+  company_id    uuid not null references public.companies(id) on delete cascade,
+  vehicle_id    uuid references public.vehicles(id) on delete set null,
+  label         text,
+  link_state    text not null default 'unlinked'
+                  check (link_state in ('unlinked', 'linked')),
+  gps_source    text not null default 'internal'
+                  check (gps_source in ('internal', 'driver-device')),
+
+  -- Linked-mode push state (Realtime contract) — this row IS the push
+  -- target, no separate state table.
+  latest_schedule   jsonb,
+  latest_state      jsonb,
+  state_updated_at  timestamptz,
+
+  -- Solo-mode ("schedule-autopilot") commissioning — null/empty for
+  -- Lite/paired-mode devices, populated for Solo ones.
+  candidate_departure_ids  uuid[] not null default '{}',
+  match_window_before_min  int not null default 15,
+  match_window_after_min   int not null default 30,
+  terminus_radius_m        int not null default 150,
+  testing_mode             boolean not null default false,
+
+  -- Bumped by the trigger below whenever a config-relevant column changes —
+  -- lets a running device detect "is my cached config stale" as a single
+  -- integer comparison instead of a full row diff (see deviceStateSync.js's
+  -- hasRowChanged()).
+  config_version int not null default 1,
+
+  last_seen_at  timestamptz,
+  created_at    timestamptz not null default now()
+);
+
+create index if not exists announce_devices_company_id_idx on public.announce_devices (company_id);
+create index if not exists announce_devices_vehicle_id_idx on public.announce_devices (vehicle_id);
+
+create or replace function public.bump_announce_device_config_version()
+returns trigger
+language plpgsql
+as $$
+begin
+  if (
+    new.testing_mode            is distinct from old.testing_mode or
+    new.gps_source               is distinct from old.gps_source or
+    new.candidate_departure_ids is distinct from old.candidate_departure_ids or
+    new.match_window_before_min is distinct from old.match_window_before_min or
+    new.match_window_after_min  is distinct from old.match_window_after_min or
+    new.terminus_radius_m       is distinct from old.terminus_radius_m or
+    new.vehicle_id               is distinct from old.vehicle_id or
+    new.link_state                is distinct from old.link_state
+  ) then
+    new.config_version := old.config_version + 1;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger announce_devices_bump_config_version
+  before update on public.announce_devices
+  for each row execute function public.bump_announce_device_config_version();
+
+grant select on public.announce_devices to anon;
+grant all    on public.announce_devices to authenticated;
+
+alter table public.announce_devices enable row level security;
+
+-- Ops (dashboard login): full CRUD scoped to their own company. Registration
+-- (insert) happens from AnnounceDeviceLinkPage.jsx via this policy, not a RPC.
+create policy "company_all" on public.announce_devices
+  for all to authenticated
+  using      (company_id = current_company_id())
+  with check (company_id = current_company_id());
+
+-- Announce device (anon): may read only its own row, scoped by the
+-- device_id claim in its signed device token (see api/sign-announce-token.js).
+-- Used by the Realtime postgres_changes subscription in linked mode.
+create policy "device_self" on public.announce_devices
+  for select to anon
+  using (id = (auth.jwt() ->> 'device_id')::uuid);
+
+-- RLS alone doesn't make a table emit postgres_changes events -- Realtime
+-- only replicates changes for tables added to this publication. Without
+-- this, announceDeviceFeed.js's paired-mode subscription (above comment)
+-- never receives anything, even though the RLS policy and the push RPC
+-- below are both correct (confirmed missing on the dev project, 2026-08-28 --
+-- see migration_announce_devices_realtime_publication.sql).
+alter publication supabase_realtime add table public.announce_devices;
+
+-- Called by the Driver PWA (anon) when linked, to push derived schedule/state
+-- to the paired Announce device. Mirrors announceLink.js's buildSchedulePayload/
+-- buildStatePayload shapes — only the transport differs from the base
+-- Announce tier's WebSocket push, not the message contract.
+--
+-- p_schedule and p_state are independently optional (coalesced against the
+-- existing value, not overwritten with null) because main.js pushes them on
+-- different cadences: schedule once per journey start, state on every GPS
+-- fix. A state-only push must never wipe out the schedule set moments
+-- earlier, and vice versa.
+create or replace function public.update_announce_device_state(
+  p_device_id uuid,
+  p_schedule  jsonb,
+  p_state     jsonb
+) returns boolean
+language plpgsql security definer
+as $$
+begin
+  update public.announce_devices
+  set latest_schedule  = coalesce(p_schedule, latest_schedule),
+      latest_state     = coalesce(p_state, latest_state),
+      state_updated_at = now(),
+      last_seen_at     = now()
+  where id = p_device_id;
+  return found;
+end;
+$$;
+
+grant execute on function public.update_announce_device_state(uuid, jsonb, jsonb) to anon;
+
+-- Called by the Driver PWA (anon) when a journey ends, so a linked Announce
+-- device returns to its idle screen instead of showing the last journey's
+-- state forever (confirmed gap, 2026-08-28 -- both this tier and Standard's
+-- WebSocket push had no "journey ended" signal at all until now; Standard's
+-- side is announceRelay.mjs's new 'complete' message type). A genuine clear,
+-- not routed through update_announce_device_state's coalesce above -- that
+-- function deliberately never lets a partial push wipe the other column,
+-- which is exactly wrong for this explicit end-of-journey reset.
+create or replace function public.end_announce_device_journey(
+  p_device_id uuid
+) returns boolean
+language plpgsql security definer
+as $$
+begin
+  update public.announce_devices
+  set latest_schedule  = null,
+      latest_state     = null,
+      state_updated_at = now(),
+      last_seen_at     = now()
+  where id = p_device_id;
+  return found;
+end;
+$$;
+
+grant execute on function public.end_announce_device_journey(uuid) to anon;
+
+-- Called by the Driver PWA (anon) to link an Announce device registered to
+-- the same vehicle. Validates ownership inside the function body (device and
+-- vehicle must share a company_id) rather than via RLS+JWT claim, since a
+-- manual-selection-flow driver device may carry no JWT claims at all.
+create or replace function public.link_announce_device(
+  p_device_id  uuid,
+  p_vehicle_id uuid
+) returns boolean
+language plpgsql security definer
+as $$
+declare
+  v_device_company  uuid;
+  v_vehicle_company uuid;
+begin
+  select company_id into v_device_company
+  from public.announce_devices where id = p_device_id;
+
+  if v_device_company is null then
+    raise exception 'announce device % not found', p_device_id;
+  end if;
+
+  select company_id into v_vehicle_company
+  from public.vehicles where id = p_vehicle_id;
+
+  if v_vehicle_company is null or v_vehicle_company <> v_device_company then
+    raise exception 'vehicle % not found for this device''s company', p_vehicle_id;
+  end if;
+
+  update public.announce_devices
+  set link_state   = 'linked',
+      gps_source   = 'driver-device',
+      vehicle_id   = p_vehicle_id,
+      last_seen_at = now()
+  where id = p_device_id;
+
+  return found;
+end;
+$$;
+
+grant execute on function public.link_announce_device(uuid, uuid) to anon;
+
+-- Called by the Driver PWA (anon) to unlink an Announce device — reversible
+-- at any time, drops the device back to internal (self-contained) GPS mode.
+create or replace function public.unlink_announce_device(
+  p_device_id uuid
+) returns boolean
+language plpgsql security definer
+as $$
+begin
+  update public.announce_devices
+  set link_state   = 'unlinked',
+      gps_source   = 'internal',
+      last_seen_at = now()
+  where id = p_device_id;
+  return found;
+end;
+$$;
+
+grant execute on function public.unlink_announce_device(uuid) to anon;
+
+-- Self-reported liveness -- previously last_seen_at was only ever touched by
+-- the Driver-invoked RPCs above, so a Solo ("internal" gps_source)
+-- device -- which never calls any of them -- had no way to report it was
+-- alive at all. Every Announce Lite/Solo device now writes this itself on a
+-- heartbeat interval (see deviceStateSync.js's startHeartbeat, wired in by
+-- announceDeviceFeed.js). Scoped by the device's own JWT claim, same pattern
+-- as the device_self SELECT policy -- no device id parameter, so a device
+-- can only ever report on itself.
+create or replace function public.report_device_heartbeat()
+returns boolean
+language plpgsql security definer
+as $$
+declare
+  v_device_id uuid := (auth.jwt() ->> 'device_id')::uuid;
+begin
+  if v_device_id is null then
+    return false;
+  end if;
+  update public.announce_devices
+  set last_seen_at = now()
+  where id = v_device_id;
+  return found;
+end;
+$$;
+
+grant execute on function public.report_device_heartbeat() to anon;
+
+-- Called by the Driver PWA (anon, no JWT claims) to check whether the
+-- vehicle it's on has a linked Announce Lite device, ahead of pushing
+-- schedule/state. The only anon RLS policy on announce_devices
+-- (device_self) requires the caller to already carry that exact device's
+-- own device_id claim, which the driver doesn't have -- a direct SELECT
+-- always returns zero rows under RLS. Returns only the id, not the row's
+-- schedule/state contents, to avoid a broader anon SELECT policy that
+-- would let any anon caller read live schedule/state for any company's
+-- vehicle by guessing a vehicle_id.
+create or replace function public.get_linked_announce_device_id(
+  p_vehicle_id uuid
+) returns uuid
+language sql security definer
+stable
+as $$
+  select id from public.announce_devices
+  where vehicle_id = p_vehicle_id and link_state = 'linked'
+  limit 1;
+$$;
+
+grant execute on function public.get_linked_announce_device_id(uuid) to anon;
+
+-- Solo-mode active windows: which days/times this device wakes to poll its
+-- own GPS at all (schedule-autopilot's idle loop — see
+-- announceSoloAutopilot.js's isWithinActiveWindow gate). Same shape as
+-- employees' own employee_availability table (day_of_week 0=Mon..6=Sun,
+-- window_start/window_end, window_end > window_start — a split day like a
+-- morning run + afternoon run is two rows, not one midnight-wrapping
+-- window). A device with zero rows here never wakes — same conservative
+-- default an empty candidate_departure_ids list already gives it.
+create table if not exists public.announce_device_active_windows (
+  id                  uuid primary key default gen_random_uuid(),
+  announce_device_id  uuid not null references public.announce_devices(id) on delete cascade,
+  day_of_week         smallint not null check (day_of_week between 0 and 6),
+  window_start        time not null,
+  window_end          time not null,
+  check (window_end > window_start)
+);
+
+create index if not exists announce_device_active_windows_device_id_idx
+  on public.announce_device_active_windows (announce_device_id);
+
+grant select on public.announce_device_active_windows to anon;
+grant all    on public.announce_device_active_windows to authenticated;
+
+alter table public.announce_device_active_windows enable row level security;
+
+-- Ops (dashboard login): full CRUD scoped to the parent device's company.
+create policy "company_all" on public.announce_device_active_windows
+  for all to authenticated
+  using (
+    announce_device_id in (
+      select id from public.announce_devices where company_id = current_company_id()
+    )
+  )
+  with check (
+    announce_device_id in (
+      select id from public.announce_devices where company_id = current_company_id()
+    )
+  );
+
+-- Announce device (anon): may read only its own windows, same device_id
+-- JWT-claim scoping as announce_devices' own device_self policy.
+create policy "device_self" on public.announce_device_active_windows
+  for select to anon
+  using (announce_device_id = (auth.jwt() ->> 'device_id')::uuid);
 
 
 -- ── Views ─────────────────────────────────────────────────────────────────────

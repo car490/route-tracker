@@ -15,11 +15,31 @@ id_*
 *.pem
 sshcoachmate*
 
-# pi-server's schedule cache is written at runtime (sync-schedule.mjs) —
+# mele-server's schedule cache is written at runtime (sync-schedule.mjs) —
 # per-vehicle data, not source
-pi-server/schedule-cache.json
-pi-server/schedule-cache.json.tmp
+pcv-dashboard/busops/announce/mele-server/schedule-cache.json
+pcv-dashboard/busops/announce/mele-server/schedule-cache.json.tmp
 
-# Temporary-Pi startup script holds a real DRIVER_PUSH_TOKEN once filled
-# in — never commit it. Copy start-temp-pi.example.ps1 to this name.
-pi-server/start-temp-pi.local.ps1
+# Temporary-Controller startup script holds a real DRIVER_PUSH_TOKEN once
+# filled in — never commit it. Copy start-temp-mele.example.ps1 to this name.
+pcv-dashboard/busops/announce/mele-server/start-temp-mele.local.ps1
+
+# Controller autoinstall config holds a real SSH public key + password
+# hash once filled in — never commit it. Copy user-data.example to this
+# name (see mele-server/DEPLOY.md "0. First boot").
+pcv-dashboard/busops/announce/mele-server/autoinstall/user-data.local
+
+# Controller's self-signed TLS cert/key for wss:// (see mele-server/
+# DEPLOY.md "Driver -> Controller push feed") — generated per-device on the
+# Controller itself, never committed. *.pem above already covers the files;
+# this makes the whole directory's purpose explicit.
+pcv-dashboard/busops/announce/mele-server/certs/
+
+# Idle-screen operator logo — placed at commissioning time (per Controller
+# device, downloaded from that operator's own Supabase Storage bucket, see
+# mele-server/DEPLOY.md "Idle screen branding"), not source.
+branding-logo.png
+
+# wrangler dev's local Miniflare state (cache, tmp bundles) — regenerated
+# on every `wrangler dev` run, never source.
+.wrangler/

@@ -1,0 +1,14 @@
+-- Announce Lite paired mode (announceDeviceFeed.js) subscribes to
+-- postgres_changes UPDATE events on announce_devices to receive the Driver
+-- device's pushed schedule/state (see ANNOUNCE-PRODUCT-TIERS.md "Linked-mode
+-- Realtime contract"). RLS alone doesn't make a table emit these events --
+-- Realtime only replicates change events for tables added to the
+-- supabase_realtime publication, and announce_devices was never added to it
+-- despite schema.sql's own comments assuming the subscription works.
+-- Confirmed via `select * from pg_publication_tables where pubname =
+-- 'supabase_realtime'` returning zero rows on the dev project -- no table in
+-- this project (including journeys/journey_events, used by the dashboard's
+-- Live Tracking realtime test, docs/TESTING.md #11) was ever added either.
+-- Scoped here to announce_devices only -- re-check journeys/journey_events
+-- separately if Live Tracking's realtime test is found to have the same gap.
+alter publication supabase_realtime add table public.announce_devices;

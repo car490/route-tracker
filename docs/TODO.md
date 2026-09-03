@@ -1,7 +1,8 @@
 # TODO
 
 General engineering follow-ups that aren't tied to a specific feature spec.
-(For the parked vehicle data subsystem work, see `VOL.md`.)
+(For the parked vehicle data subsystem work, see `VOL.md`. For driver duties /
+drivers'-hours compliance work, see `DRIVER_DUTIES.md`.)
 
 ## PSVAIR 2026 compliance — follow-ups
 
@@ -24,7 +25,7 @@ built yet, decide if/when needed:
 ## Manual-selection flow — no driver on the journey
 
 As of 2026-08-14 the Driver PWA's default flow (no duty-card link — see
-`src/manualSelection.js`, `pi-server/TEMP-LAPTOP.md`) is the driver opening
+`src/manualSelection.js`, `mele-server/TEMP-LAPTOP.md`) is the driver opening
 the plain PWA and picking their service by hand, not an ops-issued duty
 card. `journeys.driver_id` is never set for a journey created this way —
 there's no login, so no driver identity exists on the device to attach.
@@ -82,6 +83,83 @@ enclosure.
 - [ ] Separately, the **production** ceiling-drop mount (§8) stays TBD
   until the final production panel (§3) is sourced — don't conflate the
   BETA enclosure with solving that.
+
+## Controller audio — drop local Driver fallback once fleet-wide
+
+As of 2026-08-19, `src/announcements.js`'s `announce()` broadcasts to a
+commissioned Controller (`docs/HARDWARE.md` §4) *and* still
+plays locally on the Driver tablet — a deliberate deviation from that
+section's original "Controller only" design, since only one physical
+Controller exists today and a hard cutover would silence PSVAIR audio
+fleet-wide.
+
+- [ ] Once Controller hardware is deployed to every vehicle, drop the
+  local-playback half of `announce()` (and the now-redundant queue/busy
+  state machine in `announcements.js` — it only needs to live on the
+  Controller once nothing else plays audio, per §8's original reasoning).
+
+## Offline resilience — no "pending sync" indicator
+
+As of 2026-08-23, `src/localStore.js` + `src/main.js`'s `flushPendingTrips()`
+queue a trip's stop times/`complete_journey` call locally and retry
+automatically (on startup and on the `online` event) if Supabase couldn't be
+reached at end-of-trip. There's no UI surfacing this queue today — a driver
+or ops staff has no way to see "N trip(s) waiting to sync" short of opening
+devtools and reading `localStorage['busops.queue.pendingTrips']`.
+
+- [ ] Small indicator on the duty-card/no-duty-card screen (count + maybe
+  oldest-queued-at) once this queue has been live long enough to know how
+  often it's actually non-empty in practice.
+
+## Brand — placeholder app icon needs real design
+
+`icons/icon-{192,512}.png` (driver PWA) and `dashboard/public/pwa-{192,512}x512.png` (dashboard)
+were, until 2026-08-21, the actual Phil Haines Coaches logo — a single operator's branding baked
+into shared source code, used as every install's home-screen/PWA icon regardless of which
+operator's deployment it is. Replaced with a plain placeholder (PCV Charcoal background, "CM" in
+PCV Cyan, generated programmatically — see chat history, not a designed asset) so nothing
+operator-specific ships in the repo. Per `docs/BRAND.md`, no real PCV Technologies/CoachMate logo
+exists yet.
+
+- [ ] Commission or design a real app icon and replace these four files (plus the favicons added
+  at the same time: `index.html`/`onboard.html`/`dashboard/index.html`'s `<link rel="icon">`,
+  currently pointing at the same placeholders).
+- [ ] Once a real logo exists, revisit `docs/BRAND.md`'s "Logo — not yet designed" section.
+
+## Accessibility & branding playbook — follow-ups
+
+See `docs/ACCESSIBILITY_BRAND_PLAYBOOK.md` (company-level accessibility/brand standard,
+referenced from `CLAUDE.md`). Its §3.2 audit measured actual contrast ratios against the
+currently-shipped brand tokens (re-verified 2026-08-23 against the post-restructure
+`pcv-dashboard/busops/driver/style.css` — values below are current, not carried over from the
+playbook's original 2026-08-20 draft) and found the following gaps — logged here rather than
+fixed inline, since this pass was about establishing the playbook, not changing the product:
+
+- [ ] The driver PWA's `#app-brand` corner attribution ("From PCV Technologies") wraps its
+  `.cm-powered-by`/`.cm-wordmark` text in `.cm-attribution { opacity: 0.55 }`, which drops both
+  below WCAG AA (2.62:1 / 2.68:1, need 4.5:1) — see playbook §3.3. This is the *same* bug
+  already fixed in the dashboard's equivalent mark (`pcv-dashboard/src/index.css`
+  `.sidebar-coachmate`, see the comment there); the driver PWA's own mark just never got the
+  same fix. Removing the wrapper opacity (keeping hierarchy via font-size alone, matching the
+  dashboard's approach) brings both to 5.24–5.56:1.
+- [ ] `--cm-cyan`/`--operator-accent` (`#00B4D8`) fails WCAG AA (2.46:1, needs 4.5:1 text /
+  3:1 UI border) when used as text or a thin border directly on a white/light surface —
+  concretely: `pcv-dashboard/src/index.css` `.btn-primary` (white text on cyan fill), `.dm-today`
+  numerals, `.form-input:focus` border/box-shadow. Needs either a second "accessible-on-light"
+  token for those spots (the same pattern already used once for `--pcv-color-sidebar-accent-tint`,
+  playbook §3.2), or contrast validation added to `BrandingPage.jsx`'s colour picker so an
+  operator can't save a non-compliant `primary_color`/`accent_color` in the first place — the
+  picker has no such check today, so any operator (not just the default theme) can ship a
+  non-compliant UI.
+- [ ] `late` status colour (`#EF4444`) is 3.64:1 against the driver PWA's card surface
+  (`#242F35`), just under the 4.5:1 text minimum — the status most likely to need to be read at
+  a glance under time pressure. Needs either a darker red or a heavier font-weight/larger size
+  to qualify as "large text" (3:1 threshold).
+
+**Dropped from the original draft, now resolved**: the placeholder-logo item (gradient-fill
+Phil Haines Coaches wordmark failing contrast) — the app icon was already replaced with a
+neutral placeholder 2026-08-21, tracked separately in "Brand — placeholder app icon needs real
+design" above, so it isn't re-listed here as a colour-audit finding.
 
 ## Tech debt / refactors
 

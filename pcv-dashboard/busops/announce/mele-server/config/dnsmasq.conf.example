@@ -1,0 +1,14 @@
+# DHCP for the Controller's single-radio hotspot — hands the Driver device
+# an address so it can reach the Controller at 192.168.4.1 (set as the AP
+# interface's static IP — see hostapd.conf.example).
+#
+# `mele-server/bootstrap-controller.sh` applies this automatically. To do it
+# by hand: sudo cp dnsmasq.conf.example /etc/dnsmasq.d/coachmate-ap.conf
+# and fix `interface=` to match your radio's actual name (`iw dev`).
+# Add `bind-interfaces` too if this box has more than one network interface
+# (it will, once Ethernet is used for setup/updates) — without it, dnsmasq
+# tries to bind the DHCP/DNS service to every interface, including the
+# Ethernet uplink, which you don't want handing out addresses.
+
+interface=CHANGE_ME_INTERFACE_NAME
+dhcp-range=192.168.4.2,192.168.4.20,255.255.255.0,24h

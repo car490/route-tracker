@@ -5,13 +5,12 @@
 //
 // Unlike demo.html (a scripted, entirely fake simulation), this drives the
 // actual app code with mocked Geolocation — same technique as
-// scripts/demo-drive.mjs, but two windows instead of three, and two
-// selectable starting scenarios instead of one fixed duty-card URL:
+// scripts/demo-announce-push.mjs, but two windows instead of four, and two
+// selectable starting scenarios instead of manual-only:
 //
 // Every run also bypasses one random intermediate stop — a request stop
 // nobody needed on the day, as distinct from a GPS dropout or a driver-
-// triggered diversion alert (see demo-drive.mjs for the full rationale).
-// The GPS path still crosses that stop's 250m approach radius (EVENT 2
+// triggered diversion alert. The GPS path still crosses that stop's 250m approach radius (EVENT 2
 // still fires) but stays just outside its 50m arrival radius, so EVENT 3
 // never fires there — gps.js's findForwardMatch rejoin confirms the skip
 // once the vehicle reaches the following stop instead (which then arrives
@@ -38,14 +37,21 @@
 // window's own PSVAIR announcements are muted via localStorage so the two
 // don't talk over each other.
 //
+// The Announce window is a pure pushed-state renderer (see
+// docs/HARDWARE.md "Read this first") — it shows nothing until the driver window's
+// push feed delivers a schedule, so this script spawns mele-server/server.mjs
+// (not the plain server.js) and commissions the driver window's push-feed
+// localStorage before it loads, same technique as
+// scripts/demo-announce-push.mjs.
+//
 // Usage:
 //   node scripts/demo-2up.mjs duty   [secondsPerStop]
 //   node scripts/demo-2up.mjs manual [secondsPerStop]
 //
-// Starts the local dev server (server.js, :8080) itself if nothing is
-// already answering there — see ensureServerRunning() — and stops it again
-// on exit, but only if this script was the one that started it (a server
-// you already had running, e.g. via dev-all.mjs, is left alone).
+// Starts mele-server/server.mjs itself if nothing is already answering on its
+// port — see ensureServerRunning() — and stops it again on exit, but only
+// if this script was the one that started it (a server you already had
+// running is left alone).
 
 import { chromium } from 'playwright';
 import { mkdtempSync } from 'node:fs';
@@ -53,10 +59,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, execSync } from 'node:child_process';
-import { haversine } from '../src/geo.js';
+import { haversine } from '../pcv-dashboard/busops/shared/geo.js';
 
 const MODE = process.argv[2];
-// Slower than demo-drive.mjs's default (7s) — this script exists to
+// Deliberately slow (14s/stop) — this script exists to
 // demonstrate the 4 PSVAIR announcement events distinctly (see APPROACHING_
 // RADIUS_M below), and back-to-back events need enough room each to finish
 // playing before the next one starts, or stopCurrentPlayback() in
@@ -73,41 +79,50 @@ if (MODE !== 'duty' && MODE !== 'manual') {
   process.exit(1);
 }
 
-const BASE_URL = 'http://localhost:8080';
+// Deliberately not 8080/8081 — leaves the plain dev server.js (8080, e.g.
+// from dev-all.mjs) and scripts/demo-announce-push.mjs (8081) free to run
+// alongside this.
+const PORT = 8082;
+const BASE_URL = `http://localhost:${PORT}`;
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const IS_WIN = process.platform === 'win32';
+const DEMO_TOKEN = 'demo-2up-token';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function isServerUp() {
   try {
-    const res = await fetch(BASE_URL, { signal: AbortSignal.timeout(1000) });
+    const res = await fetch(`${BASE_URL}/api/schedule`, { signal: AbortSignal.timeout(1000) });
     return res.ok;
   } catch {
     return false;
   }
 }
 
-// Starts server.js only if nothing is already answering on :8080 — reusing
-// an already-running server (e.g. from dev-all.mjs, or a previous demo run
-// you left open) rather than fighting over the port. Returns the child
-// process if this call is the one that started it, so the caller knows
-// whether it's responsible for stopping it again — null means "leave it
-// alone, it wasn't ours."
+// Starts mele-server/server.mjs only if nothing is already answering on PORT
+// — reusing an already-running server (e.g. a previous demo run you left
+// open) rather than fighting over the port. Returns the child process if
+// this call is the one that started it, so the caller knows whether it's
+// responsible for stopping it again — null means "leave it alone, it
+// wasn't ours."
 async function ensureServerRunning() {
   if (await isServerUp()) {
-    console.log('Dev server already running on :8080 — reusing it.');
+    console.log(`mele-server already running on :${PORT} — reusing it (its DRIVER_PUSH_TOKEN must already be "${DEMO_TOKEN}").`);
     return null;
   }
-  console.log('Starting local dev server (node server.js)…');
-  const child = spawn('node', ['server.js'], { cwd: ROOT, shell: IS_WIN });
-  child.stdout.on('data', (d) => process.stdout.write(`[server] ${d}`));
-  child.stderr.on('data', (d) => process.stderr.write(`[server] ${d}`));
+  console.log(`Starting mele-server (node pcv-dashboard/busops/announce/mele-server/server.mjs) on :${PORT}…`);
+  const child = spawn('node', ['pcv-dashboard/busops/announce/mele-server/server.mjs'], {
+    cwd: ROOT,
+    shell: IS_WIN,
+    env: { ...process.env, PORT: String(PORT), DRIVER_PUSH_TOKEN: DEMO_TOKEN },
+  });
+  child.stdout.on('data', (d) => process.stdout.write(`[mele-server] ${d}`));
+  child.stderr.on('data', (d) => process.stderr.write(`[mele-server] ${d}`));
   for (let i = 0; i < 30; i++) {
     if (await isServerUp()) return child;
     await sleep(200);
   }
-  throw new Error('server.js did not come up on :8080 within 6s');
+  throw new Error(`pcv-dashboard/busops/announce/mele-server/server.mjs did not come up on :${PORT} within 6s`);
 }
 
 function stopServer(child) {
@@ -121,8 +136,7 @@ function stopServer(child) {
 }
 
 // PSVAIR demo journey (see memory: must be reset — journey_events deleted,
-// status back to 'scheduled' — before re-running duty mode the same day,
-// same as scripts/demo-drive.mjs).
+// status back to 'scheduled' — before re-running duty mode the same day).
 const DUTY_JOURNEY_ID = '2d2f26b1-31b9-434b-a858-e614a53599b5';
 
 // S125S Morning Outbound (Weston → Boston College) — same route as the duty
@@ -171,8 +185,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 // Must clear geofence.js's GEOFENCE_RADIUS_M (50m) with margin, while
 // staying well inside APPROACHING_RADIUS_M (250m) — the vehicle still
 // triggers the approach announcement as it passes the stop, it just never
-// registers as arrived there, same as a real drive-by. Kept identical to
-// scripts/demo-drive.mjs's constant of the same name.
+// registers as arrived there, same as a real drive-by.
 const SKIP_BYPASS_OFFSET_M = 100;
 const SKIP_ENABLED = process.env.DEMO_SKIP_STOP !== '0';
 
@@ -227,7 +240,7 @@ async function waitForRealPage(context, expectedUrl) {
   return context.pages()[0] ?? await context.waitForEvent('page');
 }
 
-async function openWindow({ url, windowPosition, windowSize, mute }) {
+async function openWindow({ url, windowPosition, windowSize, mute, commissionAnnounce }) {
   // launchPersistentContext + --app=<url> gives a bare window: no tabs, no
   // address bar, just the page content and a thin native title bar.
   // viewport: null means "no emulation, use the real window" — plain
@@ -259,6 +272,16 @@ async function openWindow({ url, windowPosition, windowSize, mute }) {
     // spoken even for the very first stop.
     await page.evaluate(() => localStorage.setItem('psvair-muted', '1')).catch(() => {});
   }
+  if (commissionAnnounce) {
+    // One-time push-feed commissioning (src/announceLink.js's
+    // captureAnnounceSetup) — without this the driver window never pushes
+    // schedule/state, and the Announce window (a pure pushed-state renderer
+    // now) stays permanently blank.
+    await page.evaluate(({ url: wsUrl, token }) => {
+      localStorage.setItem('announceLinkUrl', wsUrl);
+      localStorage.setItem('announceLinkToken', token);
+    }, { url: `ws://localhost:${PORT}/driver-push`, token: DEMO_TOKEN }).catch(() => {});
+  }
   // --app=<url> starts navigating the instant Chromium's process starts,
   // racing ahead of the geolocation permission grant and (if set) the mute
   // flag above. Reload so this window's real first paint happens after
@@ -276,8 +299,12 @@ const PWA_X = MARGIN;
 const PWA_Y = Math.round((SCREEN_H - PWA_H) / 2); // vertically centred, left edge
 
 const NS_X = PWA_X + PWA_W + MARGIN;
-const NS_W = SCREEN_W - NS_X - MARGIN; // fills remaining width
-const NS_H = 200; // 880x200 = 4.4:1, safely past onboard.js's 4:1 wide-layout breakpoint
+// Shaped like the Announce Lite tablet candidate (DOOGEE Tab E3 Max, 14.6",
+// 2160x1440 — 3:2, see PANEL_PROFILES in src/onboard.js), not an arbitrary
+// wide strip — there's no wide/narrow layout branching left to demonstrate
+// (see onboard.js's file header), so the window shape should represent a
+// real deployable target instead.
+const NS_W = 780, NS_H = Math.round(NS_W * 1440 / 2160);
 const NS_Y = Math.round((SCREEN_H - NS_H) / 2); // vertically centred, right of the PWA
 
 let serverChild = null;
@@ -291,23 +318,25 @@ process.on('SIGTERM', shutdown);
 (async () => {
   serverChild = await ensureServerRunning();
 
-  let pwaUrl, journeyId;
+  // /driver/index.html, not "/" — mele-server/server.mjs aliases bare "/" to
+  // /announce/onboard.html (see its serveStaticFile()).
+  let pwaUrl;
 
   if (MODE === 'duty') {
-    pwaUrl = `${BASE_URL}/?duties=${DUTY_JOURNEY_ID}`;
-    journeyId = DUTY_JOURNEY_ID;
+    pwaUrl = `${BASE_URL}/driver/index.html?duties=${DUTY_JOURNEY_ID}`;
   } else {
-    pwaUrl = BASE_URL;
+    pwaUrl = `${BASE_URL}/driver/index.html`;
     console.log('Resolving today\'s manual-mode journey row…');
-    journeyId = await resolveManualJourneyId();
+    await resolveManualJourneyId(); // creates/finds the row so it exists once Start is clicked; the id itself isn't needed here anymore — the Announce window learns it from the driver's schedule push instead of watching a specific journey id
   }
 
-  const onboardUrl = new URL('/onboard.html', BASE_URL);
-  onboardUrl.searchParams.set('journey', journeyId);
+  const onboardUrl = new URL('/announce/onboard.html', BASE_URL);
+  onboardUrl.searchParams.set('announce-token', DEMO_TOKEN);
+  onboardUrl.searchParams.set('panel-profile', 'lite');
 
   const [driver, announce] = await Promise.all([
     openWindow({
-      url: pwaUrl, mute: true,
+      url: pwaUrl, mute: true, commissionAnnounce: true,
       windowPosition: `${PWA_X},${PWA_Y}`, windowSize: `${PWA_W},${PWA_H}`,
     }),
     openWindow({
@@ -329,8 +358,9 @@ process.on('SIGTERM', shutdown);
     console.log(`                     MANUAL_DEPARTURE_ID (${MANUAL_DEPARTURE_ID}) above — the BusOps`);
     console.log('                     Announce window is already watching the journey it resolves to.');
   }
-  console.log('RIGHT (Announce):    nothing to click — it polls for the journey to start and');
-  console.log('                     wakes on its own within a few seconds of you hitting Start.');
+  console.log('RIGHT (Announce):    nothing to click — connects to the driver window\'s pushed');
+  console.log('                     feed and wakes the instant you hit Start (it\'s a pure');
+  console.log('                     pushed-state renderer now, no GPS/Supabase of its own).');
   console.log('                     It has voice; the driver PWA is muted so they don\'t overlap.');
   console.log('\nWaiting for both to start…');
 

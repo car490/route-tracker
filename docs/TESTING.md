@@ -22,7 +22,8 @@ Step-by-step instructions for testing every component of the RouteTracker platfo
 14. [Test: Driver PWA — debug mode](#14-test-driver-pwa--debug-mode)
 15. [Test: Driver PWA — offline fallback](#15-test-driver-pwa--offline-fallback)
 16. [Test: End-to-end (dashboard + PWA together)](#16-test-end-to-end-dashboard--pwa-together)
-17. [Resetting test data](#17-resetting-test-data)
+17. [Test: BusOps Announce Lite / Solo](#17-test-busops-announce-lite--solo)
+18. [Resetting test data](#18-resetting-test-data)
 
 ---
 
@@ -337,22 +338,34 @@ Open **http://localhost:8080/?debug**
 
 ## 15. Test: Driver PWA — offline fallback
 
-Tests that the PWA loads schedule data from `schedule.json` when Supabase is unreachable.
+Tests that the PWA falls back to its `localStorage` route/schedule cache (`localStore.js`)
+when Supabase is unreachable, and that a journey start attempted offline is queued rather
+than blocked.
 
-1. Open **http://localhost:8080** — wait for it to fully load (service worker registers)
+1. Open **http://localhost:8080** **online** and let it fully load (service worker registers,
+   and `preloadAllRoutes()` warms the `localStorage` cache with the current `schedule_view`
+   data).
 2. Open DevTools → **Network** tab → set throttle to **Offline**
 3. Refresh the page
-4. The PWA should still load (served from service worker cache)
-5. Select a service and start a journey — stop data loads from `schedule.json`
+4. The PWA should still load (app shell from service worker cache)
+5. The picker and stop list should still populate — from the `localStorage` cache
+   (`busops.cache.services` / `busops.cache.stops.*` in DevTools → Application → Local
+   Storage), not from a live Supabase fetch
+6. Select a service and start a journey — the start is accepted immediately rather than
+   erroring; check `busops.cache.services`' neighbour key `busops.queue.pendingJourneyStarts`
+   in Local Storage — it should contain the queued start
 
-**Pass:** No "Failed to fetch" error in the console; the picker and stop list work normally.
+**Pass:** No "Failed to fetch" error in the console; the picker and stop list work normally
+offline; the journey start is queued, not rejected.
 
-**To restore:** Set Network throttle back to **No throttling** and refresh.
+**To restore:** Set Network throttle back to **No throttling** and refresh — `main.js`'s
+`flushPendingJourneyStarts()` should drain the queued journey start on reconnect.
 
 ### Verify service worker is registered
 1. DevTools → **Application** tab → **Service Workers**
 2. You should see `service-worker.js` listed as **Activated and running**
-3. The cache name should be `route-tracker-v7` (visible under **Cache Storage**)
+3. The cache name should be `busops-driver-v1.5.1` (visible under **Cache Storage**) — matches
+   the current `VERSION` file
 
 ---
 
@@ -373,7 +386,133 @@ This verifies the two halves of the system work together.
 
 ---
 
-## 17. Resetting test data
+## 17. Test: BusOps Announce Lite / Solo
+
+Covers the two Controller-less tiers (see `docs/ANNOUNCE-PRODUCT-TIERS.md`): a
+second GPS-capable tablet running `busops/announce/onboard.html` directly,
+either paired to a Driver device (**Lite**) or fully driverless (**Solo**).
+Both modes read/write Supabase directly via a device-scoped JWT — no Bus
+Controller involved, and both run on the same device/software, distinguished
+only by whether a Driver device is linked.
+
+### Register a device and get its install link
+1. Dashboard → **Announce Devices** → **+ Add Device**
+2. Pick a vehicle, optionally give it a label, save
+3. Click **Get Install Link** — a URL like
+   `http://localhost:8080/announce/onboard.html?announce-device-token=<jwt>`
+   is generated (calls `/api/sign-announce-token`)
+4. Open that URL in a **second** browser tab/window — it should render the
+   idle screen with the BusOps Announce brand mark and no console errors
+
+### Test: Lite (paired mode, linked to a Driver device)
+> **Known gap (not yet built):** there is no "Link Announce device" button
+> in the Driver PWA yet — only the underlying RPCs
+> (`link_announce_device`/`unlink_announce_device`) and the dashboard-side
+> registration exist so far. Until that UI lands, link a device manually:
+> ```sql
+> select link_announce_device('<announce_devices.id>', '<vehicles.id>');
+> ```
+1. Link a device to a vehicle (UI once built, or the SQL above for now)
+2. Start a duty-card or manual-selection journey on that vehicle in the
+   Driver PWA (tab 1)
+3. In the Announce tab (tab 2, opened with that device's install link), the
+   idle screen should replace itself with the live sign — service code,
+   destination, tube-track — within a few seconds of journey start
+4. Simulate GPS arrival at a stop in the Driver PWA (DevTools Sensors, see
+   §13) — the Announce tab's tube-track should advance to match, without
+   reloading
+5. Complete the journey in the Driver PWA — the Announce tab returns to idle
+
+**Pass:** the Announce tab mirrors the Driver PWA's tracking state via
+Supabase Realtime, with no direct interaction on the Announce device itself.
+
+### Test: Solo (driverless, schedule-autopilot)
+Only safe for routes whose start/end stops don't overlap with any other
+service (see the doc's "hard precondition") — the seeded S125S route is a
+reasonable stand-in for testing.
+
+1. In Supabase SQL Editor, configure the device's candidates directly (no
+   dashboard UI for this yet either):
+   ```sql
+   update announce_devices
+   set candidate_departure_ids = array['<timetable_departures.id>']
+   where id = '<announce_devices.id>';
+   ```
+2. Also configure at least one active window — a device with none never
+   wakes to poll its own GPS at all (see `announce_device_active_windows`,
+   same day_of_week/window_start/window_end shape as
+   `employee_availability`; `day_of_week` is 0=Mon..6=Sun):
+   ```sql
+   insert into announce_device_active_windows (announce_device_id, day_of_week, window_start, window_end)
+   values ('<announce_devices.id>', 0, '00:00', '23:59'); -- wide-open, for testing; tune narrower for a real beta device
+   ```
+   Either set `testing_mode = true` on the device (bypasses the scheduled-
+   time window entirely, geofence-only — see `findTestingScheduleMatch`) so
+   this test isn't gated on running it near the candidate's real departure
+   time, or pick a candidate whose scheduled time is close to now.
+3. Open the device's install link — the idle screen should show a
+   **"Next departure HH:MM"** caption once candidates load
+4. Open DevTools (F12) → **Sensors** → set **Custom location** to the
+   candidate's first stop's lat/lon, within `terminus_radius_m` (150m
+   default)
+5. Within ~5 seconds (the idle-poll interval) the idle screen should
+   disappear and the live sign should appear — a journey has started
+   automatically, no driver/manual action involved
+6. Simulate GPS progressing through the remaining stops (as in §13) — the
+   tube-track should advance normally, using the same tracking engine as
+   the Driver PWA
+7. Simulate GPS arrival at the final stop — the journey should complete and
+   the device return to the idle/next-departure screen automatically, with
+   the previous journey's sign fully hidden (not left showing underneath)
+
+**Pass:** a fully driverless device starts, tracks, and completes a journey
+on its own, matching only when both the geofence and the scheduled-time
+window agree (test outside either condition and confirm it stays idle), and
+never polls GPS at all outside its configured active windows.
+
+**Live-verified 2026-09-01** (not just a written procedure — see
+`docs/ANNOUNCE-PRODUCT-TIERS.md`'s status entry): scripted against dev
+Supabase with a real device row, real minted JWT, and a real browser
+(Playwright driving Chromium's geolocation override in place of manual
+DevTools Sensors clicks). Found and fixed one real bug in the process:
+`announceSoloAutopilot.js`'s `completeActiveJourney()` called
+`client.rpc(...).catch(...)` directly, which threw against the real
+vendored supabase-js client (its query builder is thenable but not an
+actual `Promise`, so it has no `.catch()`) — silently breaking journey
+completion. Fixed with `Promise.resolve(client.rpc(...)).catch(...)`.
+
+**To restore:** clear the test device's `candidate_departure_ids`,
+`link_state`/`gps_source` back to defaults (`'{}'`, `'unlinked'`,
+`'internal'`), delete its `announce_device_active_windows` rows, and clear
+DevTools' Sensors override back to **No override**.
+
+### Bench-testing with real devices (real GPS, not DevTools simulation)
+
+Unlike the base Announce tier (needs the Bus Controller + its own WiFi
+hotspot, see `mele-server/`), Lite/Solo need no local link at all — any
+phone/tablet with a browser and an internet connection (mobile data or the
+same WiFi as your laptop) can run it, moving/walking it physically instead
+of simulating GPS.
+
+**Gotcha**: `driver/src/config.js`'s `IS_DEV` check only matches hostname
+`localhost`/`127.0.0.1` — a real device reaching your laptop over its LAN IP
+(e.g. `192.168.1.42:8080`) fails that check and silently points at
+**production** Supabase instead of dev. For a bench test:
+1. Temporarily edit `IS_DEV` in `config.js` to also match your LAN IP (or
+   just hardcode it `true`) — never commit this, revert with
+   `git checkout -- pcv-dashboard/busops/driver/src/config.js` when done.
+2. `node scripts/dev-all.mjs` (or just `cd pcv-dashboard/busops && node server.js`),
+   find your laptop's LAN IP (`ipconfig`), and both real devices browse to
+   `http://<LAN-IP>:8080/...` instead of `localhost`.
+3. Register/link Announce devices exactly as above, but build install
+   links against `http://<LAN-IP>:8080/announce/onboard.html?...` instead
+   of the dashboard's auto-generated `localhost` one.
+4. Physically walk/drive the devices between real stops rather than using
+   DevTools Sensors.
+
+---
+
+## 18. Resetting test data
 
 To clear test drivers, vehicles, and journeys between test runs without touching the seeded routes/timetables:
 

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- maximum-scale=1.0/user-scalable=no — this is a fixed, unattended
+         passenger sign, not an interactive touch surface; pinch-zoom should
+         never be possible here. Found live on the physical Solo tablet,
+         2026-09-02: it was zoomable, which it never should have been. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#ECEAE2" />
+    <title>CoachMate Onboard Display</title>
+    <link rel="icon" type="image/png" href="../shared/icons/icon-192.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="onboard.css" />
+  </head>
+  <body>
+
+    <!--
+      Fixed passenger-facing sign — vehicle-mounted display. One shared
+      layout for both Announce (Standard, Controller-fed) and Announce Lite
+      (paired or standalone) — only the transport differs (see
+      src/onboard.js's header comment). Named display profiles
+      (?panel-profile=bar|monitor, see PANEL_PROFILES in src/onboard.js)
+      only affect PSVAIR text-size calibration, not layout. No touch
+      interaction expected. Deliberately silo'd from the driver PWA
+      (index.html/main.js): no login, no duty card, no incident reporting,
+      no stop-time upload, no writes to Supabase at all.
+
+      No manual intervention: this device is a pure pushed-state renderer
+      (see docs/HARDWARE.md "Read this first") — it sits on a blank grey screen
+      until an authenticated /sign-feed connection delivers a
+      {type:'schedule'} message (i.e. the driver hits Start on their own
+      phone), then wakes on its own.
+
+      One headline of text per display state (shared/announceStates.js) —
+      the exact same wording spoken as audio. Styled as an e-paper sign
+      (onboard.css): mostly monochrome and motion-free, hard corners — not
+      just a different colour scheme from the driver PWA. Deliberate
+      exception: the brand mark keeps its real colours. See onboard.css for
+      why, and for the diversion state's background-colour treatment.
+    -->
+
+    <div id="onboard-brand">
+      <div class="bo-wordmark">BusOps <span class="bo-app">Announce</span></div>
+      <div class="cm-attribution">
+        <span class="cm-powered-by">From</span>
+        <span class="cm-wordmark">PCV Technologies</span>
+      </div>
+    </div>
+
+    <!--
+      Branded idle/default screen — shown before any journey exists (see
+      docs/HARDWARE.md §5). Only populated when this device was
+      commissioned with ?operator-name= (src/onboard.js's initIdleScreen);
+      without it, this stays hidden and the old blank-background-plus-
+      corner-mark look applies unchanged. The logo file itself is never
+      fetched from Supabase at runtime (the Controller has no WAN path —
+      see §5/§6) — it's a local static file placed on the Controller at
+      commissioning time (mele-server/DEPLOY.md), so a missing file (logo
+      never commissioned, or a demo/dev environment) just 404s and
+      idle-logo hides itself.
+      Logo only, no operator-name text — a top bar is shown here too (empty,
+      same accent colour as #sign-topbar) so the idle screen previews the
+      same chrome the active sign will use once a journey starts, rather
+      than switching layouts abruptly.
+    -->
+    <div id="onboard-idle" hidden>
+      <div id="idle-topbar"></div>
+      <div id="idle-main">
+        <img id="idle-logo" alt="" hidden />
+        <!-- Solo (driverless) schedule-autopilot only — see
+             announceSoloAutopilot.js. Paired/Standard idle screens
+             never populate this, so it stays hidden for them. -->
+        <div id="idle-next-departure" hidden></div>
+      </div>
+    </div>
+
+    <div id="onboard-sign" hidden>
+      <div id="sign-topbar">
+        <div id="sign-route-line">
+          <span id="sign-service-code"></span>
+          <span id="sign-destination"></span>
+        </div>
+      </div>
+
+      <div id="sign-main">
+        <div id="sign-headline"></div>
+        <!--
+          Running-early caption — not one of the 7 display states (nothing
+          in shared/announceStates.js covers it, and it isn't spoken as
+          audio either), kept as a small secondary caption rather than a
+          competing full-size headline. See src/onboard.js's render().
+        -->
+        <div id="early-wait-banner" hidden>
+          <div class="ewb-title">Wait here</div>
+          <div class="ewb-msg">Running early — depart at <span id="ewb-time"></span></div>
+        </div>
+      </div>
+    </div>
+
+    <script src="lib/supabase.min.js"></script>
+    <script type="module" src="src/onboard.js"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('../service-worker.js').catch(console.error);
+        });
+      }
+    </script>
+  </body>
+</html>
