@@ -5,8 +5,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
-## [2.0.0] - 2026-08-27
+## [2.0.0] - 2026-09-03
 
+- Fix Announce idle-lock and PWA approach-audio repeat from first beta test
+- feat(announce): Solo device sleeps outside its active windows, not just GPS polling
+- fix(announce): fix dead approaching signal, drop repeated route text, lock TTS voice
+- feat(announce): reduce announcement repetition, add terminus notice state
+- feat(announce): enlarge idle screen's company logo ~3x
+- fix(announce): unify topbar height, disable pinch-zoom on the sign
+- Revert "fix(announce): use dvh/dvw for the sign's full-screen containers"
+- fix(announce): use dvh/dvw for the sign's full-screen containers
+- fix(announce): Lite/Solo idle branding, panel sizing, PSVAIR text corrections
+- fix(announce): correct Solo install-link generation and stale GitHub Pages base URL
+- docs(announce): document a real kiosk-lock lockout incident from bench testing
+- feat(announce): Solo beta readiness — active-window scheduling, journey-end fix, live-tested, kiosk script
+- refactor(announce): align code identifiers with Announce Lite/Solo naming
+- docs: split Announce Lite into Announce Lite / Announce Solo tiers
+- fix(announce): restore the 5-state announcement model
+- Fix onboard idle screen: kiosk URL missing params, wrong logo bucket
+- Realign PSVAIR announcement sequence to target passenger-facing design
+- feat(announce): rebuild onboard sign around a linked state/announcement model
+- feat(busops): generic device state-reconciliation pattern for Announce Lite
+- Fix Announce Lite paired mode: JWT exp, Realtime publication, missing pieces
+- feat(dashboard): replace COACHMate footer mark with PCV Dashboard wordmark
+- feat(dashboard): show which Supabase environment the sidebar is pointed at
+- chore: add SessionStart hook forcing repo orientation on every session
+- docs: correct stale Announce Lite status in ANNOUNCE-PRODUCT-TIERS.md
+- docs: log Announce Lite stanchion mount decision and visibility compliance risk
+- docs: add Announce Lite tablet hardware section (DOOGEE Tab E3 Max)
+- fix: stop develop from writing to production Supabase
+- fix(busops): Announce Lite paired-mode push never fired (RLS gap)
+- fix(busops): redirect bare / to /driver/ instead of rewriting in place
+- fix(busops): serve the Driver PWA at driver.pcvtechnologies.co.uk's bare root
+- docs: correct Driver PWA deploy-pipeline description
+- fix(ci): deploy job needs Node 22+ for wrangler 4.x
+- ci: auto-deploy Driver PWA to driver.pcvtechnologies.co.uk on develop
+- Add testing-mode time-shift fallback to Announce Lite standalone autopilot
+- docs: add real-device bench-testing steps for Announce Lite
+- chore: release v2.0.0
 - docs: add Announce Lite manual test section to TESTING.md
 - Announce Lite: standalone schedule-autopilot wiring + idle-screen extension
 - Announce Lite: standalone schedule-autopilot matcher (TDD)
