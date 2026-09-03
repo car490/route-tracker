@@ -1,11 +1,12 @@
-// src/announceLiteSetup.test.js
+// src/announceDeviceSetup.test.js
 //
-// BusOps Announce Lite — one-time device-token commissioning.
+// BusOps Announce — one-time device-token commissioning, shared by both the
+// Lite (paired) and Solo (driverless) tiers.
 // Same injectable-storage pattern as announceLink.js's captureAnnounceSetup
 // tests / vehicleSetup.test.js, so no DOM or real localStorage is needed.
 
 import { describe, it, expect } from 'vitest';
-import { captureAnnounceDeviceSetup, getAnnounceDeviceToken } from './announceLiteSetup.js';
+import { captureAnnounceDeviceSetup, getAnnounceDeviceToken } from './announceDeviceSetup.js';
 
 function fakeStorage(initial = {}) {
   const data = { ...initial };

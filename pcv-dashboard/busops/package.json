@@ -9,7 +9,8 @@
     "demo:2up:duty": "node ../../scripts/demo-2up.mjs duty",
     "demo:2up:manual": "node ../../scripts/demo-2up.mjs manual",
     "generate:audio": "node ../../scripts/generate-announcement-audio.mjs",
-    "demo:announce-push": "node ../../scripts/demo-announce-push.mjs"
+    "demo:announce-push": "node ../../scripts/demo-announce-push.mjs",
+    "demo:announce-solo": "node ../../scripts/demo-announce-solo.mjs"
   },
   "dependencies": {
     "ws": "^8.21.3"

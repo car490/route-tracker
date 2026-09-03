@@ -24,13 +24,11 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
   // Single source of truth for per-stop geofence state — one status per stop:
   // 'not_tracked' (before the driver's start point — never uploaded),
   // 'upcoming', 'approaching', 'arrived', 'departed', 'skipped_signal', 'skipped_detour'.
-  // Everything downstream — the UI's APPROACHING badge, the PSVAIR approach
-  // announcement, the DB upload — reads off this array; there is no second
-  // proximity calculation anywhere else.
+  // Everything downstream — the UI's APPROACHING badge, the DB upload — reads
+  // off this array; there is no second proximity calculation anywhere else.
   const stopStates = schedule.map(() => ({ status: 'upcoming', arrivedAt: null, departedAt: null }));
   let gpsLostAt = null;
   let fixCount = 0;
-  let approachAnnouncedIdx = null; // last stopIndex the PSVAIR approach announcement has already fired for — one-shot per stop
   let pendingMatch = null; // { index, count } — forward geofence match awaiting a second confirming ping
   let lastGpsUploadMs = 0; // throttle GPS fix uploads to every 30 s
 
@@ -149,13 +147,19 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
       const atStop = dwellIndex !== null ? { stopIndex: dwellIndex } : null;
       const earlyWait = computeEarlyWait(now, dwellIndex);
 
-      // PSVAIR approach announcement — one-shot per stop, fired off the same
-      // 'approaching' status the UI shows, not a second proximity check.
-      let approaching = null;
-      if (stopStates[nextStopIndex].status === 'approaching' && approachAnnouncedIdx !== nextStopIndex) {
-        approachAnnouncedIdx = nextStopIndex;
-        approaching = { stopIndex: nextStopIndex };
-      }
+      // PSVAIR event 2 — mirrors atStop's own derivation immediately above.
+      // Found live, 2026-09-02: this was never actually computed at all —
+      // the status branch above sets stopStates[nextStopIndex].status to
+      // 'approaching', but nothing ever turned that into an `approaching`
+      // field on the onUpdate payload, even though every consumer
+      // (driver/src/main.js, announce/src/announceSoloAutopilot.js) already
+      // destructures `approaching` expecting one. That `if (approaching)`
+      // branch has been dead code on both tiers since PSVAIR event 2 was
+      // written — masked because the old STOP_DEPARTURE wording also named
+      // the next stop, so passengers still heard *a* next-stop announcement,
+      // just never the dedicated approach one a beat earlier.
+      const approachingIndex = stopStates[nextStopIndex].status === 'approaching' ? nextStopIndex : null;
+      const approaching = approachingIndex !== null ? { stopIndex: approachingIndex } : null;
 
       const timing = computeTiming({
         now,
@@ -180,7 +184,6 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
     stop: () => source.stop(),
     jumpToStop: (idx) => {
       if (idx < 0 || idx >= schedule.length) return;
-      approachAnnouncedIdx = null;
       pendingMatch = null;
       log('info', `Jumped to: ${schedule[idx].name}`);
       nextStopIndex = idx;

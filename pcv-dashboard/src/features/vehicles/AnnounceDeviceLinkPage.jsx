@@ -1,13 +1,7 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../../shared/supabase'
+import { supabase, PWA_BASE } from '../../shared/supabase'
 import { getCompanyId, getCompanyName } from '../../shared/company'
 import Modal from '../../shared/components/Modal'
-
-// Same origin the driver PWA duty-card links use (DutyCardsPage.jsx) — the
-// Announce app is a sibling static page under the same deploy
-// (busops/announce/onboard.html, served alongside busops/driver/index.html
-// by both server.js locally and GitHub Pages in production).
-const PWA_BASE = import.meta.env.DEV ? 'http://localhost:8080' : 'https://car490.github.io/route-tracker'
 
 const EMPTY = { vehicle_id: '', label: '' }
 
@@ -63,7 +57,7 @@ export default function AnnounceDeviceLinkPage() {
     load()
   }
 
-  // Standalone autopilot only — lets a device matched well outside its
+  // Announce Solo's autopilot only — lets a device matched well outside its
   // normal match window (device deliberately driven to the terminus at an
   // odd hour to test) start anyway, with its stop schedule shifted to now.
   // See scheduleAutopilot.js's findTestingScheduleMatch. Off by default so
@@ -100,21 +94,28 @@ export default function AnnounceDeviceLinkPage() {
       })
       const data = await res.json()
       if (!res.ok) setLinkError(data.error ?? 'Signing failed')
-      // NOT ?announce-token= — that param is already the Standard tier's
-      // /sign-feed WebSocket relay secret (onboard.js's connectSignFeed()).
-      // ?announce-device-token= is the distinct Lite-tier device JWT param
-      // (doc's own standalone-commissioning naming, reused here for paired
-      // mode too — see busops/announce/src/announceLiteSetup.js).
+      // NOT ?announce-token= — that param is already the base Announce
+      // tier's /sign-feed WebSocket relay secret (onboard.js's
+      // connectSignFeed()). ?announce-device-token= is the distinct
+      // Lite/Solo device JWT param (doc's own Solo-commissioning naming,
+      // reused here for Lite's paired mode too — see
+      // busops/announce/src/announceDeviceSetup.js).
       // ?operator-name= drives onboard.js's initIdleScreen() (existing
-      // Standard-tier mechanism, previously only ever set by hand during
+      // base-tier mechanism, previously only ever set by hand during
       // Controller commissioning) — without it the idle screen's logo box
-      // never unhides on a Lite device either, so wire it in here too. Still
+      // never unhides on a Lite/Solo device either, so wire it in here too. Still
       // reads branding-logo.png as a local file next to onboard.html (see
       // that function's own comment) — a per-company logo fetched live from
       // Supabase is a separate, bigger change not attempted here.
       else if (data.token) {
         const operatorName = (await getCompanyName()) ?? ''
-        setLink(`${PWA_BASE}/announce/onboard.html?announce-device-token=${data.token}&operator-name=${encodeURIComponent(operatorName)}`)
+        // panel-profile=lite — without this, onboard.css's --min-text falls
+        // back to its 17vh default, calibrated for the 28" Bar panel (see
+        // that CSS variable's own comment). On the actual Lite/Solo tablet
+        // (DOOGEE Tab E3 Max, 14.6", the only PANEL_PROFILES entry defined
+        // for this tier — see onboard.js) that default is wildly oversized,
+        // overflowing text off-screen. Confirmed live, 2026-09-02.
+        setLink(`${PWA_BASE}/announce/onboard.html?announce-device-token=${data.token}&operator-name=${encodeURIComponent(operatorName)}&panel-profile=lite`)
       }
       else setLinkError('No token returned')
     } catch (err) {
@@ -132,7 +133,7 @@ export default function AnnounceDeviceLinkPage() {
   return (
     <>
       <div className="page-header">
-        <h1 className="page-title">Announce Lite Devices</h1>
+        <h1 className="page-title">Announce Devices</h1>
         <button className="btn btn-primary" onClick={openAdd}>+ Add Device</button>
       </div>
 
@@ -141,7 +142,7 @@ export default function AnnounceDeviceLinkPage() {
           {loading ? (
             <div className="empty-state">Loading…</div>
           ) : devices.length === 0 ? (
-            <div className="empty-state">No Announce Lite devices yet. Add one to get started.</div>
+            <div className="empty-state">No Announce Lite/Solo devices yet. Add one to get started.</div>
           ) : (
             <table>
               <thead>
@@ -159,7 +160,7 @@ export default function AnnounceDeviceLinkPage() {
                     <td>{d.label || '—'}</td>
                     <td style={{ fontFamily: 'monospace' }}>{d.vehicles?.registration ?? '—'}</td>
                     <td style={{ color: 'var(--text-muted)' }}>
-                      {d.link_state === 'linked' ? 'Linked to driver device' : 'Standalone'}
+                      {d.link_state === 'linked' ? 'Linked to driver device (Lite)' : 'Solo'}
                     </td>
                     <td>
                       {d.link_state !== 'linked' && (

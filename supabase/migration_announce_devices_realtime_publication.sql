@@ -1,4 +1,4 @@
--- Announce Lite paired mode (announceLiteFeed.js) subscribes to
+-- Announce Lite paired mode (announceDeviceFeed.js) subscribes to
 -- postgres_changes UPDATE events on announce_devices to receive the Driver
 -- device's pushed schedule/state (see ANNOUNCE-PRODUCT-TIERS.md "Linked-mode
 -- Realtime contract"). RLS alone doesn't make a table emit these events --

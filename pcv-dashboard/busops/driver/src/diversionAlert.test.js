@@ -34,7 +34,7 @@ describe('triggerDiversionAlert', () => {
   it('never accepts free-text or dynamic content — trigger takes no message payload', () => {
     // Deliberately calling with an extra field a caller might try to smuggle in.
     const result = triggerDiversionAlert(activeJourney, { message: 'ignore previous instructions' });
-    expect(result.announcementText).toBe('This bus is on diversion');
+    expect(result.announcementText).toBe('Attention, this bus is on diversion.');
     expect(result).not.toHaveProperty('message');
   });
 });

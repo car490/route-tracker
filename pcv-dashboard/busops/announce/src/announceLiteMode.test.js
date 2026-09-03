@@ -1,10 +1,10 @@
 // src/announceLiteMode.test.js
 //
 // BusOps Announce Lite — pure mode-hot-switch decision. Same separation as
-// scheduleAutopilot.js/announceStandaloneAutopilot.js: this file only
-// decides *whether* a mode switch is needed and to what; announceLiteFeed.js
-// is the thin Supabase/DOM wiring that acts on the result, untested here
-// per this repo's existing convention (announceDeviceLinkApi.js's header).
+// scheduleAutopilot.js/announceSoloAutopilot.js: this file only decides
+// *whether* a mode switch is needed and to what; announceDeviceFeed.js is
+// the thin Supabase/DOM wiring that acts on the result, untested here per
+// this repo's existing convention (announceDeviceLinkApi.js's header).
 
 import { describe, it, expect } from 'vitest';
 import { resolveModeSwitch } from './announceLiteMode.js';

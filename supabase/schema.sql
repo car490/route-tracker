@@ -1295,9 +1295,9 @@ $$;
 grant execute on function public.is_diversion_active(uuid) to anon;
 
 
--- ── BusOps Announce Lite tier ──────────────────────────────────────────────────
--- One row per Lite-tier passenger-sign tablet (Controller-less): either
--- standalone/"internal" GPS mode or "driver-device"-linked mode. See
+-- ── BusOps Announce Lite/Solo tiers ─────────────────────────────────────────
+-- One row per Lite/Solo passenger-sign tablet (Controller-less): either
+-- Solo/"internal" GPS mode or Lite's "driver-device"-linked mode. See
 -- docs/ANNOUNCE-PRODUCT-TIERS.md for the full product spec.
 --
 -- Anon writes go exclusively through the RPCs below (validated inside the
@@ -1324,8 +1324,8 @@ create table if not exists public.announce_devices (
   latest_state      jsonb,
   state_updated_at  timestamptz,
 
-  -- Standalone-mode ("schedule-autopilot") commissioning — null/empty for
-  -- paired-mode devices, populated for standalone ones.
+  -- Solo-mode ("schedule-autopilot") commissioning — null/empty for
+  -- Lite/paired-mode devices, populated for Solo ones.
   candidate_departure_ids  uuid[] not null default '{}',
   match_window_before_min  int not null default 15,
   match_window_after_min   int not null default 30,
@@ -1391,7 +1391,7 @@ create policy "device_self" on public.announce_devices
 
 -- RLS alone doesn't make a table emit postgres_changes events -- Realtime
 -- only replicates changes for tables added to this publication. Without
--- this, announceLiteFeed.js's paired-mode subscription (above comment)
+-- this, announceDeviceFeed.js's paired-mode subscription (above comment)
 -- never receives anything, even though the RLS policy and the push RPC
 -- below are both correct (confirmed missing on the dev project, 2026-08-28 --
 -- see migration_announce_devices_realtime_publication.sql).
@@ -1399,8 +1399,8 @@ alter publication supabase_realtime add table public.announce_devices;
 
 -- Called by the Driver PWA (anon) when linked, to push derived schedule/state
 -- to the paired Announce device. Mirrors announceLink.js's buildSchedulePayload/
--- buildStatePayload shapes — only the transport differs from Standard's
--- WebSocket push, not the message contract.
+-- buildStatePayload shapes — only the transport differs from the base
+-- Announce tier's WebSocket push, not the message contract.
 --
 -- p_schedule and p_state are independently optional (coalesced against the
 -- existing value, not overwritten with null) because main.js pushes them on
@@ -1514,11 +1514,11 @@ $$;
 grant execute on function public.unlink_announce_device(uuid) to anon;
 
 -- Self-reported liveness -- previously last_seen_at was only ever touched by
--- the Driver-invoked RPCs above, so a standalone ("internal" gps_source)
+-- the Driver-invoked RPCs above, so a Solo ("internal" gps_source)
 -- device -- which never calls any of them -- had no way to report it was
--- alive at all. Every Announce Lite device now writes this itself on a
+-- alive at all. Every Announce Lite/Solo device now writes this itself on a
 -- heartbeat interval (see deviceStateSync.js's startHeartbeat, wired in by
--- announceLiteFeed.js). Scoped by the device's own JWT claim, same pattern
+-- announceDeviceFeed.js). Scoped by the device's own JWT claim, same pattern
 -- as the device_self SELECT policy -- no device id parameter, so a device
 -- can only ever report on itself.
 create or replace function public.report_device_heartbeat()
@@ -1561,6 +1561,51 @@ as $$
 $$;
 
 grant execute on function public.get_linked_announce_device_id(uuid) to anon;
+
+-- Solo-mode active windows: which days/times this device wakes to poll its
+-- own GPS at all (schedule-autopilot's idle loop — see
+-- announceSoloAutopilot.js's isWithinActiveWindow gate). Same shape as
+-- employees' own employee_availability table (day_of_week 0=Mon..6=Sun,
+-- window_start/window_end, window_end > window_start — a split day like a
+-- morning run + afternoon run is two rows, not one midnight-wrapping
+-- window). A device with zero rows here never wakes — same conservative
+-- default an empty candidate_departure_ids list already gives it.
+create table if not exists public.announce_device_active_windows (
+  id                  uuid primary key default gen_random_uuid(),
+  announce_device_id  uuid not null references public.announce_devices(id) on delete cascade,
+  day_of_week         smallint not null check (day_of_week between 0 and 6),
+  window_start        time not null,
+  window_end          time not null,
+  check (window_end > window_start)
+);
+
+create index if not exists announce_device_active_windows_device_id_idx
+  on public.announce_device_active_windows (announce_device_id);
+
+grant select on public.announce_device_active_windows to anon;
+grant all    on public.announce_device_active_windows to authenticated;
+
+alter table public.announce_device_active_windows enable row level security;
+
+-- Ops (dashboard login): full CRUD scoped to the parent device's company.
+create policy "company_all" on public.announce_device_active_windows
+  for all to authenticated
+  using (
+    announce_device_id in (
+      select id from public.announce_devices where company_id = current_company_id()
+    )
+  )
+  with check (
+    announce_device_id in (
+      select id from public.announce_devices where company_id = current_company_id()
+    )
+  );
+
+-- Announce device (anon): may read only its own windows, same device_id
+-- JWT-claim scoping as announce_devices' own device_self policy.
+create policy "device_self" on public.announce_device_active_windows
+  for select to anon
+  using (announce_device_id = (auth.jwt() ->> 'device_id')::uuid);
 
 
 -- ── Views ─────────────────────────────────────────────────────────────────────

@@ -1,8 +1,8 @@
 // tests/scheduleTimeShift.test.js
 //
 // Extracted from the driver PWA's DEBUG-only testing toggle (main.js) so
-// Announce Lite's standalone autopilot can reuse the same shift logic —
-// see announceStandaloneAutopilot.js's testing_mode fallback.
+// Announce Solo's autopilot can reuse the same shift logic —
+// see announceSoloAutopilot.js's testing_mode fallback.
 
 import { shiftStopTimes } from '../shared/scheduleTimeShift.js';
 

@@ -24,23 +24,17 @@ export function buildConnectionUrl(base, token) {
   return url.toString();
 }
 
-// The exact JSON-serializable payload sent per state change. Carries the
-// full stopStates array too — gps.js's single source of truth for per-stop
-// geofence status (see gps.js's own header comment on that array) — so any
-// consumer downstream of the push feed has the same data local-GPS mode
-// already had available, not a hand-picked subset. Deliberately excludes
-// lat/lon even though callers (main.js's onUpdate) have them handy — see
-// file header.
-export function buildStatePayload(state, { announcing = null } = {}) {
-  const {
-    journeyId, nextStopIndex, nextStopName, atStop, approaching,
-    earlyWait, timing, stopStates, diversionActive, isFinal,
-  } = state;
+// The exact JSON-serializable payload sent per state change. stateKey/vars
+// are the resolved display state (see shared/announceStates.js) the sign
+// renders its headline from directly — deliberately excludes raw GPS-shaped
+// fields (lat/lon, per-stop stopStates, etc.) now that the sign no longer
+// computes anything itself from them (see onboard.js's render()).
+export function buildStatePayload({ journeyId, stateKey, vars, earlyWait }) {
   return {
     type: 'state',
     ts: Date.now(),
-    journeyId, nextStopIndex, nextStopName, atStop, approaching,
-    earlyWait, timing, stopStates, diversionActive, isFinal, announcing,
+    journeyId, stateKey, vars,
+    earlyWait: earlyWait ?? null,
   };
 }
 
@@ -83,7 +77,6 @@ export function captureAnnounceSetup(params, storage = globalThis.localStorage) 
 
 let socket = null;
 let stopped = true;
-let announcing = null;
 let lastScheduleState = null;
 
 // Resends the current journey's schedule whenever the socket (re)opens —
@@ -138,15 +131,7 @@ export function disconnectAnnounceLink() {
   stopped = true;
   socket?.close();
   socket = null;
-  announcing = null;
   lastScheduleState = null;
-}
-
-// Lets main.js flag what's currently being announced (PSVAIR audio stays on
-// the Driver device — see project plan — this is display-only metadata for
-// the onboard sign to show, not a request for the Controller to play anything).
-export function setAnnouncing(name) {
-  announcing = name ?? null;
 }
 
 // Fire-and-forget — must never block or throw into the GPS tracking loop.
@@ -154,7 +139,7 @@ export function setAnnouncing(name) {
 // reconnect, etc.) — callers don't need to check state themselves.
 export function broadcastState(state) {
   if (!socket || socket.readyState !== WebSocket.OPEN) return;
-  socket.send(JSON.stringify(buildStatePayload(state, { announcing })));
+  socket.send(JSON.stringify(buildStatePayload(state)));
 }
 
 // Called from announcements.js's announce() alongside (not instead of —

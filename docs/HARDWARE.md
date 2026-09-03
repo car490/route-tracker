@@ -726,20 +726,21 @@ ignition-switched-USB setup and isn't covered here.
 
 ---
 
-## 14. Announce Lite tablet (passenger-display + standalone tracking device)
+## 14. Announce Lite/Solo tablet (passenger-display + tracking device)
 
-Full architecture: `docs/ANNOUNCE-PRODUCT-TIERS.md` "Lite tier" — no Bus Controller, the
-passenger display is itself a GPS+cellular tablet running the onboard sign UI directly. That
+Full architecture: `docs/ANNOUNCE-PRODUCT-TIERS.md` "Lite & Solo tiers" — no Bus Controller, the
+passenger display is itself a GPS+cellular tablet running the onboard sign UI directly (the same
+hardware/software serves both tiers — see that doc). That
 doc originally assumed the Announce-side device would be "the same device class as the driver
 tablet, e.g. Blackview Active 5 or equivalent" (§8's 8.68" phone-tablet). **Superseded by this
 section, 2026-08-27**: the Announce-side device also has to pass §6's passenger-display
 MUST-haves (≥51% per-deck seat visibility, ≥22mm text) that a phone-sized screen can't meet, so
 it needs its own, larger pick. This does **not** change the Driver tablet pick — §8 stays
-Blackview Active 5 — only the Announce-side device in a Lite install.
+Blackview Active 5 — only the Announce-side device in a Lite/Solo install.
 
 ### Requirements, derived not assumed
 
-- **GPS + cellular.** Lite's `internal` GPS-source mode
+- **GPS + cellular.** Lite/Solo's `internal` GPS-source mode
   (`ANNOUNCE-PRODUCT-TIERS.md`) needs its own GNSS fix to run
   `gps.js`/`geofence.js`/`engine.js` unchanged, the same way the driver
   tablet does today (§2). A cellular (4G) SKU rather than WiFi-only is the
@@ -747,14 +748,14 @@ Blackview Active 5 — only the Announce-side device in a Lite install.
   LTE modem, while WiFi-only tablets routinely omit a GPS chip entirely.
 - **Screen large enough to pass §6's MUST-haves** — ≥51% per-deck seat
   visibility, ≥22mm text height (computed at runtime by `onboard.js`'s
-  `computeMinTextVh()` from `?panel-diagonal=`). Target: ~14", in line with
+  `computeMinTextVh()` from `?panel-diagonal=`). Target: 14.6", in line with
   the panel diagonals already validated in §6 — not a phone-tablet
   diagonal. **In tension with the mount decision below** — see "Mount"
   and "Compliance risk" subsections.
 - **3.5mm AUX audio out.** Closes a gap `ANNOUNCE-PRODUCT-TIERS.md`'s tier
-  comparison only answered for the *paired* scenario ("falls back to the
-  driver tablet's AUX-cable path"). The "Announce Lite only, no Driver
-  device" scenario has neither a driver tablet nor a Bus Controller
+  comparison only answered for the *Lite (paired)* scenario ("falls back to
+  the driver tablet's AUX-cable path"). The **Solo** (no Driver device)
+  scenario has neither a driver tablet nor a Bus Controller
   (§1–§5) in the loop to host PA audio — the Announce tablet itself is the
   only device present, so it must own the AUX-out path directly, the same
   cable pattern already proven for the Bus Controller and driver tablet
@@ -765,11 +766,21 @@ Blackview Active 5 — only the Announce-side device in a Lite install.
   needs no new power-architecture component, just another fused branch
   (§13).
 
+**SUPERSEDED 2026-09-01: never purchased.** The actual beta hardware is a
+**LEVIRTU 14" Android tablet** (OEM: PIXGOOD M328-EEA, Android 16/SDK 36),
+already bought by the user and provisioned/live-tested — see
+`SOLO-DEVICE-SETUP.md` and `docs/DECISIONS.md`'s hardware table. The DOOGEE
+writeup below is kept for its reasoning trail (why 3:2/14.6"-class tablets
+were being considered at all), not as a current spec — don't cite its exact
+model/dimensions as what's actually deployed. The tablet-vs-mount size
+conflict discussed below is unaffected by the swap (still open, still a 14"
+tablet against a 9"–11" mount class).
+
 ### Candidate: DOOGEE Tab E3 Max — proposed, not yet purchased
 
 | Item | Spec |
 |---|---|
-| Screen | 14" IPS LCD, 2160×1440 — **3:2, not 16:9** (see below) |
+| Screen | 14.6" IPS LCD, 2160×1440 — **3:2, not 16:9** (see below) |
 | OS | Android 15 |
 | SoC / RAM / storage | MediaTek Helio G99, 8GB RAM / 256GB storage |
 | Connectivity | Dual Nano-SIM 4G LTE + WiFi + Bluetooth; GPS/GLONASS/Galileo/BDS confirmed on the LTE SKU |
@@ -795,7 +806,7 @@ it, but don't block on finding one.
 
 ### Mount: stanchion clamp — decided 2026-08-27, screen size subordinate to this
 
-**Decided: the Announce Lite tablet clamps to a bus stanchion, metal
+**Decided: the Announce Lite/Solo tablet clamps to a bus stanchion, metal
 construction preferred, rather than a fixed ceiling/ceiling-void mount.**
 This is a deliberate reversal of priority from the requirements list above
 — screen size is now the thing that flexes to fit the mount, not the other
@@ -843,11 +854,11 @@ original proposal rather than assumed either way.
   stanchion install for any vehicle class beyond a small minibus, hold a
   candidate screen at stanchion height in an actual vehicle (or the
   nearest mockup) and check what fraction of seats can read it. If a
-  full-size coach can't clear ≥51% from one stanchion position, Lite's
+  full-size coach can't clear ≥51% from one stanchion position, Lite/Solo's
   stanchion pitch may only be honestly viable on smaller vehicles, with
-  Standard's ceiling panel remaining the answer for full-size coaches —
-  a product-tier boundary, not just a hardware pick. Not decided either
-  way yet.
+  the base Announce tier's ceiling panel remaining the answer for
+  full-size coaches — a product-tier boundary, not just a hardware pick.
+  Not decided either way yet.
 
 ### Open items
 
@@ -863,8 +874,8 @@ original proposal rather than assumed either way.
   time, actual audio output level through the 3.5mm jack, and USB-C PD
   charge behavior are all asserted from spec-sheet/listing research this
   session, not verified hardware-in-hand.
-- **Price both Lite hardware sets properly** — this device plus the driver
-  tablet (paired scenario) or alone (standalone scenario) still needs to
+- **Price both Lite and Solo hardware sets properly** — this device plus the
+  driver tablet (Lite) or alone (Solo) still needs to
   go into the "don't assume Lite is cheaper" costing flagged in
   `ANNOUNCE-PRODUCT-TIERS.md`'s tier comparison.
 - `docs/ANNOUNCE-PRODUCT-TIERS.md`'s "same device class as the driver

@@ -1,62 +1,89 @@
-# BusOps Announce — Standard vs. Lite product tiers
+# BusOps Announce — Announce / Lite / Solo product tiers
 
-Proposal to formalize two supported product tiers for the passenger-facing
+Proposal to formalize three supported product tiers for the passenger-facing
 onboard sign, instead of treating the tablet-based install some clients ask
 for as a one-off deviation from `docs/HARDWARE.md`. Written up so it can be
 read and acted on independently of the conversation that produced it.
 
+**Naming confirmed 2026-09-01:** `BusOps Announce` (Driver → Controller →
+Announce), `BusOps Announce Lite` (Driver → Announce, no Controller),
+`BusOps Announce Solo` (Announce only, no Driver device). This resolves the
+"decide product naming" open item below — the doc previously called the
+base tier "Standard" and used "Lite" to cover both the paired and
+driverless tablet installs; those are now three distinct names, one per
+device-count/architecture combination, not two.
+
 ## Context
 
 `docs/HARDWARE.md` documents the confirmed production architecture (call it
-**Standard** below): a Bus Controller (MeLE Quieter4C mini PC) driving a
-fixed HDMI passenger panel, with the driver tablet owning GPS and pushing
-derived state to the Controller over `/driver-push`. That architecture is
-real, in progress, and partly purchased (BETA Controller, Dell panel, RAM
-mounts).
+**Announce** below — the unmodified base tier): a Bus Controller (MeLE
+Quieter4C mini PC) driving a fixed HDMI passenger panel, with the driver
+tablet owning GPS and pushing derived state to the Controller over
+`/driver-push`. That architecture is real, in progress, and partly
+purchased (BETA Controller, Dell panel, RAM mounts).
 
 Some clients — pointing at competitors like StarPAL, who sell an all-in-one
 box that moves bus-to-bus with no fixed install — want something lighter:
 just a tablet on a mount, no Controller, no fixed panel. Rather than treat
 this as a fork away from the confirmed architecture, or a compromise that
-waters down Standard, it should be a second named tier aimed at a different
-customer: operators who want a fast, portable, StarPAL-equivalent install
-and don't need the fuller compliance/PA/ticketing roadmap Standard is built
-toward.
+waters down the base tier, it should be additional named tiers aimed at
+different customers: operators who want a fast, portable, StarPAL-equivalent
+install and don't need the fuller compliance/PA/ticketing roadmap Announce
+is built toward. Two variants of that lighter install exist, depending on
+whether a driver device is part of the purchase — see Lite vs. Solo below.
 
 **This is not a compliance shortcut.** Every PSV(AI)R requirement in
 `HARDWARE.md` §6 (≥51% seat visibility, 22mm text, wheelchair/priority seat
-visibility) applies identically to both tiers. Lite changes the
-architecture and install, not the regulatory bar.
+visibility) applies identically across all three tiers. Lite/Solo change
+the architecture and install, not the regulatory bar.
 
-## Standard tier
+## Announce tier (base — Controller-based)
 
 Full spec: `docs/HARDWARE.md` §1–§11. One-line summary: Bus Controller +
 fixed passenger panel + driver tablet owning GPS, with PA audio, and future
 headroom for ticketing/APC hardware that needs the Controller's GPIO/serial.
+Flow: **Driver → Controller → Announce**.
 
 **Who it's for:** operators who want the full compliance/feature roadmap —
 PA announcements played reliably from fixed hardware (not a phone's
 background browser tab), and a path to ticketing/APC later without
 replacing the install.
 
-## Lite tier — Tablet ↔ Tablet, no Controller
+## Lite & Solo tiers — tablet-based, no Controller
 
-No Bus Controller. The passenger display is itself a GPS+cellular-capable
-tablet, running the onboard sign UI directly. **Not necessarily the same
-device class as the driver tablet** — it also has to pass §6's
-passenger-display requirements (seat visibility, 22mm text), which a
-phone-sized screen like the Blackview Active 5 can't meet. See
-`docs/HARDWARE.md` §14 for the concrete Announce-side candidate (DOOGEE Tab
-E3 Max, proposed 2026-08-27, ~14"). The driver tablet pick itself is
-unaffected — still Blackview Active 5, §8.
+Shared architecture for both lighter tiers: no Bus Controller, the
+passenger display is itself a GPS+cellular-capable tablet, running the
+onboard sign UI directly. **Not necessarily the same device class as the
+driver tablet** — it also has to pass §6's passenger-display requirements
+(seat visibility, 22mm text), which a phone-sized screen like the Blackview
+Active 5 can't meet. See `docs/HARDWARE.md` §14 for the concrete
+Announce-side candidate (DOOGEE Tab E3 Max, proposed 2026-08-27, ~14"). The
+driver tablet pick itself is unaffected — still Blackview Active 5, §8.
+
+**Lite and Solo are the same hardware/software running in one of two
+modes**, distinguished purely by whether a driver device is part of the
+purchase and linked — not two separate builds:
+
+- **Announce Lite** — a driver tablet is present and paired to the Announce
+  tablet over Supabase Realtime (no local link — see "paired install"
+  below). Flow: **Driver → Announce**.
+- **Announce Solo** — Announce tablet only, no Driver device at all. It
+  runs the schedule-autopilot matcher (below) to decide for itself when a
+  journey has started, since there's no driver to tap a duty. Flow:
+  **Announce only**.
+
+Because linking is reversible at any time (see "Linking is optional and
+happens later" below), a single provisioned Announce tablet can move
+between Solo and Lite just by linking/unlinking a Driver device — no
+reinstall or reflash needed either way.
 
 **This reuses code that already exists rather than requiring new
 engineering.** `HARDWARE.md`'s "Model 1" — the Controller-less design where
 the passenger display independently polls Supabase and computes its own
-progress from its own GPS — was marked *dead, not a fallback* when Standard
-moved to the Controller-fed push model. It should be **un-deprecated and
-promoted to Lite's first-class supported mode**, not left as unmaintained
-history:
+progress from its own GPS — was marked *dead, not a fallback* when the base
+Announce tier moved to the Controller-fed push model. It should be
+**un-deprecated and promoted to Lite/Solo's first-class supported mode**,
+not left as unmaintained history:
 
 - Reuses `src/gps.js` / `src/geofence.js` / `src/engine.js` (already pure,
   already shared with the driver PWA) — no new tracking logic.
@@ -73,49 +100,55 @@ history:
 - **Done, 2026-08-27 ("Announce Lite tier, Phase 0" commit):** the
   independent-polling path was restored as real scoped work, not a flag
   flip — `announceGps.js`/`shared/gps.js` (internal-mode tracking),
-  `announceStandaloneAutopilot.js`/`scheduleAutopilot.js` (the geofence+time
-  matcher below), `announceLiteFeed.js` (transport, both modes), the
+  `announceSoloAutopilot.js`/`scheduleAutopilot.js` (the geofence+time
+  matcher below), `announceDeviceFeed.js` (transport, both modes), the
   `announce_devices` table/RPCs, and the dashboard device-link page all
   exist and are wired in, not just designed here. Tested flow is in
-  `docs/TESTING.md` §17 ("Test: BusOps Announce Lite") — it did not
-  bit-rot unnoticed. **Remaining real gaps**, confirmed against the code
-  directly, not assumed: no "Link Announce device" button in the Driver
-  PWA yet (the underlying API exists — `announceDeviceLinkApi.js` — link
-  today via `select link_announce_device(...)` in SQL, per §17's own
-  "Known gap" note); no dashboard UI yet for editing a standalone device's
+  `docs/TESTING.md` §17 ("Test: BusOps Announce Lite / Solo") — it did not
+  bit-rot unnoticed. (Note: this commit's own name predates the 2026-09-01
+  Lite/Solo naming split and still says "Lite tier, Phase 0" — the module
+  names above are current, renamed the same day as the naming split, not
+  as originally shipped.)
+  **Remaining real gaps**, confirmed against the code directly, not
+  assumed: no "Link Announce device" button in the Driver PWA yet (the
+  underlying API exists — `announceDeviceLinkApi.js` — link today via
+  `select link_announce_device(...)` in SQL, per §17's own "Known gap"
+  note); no dashboard UI yet for editing a Solo device's
   `candidate_departure_ids`/match-window/terminus-radius columns (SQL
   only, also per §17).
 
 **GPS source should be a config knob, not a hardcoded assumption.** The
 independent-polling design above assumes the Announce tablet always uses its
 own on-device GPS. Worth building the reused `src/gps.js` engine to accept a
-source adapter instead — `internal` (the tablet's own GPS, the default/only
-mode Lite needs day one) vs. `driver-device` (consume GPS-derived state
-pushed from the Driver device, closer to Standard's model but without a
-Controller in between). Two situations make the second adapter worth having
-even though nothing needs it yet: an Announce tablet with weak GPS/cellular
-reception in a given vehicle, and any future variant that wants Lite's
-cheaper two-tablet hardware with Standard's lower-latency push instead of
-poll-interval-bound updates. This is scoped as an adapter interface inside
-Lite's existing GPS engine, not a new device profile or operating mode —
-Lite stays two independent devices either way; only where one tablet's GPS
-signal comes from changes.
+source adapter instead — `internal` (the tablet's own GPS, the default mode
+both Lite and Solo need day one) vs. `driver-device` (consume GPS-derived
+state pushed from the Driver device, closer to the base Announce tier's
+model but without a Controller in between — Lite-only, since Solo has no
+Driver device to consume from). Two situations make the second adapter
+worth having even though nothing needs it yet: an Announce tablet with weak
+GPS/cellular reception in a given vehicle, and any future variant that
+wants Lite's cheaper two-tablet hardware with the base tier's lower-latency
+push instead of poll-interval-bound updates. This is scoped as an adapter
+interface inside the shared Lite/Solo GPS engine, not a new device profile
+or operating mode — Lite stays two independent devices either way; only
+where one tablet's GPS signal comes from changes.
 
 **Who it's for:** operators who want the StarPAL-equivalent pitch — light,
 fast to install, movable between vehicles — and don't need PA/ticketing/APC
-now or on a near-term roadmap.
+now or on a near-term roadmap. Lite if they also want a driver device
+paired to it; Solo if they don't want a driver device at all.
 
 ## Provisioning & linking
 
 How a vehicle actually gets set up, per purchase scenario. Only the two
-Announce-Lite scenarios need anything beyond what exists today.
+Lite/Solo scenarios need anything beyond what exists today.
 
 ### Driver only
 No change from today: dashboard generates a per-shift duty-card URL,
 driver opens it, done. Any future non-Announce feature hangs off this
 install the same way. No Announce device involved at all.
 
-### Driver + Announce Lite (paired install)
+### Announce Lite (paired install)
 1. Ops creates the vehicle in the dashboard (existing Vehicles slice).
 2. Dashboard generates a one-time, vehicle-scoped signed link for the
    Announce tablet — same shape as the duty-card JWT, but persistent and
@@ -123,30 +156,32 @@ install the same way. No Announce device involved at all.
    in the kiosk browser; it registers the device against
    `company_id`+`vehicle_id` in a new `announce_devices` table, and the
    kiosk retains that identity locally from then on (no re-scan needed).
-3. Announce boots straight into self-contained `internal` mode — it's a
-   complete, working product at this point, before any linking happens.
+3. Announce boots straight into self-contained `internal` mode — it's
+   already a complete, working **Solo** install at this point, before any
+   linking happens (see below).
 4. Driver installs separately, unrelated step.
 5. **Linking is optional and happens later**, from the Driver PWA: pick
    the Announce device registered to the same vehicle, tap link. This
    flips that device's GPS source to `driver-device`, delivered over
    Supabase Realtime (no local link between the two tablets — consistent
-   with Lite's existing "no local link" design; only the payload changes).
-   Unlinking drops it back to `internal` — reversible in either direction
-   at any time, not a one-way install-time choice.
+   with Lite's existing "no local link" design; only the payload changes),
+   and promotes the device from Solo to Lite. Unlinking drops it back to
+   `internal` mode — i.e. back to Solo — reversible in either direction at
+   any time, not a one-way install-time choice.
 
-### Announce Lite only, no Driver device
+### Announce Solo
 Device registration is identical to step 2 above — same one-time signed
 link, same `announce_devices` row. It stays permanently in `internal`
-mode since there's no Driver device to ever link to.
+mode (Solo) since there's no Driver device to ever link to.
 
 **Every other flow relies on a driver manually picking a duty** to
-establish "which scheduled service is running right now." A driverless
-Announce has no driver to do that, so it needs its own way to decide when
-to start tracking.
+establish "which scheduled service is running right now." Solo has no
+driver to do that, so it needs its own way to decide when to start
+tracking.
 
-#### Schedule-autopilot: geofence + time matching (designed for Phil Haines Travel)
+#### Solo's schedule-autopilot: geofence + time matching (designed for Phil Haines Travel)
 
-Phil Haines Travel only needs standalone Announce on two routes, one
+Phil Haines Travel only needs Announce Solo on two routes, one
 journey each way, and — critically — **neither route shares a start or
 end point with any other service**. That non-overlap is what makes a
 lightweight matching approach safe, instead of needing full schedule
@@ -166,7 +201,7 @@ reasoning:
    RLS policy — no new policy needed, just read the extra column. This
    also means candidate routes are editable from the dashboard at any
    time without re-touching the physical kiosk, and unifies commissioning
-   across both paired and standalone Lite: which mode a device is in
+   across both Lite and Solo: which tier a device is in
    falls out of `gps_source`/`link_state`/whether
    `candidate_departure_ids` is populated, not a separate flow per mode.
    Departures are cached client-side via the existing offline-first
@@ -215,32 +250,37 @@ reasoning:
 
 **Hard precondition — document this as a guardrail, not an assumption:**
 this approach is only safe when the commissioned routes' start/end points
-don't overlap with any other service's stops. A future standalone client
+don't overlap with any other service's stops. A future Solo client
 whose routes share a terminus with other services needs the fuller
 schedule-reasoning approach that was previously scoped here as "unscoped
 work" — that general case remains genuinely unsolved. Don't reuse this
 shortcut for a client where the precondition doesn't hold.
 
-**Diversion alerts are explicitly out of scope for standalone Announce.**
-`diversionAlert.js` is driver-triggered; a driverless install has no one
-to trigger it. Decided as an accepted limitation for now, not something
-to silently work around — standalone Announce trades diversion-alert
-capability for zero-interaction operation. Revisit only if a client
-specifically needs it (would require ops pushing a diversion flag
-centrally from the dashboard, which is real new scope, not free).
+**Diversion alerts on Announce Solo are auto-detected, not
+driver-triggered.** `diversionAlert.js`'s button-press flow still only
+exists on the Driver device (base Announce tier, Lite) — Solo has no
+driver to press it. Instead, `announceSoloAutopilot.js` treats
+`shared/geofence.js`'s existing `skipped_detour` classification (more than
+one timing-point stop bypassed before rejoining) as "strayed significantly
+from the planned route" and fires the same DIVERSION display state
+(`shared/announceStates.js`) itself — one-shot per occurrence (there's no
+driver to explicitly clear it the way the button-triggered path works), and
+spoken locally via `announceSpeech.js`'s speechSynthesis (the one audio path
+this tier has — see the PA announcement audio gap below). No ops-pushed
+diversion flag from the dashboard exists or is needed for this.
 
 **Idle-screen UI.** `onboard.js` already has a real idle scaffold, not a
 blank body — `#onboard-idle` (topbar/main/bottom, same grid shape as the
 active sign), shown today only via `?operator-name=`, logo-only, wired to
 no data source. Its file-header comment states the device has "no
-independent reads" by design — true for Standard and paired Lite, but
-standalone Announce's entire premise is breaking that (its own GPS + a
-cached candidate list), so this is a scoped, intentional exception, not a
+independent reads" by design — true for the base Announce tier and Lite,
+but Solo's entire premise is breaking that (its own GPS + a cached
+candidate list), so this is a scoped, intentional exception, not a
 violation of that note. Extend `#onboard-idle` (reuse its accent-bar
 pattern and `positionBrand()`) to show the next candidate departure's
 scheduled time, computed client-side from the already-cached list — no
-network call needed. This next-departure content applies **only to
-standalone/autopilot mode** — paired Lite and Standard keep today's
+network call needed. This next-departure content applies **only to Solo's
+autopilot mode** — Lite and the base tier keep today's
 logo-only idle screen unchanged, since a not-yet-linked Driver has no
 future schedule to show anyway.
 
@@ -253,11 +293,11 @@ gating logic — it's an empty folder. Building a general entitlement
 system is out of scope here; it's the same "genuinely separate SKU or
 upsell funnel" business decision already sitting in the open items below,
 not a coding prerequisite. For now, ship the new dashboard UI (device-link
-page, standalone commissioning) visible to every company — harmless
+page, Solo commissioning) visible to every company — harmless
 no-op for companies with no `announce_devices` rows, same as
 `VehiclesPage.jsx` being visible regardless of fleet size. Recorded here
-explicitly so it doesn't quietly get forgotten once a second Lite client
-shows up.
+explicitly so it doesn't quietly get forgotten once a second Lite/Solo
+client shows up.
 
 **New engineering surface this implies:**
 - Dashboard: a device-link-generation flow (mirrors duty-card generation)
@@ -268,19 +308,19 @@ shows up.
   idle-screen UI — no new database table required for either piece,
   just the extra `announce_devices` columns added above
 
-## Technical addendum: paired-install implementation contract
+## Technical addendum: Announce Lite implementation contract
 
 The provisioning/linking section above is architecture-level. This section
 pins down the exact schema, JWT, message contract, and file placement so a
-coding agent can implement the paired-install scenario against this
+coding agent can implement the Lite (paired) scenario against this
 repo's actual conventions instead of inventing its own. Grounded directly
 in the existing duty-card JWT (`generate_duty_token()` in
 `supabase/schema.sql`) and Driver→Announce push contract
 (`busops/driver/src/announceLink.js`) — not a fresh design. The
-`announce_devices` table below is shared by both scenarios (its
-standalone-specific columns are simply unused/empty on a paired-mode
-device); the JWT and Realtime sections are paired-install-specific —
-standalone's own commissioning and matching design lives in the
+`announce_devices` table below is shared by both Lite and Solo (Solo's
+commissioning columns are simply unused/empty on a Lite/paired-mode
+device); the JWT and Realtime sections are Lite-specific —
+Solo's own commissioning and matching design lives in the
 "Schedule-autopilot" section above, not here.
 
 ### `announce_devices` table
@@ -304,8 +344,8 @@ create table public.announce_devices (
   latest_schedule jsonb,
   latest_state jsonb,
   state_updated_at timestamptz,
-  -- Standalone-mode commissioning (§ Schedule-autopilot) — null/empty for
-  -- paired-mode devices, populated for standalone ones.
+  -- Solo-mode commissioning (§ Schedule-autopilot) — null/empty for
+  -- Lite/paired-mode devices, populated for Solo ones.
   candidate_departure_ids uuid[] not null default '{}',
   match_window_before_min int not null default 15,
   match_window_after_min int not null default 30,
@@ -404,8 +444,8 @@ follow the pattern that already exists:
   exactly `announceLink.js`'s `buildSchedulePayload`/`buildStatePayload`
   fields, unchanged from the original design — only the transport
   changed, not the message contract. No `announce` (PSVAIR audio cue)
-  event: Standard's relay already never forwards that to the sign today,
-  matching Lite's own "no PA from Announce" limitation in the
+  event: the base Announce tier's relay already never forwards that to the
+  sign today, matching Lite's own "no PA from Announce" limitation in the
   tier-comparison table below — this carries an existing limitation
   forward rather than opening a new gap.
 
@@ -435,7 +475,7 @@ reasonable first design, not a pixel-verified one — exact placement in
   above).
 - **Driver PWA**: new module
   `pcv-dashboard/busops/driver/src/announceDeviceLink.js` — **explicitly
-  not** `announceLink.js`, which already exists and stays Standard-only
+  not** `announceLink.js`, which already exists and stays base-tier-only
   (Controller push). Supabase calls go in the existing centralized
   `supabaseApi.js`, wired into `main.js` alongside the other module
   imports.
@@ -451,17 +491,19 @@ reasonable first design, not a pixel-verified one — exact placement in
 
 ## Tier comparison
 
-| Aspect | Standard | Lite |
-|---|---|---|
-| Hardware per vehicle | 1 driver tablet + Bus Controller + fixed panel | 2 GPS+cellular tablets (driver + announce) |
-| GPS/tracking compute | Driver tablet only (single source) | Each tablet independently, off shared Supabase state — not duplicated *logic*, but duplicated *computation* |
-| Driver↔Announce link | Local WebSocket (`/driver-push`), push, ~instant | None — both poll Supabase independently |
-| Diversion alert latency | Near-instant (pushed) | Bound by Announce's poll interval |
-| PA announcement audio | Plays from the Controller (moved there 2026-08-19 specifically to escape browser-tab throttling/battery variance on the driver device) | No Controller to host it — falls back to the driver tablet's AUX-cable path, the interim hack Standard moved *away* from |
-| Ticketing / APC upgrade path | Yes, via Controller GPIO/serial (§11) — not built yet, but architecturally possible | No — adding these means adding a Controller, i.e. moving to Standard, not extending Lite |
-| Install | Ceiling-void Controller + panel mount, vehicle wiring (§9) | Two tablet mounts, no fixed wiring — genuinely closer to a StarPAL-style install |
-| Compliance requirements | PSV(AI)R Appendix A, `HARDWARE.md` §6 | Identical — not relaxed for Lite |
-| Cost | Not yet fully priced | Not yet fully priced — **do not assume Lite is cheaper** until both are actually quoted; two rugged GPS+cellular tablets may cost more than one tablet + Controller + a sourced display panel |
+| Aspect | Announce | Announce Lite | Announce Solo |
+|---|---|---|---|
+| Flow | Driver → Controller → Announce | Driver → Announce | Announce only |
+| Hardware per vehicle | 1 driver tablet + Bus Controller + fixed panel | 2 GPS+cellular tablets (driver + announce) | 1 GPS+cellular tablet (announce only) |
+| GPS/tracking compute | Driver tablet only (single source) | Each tablet independently, off shared Supabase state — not duplicated *logic*, but duplicated *computation* | Announce tablet only |
+| Driver↔Announce link | Local WebSocket (`/driver-push`), push, ~instant | None — both poll Supabase independently | N/A — no Driver device |
+| What starts a journey | Driver picks a duty/service | Driver picks a duty/service (on the Driver device; Announce follows via Realtime) | Automatic — Solo's geofence+time schedule-autopilot (see above) |
+| Diversion alert latency / trigger | Near-instant (pushed), driver-triggered button | Bound by Announce's poll interval, driver-triggered button | Auto-detected off `skipped_detour`, no button — see above |
+| PA announcement audio | Plays from the Controller (moved there 2026-08-19 specifically to escape browser-tab throttling/battery variance on the driver device) | No Controller to host it — falls back to the driver tablet's AUX-cable path, the interim hack the base tier moved *away* from | Same as Lite — the Announce tablet's own AUX/speechSynthesis path |
+| Ticketing / APC upgrade path | Yes, via Controller GPIO/serial (§11) — not built yet, but architecturally possible | No — adding these means adding a Controller, i.e. moving to the base Announce tier, not extending Lite | No — same as Lite |
+| Install | Ceiling-void Controller + panel mount, vehicle wiring (§9) | Two tablet mounts, no fixed wiring — genuinely closer to a StarPAL-style install | One tablet mount, no fixed wiring |
+| Compliance requirements | PSV(AI)R Appendix A, `HARDWARE.md` §6 | Identical — not relaxed for Lite | Identical — not relaxed for Solo |
+| Cost | Not yet fully priced | Not yet fully priced — **do not assume Lite is cheaper** until both are actually quoted; two rugged GPS+cellular tablets may cost more than one tablet + Controller + a sourced display panel | Not yet fully priced — one tablet, so likely the true low-cost entry point, but unconfirmed |
 
 ## Open items / next steps
 
@@ -473,33 +515,47 @@ claim in this file again; the items below are what's genuinely still
 open, confirmed against the code directly, not carried over from an
 earlier draft.**
 
-- Price both tiers properly (component cost, not guesswork) before
-  presenting either as the "budget" option to a client. **Still open.**
-- Decide product naming — suggest `BusOps Announce — Standard` /
-  `BusOps Announce — Lite`, consistent with the existing BusOps Driver /
-  BusOps Announce naming in `CLAUDE.md`. **Still open.**
+- Price all three tiers properly (component cost, not guesswork) before
+  presenting any as the "budget" option to a client. **Still open.**
+- ~~Decide product naming — suggest `BusOps Announce — Standard` /
+  `BusOps Announce — Lite`~~ — **Resolved 2026-09-01**: `BusOps Announce`
+  / `BusOps Announce Lite` / `BusOps Announce Solo`, consistent with the
+  existing BusOps Driver / BusOps Announce naming in `CLAUDE.md`. Docs in
+  this file and `docs/DECISIONS.md` updated to match, and code identifiers
+  realigned the same day (`announceStandaloneAutopilot.js` →
+  `announceSoloAutopilot.js`, `announceLiteFeed.js` →
+  `announceDeviceFeed.js`, `announceLiteSetup.js` → `announceDeviceSetup.js`,
+  plus comments/UI text throughout `busops/`, `docs/TESTING.md` §17,
+  `docs/HARDWARE.md` §14, and SQL comments in `supabase/`). **Fully
+  resolved, not just decided** — verify with a repo-wide grep for
+  "standalone"/"Standard" near "Announce" before assuming this drifted
+  again.
 - **Driver PWA "Link Announce device" UI** — `announceDeviceLinkApi.js`
   exists and is imported into `main.js`, but there's no picker action to
   actually trigger a link yet; linking today is a manual
   `select link_announce_device(...)` SQL call (`docs/TESTING.md` §17).
-  This is the one piece of the paired-install scenario still missing a UI.
-- **Dashboard UI for standalone commissioning** — `AnnounceDeviceLinkPage.jsx`
+  This is the one piece of the Lite (paired) scenario still missing a UI.
+- **Dashboard UI for Solo commissioning** — `AnnounceDeviceLinkPage.jsx`
   covers device registration, install-link generation, and a testing-mode
-  toggle, but there's no UI yet for setting a standalone device's
+  toggle, but there's no UI yet for setting a Solo device's
   `candidate_departure_ids`/`match_window_before_min`/
-  `match_window_after_min`/`terminus_radius_m` — SQL only for now
-  (`docs/TESTING.md` §17).
-- The general standalone-Announce case (routes that *do* share stops with
+  `match_window_after_min`/`terminus_radius_m`, or its
+  `announce_device_active_windows` rows (added 2026-09-01 — see below) —
+  SQL only for now (`docs/TESTING.md` §17). Deliberately deferred past the
+  beta per an explicit user decision 2026-09-01.
+- The general Solo case (routes that *do* share stops with
   other services) still has no schedule-autopilot design — remains
   genuinely unscoped, distinct from the Phil Haines Travel shortcut above.
   **Still open** — the shipped matcher only covers the non-overlapping
   case.
-- Diversion alerts are accepted as out of scope for standalone Announce
-  (no driver to trigger them) — a standing decision, not a to-do; revisit
-  only if a client needs it.
-- Confirm with the team whether Lite is being positioned as a genuinely
-  separate SKU or as an entry-tier upsell funnel into Standard — affects
-  how it's marketed, not the technical plan above. **Still open.**
+- ~~Diversion alerts are accepted as out of scope for standalone
+  Announce~~ — superseded: Solo now auto-detects a diversion off
+  `skipped_detour` and announces it itself, see the auto-detect section
+  above. **Resolved.**
+- Confirm with the team whether Lite/Solo are being positioned as
+  genuinely separate SKUs or as an entry-tier upsell funnel into the base
+  Announce tier — affects how they're marketed, not the technical plan
+  above. **Still open.**
 - Tune `terminus_radius_m`/`match_window_before_min`/
   `match_window_after_min`'s defaults (150m / 15 / 30) against Phil
   Haines Travel's real timetable and site geography once that data
@@ -513,3 +569,43 @@ the Jest suite (`tests/scheduleAutopilot.test.js`,
 `tests/scheduleTimeShift.test.js`) and the manual test flow
 (`docs/TESTING.md` §17) for it — see the "Done" note in the Lite section
 above for the full list and what's still missing around it.
+
+**Beta-readiness pass, 2026-09-01:**
+- **Active-window scheduling added**: `announce_device_active_windows`
+  table (day_of_week/window_start/window_end, same shape as
+  `employee_availability`) — a Solo device now only polls its own GPS
+  during configured days/times, staying fully dormant (no geolocation
+  calls, no battery/data cost) the rest of the time. A device with zero
+  windows configured never wakes, same conservative default an empty
+  `candidate_departure_ids` list already gave it. See
+  `scheduleAutopilot.js`'s `isWithinActiveWindow` and
+  `announceSoloAutopilot.js`'s idle-loop gate. Applied to both dev and
+  production.
+- **Real bug found and fixed via the Solo tier's first-ever live test**
+  (previously only unit-tested — see `docs/TESTING.md` §17's own
+  "Live-verified 2026-09-01" note): `announceSoloAutopilot.js`'s
+  `completeActiveJourney()` never signalled journey-end to the renderer,
+  so a completed Solo journey's sign stayed visibly on top of the idle
+  screen (DOM order/z-index in `onboard.html`/`onboard.css`) instead of
+  being replaced by it — the same bug class Standard/Lite already got a
+  fix for on 2026-08-28, but Solo was never wired into it. Fixed by
+  threading `onJourneyEnd` through `announceDeviceFeed.js` into
+  `startSoloAutopilot`. Also found in the same live-test pass: calling
+  `.catch()` directly on the vendored supabase-js query builder throws
+  (`client.rpc(...).catch is not a function`) — it's thenable but not an
+  actual `Promise` — fixed with `Promise.resolve(client.rpc(...)).catch(...)`.
+- **Production beta device commissioned**: vehicle SN06JVZ, candidates
+  = S125S + S116S's four departures (both directions of both routes),
+  active windows = Mon–Fri 06:45–08:15 and 15:00–17:30 (covers both
+  routes' scheduled times with margin against the 15/30min match window).
+  `testing_mode` left `false` — this is a real beta device, not a bench
+  test. Install link not yet minted — generate it from the dashboard's
+  Announce Devices page ("Get Install Link") when ready to commission the
+  physical tablet.
+- **Flagged, not actioned**: as more journey-tracking variants appear
+  (Driver, Lite, Solo, and Solo's own schedule-autopilot layer), there's a
+  real future question of whether the shared GPS/geofence/tracking core
+  (`shared/gps.js`/`geofence.js`/`engine.js`) should become its own
+  package/service rather than being imported per-surface. Not actioned
+  here — revisit once a third or fourth consumer makes the tradeoff
+  concrete. See `docs/DECISIONS.md`.

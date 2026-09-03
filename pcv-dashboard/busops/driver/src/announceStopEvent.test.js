@@ -1,15 +1,11 @@
 // src/announceStopEvent.test.js
 // (implementation: src/announceStopEvent.js)
 //
-// Slice 2: Driver-Triggered Diversion Alert
-// TDD group 2 — the single gate that main.js calls instead of
-// announceAtStop/announceApproaching directly, so diversion suppression is
-// enforced in one place rather than duplicated at both callsites.
-//
-// PSVAIR rework (2026-07-30): split into two gates matching the four
-// regulation events — announceApproachEvent (event 2, fired off gps.js's
-// stopStates 'approaching' status, silent for the final stop) and
-// announceStopEvent (events 3 & 4, vehicle stopped).
+// The single gate that main.js calls instead of announceState() directly,
+// so diversion suppression is enforced in one place rather than duplicated
+// at both callsites. stateKey/vars arriving here are already resolved (see
+// shared/announceStates.js's resolveApproachOrArrivalState) — this gate
+// only decides whether the diversion override applies.
 //
 // Co-located in src/ to match vitest.config.js's `src/**/*.test.js` include
 // pattern (see audioConfigPipeline.test.js for the established Slice 1
@@ -18,11 +14,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { announceApproachEvent, announceStopEvent } from './announceStopEvent.js';
 import * as announcements from './announcements.js';
+import { ANNOUNCE_STATES } from '../../shared/announceStates.js';
 
 vi.mock('./announcements.js', () => ({
-  announceApproaching: vi.fn(),
-  announceAtStop: vi.fn(),
-  announceDiversion: vi.fn(),
+  announceState: vi.fn(),
 }));
 
 describe('announceApproachEvent', () => {
@@ -30,41 +25,26 @@ describe('announceApproachEvent', () => {
     vi.clearAllMocks();
   });
 
-  it('calls announceApproaching for a non-final stop with no diversion active', () => {
-    announceApproachEvent({
-      stopId: 'stop-1',
-      stopName: 'High Street',
-      isFinal: false,
-      diversionActive: false,
-    });
+  it('calls announceState for a non-final stop with no diversion active', () => {
+    announceApproachEvent(ANNOUNCE_STATES.APPROACHING, { stopName: 'High Street', isFinal: false }, { stopId: 'stop-1' }, false);
 
-    expect(announcements.announceApproaching).toHaveBeenCalledWith({
-      stopId: 'stop-1',
-      stopName: 'High Street',
-    });
+    expect(announcements.announceState).toHaveBeenCalledWith(
+      ANNOUNCE_STATES.APPROACHING, { stopName: 'High Street', isFinal: false }, { stopId: 'stop-1' }
+    );
   });
 
-  it('does nothing for the final stop — that gets one combined announcement at arrival instead', () => {
-    announceApproachEvent({
-      stopId: 'stop-9',
-      stopName: 'Bus Station',
-      isFinal: true,
-      diversionActive: false,
-    });
+  it('still announces the final stop — state 6 no longer silently skipped', () => {
+    announceApproachEvent(ANNOUNCE_STATES.APPROACHING, { stopName: 'Bus Station', isFinal: true }, { stopId: 'stop-9' }, false);
 
-    expect(announcements.announceApproaching).not.toHaveBeenCalled();
-    expect(announcements.announceDiversion).not.toHaveBeenCalled();
+    expect(announcements.announceState).toHaveBeenCalledWith(
+      ANNOUNCE_STATES.APPROACHING, { stopName: 'Bus Station', isFinal: true }, { stopId: 'stop-9' }
+    );
   });
 
   it('suppresses the approach announcement while a diversion is active', () => {
-    announceApproachEvent({
-      stopId: 'stop-1',
-      stopName: 'High Street',
-      isFinal: false,
-      diversionActive: true,
-    });
+    announceApproachEvent(ANNOUNCE_STATES.APPROACHING, { stopName: 'High Street', isFinal: false }, { stopId: 'stop-1' }, true);
 
-    expect(announcements.announceApproaching).not.toHaveBeenCalled();
+    expect(announcements.announceState).not.toHaveBeenCalled();
   });
 });
 
@@ -73,69 +53,26 @@ describe('announceStopEvent', () => {
     vi.clearAllMocks();
   });
 
-  it('calls announceAtStop with route/destination and next-stop details when no diversion is active', () => {
-    announceStopEvent({
-      nextStopId: 'stop-2',
-      nextStopName: 'Church Road',
-      isFinal: false,
-      diversionActive: false,
-      serviceCode: 'S125S',
-      destination: 'Boston College',
-    });
+  it('passes the resolved state through when no diversion is active', () => {
+    announceStopEvent(ANNOUNCE_STATES.AT_STOP, { stopName: 'Church Road', isFinal: false }, { stopId: 'stop-2' }, false);
 
-    expect(announcements.announceAtStop).toHaveBeenCalledWith({
-      nextStopId: 'stop-2',
-      nextStopName: 'Church Road',
-      isFinal: false,
-      serviceCode: 'S125S',
-      destination: 'Boston College',
-    });
-    expect(announcements.announceDiversion).not.toHaveBeenCalled();
+    expect(announcements.announceState).toHaveBeenCalledWith(
+      ANNOUNCE_STATES.AT_STOP, { stopName: 'Church Road', isFinal: false }, { stopId: 'stop-2' }
+    );
   });
 
-  it('calls announceDiversion instead, and suppresses announceAtStop, when diversion is active', () => {
-    announceStopEvent({
-      nextStopId: 'stop-2',
-      nextStopName: 'Church Road',
-      isFinal: false,
-      diversionActive: true,
-      serviceCode: 'S125S',
-      destination: 'Boston College',
-    });
+  it('announces DIVERSION instead, and suppresses the normal state, when diversion is active', () => {
+    announceStopEvent(ANNOUNCE_STATES.AT_STOP, { stopName: 'Church Road', isFinal: false }, { stopId: 'stop-2' }, true);
 
-    expect(announcements.announceDiversion).toHaveBeenCalledOnce();
-    expect(announcements.announceAtStop).not.toHaveBeenCalled();
+    expect(announcements.announceState).toHaveBeenCalledOnce();
+    expect(announcements.announceState).toHaveBeenCalledWith(ANNOUNCE_STATES.DIVERSION, {}, {});
   });
 
-  it('does not pass stop details through to announceDiversion — no dynamic content path', () => {
-    announceStopEvent({
-      nextStopId: 'stop-2',
-      nextStopName: 'Church Road',
-      isFinal: false,
-      diversionActive: true,
-      serviceCode: 'S125S',
-      destination: 'Boston College',
-    });
+  it('still announces the final stop correctly when diversion is not active', () => {
+    announceStopEvent(ANNOUNCE_STATES.AT_STOP, { stopName: 'Boston College', isFinal: true }, { stopId: 'stop-9' }, false);
 
-    expect(announcements.announceDiversion).toHaveBeenCalledWith();
-  });
-
-  it('still announces final-stop correctly when diversion is not active', () => {
-    announceStopEvent({
-      nextStopId: null,
-      nextStopName: null,
-      isFinal: true,
-      diversionActive: false,
-      serviceCode: 'S125S',
-      destination: 'Boston College',
-    });
-
-    expect(announcements.announceAtStop).toHaveBeenCalledWith({
-      nextStopId: null,
-      nextStopName: null,
-      isFinal: true,
-      serviceCode: 'S125S',
-      destination: 'Boston College',
-    });
+    expect(announcements.announceState).toHaveBeenCalledWith(
+      ANNOUNCE_STATES.AT_STOP, { stopName: 'Boston College', isFinal: true }, { stopId: 'stop-9' }
+    );
   });
 });

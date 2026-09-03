@@ -22,7 +22,7 @@ Step-by-step instructions for testing every component of the RouteTracker platfo
 14. [Test: Driver PWA — debug mode](#14-test-driver-pwa--debug-mode)
 15. [Test: Driver PWA — offline fallback](#15-test-driver-pwa--offline-fallback)
 16. [Test: End-to-end (dashboard + PWA together)](#16-test-end-to-end-dashboard--pwa-together)
-17. [Test: BusOps Announce Lite](#17-test-busops-announce-lite)
+17. [Test: BusOps Announce Lite / Solo](#17-test-busops-announce-lite--solo)
 18. [Resetting test data](#18-resetting-test-data)
 
 ---
@@ -386,13 +386,14 @@ This verifies the two halves of the system work together.
 
 ---
 
-## 17. Test: BusOps Announce Lite
+## 17. Test: BusOps Announce Lite / Solo
 
-Covers the Controller-less "Lite" tier (see `docs/ANNOUNCE-PRODUCT-TIERS.md`): a
+Covers the two Controller-less tiers (see `docs/ANNOUNCE-PRODUCT-TIERS.md`): a
 second GPS-capable tablet running `busops/announce/onboard.html` directly,
-either paired to a Driver device or fully standalone (driverless). Both modes
-read/write Supabase directly via a device-scoped JWT — no Bus Controller
-involved.
+either paired to a Driver device (**Lite**) or fully driverless (**Solo**).
+Both modes read/write Supabase directly via a device-scoped JWT — no Bus
+Controller involved, and both run on the same device/software, distinguished
+only by whether a Driver device is linked.
 
 ### Register a device and get its install link
 1. Dashboard → **Announce Devices** → **+ Add Device**
@@ -403,7 +404,7 @@ involved.
 4. Open that URL in a **second** browser tab/window — it should render the
    idle screen with the BusOps Announce brand mark and no console errors
 
-### Test: paired mode (linked to a Driver device)
+### Test: Lite (paired mode, linked to a Driver device)
 > **Known gap (not yet built):** there is no "Link Announce device" button
 > in the Driver PWA yet — only the underlying RPCs
 > (`link_announce_device`/`unlink_announce_device`) and the dashboard-side
@@ -425,7 +426,7 @@ involved.
 **Pass:** the Announce tab mirrors the Driver PWA's tracking state via
 Supabase Realtime, with no direct interaction on the Announce device itself.
 
-### Test: standalone mode (driverless, schedule-autopilot)
+### Test: Solo (driverless, schedule-autopilot)
 Only safe for routes whose start/end stops don't overlap with any other
 service (see the doc's "hard precondition") — the seeded S125S route is a
 reasonable stand-in for testing.
@@ -437,35 +438,61 @@ reasonable stand-in for testing.
    set candidate_departure_ids = array['<timetable_departures.id>']
    where id = '<announce_devices.id>';
    ```
-2. Open the device's install link — the idle screen should show a
+2. Also configure at least one active window — a device with none never
+   wakes to poll its own GPS at all (see `announce_device_active_windows`,
+   same day_of_week/window_start/window_end shape as
+   `employee_availability`; `day_of_week` is 0=Mon..6=Sun):
+   ```sql
+   insert into announce_device_active_windows (announce_device_id, day_of_week, window_start, window_end)
+   values ('<announce_devices.id>', 0, '00:00', '23:59'); -- wide-open, for testing; tune narrower for a real beta device
+   ```
+   Either set `testing_mode = true` on the device (bypasses the scheduled-
+   time window entirely, geofence-only — see `findTestingScheduleMatch`) so
+   this test isn't gated on running it near the candidate's real departure
+   time, or pick a candidate whose scheduled time is close to now.
+3. Open the device's install link — the idle screen should show a
    **"Next departure HH:MM"** caption once candidates load
-3. Open DevTools (F12) → **Sensors** → set **Custom location** to the
+4. Open DevTools (F12) → **Sensors** → set **Custom location** to the
    candidate's first stop's lat/lon, within `terminus_radius_m` (150m
    default)
-4. Within ~5 seconds (the idle-poll interval) the idle screen should
+5. Within ~5 seconds (the idle-poll interval) the idle screen should
    disappear and the live sign should appear — a journey has started
    automatically, no driver/manual action involved
-5. Simulate GPS progressing through the remaining stops (as in §13) — the
+6. Simulate GPS progressing through the remaining stops (as in §13) — the
    tube-track should advance normally, using the same tracking engine as
    the Driver PWA
-6. Simulate GPS arrival at the final stop — the journey should complete and
-   the device return to the idle/next-departure screen automatically
+7. Simulate GPS arrival at the final stop — the journey should complete and
+   the device return to the idle/next-departure screen automatically, with
+   the previous journey's sign fully hidden (not left showing underneath)
 
 **Pass:** a fully driverless device starts, tracks, and completes a journey
 on its own, matching only when both the geofence and the scheduled-time
-window agree (test outside either condition and confirm it stays idle).
+window agree (test outside either condition and confirm it stays idle), and
+never polls GPS at all outside its configured active windows.
 
-**To restore:** clear the test device's `candidate_departure_ids` and
+**Live-verified 2026-09-01** (not just a written procedure — see
+`docs/ANNOUNCE-PRODUCT-TIERS.md`'s status entry): scripted against dev
+Supabase with a real device row, real minted JWT, and a real browser
+(Playwright driving Chromium's geolocation override in place of manual
+DevTools Sensors clicks). Found and fixed one real bug in the process:
+`announceSoloAutopilot.js`'s `completeActiveJourney()` called
+`client.rpc(...).catch(...)` directly, which threw against the real
+vendored supabase-js client (its query builder is thenable but not an
+actual `Promise`, so it has no `.catch()`) — silently breaking journey
+completion. Fixed with `Promise.resolve(client.rpc(...)).catch(...)`.
+
+**To restore:** clear the test device's `candidate_departure_ids`,
 `link_state`/`gps_source` back to defaults (`'{}'`, `'unlinked'`,
-`'internal'`) once done, and clear DevTools' Sensors override back to
-**No override**.
+`'internal'`), delete its `announce_device_active_windows` rows, and clear
+DevTools' Sensors override back to **No override**.
 
 ### Bench-testing with real devices (real GPS, not DevTools simulation)
 
-Unlike Standard (needs the Bus Controller + its own WiFi hotspot, see
-`mele-server/`), Lite needs no local link at all — any phone/tablet with a
-browser and an internet connection (mobile data or the same WiFi as your
-laptop) can run it, moving/walking it physically instead of simulating GPS.
+Unlike the base Announce tier (needs the Bus Controller + its own WiFi
+hotspot, see `mele-server/`), Lite/Solo need no local link at all — any
+phone/tablet with a browser and an internet connection (mobile data or the
+same WiFi as your laptop) can run it, moving/walking it physically instead
+of simulating GPS.
 
 **Gotcha**: `driver/src/config.js`'s `IS_DEV` check only matches hostname
 `localhost`/`127.0.0.1` — a real device reaching your laptop over its LAN IP

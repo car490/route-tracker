@@ -80,7 +80,7 @@ export async function hydrate(client, table, filter) {
 // hasRowChanged) so a caller can skip re-rendering on a no-op push (e.g.
 // update_announce_device_state's coalesce touching last_seen_at alone).
 // onDegraded/onRestored let any caller surface connection health instead of
-// only logging it — the gap this closes is announceLiteFeed.js previously
+// only logging it — the gap this closes is announceDeviceFeed.js previously
 // only console.error'ing a dead channel with no recovery attempt.
 export function subscribeToChanges(client, table, filter, { onChanged, onDegraded, onRestored, versionKey } = {}) {
   let attempt = 0;

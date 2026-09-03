@@ -1,6 +1,6 @@
 // Testing-mode stop-schedule time shift — shared between the driver PWA
-// (DEBUG "use current time" checkbox in main.js) and Announce Lite's
-// standalone autopilot (announceStandaloneAutopilot.js's testing_mode
+// (DEBUG "use current time" checkbox in main.js) and Announce Solo's
+// autopilot (announceSoloAutopilot.js's testing_mode
 // fallback match). Slides every stop's HH:MM by the same delta so the real
 // gaps between stops — and therefore on-time/late/ETA logic downstream in
 // engine.js/gps.js/ui.js, all of which only ever read stop.time — still

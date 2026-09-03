@@ -3,46 +3,38 @@
    only names the family (via --pcv-font-sans), not redundantly re-fetch it. */
 
 /* ── E-paper passenger sign ───────────────────────────────────────────────
-   One shared layout for every profile: Monitor (Dell Pro P2426H, 1920x1080
-   / 16:9), Bar (16:3 ultra-wide destination-board panel, not yet built),
-   and monitor-vertical (same panel as Monitor, vertical tube-track — see
-   the [data-track-layout="vertical"] rules below, the one deliberate
-   exception to "shared"). Most differences are decided in JS (see
-   PANEL_PROFILES / isWideLayout / trackLayout in onboard.js), not CSS: how
-   many stops the tube-track shows either side of the current one (more
-   room on Bar and monitor-vertical), and the ETA (Bar only — no room for
-   it on either Monitor variant).
+   One shared layout for every profile and tier (Standard, paired/standalone
+   Announce Lite alike — see onboard.js's header comment): a route header
+   bar plus one big centred headline of text, sized off --min-text so it
+   never drops below PSVAIR's 22mm minimum character height regardless of
+   panel diagonal (see PANEL_PROFILES/computeMinTextVh in onboard.js).
    Mostly monochrome and motion-free: no gradients, no shadows, hard
-   corners, status normally carried by text and border weight rather than
-   colour. Deliberate exceptions to that rule: the brand mark keeps its
-   real CoachMate colours (this is an LCD tablet, not actual e-ink hardware
-   — the monochrome look is aesthetic, not a hardware limit); the
-   tube-track's line, dots and labels use the brand accent rather than
-   ink, with the current stop in green and its dot pulsing once arrival is
-   confirmed by the geofence (the only motion on this screen). */
+   corners, status normally carried by text rather than colour. Deliberate
+   exceptions: the brand mark keeps its real CoachMate colours (this is an
+   LCD tablet, not actual e-ink hardware — the monochrome look is
+   aesthetic, not a hardware limit), and the diversion state (Regulation
+   10) gets a background-colour change — never the only signal (the
+   headline text, and on tiers with audio the spoken announcement, both
+   also change), just a supplementary visual emphasis so it's noticed. */
 
 :root {
   --ep-font:      var(--pcv-font-sans);
-  --ep-mono:      ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 
   --ep-bg:        #ECEAE2;
   --ep-ink:       #1A1A18;
   --ep-ink-soft:  #5A5850;
-  --ep-line:      #1A1A18;
 
-  --ep-slate:     #475569;
   --ep-teal:      var(--pcv-color-primary-action);
-  --ep-at-stop:   #10B981;
   --ep-late:      #EF4444;
+  --ep-diversion: #F59E0B; /* amber — caution, distinct from the brand accent/purple bars */
 
-  /* Brand accent, shared by the top/bottom bars and the tube-track (line,
-     dots, labels) — the only colour besides white and the current-stop
-     green anywhere on the sign. Defaults to CoachMate's dark purple;
-     operators can override it via accent_color in dashboard Branding
-     (injected at runtime by onboard.js from companies.accent_color via the
-     get_duty_card RPC) — only applied when it passes WCAG AA for large
-     text/UI components (>= 3:1 contrast against the white paper bg this
-     colour sits on/against), otherwise this default is kept.
+  /* Brand accent, used by the top bar — the only colour besides white and
+     the diversion amber anywhere on the sign. Defaults to CoachMate's dark
+     purple; operators can override it via accent_color in dashboard
+     Branding (injected at runtime by onboard.js from companies.accent_color
+     via the get_duty_card RPC) — only applied when it passes WCAG AA for
+     large text/UI components (>= 3:1 contrast against the white paper bg
+     this colour sits on/against), otherwise this default is kept.
      Deliberately NOT declared here (not even as `--operator-accent: ;`) —
      an explicitly-empty custom property is still a *declared* value, which
      defeats var()'s fallback (var() only falls back for an undeclared
@@ -67,6 +59,18 @@
      mele-server/DEPLOY.md §5). Bump this value if Bar's real physical size
      changes. */
   --min-text:     17vh;
+
+  /* Single source of truth for the topbar's height, shared byte-for-byte by
+     #sign-topbar and #idle-topbar (below) — previously #idle-topbar carried
+     its own separate hand-guessed approximation ("calc(var(--min-text) *
+     1.2 + 4vh)") meant to *match* #sign-topbar's organically-sized height
+     (padding + line-height), which could drift out of sync between the two
+     screens and, on a small --min-text, added a disproportionately large
+     flat 4vh on top. 1.3x is just enough headroom above the raw 22mm text
+     for normal line-height (ascenders/descenders) plus a little wriggle
+     room — not a separate padding budget. Changed 2026-09-02 per user
+     feedback that the bar read as oversized on the physical device. */
+  --topbar-height: calc(var(--min-text) * 1.3);
 }
 
 *,
@@ -94,35 +98,53 @@ body {
   position: relative;
 }
 
-/* ── Sign layout — top bar / tube-track + ETA panel / bottom line ────────
-   Brand mark (BusOps Announce over a smaller "From PCV Technologies"
-   attribution, in real brand colours rather than greyscale) lives here
-   too, pinned just above the lower purple bar on every screen (idle and
-   active alike — see onboard.js's positionBrand()).
+/* ── Sign layout — top bar / headline. Brand mark (BusOps Announce over a
+   smaller "From PCV Technologies" attribution, in real brand colours
+   rather than greyscale) lives here too, pinned just above the headline
+   band's own bottom-left corner on every screen (idle and active alike —
+   see onboard.js's positionBrand()).
    #onboard-brand stays a position: fixed sibling of #onboard-sign (not a
    grid child) because it must also render on the idle screen, before
-   #onboard-sign exists in the visible DOM (see onboard.html) — it's
-   positioned here to visually sit at the top bar's left edge. */
+   #onboard-sign exists in the visible DOM (see onboard.html). */
 
 #onboard-sign {
   height: 100vh;
   width: 100vw;
   display: grid;
-  /* Explicit, even though there's only one column — leaving this implicit
-     let #sign-topbar's own nested `1fr` track balloon based on content
-     instead of resolving against a definite 100vw parent width. */
-  grid-template-columns: 100vw;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto 1fr;
   grid-template-areas:
     "topbar"
-    "track"
-    "bottom";
+    "headline";
   background: var(--ep-paper);
 }
 
-/* Bottom-left of the central middle band, not the top-left corner — that
-   spot sits directly under the (purple, white-text) topbar's left-aligned
-   route line once the sign is active, and the brand mark's own ink-on-paper
+/* Regulation 10 diversion state — see onboard.js's render(). Scoped to the
+   headline band only, not the route header bar, so the route/service info
+   above stays legible in its usual colours throughout. */
+#onboard-sign.diversion #sign-main {
+  background: var(--ep-diversion);
+}
+
+/* Terminus ("all change please") — the one state that changes the WHOLE
+   page, not just the headline band, per user feedback 2026-09-02 ("give
+   the page a notice me colour"). Distinct red (--ep-late, already the
+   design system's own "urgent" token, reused rather than inventing a new
+   one) rather than diversion's amber, since the two mean different things
+   and shouldn't look alike. Text flips to paper-white for contrast against
+   the new background — #sign-topbar's text was already white; only
+   #sign-headline needs overriding here. */
+#onboard-sign.terminus #sign-topbar,
+#onboard-sign.terminus #sign-main {
+  background: var(--ep-late);
+}
+
+#onboard-sign.terminus #sign-headline {
+  color: var(--ep-paper);
+}
+
+/* Bottom-left of the headline band, not the top-left corner — that spot
+   sits directly under the (purple, white-text) topbar's left-aligned route
+   line once the sign is active, and the brand mark's own ink-on-paper
    colours would be invisible painted over purple there.
    bottom/left below are only the fallback for a wholly uncommissioned
    device (no ?operator-name= and no schedule yet, so neither #onboard-idle
@@ -130,9 +152,9 @@ body {
    27vh/1vw is as good as any. The moment either screen is shown,
    onboard.js's positionBrand() overrides both via inline style, computed
    from that screen's own real rendered box (#idle-main or #sign-main). A
-   fixed vh guess can't do this correctly on its own: the bottom (and top)
-   bar's height scales with --min-text, which now varies a lot by panel
-   profile (Bar ~16.8vh vs Monitor ~7.42vh) — one guess can't clear both. */
+   fixed vh guess can't do this correctly on its own: the bar's height
+   scales with --min-text, which varies a lot by panel profile (Bar
+   ~16.8vh vs Monitor ~7.42vh) — one guess can't clear both. */
 #onboard-brand {
   position: fixed;
   bottom: 27vh;
@@ -153,9 +175,6 @@ body {
 
 .bo-wordmark {
   font-family: var(--ep-font);
-  /* Was 1.8vh — fine as a corner watermark on the idle screen alone, but
-     unreadably tiny once it's sharing the track band with everything
-     else. Bumped alongside .cm-powered-by/.cm-wordmark below. */
   font-size: 3.2vh;
   font-weight: 800;
   letter-spacing: -0.01em;
@@ -192,36 +211,28 @@ body {
 
 /* ── Idle/default screen — operator's own branding, shown before any
    journey exists (docs/HARDWARE.md §5). Logo only, centred in the middle
-   band — same grid shape as #onboard-sign (topbar/track/bottom) so the top
-   and bottom bars are already in place, in the same accent colour as
-   #sign-topbar/#sign-bottom-line, before the sign itself ever appears.
-   They're empty here (no route/status text exists yet) — var(--operator-
-   accent, var(--ep-purple)) is the same fallback chain the active bars
-   use, so this automatically matches whatever colour ends up live once a
-   journey starts. */
+   band — same grid shape as #onboard-sign (topbar/main) so the top bar is
+   already in place, in the same accent colour as #sign-topbar, before the
+   sign itself ever appears. It's empty here (no route/status text exists
+   yet) — var(--operator-accent, var(--ep-purple)) is the same fallback
+   chain the active bar uses, so this automatically matches whatever colour
+   ends up live once a journey starts. */
 
 #onboard-idle {
   position: fixed;
   inset: 0;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto 1fr;
   grid-template-areas:
     "topbar"
-    "main"
-    "bottom";
+    "main";
 }
 
-#idle-topbar,
-#idle-bottombar {
-  /* Matches #sign-topbar/#sign-bottom-line's rendered height (padding +
-     one line of --min-text content) despite having no text of their own
-     to size against. */
-  min-height: calc(var(--min-text) * 1.2 + 4vh);
+#idle-topbar {
+  grid-area: topbar;
+  height: var(--topbar-height); /* same shared value #sign-topbar uses — guaranteed identical, not just approximated */
   background: var(--operator-accent, var(--ep-purple));
 }
-
-#idle-topbar { grid-area: topbar; }
-#idle-bottombar { grid-area: bottom; }
 
 #idle-main {
   grid-area: main;
@@ -238,13 +249,19 @@ body {
 }
 
 #idle-logo {
-  max-width: 50vw;
-  max-height: 35vh;
+  /* ~3x the previous 50vw/35vh, still capped well inside the panel (never
+     the full viewport) so it can't crowd the topbar or the next-departure
+     caption below it (Solo tier) — object-fit: contain means the source
+     image's own aspect ratio picks whichever of these two caps actually
+     binds, not a forced square. User feedback 2026-09-02: make the
+     customer logo bigger, up to ~3x, while staying fully on the panel. */
+  max-width: 80vw;
+  max-height: 65vh;
   object-fit: contain;
 }
 
-/* Standalone (driverless) schedule-autopilot's next-departure caption —
-   see announceStandaloneAutopilot.js/onboard.js's showNextDeparture(). Not
+/* Solo (driverless) schedule-autopilot's next-departure caption —
+   see announceSoloAutopilot.js/onboard.js's showNextDeparture(). Not
    held to the active sign's 22mm PSVAIR minimum (--min-text) — that
    requirement is for in-service passenger information, not this
    before-boarding idle caption. */
@@ -257,34 +274,24 @@ body {
 }
 
 /* ── Top bar — brand accent, white lettering (logo keeps its own brand
-   colours, see #onboard-brand above). Logo (fixed) / route line (centred) /
-   clock. */
+   colours, see #onboard-brand above). Route/service line, left-aligned. */
 
 #sign-topbar {
   grid-area: topbar;
-  display: grid;
-  /* Column 1 (route line) is a genuine track constraint via minmax(0, …) —
-     a max-width on the child alone isn't reliably honoured by `auto` track
-     sizing. Column 2 is an empty spacer that absorbs the leftover space,
-     keeping the route line left-aligned without risking column 3 (clock),
-     which is `auto` so it never shrinks below its own content or clips off
-     the edge of the screen. */
-  grid-template-columns: minmax(0, 60vw) 1fr auto;
+  height: var(--topbar-height); /* fixed, explicit height — was padding: 2vh 3vw letting the box size itself organically, which is what let it balloon on top of the (now-reverted) dvh bug and made it drift from #idle-topbar's separate approximation */
+  display: flex;
   align-items: center;
-  column-gap: 2vw;
-  padding: 2vh 3vw;
+  padding: 0 3vw;
   background: var(--operator-accent, var(--ep-purple));
   color: var(--ep-paper);
 }
 
 #sign-route-line {
-  grid-column: 1;
-  justify-self: start;
   display: flex;
   align-items: baseline;
   gap: 1.5vw;
   min-width: 0;
-  max-width: 60vw;
+  max-width: 90vw;
   overflow: hidden;
 }
 
@@ -297,7 +304,10 @@ body {
 
 #sign-destination {
   letter-spacing: 0.01em;
-  text-transform: uppercase;
+  /* No text-transform: uppercase — passenger-facing text must stay proper/
+     camel case (RNIB clear-print guidance: long runs of capitals are
+     measurably harder to read); this was forcing "Boston College" to
+     "BOSTON COLLEGE". Removed 2026-09-02. */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -308,365 +318,72 @@ body {
   content: 'to\00A0';
 }
 
-#sign-clock {
-  grid-column: 3;
-  font-family: var(--ep-mono);
-  font-size: var(--min-text);
-  font-variant-numeric: tabular-nums;
-  color: var(--ep-purple-soft);
-  white-space: nowrap;
-}
+/* ── Headline — one line of text per display state (shared/
+   announceStates.js), the same wording spoken as audio. white-space:
+   normal (not the old single-line ellipsis truncation) so the longer
+   sentences (e.g. "This is a X to Y. The next stop will be Z.") can wrap
+   across lines — PSVAIR regulates character height, not line count. */
 
-/* ── Early wait banner — replaces the bottom bar, same treatment ────────── */
-
-#early-wait-banner {
-  grid-area: bottom;
-  align-self: center;
-  text-align: center;
-  padding: 2vh 3vw;
-  background: var(--operator-accent, var(--ep-purple));
-  color: var(--ep-paper);
-}
-
-.ewb-title {
-  font-family: var(--ep-font);
-  font-size: var(--min-text);
-  font-weight: 800;
-  letter-spacing: 0.08em;
-}
-
-.ewb-msg {
-  font-family: var(--ep-font);
-  font-size: 4vh;
-  font-weight: 400;
-  margin-top: 0.6vh;
-  color: var(--ep-purple-soft);
-}
-
-/* ── Tube-map style progress line — paper-white background, slate
-   line/dots/labels (the same slate/teal pairing used by #onboard-brand's
-   wordmark accents, deliberately distinct from the purple top/bottom
-   bars), current stop in green.
-   Sized to read from the back of an 11m bus. Past/future read identically; only "current" and
-   "confirmed arrival" (pulsing) are visually different. JS decides how
-   many stops either side to show (matchMedia — more room on the wide
-   panel), not CSS; see renderTubeTrack in onboard.js. ─────────────────── */
-
-/* Wraps the tube-track and, on the wide (Bar) sign only, the upcoming-stops
-   box to its right — see #sign-upcoming below. On the narrow (Monitor)
-   profile, #sign-upcoming stays hidden (onboard.js) and #tube-track's
-   flex:1 fills the row alone. */
 #sign-main {
-  grid-area: track;
+  grid-area: headline;
   display: flex;
-  align-items: stretch;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3vh;
+  padding: 4vh 6vw;
   min-height: 0;
   overflow: hidden;
 }
 
-#tube-track {
-  /* Single source of truth for label sizing/spacing — .tube-label's own
-     font-size/min-height, .tube-node's gap, and the line/arrow's vertical
-     offset (::before/::after below) are all derived from these, so they
-     can't drift out of sync with each other. */
-  --tube-label-font: 4.5vh;
-  --tube-label-line-h: calc(var(--tube-label-font) * 1.2);
-  --tube-label-h: calc(var(--tube-label-line-h) * 2); /* reserved for 2 lines, always — see .tube-label */
-  --tube-label-gap: 5vh;
-  position: relative;
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  justify-content: space-around;
-  /* Centres each node (label-slot + gap + dot) as a whole block on the
-     band — see .tube-label's min-height below for why this now lands
-     every dot on the same line despite some labels wrapping to 2 lines
-     and others staying on 1: every node reserves the same label height
-     regardless of actual content, so every node is the same total height
-     and centering them all lines the dots up automatically, no manual
-     top-offset guess needed. */
-  align-items: center;
-  padding: 0 4vw;
-}
-
-#tube-track::before {
-  content: '';
-  position: absolute;
-  left: 8%;
-  right: 8%;
-  /* Matches exactly where centering (align-items: center, above) actually
-     puts the dots: the block's centre sits on the row's true centre, but
-     the dot itself is the bottom-most element of that block (see
-     .tube-node's column-reverse below), so its own centre sits below the
-     row's centre by half the reserved label height + the gap to it. */
-  top: calc(50% + (var(--tube-label-h) + var(--tube-label-gap)) / 2);
-  transform: translateY(-50%);
-  height: 1.2vh;
-  background: var(--operator-accent, var(--ep-slate));
-}
-
-/* Marks the end of the line (right: 8%, same anchor as ::before above),
-   tip pointing onward past it in the direction of travel — a zero-size
-   box with only the left border filled in is the standard CSS-triangle
-   trick, so the "point" sits at the box's own position with the flat base
-   trailing off to the left of it, into the line, while the tip itself
-   extends into the open margin beyond the line rather than overlapping it. */
-#tube-track::after {
-  content: '';
-  position: absolute;
-  right: 8%;
-  top: calc(50% + (var(--tube-label-h) + var(--tube-label-gap)) / 2);
-  width: 0;
-  height: 0;
-  border-top: 1.4vh solid transparent;
-  border-bottom: 1.4vh solid transparent;
-  border-left: 2vh solid var(--operator-accent, var(--ep-slate));
-  transform: translateY(-50%);
-}
-
-.tube-node {
-  position: relative;
-  display: flex;
-  /* Label above the dot/line, not below — column-reverse flips the visual
-     order without needing to reorder the dot/label markup in onboard.js. */
-  flex-direction: column-reverse;
-  align-items: center;
-  gap: var(--tube-label-gap);
-  flex: 1;
-  min-width: 0;
-}
-
-.tube-dot {
-  width: 7vh;
-  height: 7vh;
-  border-radius: 50%;
-  background: var(--operator-accent, var(--ep-slate));
-  border: 5px solid var(--operator-accent, var(--ep-slate));
-  z-index: 1;
-}
-
-.tube-node.tube-current .tube-dot {
-  width: 9vh;
-  height: 9vh;
-  background: var(--ep-at-stop);
-  border-width: 7px;
-  border-color: var(--ep-at-stop);
-}
-
-.tube-label {
+#sign-headline {
   font-family: var(--ep-font);
-  /* Not PSVAIR-regulated (only route number/destination/this stop/next
-     stop are) — that 22mm minimum applies to the top/bottom bars only. */
-  font-size: var(--tube-label-font);
-  line-height: 1.2;
-  font-weight: 600;
-  text-align: center;
-  /* Meaningfully more than its own .tube-node's width, not capped at
-     100% of it — the rotation below already keeps a long label's real
-     on-screen footprint well short of its unrotated text width, so
-     capping at exactly the node's own slice was forcing names onto a
-     second line more often than actually necessary. */
-  max-width: 180%;
-  /* Reserves space for 2 lines always, whether this particular name needs
-     one or two — every node's label slot ends up the same height as a
-     result, which is what lets #tube-track just centre the whole node
-     block and have every dot land level (see #tube-track/::before above)
-     regardless of which labels actually wrapped. -webkit-box-pack keeps a
-     short single line bottom-anchored against the dot rather than
-     floating at the top of the unused reserved space. -webkit-line-clamp
-     still ellipsis-falls-back if even two lines isn't enough for an
-     unusually long name. */
-  min-height: var(--tube-label-h);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  -webkit-box-pack: end;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--operator-accent, var(--ep-slate));
-  /* Angled like a tube-map label rather than stacked flat above the dot —
-     adjacent stop names read as a clean diagonal run instead of a jumble
-     of horizontal lines stacked over each other. Pivoted on its own
-     bottom-LEFT corner, not centre — rotating about the centre let long
-     names swing far enough down on one side to cross back through the dot
-     and line below; anchored at the left corner, rotate(-30deg) only ever
-     swings the box upward from where it starts; it can't dip below its
-     own starting point regardless of how long the name is. Reset to
-     horizontal for the vertical track layout below, where labels already
-     sit beside their dot with no crowding problem to solve. */
-  transform: rotate(-30deg);
-  transform-origin: left bottom;
-}
-
-.tube-node.tube-current .tube-label {
-  font-weight: 800;
-}
-
-/* Confirmed arrival (geofence match), not just an estimated position —
-   pulses so it reads at a glance. Only motion on this screen. */
-.tube-node.tube-current.tube-at-stop .tube-dot {
-  animation: tube-pulse 1.4s ease-in-out infinite;
-}
-
-@keyframes tube-pulse {
-  0%, 100% { opacity: 1; }
-  50%      { opacity: 0.5; }
-}
-
-/* ── Vertical tube-track — monitor-vertical profile only ─────────────────
-   Set via [data-track-layout="vertical"] on <html> (onboard.js's init());
-   absent for every other profile/URL, so the rules above stay in effect
-   there unchanged. Trades Bar/Monitor's left-to-right line for top-to-
-   bottom, using Monitor's spare vertical headroom (its bars are much
-   shorter than Bar's — see --min-text's comment) to show longer stop names
-   without needing to lean on text-overflow/ellipsis as hard.
-   Each node switches from column-reverse (label above a centred dot) to a
-   fixed-width dot column + flowing label column, via CSS Grid rather than
-   flexbox — grid's justify-self:center keeps the dot centred in its own
-   track regardless of whether it's the normal (7vh) or current-stop (9vh)
-   size, which a flex-basis trick can't do as cleanly. The connector line's
-   left offset is calc()'d to land on that same column's centre. */
-
-[data-track-layout="vertical"] #tube-track {
-  flex-direction: column;
-  justify-content: space-around;
-  align-items: stretch;
-  /* Capped and auto-centred rather than filling #sign-main's full width —
-     at 100% width the fixed-width dot column plus left-aligned labels left
-     the whole track hugging the screen's left edge with a huge dead zone
-     on the right for anything shorter than the longest curated stop name.
-     70vw still leaves ample room for a curated stops.announcement_name
-     (the 22mm-minimum override already keeps these short — see CLAUDE.md)
-     to sit on one line without shrinking toward ellipsis, while the ~15vw
-     margin either side reads as a deliberate centred layout. */
-  max-width: 70vw;
-  margin: 0 auto;
-  padding: 4vh 3vw;
-}
-
-[data-track-layout="vertical"] #tube-track::before {
-  left: calc(3vw + 4.5vh); /* track's left padding + half the wider (current-stop) dot's width, so the line centres under both dot sizes */
-  right: auto;
-  top: 8%;
-  bottom: 8%;
-  width: 8px;
-  height: auto;
-  transform: none;
-}
-
-/* Same arrowhead as the horizontal layout, rotated to point down the
-   vertical line instead of along a horizontal one — tip planted at the
-   line's own start (top: 8%, same x as ::before above). */
-[data-track-layout="vertical"] #tube-track::after {
-  left: calc(3vw + 4.5vh);
-  right: auto;
-  top: 8%;
-  border-top: 2vh solid var(--operator-accent, var(--ep-slate));
-  border-left: 1.4vh solid transparent;
-  border-right: 1.4vh solid transparent;
-  border-bottom: 0;
-  transform: translateX(-50%);
-}
-
-[data-track-layout="vertical"] .tube-node {
-  display: grid;
-  grid-template-columns: 9vh 1fr;
-  align-items: center;
-  gap: 0;
-  column-gap: 2vw;
-  flex: 0 0 auto;
-}
-
-[data-track-layout="vertical"] .tube-dot {
-  justify-self: center;
-}
-
-[data-track-layout="vertical"] .tube-label {
-  text-align: left;
-  /* The horizontal layout's wider cap exists to cut down on 2-line
-     wrapping there — this layout already avoids that (see the section
-     comment above), and letting a label overflow its own grid column
-     here would spill it into the next stop's row instead. */
-  max-width: 100%;
-  /* Labels already sit beside their dot in their own row here — no
-     crowding to solve, so undo the horizontal layout's 30deg tilt. */
-  transform: none;
-}
-
-/* ── Upcoming-stops box — wide (Bar) sign only. Sits right of the
-   tube-track, listing the next 3-4 real stops with name + live-adjusted
-   time. Not PSVAIR-regulated, so sized independently of --min-text like
-   the tube-track labels. Hidden entirely on the narrow (Monitor) profile
-   (onboard.js — no room for it there) and once there are no more real
-   stops ahead. ─────────────────────────────────────────────────────── */
-
-#sign-upcoming {
-  width: 24vw;
-  flex-shrink: 0;
-  /* Slate, matching the tube-track — a shared secondary palette for the
-     "informational" half of the sign, kept distinct from the purple bars. */
-  border-left: 4px solid var(--operator-accent, var(--ep-slate));
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 2.2vh;
-  padding: 2vh 2vw;
-}
-
-.upcoming-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 1vw;
-  font-family: var(--ep-font);
-  color: var(--operator-accent, var(--ep-slate));
-}
-
-.upcoming-name {
-  font-size: 5vh;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-
-.upcoming-time {
-  font-size: 5vh;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
-}
-
-/* ── Bottom bar — brand accent, white lettering. A single line of text that
-   changes wording rather than adding/stacking a second line: "This stop is
-   <name>" while dwelling at a stop, "The next stop will be <name>" while
-   en route. Always one line, so the bar's height (and the tube-track row
-   above it) never jumps between states — see onboard.js's render(). ETAs
-   live in the upcoming-stops box above, not here. ────────────────────── */
-
-#sign-bottom-line {
-  grid-area: bottom;
-  align-self: center;
-  display: flex;
-  justify-content: center;
-  padding: 2vh 3vw;
-  background: var(--operator-accent, var(--ep-purple));
-  color: var(--ep-paper);
-  font-family: var(--ep-font);
+  /* Same size as the topbar (var(--min-text), the literal 22mm minimum) —
+     not scaled up. An earlier version multiplied this by 1.3 to make the
+     headline "the sign's one dominant element"; user feedback 2026-09-02
+     was that all in-service text should read as one consistent size, not
+     some letters visibly larger than others just because they're in the
+     headline vs. the topbar. Still derived from --min-text, never an
+     independent vw/vh number, so it stays panel-diagonal-calibrated. */
   font-size: var(--min-text);
   font-weight: 800;
-  overflow: hidden;
+  line-height: 1.25;
+  text-align: center;
+  color: var(--ep-ink);
+  /* A two-sentence state's second half can still be longer than one line
+     fits, especially on the Lite tablet's more square 3:2 aspect — wrap
+     normally rather than clipping. See onboard.js's showHeadline() for why
+     there's only ever one sentence in here at a time: a two-sentence
+     state reveals its second sentence in place of the first (timed), not
+     alongside it. */
+  white-space: normal;
 }
 
-#sbl-status {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
+/* ── Early-wait caption — not one of the 7 display states (see
+   onboard.html's comment), kept small and secondary rather than a
+   competing full-size headline. */
+
+#early-wait-banner {
+  text-align: center;
 }
 
-/* "Replaces" the bottom line while early-wait is active. */
-#early-wait-banner:not([hidden]) ~ #sign-bottom-line {
-  display: none;
+.ewb-title {
+  font-family: var(--ep-font);
+  font-size: calc(var(--min-text) * 0.5);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--ep-ink);
+}
+
+.ewb-msg {
+  font-family: var(--ep-font);
+  /* Was a flat 3vh, independent of panel size, while its sibling .ewb-title
+     (above) scales with --min-text — meant this line was disproportionately
+     tiny on a large panel (e.g. Bar) and disproportionately large on a
+     small one (e.g. Lite). Tied to the same panel-calibrated base, smaller
+     than the title, consistent with every other text on this sign. */
+  font-size: calc(var(--min-text) * 0.35);
+  font-weight: 400;
+  margin-top: 0.6vh;
+  color: var(--ep-ink-soft);
 }

@@ -2,66 +2,62 @@
 // no login, no duty card UI, no incident reporting, no stop-time upload.
 // This file itself still writes nothing to Supabase directly.
 //
-// Two tiers, two feeds, mutually exclusive per device (see docs/
+// Three tiers, two feeds, mutually exclusive per device (see docs/
 // ANNOUNCE-PRODUCT-TIERS.md):
 //
-// - Standard (Controller-fed): NO reads of its own — no independent
-//   get_duty_card polling, no GPS, no schedule_view queries, no Supabase
-//   writes. A pure renderer driven entirely by what the Driver device
-//   pushes over a local WebSocket (see src/announceLink.js — the sender —
-//   and mele-server/announceRelay.mjs — the relay this device connects
-//   to). Told nothing about which journey to watch via its own URL beyond
-//   ?announce-token=<token> (the relay's shared secret — see
+// - Announce (base tier, Controller-fed): NO reads of its own — no
+//   independent get_duty_card polling, no GPS, no schedule_view queries, no
+//   Supabase writes. A pure renderer driven entirely by what the Driver
+//   device pushes over a local WebSocket (see src/announceLink.js — the
+//   sender — and mele-server/announceRelay.mjs — the relay this device
+//   connects to). Told nothing about which journey to watch via its own URL
+//   beyond ?announce-token=<token> (the relay's shared secret — see
 //   mele-server/DEPLOY.md). Sits blank until an authenticated /sign-feed
 //   connection receives a {type:'schedule'} message, then wakes on its own
 //   as {type:'state'} messages arrive.
 //
-// - Announce Lite, paired mode (Controller-less): an intentional, scoped
-//   exception to "no reads of its own" — see announceLiteFeed.js. Reads its
-//   own announce_devices row (anon, scoped by the device_id claim in
-//   ?announce-device-token=<token> — a distinct param from Standard's
-//   ?announce-token=, never both on the same device) and subscribes to
-//   Supabase Realtime for driver-pushed schedule/state updates, calling the
-//   exact same onSchedule()/onState() below — the rendering code is shared
-//   unchanged between both tiers, only the transport differs.
-import { connectAnnounceLiteFeed } from './announceLiteFeed.js';
-import { captureAnnounceDeviceSetup, getAnnounceDeviceToken } from './announceLiteSetup.js';
-
-const WIDE_LAYOUT_QUERY = '(min-aspect-ratio: 4/1)'; // 16:3 ultra-wide sign, see docs/onboard-widescreen-layout.md
+// - Announce Lite (paired) and Announce Solo (driverless), both
+//   Controller-less: an intentional, scoped exception to "no reads of its
+//   own" — see announceDeviceFeed.js. Reads its own announce_devices row
+//   (anon, scoped by the device_id claim in ?announce-device-token=<token>
+//   — a distinct param from the base tier's ?announce-token=, never both on
+//   the same device). Lite subscribes to Supabase Realtime for
+//   driver-pushed schedule/state updates, calling the exact same
+//   onSchedule()/onState() below — the rendering code is shared unchanged
+//   across all three tiers, only the transport differs. Solo also calls
+//   these same two functions, resolving its own state locally instead of
+//   receiving a push — see announceSoloAutopilot.js.
+//
+// Renders one headline of text per display state (shared/announceStates.js)
+// — the exact same text spoken as audio, wherever the audio happens (the
+// Driver device for the base tier or Lite, this device itself for Solo —
+// see announceSpeech.js). This device never decides *what* state
+// applies; it only ever displays whatever {stateKey, vars} it's told.
+import { connectAnnounceDeviceFeed } from './announceDeviceFeed.js';
+import { captureAnnounceDeviceSetup, getAnnounceDeviceToken } from './announceDeviceSetup.js';
+import { ANNOUNCE_STATES, resolveAnnouncementText } from '../../shared/announceStates.js';
 
 // Named display profiles — commissioned via ?panel-profile=<key> (same
 // URL-param pattern as ?panel-diagonal= below). Lets a specific physical
-// target be forced explicitly (which layout, which diagonal for text
-// sizing) instead of relying purely on whatever aspect ratio the current
-// window/screen happens to report — needed for previewing a layout that
-// doesn't match the window you're actually looking at it in (e.g. testing
-// the Monitor rendering in an arbitrary browser window), and for kiosk
-// deployments where stating the target explicitly is more robust than
-// depending on the panel's reported aspect ratio matching WIDE_LAYOUT_QUERY
-// exactly. Bar is the original ultra-wide destination-board plan (not yet
-// built, kept for later); monitor/monitor-vertical are both the Dell Pro
-// P2426H, the confirmed demo/validation unit in use today
-// (mele-server/DEPLOY.md §5) — monitor-vertical swaps only the tube-track's
-// orientation (top-to-bottom instead of left-to-right), trading Monitor's
-// spare vertical headroom (see --min-text's comment below) for longer,
-// unclipped stop-name labels; everything else about it is identical to
-// monitor (narrow layout, no ETA box, same text sizing).
+// target's diagonal be forced explicitly instead of relying purely on
+// ?panel-diagonal= being passed directly — needed for kiosk deployments
+// where naming the target is more robust than trusting a URL param typed
+// once at commissioning time. Bar is the original ultra-wide
+// destination-board plan (not yet built, kept for later); monitor is the
+// Dell Pro P2426H, the confirmed demo/validation unit in use today
+// (mele-server/DEPLOY.md §5); lite is the Announce Lite/Solo tablet
+// candidate, DOOGEE Tab E3 Max, 14.6", 2160x1440 — 3:2, not 16:9, a deliberate
+// compromise (see docs/HARDWARE.md §14) — the layout itself doesn't care
+// about aspect ratio (no wide/narrow branching any more, see the file
+// header), only this diagonal figure for --min-text sizing.
 const PANEL_PROFILES = {
-  bar:               { diagonalInches: 28,   wide: true,  trackLayout: 'horizontal' },
-  monitor:           { diagonalInches: 23.8, wide: false, trackLayout: 'horizontal' },
-  'monitor-vertical': { diagonalInches: 23.8, wide: false, trackLayout: 'vertical'   },
+  bar:     { diagonalInches: 28 },
+  monitor: { diagonalInches: 23.8 },
+  lite:    { diagonalInches: 14.6 },
 };
 const panelProfile = PANEL_PROFILES[new URLSearchParams(window.location.search).get('panel-profile')] ?? null;
 
 const el = (id) => document.getElementById(id);
-// No panel-profile: unchanged live aspect-ratio auto-detect. Known profile:
-// its wide/narrow choice wins outright, regardless of the actual window
-// shape — see PANEL_PROFILES comment above.
-const isWideLayout = () => panelProfile ? panelProfile.wide : matchMedia(WIDE_LAYOUT_QUERY).matches;
-// No profile (or a horizontal one): unchanged left-to-right tube-track —
-// there's no live-detected equivalent of "vertical" the way aspect ratio
-// stands in for "wide", so this only ever comes from an explicit profile.
-const trackLayout = () => panelProfile?.trackLayout ?? 'horizontal';
 
 // ── PSV(AI)R 22mm minimum text height — panel-agnostic sizing ──────────────
 // onboard.css's --min-text default (17vh) is a fixed constant calibrated
@@ -99,17 +95,6 @@ function applyPanelSizing() {
   if (minTextVh) document.documentElement.style.setProperty('--min-text', `${minTextVh}vh`);
 }
 
-// display_name() (schema.sql) appends a NaPTAN indicator in parentheses —
-// "Weston, The Chequers PH (adj)", "Grantham, Bus Station (Stand 5)" — for
-// route-planning precision (which pole/bay/side of the road). Passengers
-// don't need that, and every character counts against the 22mm text
-// minimum, so it's stripped here for this passenger-facing display only —
-// the pushed stops arrive with the full name (the driver PWA and dashboard
-// need the indicator), stripped is applied on receipt, in onSchedule below.
-function stripIndicator(name) {
-  return name.replace(/\s*\([^)]*\)\s*$/, '');
-}
-
 // ── Wake lock — keep the mounted screen on ─────────────────────────────────
 let wakeLock = null;
 async function acquireWakeLock() {
@@ -126,103 +111,13 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && wakeLock === null) acquireWakeLock();
 });
 
-// ── Tube-map style progress line ────────────────────────────────────────
-// Bar has much more horizontal room per node than Monitor, so it shows more
-// stops either side of the current one — see docs/onboard-widescreen-layout.md.
-// Monitor-vertical gets the same larger count as Bar despite being a
-// "narrow" profile — its extra room comes from stacking down the screen's
-// height instead of across its width, but the space budget argument is the
-// same one either way.
-
-function renderTubeTrack(allStops, centerIndex, isAtStop) {
-  const track = el('tube-track');
-  track.innerHTML = '';
-
-  const last = allStops.length - 1;
-  // Labels must stay readable from the back of an 11m bus (~22mm min text,
-  // see --min-text in onboard.css), which leaves room for only a few stops
-  // either side regardless of how much room a given profile has to spend.
-  const isWide = isWideLayout();
-  // The leading (leftmost/topmost) node is always the current reference
-  // stop — the one we're at (green, pulsing) or, once under way, the one
-  // we're heading to next (green, not pulsing) — never one already left
-  // behind. A fixed shape regardless of isAtStop matters: making the
-  // window reshape itself on that flag (showing a past stop only while
-  // dwelling) meant a real-world GPS wobble right at the arrival boundary
-  // — isAtStop flipping without nextStopIndex itself changing — rearranged
-  // the whole strip and desynced it from the (debounced, stable) voice
-  // announcements. Keeping the shape constant and using isAtStop only for
-  // the pulse animation below avoids that.
-  const stopsForward = (isWide || trackLayout() === 'vertical') ? 3 : 2;
-  const indices = [];
-  for (let i = centerIndex; i <= Math.min(centerIndex + stopsForward, last); i++) indices.push(i);
-
-  indices.forEach((i) => {
-    const state = i === centerIndex ? 'current' : 'future';
-    const node = document.createElement('div');
-    node.className = `tube-node tube-${state}`;
-    // "At stop" (geofence-confirmed arrival) gets its own pulsating look,
-    // distinct from "current" (an estimated position between stops).
-    if (i === centerIndex && isAtStop) node.classList.add('tube-at-stop');
-    node.innerHTML = `<div class="tube-dot"></div><div class="tube-label">${allStops[i].name}</div>`;
-    track.appendChild(node);
-  });
-}
-
-// ── Upcoming-stops box — wide sign only ─────────────────────────────────
-// gps.js's `timing` is a live estimate for whichever stop it currently has
-// as nextStopIndex; the offset between that stop's live ETA and its
-// scheduled time is carried forward uniformly onto later stops' scheduled
-// times too — an approximation (assumes the same running-late/early delta
-// holds all the way to each of them), but a reasonable one for a handful
-// of stops ahead.
-function etaForStop(stop, timing) {
-  const [h, m] = stop.time.split(':').map(Number);
-  const scheduled = new Date();
-  scheduled.setHours(h, m, 0, 0);
-  const offsetMs = timing.eta.getTime() - timing.scheduledTime.getTime();
-  return new Date(scheduled.getTime() + offsetMs);
-}
-
-const UPCOMING_STOP_COUNT = 4;
-
-function renderUpcoming(allStops, centerIndex, timing) {
-  const box = el('sign-upcoming');
-  if (!isWideLayout()) { box.hidden = true; return; }
-
-  const last = allStops.length - 1;
-  // Strictly after the highlighted stop — same fixed-shape reasoning as
-  // renderTubeTrack above, and it avoids listing the highlighted stop's
-  // own ETA a second time as if it were "upcoming".
-  const rows = [];
-  for (let i = centerIndex + 1; i <= Math.min(centerIndex + UPCOMING_STOP_COUNT, last); i++) rows.push(allStops[i]);
-
-  if (!rows.length) { box.hidden = true; box.innerHTML = ''; return; }
-  box.hidden = false;
-  box.innerHTML = rows.map((stop) => {
-    const time = etaForStop(stop, timing).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-    return `<div class="upcoming-row"><span class="upcoming-name">${stop.name}</span><span class="upcoming-time">${time}</span></div>`;
-  }).join('');
-}
-
 // ── Brand mark position — pinned to the actual bottom-left corner of the
 // middle band (#sign-main once active, #idle-main before that), measured
-// live rather than guessed as a fixed vh offset. A fixed-vh guess (the old
-// approach) only worked by accident: it was calibrated once against a
-// bottom bar height that happened to be near-identical across every
-// profile that existed at the time. That stopped holding the moment
-// profiles with genuinely different --min-text values (Bar ~16.8vh vs
-// Monitor ~7.42vh, see onboard.css) coexisted — the bottom (and top) bar's
-// rendered height scales with --min-text, so the same fixed offset
-// overshoots on a short-bar profile and undershoots on a tall-bar one.
-// Measuring the real box is correct for any profile, present or future,
-// with no per-panel number to maintain. Also re-run on every render() — the
-// early-wait banner (#early-wait-banner) replaces the bottom bar with a
-// taller two-line block while it's shown, which shifts the track band's
-// own bottom edge for as long as it's up. Idle and active share this same
-// logic (both use the same topbar/main/bottom grid shape, see onboard.css)
-// so the brand mark sits directly above the lower bar on every screen, not
-// just once a journey is live. ──────────────────────────────────────────
+// live rather than guessed as a fixed vh offset — see positionBrand's
+// original design rationale: a fixed-vh guess only holds by accident across
+// panels whose --min-text (and so bottom-bar height) genuinely differ (Bar
+// ~16.8vh vs Monitor ~7.42vh). Re-run on every render() since the
+// early-wait caption toggling can change the topbar's rendered height.
 function positionBrand() {
   const mainBand = !el('onboard-sign').hidden ? el('sign-main')
     : !el('onboard-idle').hidden ? el('idle-main')
@@ -237,69 +132,102 @@ function positionBrand() {
 window.addEventListener('resize', positionBrand);
 
 // ── Rendering — purely visual: no audio, no Supabase, no GPS — just DOM
-// updates off an already-computed state shape pushed from the Driver. ──────
+// updates off an already-resolved {stateKey, vars} pushed from whichever
+// device is driving this journey (Driver, or this device's own Solo
+// autopilot — see announceSoloAutopilot.js). Never recomputes which
+// state applies itself. ──────────────────────────────────────────────────
 
-function render(allStops, initialStopIndex, { nextStopIndex, earlyWait, atStop, timing }) {
-  const last = allStops.length - 1;
-  // atStop.stopIndex and nextStopIndex are the same index while dwelling —
-  // gps.js only advances nextStopIndex on departure — so nextStopIndex is
-  // always the right "where the track is centred" answer either way.
-  const centerIndex = Math.min(Math.max(nextStopIndex, initialStopIndex), last);
-  const isFinal = !atStop && nextStopIndex > last;
+// A handful of states resolve to two sentences (e.g. STOP_DEPARTURE: "This
+// is a X to Y. The next stop will be Z.") — spoken as one flowing sentence,
+// but showing both at once on screen reads messily, especially on the
+// Lite/Solo tablet's more square 3:2 aspect (less horizontal room than Monitor/Bar to
+// wrap into before things get cramped). Instead: the first sentence shows
+// alone, clears briefly, then the second sentence takes over and stays up
+// until the next real state change. Fixed durations, not scaled to text
+// length — simple and predictable to tune by eye. Purely a display-timing
+// choice — the underlying text (and so the spoken audio, which plays
+// wherever this journey's audio actually lives — see the file header) is
+// unchanged throughout.
+const FIRST_SENTENCE_MS = 3000;
+const CLEAR_GAP_MS = 300;
 
-  // One clause only, not "This stop is X. The next stop will be Y." — the
-  // tube-track above already shows what's next visually. Changes wording
-  // rather than adding/stacking a second line, so the bottom bar's height
-  // stays constant and the tube-track above it never jumps. Static text —
-  // ellipsis-truncates (see onboard.css) rather than scrolling if a name
-  // is too long to fit.
-  el('sbl-status').textContent = atStop
-    ? `This stop is ${allStops[centerIndex].name}`
-    : isFinal
-      ? 'End of route'
-      : `The next stop will be ${allStops[centerIndex].name}`;
-  renderTubeTrack(allStops, centerIndex, !!atStop);
-  renderUpcoming(allStops, centerIndex, timing);
+let sequenceTimers = [];
+// Fingerprints the last {stateKey, vars} this actually started a sequence
+// for — pushSignState (main.js) resends the current state on every GPS
+// tick so earlyWait stays live (see its own comment), not just on real
+// transitions, so this guards against restarting the reveal sequence (and
+// visibly flickering) on a tick that didn't actually change anything.
+let lastSequenceSignature = null;
 
+function clearSequenceTimers() {
+  sequenceTimers.forEach(clearTimeout);
+  sequenceTimers = [];
+}
+
+function showHeadline(stateKey, vars) {
+  const text = resolveAnnouncementText(stateKey, vars) ?? '';
+  const sentences = text.split(/(?<=\.)\s+/);
+  const headline = el('sign-headline');
+
+  clearSequenceTimers();
+  if (sentences.length < 2) {
+    headline.textContent = text;
+    return;
+  }
+
+  headline.textContent = sentences[0];
+  sequenceTimers.push(setTimeout(() => {
+    headline.textContent = '';
+    sequenceTimers.push(setTimeout(() => {
+      headline.textContent = sentences[1];
+    }, CLEAR_GAP_MS));
+  }, FIRST_SENTENCE_MS));
+}
+
+function render(stateKey, vars, earlyWait) {
+  const signature = `${stateKey}|${JSON.stringify(vars)}`;
+  if (signature !== lastSequenceSignature) {
+    lastSequenceSignature = signature;
+    showHeadline(stateKey, vars);
+  }
+  // Never colour alone (docs/ACCESSIBILITY_BRAND_PLAYBOOK.md) — the
+  // headline text and, on tiers with audio, the spoken announcement both
+  // also change for a diversion; this is a supplementary visual emphasis,
+  // not the only signal.
+  el('onboard-sign').classList.toggle('diversion', stateKey === ANNOUNCE_STATES.DIVERSION);
+  // Terminus — AT_STOP only ever fires for the final stop now (see
+  // shared/announceStates.js), so no extra isFinal check needed here.
+  // Same "never colour alone" reasoning as diversion above: the headline
+  // text ("This service terminates here, all change please.") and, on
+  // tiers with audio, the spoken announcement both already carry the
+  // message — this full-page colour is a supplementary "notice me" cue on
+  // top, per user feedback 2026-09-02, not the only signal.
+  el('onboard-sign').classList.toggle('terminus', stateKey === ANNOUNCE_STATES.AT_STOP);
+
+  // Suppressed at terminus — "running early, depart at X" doesn't mean
+  // anything once the bus has actually reached its final stop and
+  // passengers are being told to get off; found live, 2026-09-02, showing
+  // confusingly on top of the new terminus colour (pre-existing gap, not
+  // something this change introduced — earlyWait and stateKey were always
+  // independent — just made newly obvious by that background).
   const banner = el('early-wait-banner');
-  if (earlyWait) {
+  if (earlyWait && stateKey !== ANNOUNCE_STATES.AT_STOP) {
     banner.hidden = false;
-    el('ewb-time').textContent = earlyWait.scheduledTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    el('ewb-time').textContent = new Date(earlyWait.scheduledTime)
+      .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
   } else {
     banner.hidden = true;
   }
-  positionBrand(); // banner toggling above can change the bottom row's height
-}
-
-// Dates cross JSON as ISO strings — revive them back into Date objects the
-// same render()/renderUpcoming() code expects. stopStates isn't consumed by
-// anything yet, but its arrivedAt/departedAt are revived too so it's not a
-// trap for whatever reads it next.
-function reviveState(msg) {
-  return {
-    ...msg,
-    timing: msg.timing && {
-      ...msg.timing,
-      eta: new Date(msg.timing.eta),
-      scheduledTime: new Date(msg.timing.scheduledTime),
-    },
-    earlyWait: msg.earlyWait && { ...msg.earlyWait, scheduledTime: new Date(msg.earlyWait.scheduledTime) },
-    stopStates: msg.stopStates && msg.stopStates.map((s) => ({
-      ...s,
-      arrivedAt: s.arrivedAt ? new Date(s.arrivedAt) : null,
-      departedAt: s.departedAt ? new Date(s.departedAt) : null,
-    })),
-  };
+  positionBrand(); // banner toggling above can change the topbar's own height
 }
 
 // ── Operator branding ─────────────────────────────────────────────────────
 // Mirrors the ThemeProvider pattern used in the dashboard: inject
 // --operator-accent as a CSS var on <html>, consumed by onboard.css for the
-// top/bottom bars and tube-track (background behind white text, and
-// line/dot/label colour on the white paper background) — see onboard.css's
-// --operator-accent comment. Falls back to CoachMate's default dark purple
-// unless the operator's accent_color clears WCAG AA for large text/UI
-// components (>= 3:1 contrast) against the white paper it's used on/with.
+// top bar — see onboard.css's --operator-accent comment. Falls back to
+// CoachMate's default dark purple unless the operator's accent_color clears
+// WCAG AA for large text/UI components (>= 3:1 contrast) against the white
+// paper it's used on/with.
 //
 // companies.accent_color is `not null default '#00B4D8'` (schema.sql), and
 // the Driver's schedule push carries it through as-is (get_duty_card()
@@ -389,11 +317,41 @@ function initIdleScreen() {
   positionBrand(); // idle screen's topbar/main/bottom band now exists to measure — pins the mark above the bottom bar here too
 }
 
-// Standalone (driverless) schedule-autopilot only (see
-// announceStandaloneAutopilot.js) — always unhides the idle screen, even
+// Lite/Solo only — a *live* company logo, superseding the static
+// branding-logo.png file above (which only ever made sense for the base
+// tier's per-Controller-box local file placed at commissioning time; a
+// Lite/Solo device is just this one shared web app, so it can't have a
+// different local file per company the way a physical Controller can).
+// Called once from announceDeviceFeed.js's start(), right after it reads
+// this device's own row (so it knows which company to fetch) — same
+// "company identity can't come from get_duty_card, so read it another way"
+// reasoning as initIdleScreen() above, just Supabase-backed instead of a
+// URL param. { name, logoUrl, accentColor } — logoUrl is already resolved
+// to a public Storage URL by the caller (getPublicUrl()), null if the
+// company has no logo set (BrandingPage.jsx never requires one). Found
+// 2026-09-02: without this, every Lite/Solo device across every company
+// showed the same single placeholder file (or nothing), never the actual
+// customer's logo the user expected centred in the idle screen.
+export function applyIdleBranding({ name, logoUrl, accentColor }) {
+  if (accentColor) applyOperatorBranding({ accentColor }); // idle topbar now matches the company's own accent too, not just the active sign's
+
+  if (logoUrl) {
+    const logo = el('idle-logo');
+    logo.alt = name ? `${name} logo` : 'Company logo';
+    logo.addEventListener('load', () => { logo.hidden = false; }, { once: true });
+    logo.addEventListener('error', () => { logo.hidden = true; }, { once: true });
+    logo.src = logoUrl;
+  }
+
+  el('onboard-idle').hidden = false;
+  positionBrand();
+}
+
+// Solo (driverless) schedule-autopilot only (see
+// announceSoloAutopilot.js) — always unhides the idle screen, even
 // without ?operator-name= and even with no candidate yet (a device freshly
 // registered with no candidate_departure_ids configured), so the kiosk
-// visibly confirms it booted into standalone mode rather than looking
+// visibly confirms it booted into Solo mode rather than looking
 // identical to a broken/not-yet-connected device. Only the next-departure
 // caption itself is conditional. candidate is
 // { departureId, firstStopLat, firstStopLon, departureTime } (scheduleAutopilot.js's
@@ -403,49 +361,55 @@ export function showNextDeparture(candidate) {
   box.hidden = !candidate;
   box.textContent = candidate ? `Next departure ${candidate.departureTime}` : '';
   el('onboard-idle').hidden = false;
+  el('onboard-brand').hidden = false; // undo showSleepScreen()'s hide, if it ran
   positionBrand();
 }
 
-// ── Clock — wide-layout top bar only, but harmless to keep updating while
-// the sign is hidden/in the default layout since #sign-clock just sits
-// unused there. ──────────────────────────────────────────────────────────
-
-function startClock() {
-  const clock = el('sign-clock');
-  const tick = () => {
-    clock.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-  };
-  tick();
-  setInterval(tick, 1000);
+// Solo only — fully blank screen (no branding, no logo, no next-departure
+// caption, not even the small corner brand mark) outside this device's
+// configured active windows. Previously only GPS *polling* was gated by
+// the window (announceSoloAutopilot.js's idleTimer) — the idle screen
+// itself stayed lit and branded around the clock regardless, which made
+// no sense for a device that only runs a school-run twice a day. Never
+// called while a journey is actually active — announceSoloAutopilot.js's
+// applyWakeState() guards that, a window ending mid-route must not blank
+// the sign out from under real passengers.
+export function showSleepScreen() {
+  el('onboard-idle').hidden = true;
+  el('onboard-sign').hidden = true;
+  el('onboard-brand').hidden = true;
 }
 
 // ── Pushed feed (Driver -> Controller -> this sign) — the only source of
 // truth this device has. See src/announceLink.js (sender) and
-// mele-server/announceRelay.mjs (relay). This device reads its own push-feed
-// token from its own URL rather than commissioning localStorage the way the
-// Driver device does — onboard.html is always opened via one fixed
-// per-vehicle URL (see mele-server/DEPLOY.md), so there's nothing to persist
-// across visits. Persistent, auto-reconnecting (same flat 3s-retry shape as
-// announceLink.js's own connect()) — there is no fallback to give up into
-// if the connection can't be established. ──────────────────────────────────
+// mele-server/announceRelay.mjs (relay this device connects to). This
+// device reads its own push-feed token from its own URL rather than
+// commissioning localStorage the way the Driver device does — onboard.html
+// is always opened via one fixed per-vehicle URL (see mele-server/DEPLOY.md),
+// so there's nothing to persist across visits. Persistent, auto-reconnecting
+// (same flat 3s-retry shape as announceLink.js's own connect()) — there is
+// no fallback to give up into if the connection can't be established. ─────
 const RECONNECT_DELAY_MS = 3000;
 
 let socket = null;
-let allStops = null;
-const initialStopIndex = 0; // start of route; geofence catch-up (on the Driver side) handles wherever the vehicle actually is
 let signShown = false;
 
-// Exported for announceLiteFeed.js — the Lite tier's Supabase-driven
-// alternative to this section's WebSocket feed calls these with the exact
-// same message shape (see that file's header comment), so the rendering
-// code below is shared unchanged between both tiers.
+// Exported for announceDeviceFeed.js/announceSoloAutopilot.js — the
+// Lite/Solo tiers' alternative to this section's WebSocket feed calls these
+// with the exact same message shape, so the rendering code below is shared
+// unchanged across every transport/tier.
 export function onSchedule(msg) {
-  allStops = (msg.stops ?? []).map((s) => ({ ...s, name: stripIndicator(s.name) }));
   el('sign-service-code').textContent = msg.serviceCode;
   el('sign-destination').textContent = msg.destination;
   applyOperatorBranding({ accentColor: msg.accentColor });
   el('onboard-idle').hidden = true;
   el('onboard-sign').hidden = false;
+  el('onboard-brand').hidden = false; // undo showSleepScreen()'s hide, if a Solo journey matched right as its window opened
+  // Forces the first state of this journey to always start a fresh reveal
+  // sequence, even in the unlikely case its {stateKey, vars} happens to
+  // match whatever the sign was last showing at the end of a prior journey
+  // (e.g. the same service starting again from the same first stop).
+  lastSequenceSignature = null;
   // Brand mark stays visible once active too — positionBrand() (above) pins
   // it to the track band's actual bottom-left corner now that the track
   // band exists to measure; it wasn't there a line ago.
@@ -457,27 +421,17 @@ export function onSchedule(msg) {
 }
 
 export function onState(msg) {
-  if (!allStops) {
-    // Shouldn't happen given the relay sends schedule before state on
-    // connect (see announceRelay.mjs), but guards a freshly-restarted relay
-    // with a stale latestState and no latestSchedule yet.
-    console.warn('onboard.js: state message received before any schedule — ignoring');
-    return;
-  }
-  const state = reviveState(msg);
-  render(allStops, initialStopIndex, state);
+  render(msg.stateKey, msg.vars, msg.earlyWait);
 }
 
-// Journey ended — Standard via {type:'complete'} over the WebSocket
+// Journey ended — base tier via {type:'complete'} over the WebSocket
 // (announceLink.js's disconnectAnnounceLink, relayed by announceRelay.mjs),
-// Lite via announce_devices' latest_schedule/latest_state being cleared
-// (end_announce_device_journey, see announceLiteFeed.js). Previously
-// neither transport had any "journey ended" signal at all, so the sign just
-// kept showing the last journey's state indefinitely. Reuses
+// Lite/Solo via announce_devices' latest_schedule/latest_state being cleared
+// (end_announce_device_journey, see announceDeviceFeed.js). Reuses
 // showNextDeparture(null)'s "unhide idle, no candidate caption" behaviour
 // rather than a new idle-rendering path.
 export function onJourneyEnd() {
-  allStops = null;
+  clearSequenceTimers();
   el('onboard-sign').hidden = true;
   showNextDeparture(null);
 }
@@ -523,22 +477,24 @@ function connectSignFeed() {
 
 function init() {
   applyPanelSizing();
-  // Only set when non-default so onboard.css's base (horizontal) rules stay
-  // the ones in effect for every profile/URL that doesn't ask for vertical.
-  if (trackLayout() === 'vertical') document.documentElement.dataset.trackLayout = 'vertical';
-  startClock();
   initIdleScreen();
 
-  // Mutually exclusive per device: ?announce-device-token= (Lite, Supabase
-  // Realtime — see announceLiteFeed.js) vs the Standard /sign-feed
-  // WebSocket. A device is provisioned with exactly one of the two URL
-  // params, never both. The Lite token is captured once and persisted (see
-  // announceLiteSetup.js) rather than re-read from the URL every load — a
-  // kiosk isn't guaranteed to reopen with its original query string.
+  // Mutually exclusive per device: ?announce-device-token= (Lite/Solo,
+  // Supabase Realtime — see announceDeviceFeed.js) vs the base tier's
+  // /sign-feed WebSocket. A device is provisioned with exactly one of the
+  // two URL params, never both. The Lite/Solo token is captured once and
+  // persisted (see announceDeviceSetup.js) rather than re-read from the URL
+  // every load — a kiosk isn't guaranteed to reopen with its original query
+  // string.
   captureAnnounceDeviceSetup(new URLSearchParams(window.location.search));
-  const liteDeviceToken = getAnnounceDeviceToken();
-  if (liteDeviceToken) {
-    connectAnnounceLiteFeed(liteDeviceToken, { onSchedule, onState, onJourneyEnd, onIdleNextDeparture: showNextDeparture });
+  const announceDeviceToken = getAnnounceDeviceToken();
+  if (announceDeviceToken) {
+    connectAnnounceDeviceFeed(announceDeviceToken, {
+      onSchedule, onState, onJourneyEnd,
+      onIdleNextDeparture: showNextDeparture,
+      onIdleBranding: applyIdleBranding,
+      onSleep: showSleepScreen,
+    });
   } else {
     connectSignFeed();
   }

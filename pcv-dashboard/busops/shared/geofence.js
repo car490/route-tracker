@@ -19,8 +19,20 @@ export const SKIPPED_SIGNAL_MAX_TIMING_POINTS = 1;
 // "Approaching" thresholds — projected by current speed, falling back to a
 // wider distance band when speed is too low/noisy to project a reliable ETA
 // (e.g. stationary in traffic, or a jumpy GPS fix).
-export const APPROACH_ETA_SECONDS = 90;
-export const APPROACH_FALLBACK_RADIUS_M = 300;
+//
+// Tightened from 90s/300m per first-beta-test feedback 2026-09-03: the
+// approach announcement ("This is X.") is spoken exactly once (see the
+// lastAnnouncedApproachIdx guards in driver/src/main.js and
+// announceSoloAutopilot.js) right as this flips true, so it was firing far
+// too early at the old thresholds — up to a mile out at highway speed
+// (distanceM/speedMps <= 90s). Can't be tightened all the way down to the
+// ~20m the driver asked for, since that's inside GEOFENCE_RADIUS_M (50m)
+// and isApproaching() never returns true once already inside the arrival
+// radius — these values land the (single, once-only) announcement just
+// outside that ring instead. Treat as a starting point to dial in against
+// real on-road speeds, not a final tuning.
+export const APPROACH_ETA_SECONDS = 20;
+export const APPROACH_FALLBACK_RADIUS_M = 100;
 export const APPROACH_MIN_SPEED_MPS = 1;
 
 /**
