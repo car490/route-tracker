@@ -1,4 +1,4 @@
-const CACHE_NAME = 'busops-driver-v2.0.0';
+const CACHE_NAME = 'busops-driver-v2.1.0';
 
 const STATIC_ASSETS = [
   './',

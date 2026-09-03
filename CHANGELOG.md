@@ -5,8 +5,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
-## [2.0.0] - 2026-09-03
+## [2.1.0] - 2026-09-03
 
+- chore: complete changelog for v2.0.0, add production PWA deploy job
 - Fix Announce idle-lock and PWA approach-audio repeat from first beta test
 - feat(announce): Solo device sleeps outside its active windows, not just GPS polling
 - fix(announce): fix dead approaching signal, drop repeated route text, lock TTS voice
@@ -42,7 +43,9 @@ number covers the whole solution — PWA and dashboard release together on the
 - ci: auto-deploy Driver PWA to driver.pcvtechnologies.co.uk on develop
 - Add testing-mode time-shift fallback to Announce Lite standalone autopilot
 - docs: add real-device bench-testing steps for Announce Lite
-- chore: release v2.0.0
+
+## [2.0.0] - 2026-08-27
+
 - docs: add Announce Lite manual test section to TESTING.md
 - Announce Lite: standalone schedule-autopilot wiring + idle-screen extension
 - Announce Lite: standalone schedule-autopilot matcher (TDD)
