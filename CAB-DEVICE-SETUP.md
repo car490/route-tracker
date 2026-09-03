@@ -231,6 +231,26 @@ adb shell am start -n de.ozerov.fully/de.ozerov.fully.MainActivity
 ```
 (`//sdcard/...`, not `/sdcard/...` — see the Git Bash quirk below if running this on Windows.)
 
+### Known quirk: a failed/never-cached first load needs a manual reload to recover
+
+First-beta-test incident, 2026-09-03 (Announce Solo tablet): powered on with
+no internet at all, so there was nothing cached yet to fall back to (see
+"Offline behaviour" below — cache-first only helps once something has been
+cached once) and the initial load simply failed. It sat there until a hotspot
+was connected and the page was reloaded **by hand** — Fully Kiosk doesn't
+retry a failed load or reload itself on its own once connectivity shows up,
+by default. Fixed by three Fully Kiosk settings in
+`fully-auto-settings.json`: `reloadOnInternet: true` and `reloadOnWifiOn:
+true` (reload automatically the moment connectivity/WiFi comes up) and
+`reloadPageFailure: "10"` (if a load still fails, keep retrying every 10s
+instead of giving up after one attempt) — applied to
+`announce/cab-device/fully-auto-settings.json` (the Announce Solo/Lite
+tablet; this is the device the incident happened on). The same three
+settings default to `false`/`"0"` in `driver/cab-device/fully-auto-settings.json`
+too — apply the identical fix there if this failure mode is ever seen on a
+Driver cab device. Same re-push-and-restart caveat as above applies to
+already-provisioned units.
+
 ### Known quirk: Git Bash on Windows mangles `/sdcard/...` paths
 
 Confirmed 2026-09-01 while provisioning the Announce Lite/Solo tablet

@@ -63,6 +63,12 @@ device, so they apply here unchanged and aren't repeated in full below.
 - **No SIM hard-requirement.** The Driver script refuses to proceed without
   a detected SIM. This tier's script only warns — a fixed beta/bench
   install on WiFi is a legitimate option here, not just a fallback.
+- **Can provision a WiFi network non-interactively.** `setup-solo-device.sh`
+  takes an optional SSID/password (see next section) and saves it via `adb`
+  before Kiosk Mode locks the device down — needed for a SIM-less unit (e.g.
+  running off a phone hotspot) since nobody can open a WiFi picker on-device
+  once Kiosk Lock is active. Android then auto-reconnects to it on every
+  future boot with zero taps, same as any other previously-saved network.
 
 ## The kiosk URL
 
@@ -89,6 +95,12 @@ and pushes a settings file with this device's install link baked into
 ```sh
 cd pcv-dashboard/busops/announce/cab-device
 ./setup-solo-device.sh 'https://<host>/announce/onboard.html?announce-device-token=...&operator-name=...'
+
+# SIM-less unit (e.g. this beta tablet, riding on a phone hotspot until a
+# SIM is fitted) -- pass the hotspot's SSID/password as two more args and
+# the script saves it non-interactively so the device auto-joins on every
+# boot with no taps needed:
+./setup-solo-device.sh 'https://<host>/announce/...' 'MyPhoneHotspot' 'hotspot-password'
 ```
 
 See the script's own header comment for the full prerequisite list (adb,

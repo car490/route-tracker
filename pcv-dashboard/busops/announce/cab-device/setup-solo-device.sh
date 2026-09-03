@@ -25,7 +25,13 @@
 #      for this tier.
 #   3. Enable Developer Options + USB Debugging on the device, connect via
 #      USB, accept the "Allow USB debugging?" prompt on-device.
-#   4. ./setup-solo-device.sh '<install-link-url>'
+#   4. ./setup-solo-device.sh '<install-link-url>' ['<wifi-ssid>' '<wifi-password>']
+#      The WiFi args are optional -- for a unit with no SIM yet (e.g. this
+#      beta tablet, running off a phone hotspot until a SIM is fitted, see
+#      SOLO-DEVICE-SETUP.md), this saves the network non-interactively so
+#      Android auto-reconnects to it on every future boot with zero taps --
+#      required, since Kiosk Mode's lockdown means there's no one able to
+#      tap a WiFi picker on this device once it's mounted in the vehicle.
 #   5. Follow the printed manual steps (screen lock removal).
 #
 # Requires: adb (Android platform-tools) on PATH, or set ADB=/path/to/adb.
@@ -33,8 +39,10 @@
 set -euo pipefail
 
 INSTALL_LINK="${1:-}"
+WIFI_SSID="${2:-}"
+WIFI_PASSWORD="${3:-}"
 if [ -z "$INSTALL_LINK" ]; then
-  echo "Usage: $0 '<install-link-url>'" >&2
+  echo "Usage: $0 '<install-link-url>' ['<wifi-ssid>' '<wifi-password>']" >&2
   echo "  Get the install link from the dashboard: Announce Devices -> (device row) -> Get Install Link." >&2
   exit 1
 fi
@@ -64,6 +72,26 @@ if echo "$SIM_STATE" | grep -q "READY"; then
 else
   echo "   No ready SIM detected (gsm.sim.state=$SIM_STATE) — fine if this unit is WiFi-only," >&2
   echo "   but confirm it has a working internet path before relying on it for a real beta." >&2
+fi
+
+if [ -n "$WIFI_SSID" ]; then
+  echo "==> Saving WiFi network '$WIFI_SSID' non-interactively (auto-reconnects on every boot,"
+  echo "    no taps needed -- Kiosk Mode leaves nobody able to use a WiFi picker on-device)..."
+  # `cmd wifi` (Android 10+) adds this to the device's normal saved-network
+  # list -- the same list a manual Settings -> WiFi join would populate, so
+  # Android's own auto-reconnect (already always-on) picks it up on every
+  # future boot with zero further action. Not fatal if this device/Android
+  # build rejects it (e.g. WPA3-only hotspot needing a different auth token,
+  # or an OEM that's stripped this shell command) -- falls back to the usual
+  # one-time manual join via Settings, which then persists the same way.
+  "$ADB" shell cmd wifi add-network "$WIFI_SSID" wpa2 "$WIFI_PASSWORD" || {
+    echo "   (add-network failed -- join '$WIFI_SSID' once manually via Settings -> WiFi instead;" >&2
+    echo "   it'll auto-reconnect on every boot after that same as if this had succeeded)" >&2
+  }
+  "$ADB" shell cmd wifi connect-network "$WIFI_SSID" wpa2 "$WIFI_PASSWORD" || true
+else
+  echo "==> No WiFi SSID/password given -- skipping WiFi provisioning (pass them as args 2 and 3"
+  echo "    if this unit needs a phone hotspot rather than a SIM, see usage above)."
 fi
 
 echo "==> Installing Fully Kiosk Browser ($APK)..."

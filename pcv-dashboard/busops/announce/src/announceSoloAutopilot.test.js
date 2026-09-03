@@ -21,6 +21,7 @@ vi.mock('./announceGps.js', () => ({ startAnnounceGpsTracking: vi.fn() }));
 vi.mock('./announceSpeech.js', () => ({ speakState: vi.fn() }));
 
 import { startAnnounceGpsTracking } from './announceGps.js';
+import { speakState } from './announceSpeech.js';
 import { startSoloAutopilot } from './announceSoloAutopilot.js';
 
 // Returns a chainable, thenable query-builder stub matching however much of
@@ -34,6 +35,26 @@ function chainable(data) {
     eq: () => obj,
     order: () => obj,
     then: (resolve) => resolve({ data, error: null }),
+  };
+  return obj;
+}
+
+// Fails (returns { data: null, error }) on its first `failCount` awaits, then
+// resolves with `data` from then on — for exercising the boot-time fetch
+// retry (refreshCandidates/refreshActiveWindows) added after the first beta
+// test found a failed boot-time fetch was never retried.
+function flakyChainable(data, failCount) {
+  let calls = 0;
+  const obj = {
+    select: () => obj,
+    in: () => obj,
+    eq: () => obj,
+    order: () => obj,
+    then: (resolve) => {
+      calls += 1;
+      if (calls <= failCount) return resolve({ data: null, error: new Error('network error') });
+      return resolve({ data, error: null });
+    },
   };
   return obj;
 }
@@ -220,5 +241,83 @@ describe('startSoloAutopilot', () => {
 
     expect(onIdleNextDeparture).toHaveBeenCalledTimes(1); // woke up, showed idle branding
     expect(getCurrentPosition).toHaveBeenCalledTimes(1); // and started polling GPS the same tick
+  });
+
+  it('speaks the approach announcement once per stop, not on every GPS tick — first beta test feedback', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0));
+    const getCurrentPosition = vi.fn((success) => success({ coords: { latitude: DEPOT.lat, longitude: DEPOT.lon } }));
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } });
+    vi.stubGlobal('crypto', { randomUUID: () => 'client-generated-id' });
+
+    let onUpdate;
+    startAnnounceGpsTracking.mockImplementation((opts) => {
+      onUpdate = opts.onUpdate;
+      return { stop: vi.fn() };
+    });
+
+    const client = makeClient({ activeWindows: [{ day_of_week: 0, window_start: '07:00', window_end: '10:00' }] });
+    startSoloAutopilot(client, BASE_DEVICE_ROW, {
+      onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture: vi.fn(), onJourneyEnd: vi.fn(),
+    });
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000);
+    await flush();
+
+    speakState.mockClear(); // drop the ROUTE_START call fired by journey start itself
+
+    // Three consecutive GPS ticks all reporting "still approaching stop 1" —
+    // gps.js's real status stays 'approaching' for the whole approach
+    // window, not just one tick, so this is the realistic shape of the bug.
+    onUpdate({ atStop: null, approaching: { stopIndex: 1 }, stopStates: [] });
+    onUpdate({ atStop: null, approaching: { stopIndex: 1 }, stopStates: [] });
+    onUpdate({ atStop: null, approaching: { stopIndex: 1 }, stopStates: [] });
+
+    expect(speakState).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries a failed boot-time active-windows fetch instead of staying dormant all day', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0)); // inside the window, once it's actually loaded
+    const getCurrentPosition = vi.fn((success) => success({ coords: { latitude: DEPOT.lat, longitude: DEPOT.lon } }));
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } });
+
+    // Built once, outside the `from` factory — the failure count must
+    // persist across the two separate `client.from(...)` calls
+    // (fetchActiveWindows re-calls .from() on each retry, same as the real
+    // supabase-js query builder would), not reset on every call.
+    const flakyActiveWindows = flakyChainable(
+      [{ day_of_week: 0, window_start: '07:00', window_end: '10:00' }], 1
+    );
+    const client = {
+      from: vi.fn((table) => {
+        if (table === 'schedule_view') return chainable(SCHEDULE_ROWS);
+        // Fails once — simulating the transient boot-time connectivity blip
+        // reported in the first beta test — then succeeds on retry.
+        if (table === 'announce_device_active_windows') return flakyActiveWindows;
+        throw new Error(`unexpected table in test stub: ${table}`);
+      }),
+      rpc: vi.fn(() => thenableOnly({ data: null, error: null })),
+    };
+
+    const onIdleNextDeparture = vi.fn();
+    const onSleep = vi.fn();
+    startSoloAutopilot(client, BASE_DEVICE_ROW, {
+      onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture, onJourneyEnd: vi.fn(), onSleep,
+    });
+    await flush();
+
+    // Before the retry fires: the failed fetch must not have been silently
+    // treated as "no windows configured" — that would show the sleep
+    // screen and never retry again, exactly the bug this fix closes.
+    expect(onSleep).not.toHaveBeenCalled();
+    expect(onIdleNextDeparture).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(3000); // BOOT_FETCH_RETRY_MS — the retry succeeds this time
+    await flush();
+
+    expect(onIdleNextDeparture).toHaveBeenCalled(); // woke up once the retried fetch actually landed
+    expect(onSleep).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(5000); // next idle poll tick
+    expect(getCurrentPosition).toHaveBeenCalled(); // and is actually polling GPS, not stuck dormant
   });
 });

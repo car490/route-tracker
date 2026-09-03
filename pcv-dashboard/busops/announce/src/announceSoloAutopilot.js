@@ -46,6 +46,13 @@ import {
 import { speakState } from './announceSpeech.js';
 
 const IDLE_POLL_MS = 5000; // own-GPS check interval while no journey is active
+// Boot-time candidate/active-window fetch retry — matches
+// announceDeviceFeed.js's RECONNECT_DELAY_MS. Without this, a transient
+// connectivity blip at boot (e.g. right after the device reconnects to
+// WiFi) left candidates/activeWindows permanently empty for the rest of the
+// day, with the device silently stuck on idle — first-beta-test feedback
+// 2026-09-03.
+const BOOT_FETCH_RETRY_MS = 3000;
 const COMPLETION_TIMEOUT_MIN = 120; // safety net — no driver to notice a stuck journey
 // How long the sign keeps showing the terminus state before reverting to
 // idle — matches driver/src/main.js's TERMINUS_DISPLAY_MS exactly (same
@@ -59,6 +66,9 @@ function stripIndicator(name) {
   return name.replace(/\s*\([^)]*\)\s*$/, '');
 }
 
+// Returns null (not []) on a fetch failure, distinct from "genuinely no
+// candidates configured" — callers need that distinction to know whether to
+// retry (see refreshCandidates below).
 async function fetchCandidateDepartures(client, departureIds) {
   if (!departureIds?.length) return [];
   const { data, error } = await client
@@ -66,7 +76,7 @@ async function fetchCandidateDepartures(client, departureIds) {
     .select('departure_id, lat, lon, scheduled_time, sequence')
     .in('departure_id', departureIds)
     .order('sequence');
-  if (error || !data) return [];
+  if (error || !data) return null;
   const firstByDeparture = new Map();
   for (const row of data) {
     if (!firstByDeparture.has(row.departure_id)) firstByDeparture.set(row.departure_id, row);
@@ -82,12 +92,16 @@ async function fetchCandidateDepartures(client, departureIds) {
     }));
 }
 
+// Returns null (not []) on a fetch failure — same reasoning as
+// fetchCandidateDepartures above: a failed fetch must not be
+// indistinguishable from "no windows configured", which isWithinActiveWindow
+// treats as "stay dormant" (see refreshActiveWindows below).
 async function fetchActiveWindows(client, deviceId) {
   const { data, error } = await client
     .from('announce_device_active_windows')
     .select('day_of_week, window_start, window_end')
     .eq('announce_device_id', deviceId);
-  if (error || !data) return [];
+  if (error || !data) return null;
   return data;
 }
 
@@ -167,12 +181,22 @@ export function startSoloAutopilot(client, deviceRow, { onSchedule, onState, onI
   }
 
   async function refreshCandidates() {
-    candidates = await fetchCandidateDepartures(client, deviceRow.candidate_departure_ids ?? []);
+    const result = await fetchCandidateDepartures(client, deviceRow.candidate_departure_ids ?? []);
+    if (result === null) {
+      setTimeout(refreshCandidates, BOOT_FETCH_RETRY_MS);
+      return;
+    }
+    candidates = result;
     if (isAwake) reportNextDeparture();
   }
 
   async function refreshActiveWindows() {
-    activeWindows = await fetchActiveWindows(client, deviceRow.id);
+    const result = await fetchActiveWindows(client, deviceRow.id);
+    if (result === null) {
+      setTimeout(refreshActiveWindows, BOOT_FETCH_RETRY_MS);
+      return;
+    }
+    activeWindows = result;
     applyWakeState(); // first real determination of awake/asleep, now that windows are actually loaded
   }
 
@@ -282,6 +306,12 @@ export function startSoloAutopilot(client, deviceRow, { onSchedule, onState, onI
     speakState(ANNOUNCE_STATES.ROUTE_START, routeStartVars);
 
     let lastAnnouncedStopIdx = null;
+    // Mirrors lastAnnouncedStopIdx for the approaching edge — without this,
+    // "This is X." re-fires on every GPS tick for the whole approach window
+    // (see shared/geofence.js's isApproaching()) instead of once. Beta-test
+    // feedback 2026-09-03; same fix applied to driver/src/main.js's
+    // equivalent Lite-tier handling.
+    let lastAnnouncedApproachIdx = null;
     const announcedDetourStops = new Set(); // one-shot per stop — see file header
     let lastState = { stateKey: ANNOUNCE_STATES.ROUTE_START, vars: routeStartVars };
 
@@ -316,7 +346,10 @@ export function startSoloAutopilot(client, deviceRow, { onSchedule, onState, onI
         } else {
           if (state.approaching) {
             lastState = resolveApproachOrArrivalState({ approaching: state.approaching, atStop: null, allStops: details.allStops });
-            speakState(lastState.stateKey, lastState.vars);
+            if (state.approaching.stopIndex !== lastAnnouncedApproachIdx) {
+              lastAnnouncedApproachIdx = state.approaching.stopIndex;
+              speakState(lastState.stateKey, lastState.vars);
+            }
           }
 
           // Redesigned 2026-09-02, mirrors driver/src/main.js's same

@@ -311,6 +311,16 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   // at/near it (the very first GPS fix can satisfy that stop's geofence
   // instantly, see gps.js).
   let lastAnnouncedStopIdx = null;
+  // Mirrors lastAnnouncedStopIdx, but for the approaching edge: gps.js's
+  // 'approaching' status stays true for the whole approach window (up to
+  // APPROACH_FALLBACK_RADIUS_M / APPROACH_ETA_SECONDS out, see
+  // shared/geofence.js), so without this guard "This is X." was being
+  // re-spoken on every GPS fix throughout that window instead of once —
+  // beta-test feedback 2026-09-03. The display re-render below stays
+  // unguarded (same text every tick is harmless, and per PSVAIR Reg 12(1)
+  // the sign and the audio must change together) — only the audio call
+  // needs de-duplicating.
+  let lastAnnouncedApproachIdx = null;
   // Guards completeTrip() against firing twice — once from GPS arrival at
   // the final stop and again from the manual fallback link, or from GPS
   // reporting arrival on more than one fix while parked at the final stop.
@@ -521,7 +531,8 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
       if (approaching) {
         const resolved = resolveApproachOrArrivalState({ approaching, atStop: null, allStops });
         lastNormalState = resolved;
-        if (psvairEnabled) {
+        if (psvairEnabled && approaching.stopIndex !== lastAnnouncedApproachIdx) {
+          lastAnnouncedApproachIdx = approaching.stopIndex;
           announceApproachEvent(resolved.stateKey, resolved.vars, {
             stopId: allStops[approaching.stopIndex].stop_id,
           }, !!diversionAlertState);
