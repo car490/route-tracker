@@ -38,6 +38,7 @@
 import { startAnnounceGpsTracking } from './announceGps.js';
 import {
   findScheduleMatch, findTestingScheduleMatch, isJourneyComplete, isWithinActiveWindow,
+  describeConfigUpdate,
 } from './scheduleAutopilot.js';
 import { shiftStopTimes } from '../../shared/scheduleTimeShift.js';
 import {
@@ -139,7 +140,13 @@ function msUntilNextOccurrence(departureTime, now) {
   return diff;
 }
 
-export function startSoloAutopilot(client, deviceRow, { onSchedule, onState, onIdleNextDeparture, onJourneyEnd, onSleep }) {
+export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onState, onIdleNextDeparture, onJourneyEnd, onSleep, onGpsSourceChanged }) {
+  // Live reference, not a frozen snapshot — applyConfigUpdate() below
+  // replaces it in place, and tryMatch()/reportNextDeparture() always read
+  // whatever it currently points to, so a dashboard edit (testing_mode,
+  // terminus_radius_m, match windows) takes effect on the very next
+  // idle-poll tick instead of requiring a device reload.
+  let deviceRow = initialDeviceRow;
   let candidates = [];
   let activeWindows = [];
   let activeJourney = null; // { journeyId, startedAt, tracker }
@@ -198,6 +205,21 @@ export function startSoloAutopilot(client, deviceRow, { onSchedule, onState, onI
     }
     activeWindows = result;
     applyWakeState(); // first real determination of awake/asleep, now that windows are actually loaded
+  }
+
+  // Applies a fresh announce_devices row read after a live config change
+  // (see shared/deviceStateSync.js's subscribeToChanges, wired in by
+  // announceDeviceFeed.js). Only candidate_departure_ids needs an explicit
+  // re-fetch — everything else tryMatch() already reads off the live
+  // `deviceRow` reference this function replaces. gps_source flipping
+  // (device linked/unlinked while running) is surfaced via
+  // onGpsSourceChanged so the caller can tear this loop down and start the
+  // other mode, rather than this module trying to hot-switch itself.
+  function applyConfigUpdate(nextRow) {
+    const { candidatesChanged, gpsSourceChanged } = describeConfigUpdate(deviceRow, nextRow);
+    deviceRow = nextRow;
+    if (candidatesChanged) refreshCandidates();
+    if (gpsSourceChanged) onGpsSourceChanged?.(nextRow);
   }
 
   function completeActiveJourney() {
@@ -420,5 +442,6 @@ export function startSoloAutopilot(client, deviceRow, { onSchedule, onState, onI
     },
     refreshCandidates,
     refreshActiveWindows,
+    applyConfigUpdate,
   };
 }

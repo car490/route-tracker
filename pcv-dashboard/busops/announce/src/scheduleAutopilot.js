@@ -107,6 +107,31 @@ export function findTestingScheduleMatch({ candidates, lat, lon, now, terminusRa
 }
 
 /**
+ * Decides what a live config-row update should trigger for a running
+ * Solo device (announceSoloAutopilot.js). testing_mode, terminus_radius_m,
+ * and the match-window fields all take effect simply by the caller
+ * replacing its deviceRow reference — tryMatch() reads them fresh every
+ * idle-poll tick, no extra signal needed. candidate_departure_ids is the
+ * one field that needs an explicit flag, since honoring it requires an
+ * actual network re-fetch (schedule_view lookup via refreshCandidates()).
+ * gps_source is flagged separately so a device linked/unlinked mid-session
+ * (the "hot-switch" announceDeviceFeed.js's own header previously
+ * disclaimed) can tear down one mode and start the other.
+ *
+ * @param {Object|null} prevRow
+ * @param {Object} nextRow
+ * @returns {{candidatesChanged: boolean, gpsSourceChanged: boolean}}
+ */
+export function describeConfigUpdate(prevRow, nextRow) {
+  const prevCandidates = prevRow?.candidate_departure_ids ?? [];
+  const nextCandidates = nextRow?.candidate_departure_ids ?? [];
+  return {
+    candidatesChanged: JSON.stringify(prevCandidates) !== JSON.stringify(nextCandidates),
+    gpsSourceChanged: (prevRow?.gps_source ?? null) !== (nextRow?.gps_source ?? null),
+  };
+}
+
+/**
  * Completion for a Solo (driverless) journey: no driver to notice a
  * journey stuck in_progress, so final-stop geofence arrival is backed by a
  * wall-clock timeout safety net. Mirrors main.js's own final-stop check

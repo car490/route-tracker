@@ -13,11 +13,21 @@
 // WebSocket/Phoenix-channel client, which there's no reasonable case for
 // hand-rolling. `supabase` below refers to that script's global, not an
 // import — there is no bundler here (see CLAUDE.md, no build step for this app).
+//
+// Mode is no longer decided once at boot and frozen — a device's own row is
+// watched continuously via deviceStateSync.js's subscribeToChanges, in BOTH
+// modes (previously only Lite mode subscribed at all — Solo read its config
+// once and never again). A gps_source flip (linked/unlinked mid-session)
+// tears down the running mode and starts the other, via
+// announceLiteMode.js's resolveModeSwitch — the "hot-switch" this file
+// previously disclaimed.
 
 import { SUPABASE_URL, SUPABASE_KEY } from '../../driver/src/config.js';
 import { startSoloAutopilot } from './announceSoloAutopilot.js';
+import { resolveModeSwitch } from './announceLiteMode.js';
+import { hydrate, subscribeToChanges, startHeartbeat } from '../../shared/deviceStateSync.js';
 
-const RECONNECT_DELAY_MS = 3000;
+const HEARTBEAT_INTERVAL_MS = 30000;
 
 // Only a genuinely new schedule should re-trigger onSchedule() (it resets
 // #onboard-idle/#onboard-sign visibility and re-acquires the wake lock —
@@ -58,13 +68,10 @@ async function fetchCompanyBranding(client, companyId) {
 // onboard.js's idle-screen extension (Solo mode only) — all
 // dependency-injected so this module doesn't need to import onboard.js
 // (which would create a circular import, since onboard.js imports
-// connectAnnounceDeviceFeed).
-//
-// Mode (Lite vs. Solo) is decided once, from the row read at startup, and
-// not hot-switched mid-session — a device changing gps_source (e.g. linked
-// while running) takes effect on its next reload, same as a base-tier
-// device's own commissioning is fixed per boot.
-export function connectAnnounceDeviceFeed(deviceToken, { onSchedule, onState, onJourneyEnd, onIdleNextDeparture, onIdleBranding, onSleep }) {
+// connectAnnounceDeviceFeed). onDegraded/onRestored are optional — let a
+// caller surface connection health (currently: console visibility only)
+// without this file needing to know about onboard.js's DOM at all.
+export function connectAnnounceDeviceFeed(deviceToken, { onSchedule, onState, onJourneyEnd, onIdleNextDeparture, onIdleBranding, onSleep, onDegraded, onRestored }) {
   const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     global: { headers: { Authorization: `Bearer ${deviceToken}` } },
   });
@@ -74,9 +81,14 @@ export function connectAnnounceDeviceFeed(deviceToken, { onSchedule, onState, on
   client.realtime.setAuth(deviceToken);
 
   let lastSchedule = null;
+  let mode = null; // 'internal' | 'driver-device'
+  let soloHandle = null; // { stop, refreshCandidates, refreshActiveWindows, applyConfigUpdate } — Solo mode only
+  let subscription = null;
+  let heartbeat = null;
+  let deviceId = null;
 
-  // Paired mode (gps_source: 'driver-device') — render whatever the linked
-  // Driver device has pushed into this row.
+  // Lite (paired) mode — render whatever the linked Driver device has
+  // pushed into this row.
   function applyPushedRow(row) {
     if (!row) return;
     if (row.latest_schedule && scheduleChanged(row.latest_schedule, lastSchedule)) {
@@ -92,15 +104,61 @@ export function connectAnnounceDeviceFeed(deviceToken, { onSchedule, onState, on
     if (row.latest_state) onState(row.latest_state);
   }
 
+  function startSolo(row) {
+    mode = 'internal';
+    // onJourneyEnd is threaded through so a completed Solo journey hides
+    // its stale sign the same way the base/Lite tiers' journey-end signals
+    // already do (see announceSoloAutopilot.js's completeActiveJourney).
+    soloHandle = startSoloAutopilot(client, row, {
+      onSchedule, onState, onIdleNextDeparture, onJourneyEnd, onSleep,
+      onGpsSourceChanged: (nextRow) => switchMode(nextRow),
+    });
+  }
+
+  function startLite(row) {
+    mode = 'driver-device';
+    soloHandle = null;
+    // Lite mode has no schedule pushed yet on a fresh link (or a device
+    // that's simply between journeys) — unlike Solo mode, nothing else
+    // unhides #onboard-idle for this case, so the device would otherwise
+    // sit fully blank (both #onboard-idle and #onboard-sign hidden, see
+    // onboard.html) until the first push arrives. onIdleNextDeparture(null)
+    // unhides the idle board without showing a next-departure caption (that
+    // caption is Solo-only) — reused rather than adding a new function.
+    if (!row.latest_schedule) onIdleNextDeparture?.(null);
+    lastSchedule = null;
+    applyPushedRow(row);
+  }
+
+  // Tears down whichever mode is currently running and starts the other —
+  // reached only when resolveModeSwitch confirms gps_source itself changed,
+  // never on an ordinary state/schedule push.
+  function switchMode(row) {
+    soloHandle?.stop();
+    if (row.gps_source === 'internal') startSolo(row);
+    else startLite(row);
+  }
+
+  function handleRowChange(row) {
+    const nextMode = resolveModeSwitch(mode, row);
+    if (nextMode) { switchMode(row); return; }
+    if (mode === 'internal') soloHandle?.applyConfigUpdate(row);
+    else applyPushedRow(row);
+  }
+
   async function start() {
     // device_self RLS policy scopes this to exactly this device's own row —
-    // no .eq('id', ...) needed, there is only ever one possible match.
-    const { data, error } = await client.from('announce_devices').select('*').single();
-    if (error || !data) {
+    // no filter needed, there is only ever one possible match.
+    let data;
+    try {
+      data = await hydrate(client, 'announce_devices');
+    } catch (error) {
       console.warn('announceDeviceFeed: could not read own announce_devices row — retrying', error);
-      setTimeout(start, RECONNECT_DELAY_MS);
+      setTimeout(start, 3000);
       return;
     }
+
+    deviceId = data.id;
 
     // Fire-and-forget — the idle screen's own logo/name fallback (see
     // onboard.js's initIdleScreen()) already covers the case where this is
@@ -109,47 +167,47 @@ export function connectAnnounceDeviceFeed(deviceToken, { onSchedule, onState, on
     // mode branch below), since both tiers share the same idle screen.
     fetchCompanyBranding(client, data.company_id).then((branding) => onIdleBranding?.(branding));
 
-    if (data.gps_source === 'internal') {
-      // Solo (driverless) — a no-op idle screen if this device has no
-      // candidate_departure_ids configured yet (see
-      // startSoloAutopilot's own guard), same as before this feature
-      // existed. onJourneyEnd is threaded through so a completed Solo
-      // journey hides its stale sign the same way the base/Lite tiers'
-      // journey-end signals already do (see announceSoloAutopilot.js's
-      // completeActiveJourney) — previously dropped here, leaving Solo's
-      // sign visible over the idle screen after every completed journey.
-      startSoloAutopilot(client, data, { onSchedule, onState, onIdleNextDeparture, onJourneyEnd, onSleep });
-      return;
-    }
+    if (data.gps_source === 'internal') startSolo(data);
+    else startLite(data);
 
-    // Lite (paired) mode has no schedule pushed yet on a fresh link (or a
-    // device that's simply between journeys) — unlike Solo mode, nothing
-    // else unhides #onboard-idle for this case, so the device would
-    // otherwise sit fully blank (both #onboard-idle and #onboard-sign
-    // hidden, see onboard.html) until the first push arrives.
-    // onIdleNextDeparture(null) unhides the idle board without showing a
-    // next-departure caption (that caption is Solo-only) — reused rather
-    // than adding a new function.
-    if (!data.latest_schedule) onIdleNextDeparture?.(null);
+    // Previously subscribed only in Lite mode, and previously only
+    // console.error'd a dead channel with no recovery (CHANNEL_ERROR/
+    // TIMED_OUT) — subscribeToChanges reconnects with backoff in both
+    // modes now, and onDegraded/onRestored let a caller react instead of
+    // the failure only ever showing up in a browser console nobody
+    // trackside is looking at. This is also what fixes the Solo boot-time
+    // hang first-beta-test feedback (2026-09-03) found: previously Solo
+    // never subscribed to its own row changes at all, so a device
+    // reconfigured (or a device that only just got its first
+    // candidate_departure_ids set) needed a manual reload to notice.
+    subscription = subscribeToChanges(client, 'announce_devices', { column: 'id', value: deviceId }, {
+      onChanged: (row, { changed }) => { if (changed) handleRowChange(row); },
+      onDegraded: (status, err) => {
+        console.error('announceDeviceFeed: Realtime subscription degraded', status, err);
+        onDegraded?.(status, err);
+      },
+      onRestored: () => onRestored?.(),
+    });
 
-    applyPushedRow(data);
-
-    client
-      .channel(`announce-device-${data.id}`)
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'announce_devices', filter: `id=eq.${data.id}` },
-        (payload) => applyPushedRow(payload.new)
-      )
-      // Previously no status callback at all -- a silent CHANNEL_ERROR/
-      // TIMED_OUT (bad JWT claim, RLS rejecting the realtime role, etc.)
-      // looked identical from the outside to "just nothing pushed yet".
-      .subscribe((status, err) => {
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('announceDeviceFeed: Realtime subscription failed', status, err);
-        }
-      });
+    // Self-reported liveness — Solo mode never called any of the
+    // Driver-invoked RPCs that used to be the only thing touching
+    // last_seen_at, so it previously had no way to report it was alive at
+    // all. Every device writes this itself now, independent of mode or of
+    // anything else pushing through it (see
+    // migration_announce_devices_config_version.sql).
+    heartbeat = startHeartbeat(
+      () => client.rpc('report_device_heartbeat').catch(() => {}),
+      HEARTBEAT_INTERVAL_MS
+    );
   }
 
   start();
+
+  return {
+    stop: () => {
+      subscription?.stop();
+      soloHandle?.stop();
+      heartbeat?.stop();
+    },
+  };
 }

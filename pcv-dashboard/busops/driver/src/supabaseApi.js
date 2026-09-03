@@ -146,6 +146,16 @@ export async function fetchStopsForDeparture(departureId) {
   return result;
 }
 
+// Manual-selection/cab-device active-journey recovery — see
+// activeJourneyRecovery.js's header comment for the full rationale. Called
+// once on boot when the device has a commissioned vehicle but no duty-card
+// link; returns the same row shape as get_duty_card (one row, or none) so
+// main.js can feed it straight into the existing stop-confirm picker.
+export async function fetchActiveManualJourney(vehicleId) {
+  const rows = await rpc('get_active_manual_journey', { p_vehicle_id: vehicleId });
+  return rows?.[0] ?? null;
+}
+
 // Warms the offline cache for every valid manual-selection route in one
 // pass, called best-effort from main.js's init() whenever the device is
 // online — not just the lazy per-departure caching fetchStopsForDeparture()
