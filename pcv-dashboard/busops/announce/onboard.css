@@ -308,15 +308,24 @@ body {
   white-space: nowrap;
 }
 
-/* The actual scrolling unit — service code + destination together, so nothing
-   is ever partially hidden. Static (no transform) until onboard.js's
-   applyTopbarMarquee() measures a real overflow against #sign-route-line's
-   clientWidth and adds .marquee + the two custom properties below; most
-   service/destination combinations never get this class at all. */
+/* The scrolling strip — holds one .route-segment (service code +
+   destination) normally, and a second cloned copy of it, appended by
+   applyTopbarMarquee() with this element's own `gap` as the breathing room
+   between repeats, only while .marquee is active. Static (no transform)
+   until that overflow measurement adds .marquee + the two custom
+   properties below; most service/destination combinations never get past
+   the single, un-cloned segment at all. */
 #sign-route-track {
   display: inline-flex;
   align-items: baseline;
-  gap: 1.5vw;
+  gap: 6vw; /* only visible once a second (looping) segment exists */
+  white-space: nowrap;
+}
+
+.route-segment {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1.5vw; /* between the service code and destination within one segment */
   white-space: nowrap;
 }
 
@@ -327,17 +336,17 @@ body {
   animation-iteration-count: infinite;
 }
 
-/* Pauses briefly fully-visible at the start and fully-scrolled at the end
-   (10%/90%) rather than scrolling continuously with no rest — gives a
-   reader a moment to start reading and a moment to finish, same reasoning
-   real destination blinds pause at each end instead of scrolling in a flat
-   loop. --topbar-marquee-distance (negative px, set alongside
-   --topbar-marquee-duration by applyTopbarMarquee()) is exactly how far
-   left the track must move for its trailing edge to fully clear the
-   viewport. */
+/* Continuous, no pauses — user feedback 2026-09-04: an earlier version that
+   scrolled to the end, paused, then snapped back to the start read as
+   "jumping to the start" rather than scrolling round. --topbar-marquee-
+   distance (negative px, set alongside --topbar-marquee-duration by
+   applyTopbarMarquee()) is exactly one segment's width plus this element's
+   own gap — the point at which the second (cloned) segment sits exactly
+   where the first one started, so looping back to 0% lands on identical
+   content and reads as one continuous scroll, not a reset. */
 @keyframes topbar-marquee {
-  0%, 10%  { transform: translateX(0); }
-  90%, 100% { transform: translateX(var(--topbar-marquee-distance, 0px)); }
+  from { transform: translateX(0); }
+  to   { transform: translateX(var(--topbar-marquee-distance, 0px)); }
 }
 
 #sign-service-code,

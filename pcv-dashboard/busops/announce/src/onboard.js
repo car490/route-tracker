@@ -141,11 +141,13 @@ window.addEventListener('resize', positionBrand);
 // positionBrand's own pattern above.
 const MARQUEE_SPEED_PX_PER_S = 220; // fast, deliberately brisk per user feedback 2026-09-04 — tune here if it reads too fast/slow live
 const MARQUEE_MIN_DURATION_S = 2.5; // floor so a barely-overflowing line doesn't scroll imperceptibly fast
-const MARQUEE_EDGE_BUFFER_PX = 24; // small gap past the viewport edge so the trailing edge visibly clears it, not just touches it
 
 function applyTopbarMarquee() {
   const viewport = el('sign-route-line');
   const track = el('sign-route-track');
+  // A previous call may have appended a second (looping) copy of the
+  // segment — strip back down to the one real one before measuring.
+  track.querySelectorAll('.route-segment').forEach((seg, i) => { if (i > 0) seg.remove(); });
   track.classList.remove('marquee');
   track.style.removeProperty('--topbar-marquee-distance');
   track.style.removeProperty('--topbar-marquee-duration');
@@ -153,9 +155,21 @@ function applyTopbarMarquee() {
   // browser has laid it out — reading it straight after a class/text change
   // in the same tick is reliable in practice here (no animation/transition
   // on the track itself to race), so no extra rAF/reflow trick is needed.
-  const overflowPx = track.scrollWidth - viewport.clientWidth;
-  if (overflowPx <= 0) return; // fits — stays static, the common case
-  const distancePx = overflowPx + MARQUEE_EDGE_BUFFER_PX;
+  const segmentWidthPx = track.scrollWidth; // exactly one segment at this point
+  if (segmentWidthPx <= viewport.clientWidth) return; // fits — stays static, the common case
+
+  // Seamless circular loop: clone the segment, append it after the real one
+  // (separated by the track's own `gap`, read back from computed style so
+  // CSS stays the one source of truth for that spacing), then animate
+  // exactly that combined width to the left. At that point the clone sits
+  // precisely where the original started, so looping back to translateX(0)
+  // lands on identical content — reads as continuous scrolling, not a jump.
+  const clone = track.querySelector('.route-segment').cloneNode(true);
+  clone.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
+  track.appendChild(clone);
+
+  const loopGapPx = parseFloat(getComputedStyle(track).columnGap) || 0;
+  const distancePx = segmentWidthPx + loopGapPx;
   const durationS = Math.max(distancePx / MARQUEE_SPEED_PX_PER_S, MARQUEE_MIN_DURATION_S);
   track.style.setProperty('--topbar-marquee-distance', `-${distancePx}px`);
   track.style.setProperty('--topbar-marquee-duration', `${durationS}s`);
