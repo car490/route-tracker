@@ -96,19 +96,45 @@ function applyPanelSizing() {
 }
 
 // ── Wake lock — keep the mounted screen on ─────────────────────────────────
+// shouldStayAwake tracks *intent*, separate from wakeLock itself (whether
+// the API actually granted one). Needed because releaseWakeLock() below is
+// now a real, deliberate action (Solo's screen-power design — see
+// showSleepScreen()) rather than something that only ever happened as an
+// OS-driven side effect: without this flag, the sentinel's own 'release'
+// event listener would immediately re-acquire it (document is still
+// visible on a kiosk device that never backgrounds), fighting the
+// deliberate sleep. Base tier and Lite never call releaseWakeLock() at
+// all, so shouldStayAwake simply stays true forever for them, same as
+// today.
 let wakeLock = null;
+let shouldStayAwake = false;
 async function acquireWakeLock() {
+  shouldStayAwake = true;
   if (!('wakeLock' in navigator)) return;
   try {
     wakeLock = await navigator.wakeLock.request('screen');
     wakeLock.addEventListener('release', () => {
       wakeLock = null;
-      if (document.visibilityState === 'visible') acquireWakeLock();
+      if (shouldStayAwake && document.visibilityState === 'visible') acquireWakeLock();
     });
   } catch (_) { /* best-effort */ }
 }
+// Solo only (see showSleepScreen()) — lets the OS actually blank the panel
+// once released, rather than leaving it lit-but-blank. Provisioning must
+// cooperate for this to matter physically: the kiosk profile's own
+// keepScreenOn setting has to be off, and the OS screen-timeout short
+// enough to blank promptly — see announce/cab-device/fully-auto-settings.json
+// and setup-solo-device.sh.
+async function releaseWakeLock() {
+  shouldStayAwake = false;
+  if (!wakeLock) return;
+  try {
+    await wakeLock.release();
+  } catch (_) { /* best-effort */ }
+  wakeLock = null;
+}
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && wakeLock === null) acquireWakeLock();
+  if (document.visibilityState === 'visible' && shouldStayAwake && wakeLock === null) acquireWakeLock();
 });
 
 // ── Brand mark position — pinned to the actual bottom-left corner of the
@@ -409,22 +435,33 @@ export function showNextDeparture(candidate) {
   box.textContent = candidate ? `Next departure ${candidate.departureTime}` : '';
   el('onboard-idle').hidden = false;
   el('onboard-brand').hidden = false; // undo showSleepScreen()'s hide, if it ran
+  // Solo's wake-window transition into "awake" reaches here (see
+  // announceSoloAutopilot.js's reportNextDeparture) — the screen must
+  // actually be on for any of this to be visible. Idempotent to call
+  // again while already awake (candidates refreshing, etc.) and a no-op
+  // for tiers that never sleep (base/Lite) beyond the one real acquire.
+  acquireWakeLock();
   positionBrand();
 }
 
 // Solo only — fully blank screen (no branding, no logo, no next-departure
-// caption, not even the small corner brand mark) outside this device's
-// configured active windows. Previously only GPS *polling* was gated by
-// the window (announceSoloAutopilot.js's idleTimer) — the idle screen
-// itself stayed lit and branded around the clock regardless, which made
-// no sense for a device that only runs a school-run twice a day. Never
-// called while a journey is actually active — announceSoloAutopilot.js's
-// applyWakeState() guards that, a window ending mid-route must not blank
-// the sign out from under real passengers.
+// caption, not even the small corner brand mark) outside the wake window
+// around this device's own candidate departures, AND releases the wake
+// lock so the OS can actually blank the physical panel (see
+// releaseWakeLock's own comment) — not just the on-screen content.
+// Previously only GPS *polling* was gated by the window
+// (announceSoloAutopilot.js's idleTimer) — the idle screen itself, and the
+// screen's actual power state, stayed lit around the clock regardless,
+// which made no sense for a device that only runs a school-run twice a
+// day. Never called while a journey is actually active —
+// announceSoloAutopilot.js's applyWakeState() guards that, a window ending
+// mid-route must not blank the sign (or the screen) out from under real
+// passengers.
 export function showSleepScreen() {
   el('onboard-idle').hidden = true;
   el('onboard-sign').hidden = true;
   el('onboard-brand').hidden = true;
+  releaseWakeLock();
 }
 
 // ── Pushed feed (Driver -> Controller -> this sign) — the only source of

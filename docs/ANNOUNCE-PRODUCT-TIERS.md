@@ -539,10 +539,11 @@ earlier draft.**
   covers device registration, install-link generation, and a testing-mode
   toggle, but there's no UI yet for setting a Solo device's
   `candidate_departure_ids`/`match_window_before_min`/
-  `match_window_after_min`/`terminus_radius_m`, or its
-  `announce_device_active_windows` rows (added 2026-09-01 — see below) —
-  SQL only for now (`docs/TESTING.md` §17). Deliberately deferred past the
-  beta per an explicit user decision 2026-09-01.
+  `match_window_after_min`/`terminus_radius_m` — SQL only for now
+  (`docs/TESTING.md` §17). Deliberately deferred past the beta per an
+  explicit user decision 2026-09-01. (No longer also blocked on a UI for
+  `announce_device_active_windows` — that table was dropped 2026-09-04, see
+  below.)
 - The general Solo case (routes that *do* share stops with
   other services) still has no schedule-autopilot design — remains
   genuinely unscoped, distinct from the Phil Haines Travel shortcut above.
@@ -571,7 +572,7 @@ the Jest suite (`tests/scheduleAutopilot.test.js`,
 above for the full list and what's still missing around it.
 
 **Beta-readiness pass, 2026-09-01:**
-- **Active-window scheduling added**: `announce_device_active_windows`
+- ~~**Active-window scheduling added**: `announce_device_active_windows`
   table (day_of_week/window_start/window_end, same shape as
   `employee_availability`) — a Solo device now only polls its own GPS
   during configured days/times, staying fully dormant (no geolocation
@@ -580,7 +581,10 @@ above for the full list and what's still missing around it.
   `candidate_departure_ids` list already gave it. See
   `scheduleAutopilot.js`'s `isWithinActiveWindow` and
   `announceSoloAutopilot.js`'s idle-loop gate. Applied to both dev and
-  production.
+  production.~~ — **superseded 2026-09-04**, see the "Simplification pass"
+  entry below. That table hand-duplicated day/time data the timetable
+  already owned and was dropped entirely, not kept as a coarser outer gate
+  alongside its replacement.
 - **Real bug found and fixed via the Solo tier's first-ever live test**
   (previously only unit-tested — see `docs/TESTING.md` §17's own
   "Live-verified 2026-09-01" note): `announceSoloAutopilot.js`'s
@@ -609,3 +613,61 @@ above for the full list and what's still missing around it.
   package/service rather than being imported per-surface. Not actioned
   here — revisit once a third or fourth consumer makes the tradeoff
   concrete. See `docs/DECISIONS.md`.
+
+**Autonomy fixes + simplification pass, 2026-09-04:** the first live
+multi-hour Solo test surfaced three real bugs, all now fixed, plus a
+deliberate simplification prompted by the number of overlapping
+schedule/window concepts the fixes were about to add a fifth and sixth to.
+
+- **Fixed: Solo could get stuck "waiting for a driver poke."**
+  `link_announce_device()` had no guard against flipping an already-
+  commissioned Solo device (`candidate_departure_ids` populated) into Lite
+  (`driver-device`) mode — once flipped, `announceDeviceFeed.js` waits
+  indefinitely on a Realtime push with no timeout or fallback. Fixed with
+  both a guard (the RPC now refuses to link a Solo-commissioned device
+  unless `p_force := true` is passed — see
+  `migration_announce_devices_solo_guard.sql`) and a self-heal watchdog
+  (`announceLiteMode.js`'s `shouldSelfHeal`, wired into
+  `announceDeviceFeed.js` — a Solo-commissioned device that's gone 10
+  minutes with no driver push while in `driver-device` mode calls
+  `unlink_announce_device` on itself and reverts to autopilot).
+- **Fixed: a matched Solo journey could freeze at stop 0 for the entire
+  journey**, producing no further announcements or visual progress after
+  the initial start message. Root cause: Solo matches at the device's own
+  `terminus_radius_m` (150m default — deliberately loose for a depot/
+  terminus forecourt), but `shared/gps.js`'s `hasReachedStart` gate (added
+  the same day, commit `33eb63a`, to stop false arrivals at a later timing
+  point while still driving toward the start) only ever flips true once the
+  vehicle physically enters the much tighter `GEOFENCE_RADIUS_M` (50m) of
+  stop 0's exact coordinates — which a 150m match can legitimately never
+  satisfy. Fixed with one call, `tracker.jumpToStop(0)`, right after the
+  tracker starts in `announceSoloAutopilot.js`'s `tryMatch()` — the same
+  "manual override confirms actual position" semantics `jumpToStop` was
+  already built for.
+- **New: Solo screen-power design.** The tablet now stays dark (idle
+  content hidden, Screen Wake Lock released) outside the wake window around
+  its own candidate departures, and awake continuously through an active
+  journey plus 10 minutes after the last stop is reached — see
+  `onboard.js`'s `releaseWakeLock`/`acquireWakeLock`, wired off the same
+  `isAwake` signal that already gated GPS polling. Requires the kiosk
+  profile to cooperate: `announce/cab-device/fully-auto-settings.json`'s
+  `keepScreenOn` flipped from `true` to `false` (it would otherwise keep
+  the panel lit permanently regardless of what the web app does), and
+  `setup-solo-device.sh` now sets a short OS-level `screen_off_timeout`
+  (60s) so the release actually blanks the panel promptly.
+- **Simplification: `announce_device_active_windows` dropped entirely**,
+  not kept alongside the fixes above. That admin-configured day/time table
+  hand-duplicated data that already lives on the timetable itself —
+  `timetable_departures.days_of_week` and `schedule_view.scheduled_time`,
+  both already reachable from a Solo device's own candidate-departure
+  fetch. Replaced by `scheduleAutopilot.js`'s `isWithinDepartureWakeWindow`,
+  which derives the wake window (used for both GPS polling and the screen
+  power above) straight from each candidate's own `days_of_week`/
+  `scheduled_time` and the existing `match_window_before_min`/
+  `match_window_after_min` columns — one meaning for "how close to
+  departure do we care," reused for match validity and wake-gating alike,
+  instead of a second table that could silently drift out of sync with a
+  route's real schedule. See `migration_announce_devices_drop_active_windows.sql`.
+  Net effect: 3 tunables (`terminus_radius_m`, `match_window_before/after_min`,
+  one post-journey grace constant) instead of 5, and one wake-decision
+  function instead of two.

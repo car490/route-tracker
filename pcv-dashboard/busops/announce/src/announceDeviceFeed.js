@@ -24,10 +24,18 @@
 
 import { SUPABASE_URL, SUPABASE_KEY } from '../../driver/src/config.js';
 import { startSoloAutopilot } from './announceSoloAutopilot.js';
-import { resolveModeSwitch } from './announceLiteMode.js';
+import { resolveModeSwitch, shouldSelfHeal } from './announceLiteMode.js';
 import { hydrate, subscribeToChanges, startHeartbeat } from '../../shared/deviceStateSync.js';
 
 const HEARTBEAT_INTERVAL_MS = 30000;
+// Self-heal watchdog: a Solo-commissioned device (candidate_departure_ids
+// populated) stuck in driver-device mode with no driver push for this long
+// reverts itself to autopilot — see announceLiteMode.js's shouldSelfHeal and
+// migration_announce_devices_solo_guard.sql for the other half of this fix
+// (found live 2026-09-04, a Solo device left waiting for a driver poke that
+// would never come).
+const SELF_HEAL_TIMEOUT_MS = 10 * 60 * 1000;
+const SELF_HEAL_CHECK_INTERVAL_MS = 60000;
 
 // Only a genuinely new schedule should re-trigger onSchedule() (it resets
 // #onboard-idle/#onboard-sign visibility and re-acquires the wake lock —
@@ -82,15 +90,44 @@ export function connectAnnounceDeviceFeed(deviceToken, { onSchedule, onState, on
 
   let lastSchedule = null;
   let mode = null; // 'internal' | 'driver-device'
-  let soloHandle = null; // { stop, refreshCandidates, refreshActiveWindows, applyConfigUpdate } — Solo mode only
+  let soloHandle = null; // { stop, refreshCandidates, applyConfigUpdate } — Solo mode only
   let subscription = null;
   let heartbeat = null;
   let deviceId = null;
+
+  // Self-heal watchdog state — only meaningful while mode === 'driver-device'.
+  let liteWatchdog = null;
+  let liteEnteredAt = null;
+  let liteLastStateUpdatedAt = null;
+  let liteCandidateDepartureIds = [];
+
+  function stopLiteWatchdog() {
+    if (liteWatchdog) { clearInterval(liteWatchdog); liteWatchdog = null; }
+  }
+
+  function checkSelfHeal() {
+    const referenceMs = liteLastStateUpdatedAt ? new Date(liteLastStateUpdatedAt).getTime() : liteEnteredAt;
+    const msSinceLastPush = Date.now() - referenceMs;
+    if (!shouldSelfHeal({ candidateDepartureIds: liteCandidateDepartureIds, msSinceLastPush, timeoutMs: SELF_HEAL_TIMEOUT_MS })) return;
+    stopLiteWatchdog();
+    console.warn('announceDeviceFeed: Solo-commissioned device stuck in driver-device mode with no push — self-healing back to internal autopilot');
+    // Fire-and-forget: the resulting row change (gps_source back to
+    // 'internal') arrives through the existing Realtime subscription and
+    // hot-switches via handleRowChange/switchMode, same as any other
+    // gps_source flip — no extra wiring needed here. supabase-js's query
+    // builder is thenable but not a real Promise (.catch alone throws), so
+    // wrap it — same fix already applied elsewhere in this file's siblings.
+    Promise.resolve(client.rpc('unlink_announce_device', { p_device_id: deviceId })).catch((err) => {
+      console.error('announceDeviceFeed: self-heal unlink_announce_device failed', err);
+    });
+  }
 
   // Lite (paired) mode — render whatever the linked Driver device has
   // pushed into this row.
   function applyPushedRow(row) {
     if (!row) return;
+    liteLastStateUpdatedAt = row.state_updated_at ?? liteLastStateUpdatedAt;
+    liteCandidateDepartureIds = row.candidate_departure_ids ?? liteCandidateDepartureIds;
     if (row.latest_schedule && scheduleChanged(row.latest_schedule, lastSchedule)) {
       lastSchedule = row.latest_schedule;
       onSchedule(row.latest_schedule);
@@ -118,6 +155,11 @@ export function connectAnnounceDeviceFeed(deviceToken, { onSchedule, onState, on
   function startLite(row) {
     mode = 'driver-device';
     soloHandle = null;
+    liteEnteredAt = Date.now();
+    liteLastStateUpdatedAt = row.state_updated_at ?? null;
+    liteCandidateDepartureIds = row.candidate_departure_ids ?? [];
+    stopLiteWatchdog();
+    liteWatchdog = setInterval(checkSelfHeal, SELF_HEAL_CHECK_INTERVAL_MS);
     // Lite mode has no schedule pushed yet on a fresh link (or a device
     // that's simply between journeys) — unlike Solo mode, nothing else
     // unhides #onboard-idle for this case, so the device would otherwise
@@ -135,6 +177,7 @@ export function connectAnnounceDeviceFeed(deviceToken, { onSchedule, onState, on
   // never on an ordinary state/schedule push.
   function switchMode(row) {
     soloHandle?.stop();
+    stopLiteWatchdog();
     if (row.gps_source === 'internal') startSolo(row);
     else startLite(row);
   }
@@ -208,6 +251,7 @@ export function connectAnnounceDeviceFeed(deviceToken, { onSchedule, onState, on
       subscription?.stop();
       soloHandle?.stop();
       heartbeat?.stop();
+      stopLiteWatchdog();
     },
   };
 }

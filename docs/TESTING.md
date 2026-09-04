@@ -438,18 +438,27 @@ reasonable stand-in for testing.
    set candidate_departure_ids = array['<timetable_departures.id>']
    where id = '<announce_devices.id>';
    ```
-2. Also configure at least one active window — a device with none never
-   wakes to poll its own GPS at all (see `announce_device_active_windows`,
-   same day_of_week/window_start/window_end shape as
-   `employee_availability`; `day_of_week` is 0=Mon..6=Sun):
+2. No separate active-window table to configure any more (dropped
+   2026-09-04 — see `docs/ANNOUNCE-PRODUCT-TIERS.md`'s simplification
+   writeup): the device wakes to poll its own GPS only within
+   `match_window_before_min`/`match_window_after_min` (already on the
+   device row, default 15/30) of one of its candidates' own scheduled
+   `departure_time`, on a day that departure's `days_of_week` actually
+   includes. To test at an arbitrary time of day rather than waiting for
+   the real departure time, temporarily widen those two columns so the
+   wake window covers the whole day:
    ```sql
-   insert into announce_device_active_windows (announce_device_id, day_of_week, window_start, window_end)
-   values ('<announce_devices.id>', 0, '00:00', '23:59'); -- wide-open, for testing; tune narrower for a real beta device
+   update announce_devices
+   set match_window_before_min = 720, match_window_after_min = 720
+   where id = '<announce_devices.id>';
    ```
-   Either set `testing_mode = true` on the device (bypasses the scheduled-
-   time window entirely, geofence-only — see `findTestingScheduleMatch`) so
-   this test isn't gated on running it near the candidate's real departure
-   time, or pick a candidate whose scheduled time is close to now.
+   Either that, or set `testing_mode = true` on the device (bypasses the
+   scheduled-time *match* window entirely, geofence-only — see
+   `findTestingScheduleMatch`) — note `testing_mode` alone does **not**
+   widen the *wake* window above, so the device still won't poll GPS at all
+   unless `now` is within match_window_before_min/after_min of some
+   candidate, or you pick a candidate whose scheduled time is close to now,
+   or you widen the columns as above too.
 3. Open the device's install link — the idle screen should show a
    **"Next departure HH:MM"** caption once candidates load
 4. Open DevTools (F12) → **Sensors** → set **Custom location** to the
@@ -468,7 +477,8 @@ reasonable stand-in for testing.
 **Pass:** a fully driverless device starts, tracks, and completes a journey
 on its own, matching only when both the geofence and the scheduled-time
 window agree (test outside either condition and confirm it stays idle), and
-never polls GPS at all outside its configured active windows.
+never polls GPS at all outside the wake window around its candidate
+departures.
 
 **Live-verified 2026-09-01** (not just a written procedure — see
 `docs/ANNOUNCE-PRODUCT-TIERS.md`'s status entry): scripted against dev
@@ -483,8 +493,9 @@ completion. Fixed with `Promise.resolve(client.rpc(...)).catch(...)`.
 
 **To restore:** clear the test device's `candidate_departure_ids`,
 `link_state`/`gps_source` back to defaults (`'{}'`, `'unlinked'`,
-`'internal'`), delete its `announce_device_active_windows` rows, and clear
-DevTools' Sensors override back to **No override**.
+`'internal'`), reset `match_window_before_min`/`match_window_after_min`
+back to their defaults (`15`/`30`) if you widened them for testing above,
+and clear DevTools' Sensors override back to **No override**.
 
 ### Bench-testing with real devices (real GPS, not DevTools simulation)
 

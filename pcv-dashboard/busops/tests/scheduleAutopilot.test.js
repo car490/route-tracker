@@ -9,7 +9,7 @@
 // the nearest scheduled departure time wins.
 
 import {
-  findScheduleMatch, findTestingScheduleMatch, isJourneyComplete, isWithinActiveWindow,
+  findScheduleMatch, findTestingScheduleMatch, isJourneyComplete, isWithinDepartureWakeWindow,
   describeConfigUpdate,
 } from '../announce/src/scheduleAutopilot.js';
 
@@ -216,39 +216,44 @@ describe('isJourneyComplete', () => {
   });
 });
 
-describe('isWithinActiveWindow', () => {
-  // 2026-08-24 is a Monday (day_of_week 0 in this project's Mon=0..Sun=6
-  // convention, same as employee_availability); 2026-08-25 is a Tuesday.
+describe('isWithinDepartureWakeWindow', () => {
+  // 2026-08-24 is a Monday (ISO day-of-week 1, matching
+  // timetable_departures.days_of_week/extract(isodow from ...) elsewhere in
+  // this schema); 2026-08-25 is a Tuesday (ISO 2).
   const MONDAY_MORNING = (hh, mm) => new Date(2026, 7, 24, hh, mm, 0, 0);
   const TUESDAY_MORNING = (hh, mm) => new Date(2026, 7, 25, hh, mm, 0, 0);
+  const WEEKDAYS = [1, 2, 3, 4, 5];
 
-  it('never wakes when no windows are configured at all', () => {
-    expect(isWithinActiveWindow(MONDAY_MORNING(8, 0), [])).toBe(false);
-    expect(isWithinActiveWindow(MONDAY_MORNING(8, 0), null)).toBe(false);
+  function dep(departureTime, daysOfWeek = WEEKDAYS) {
+    return { departureTime, daysOfWeek };
+  }
+
+  it('never wakes when no candidates are configured at all', () => {
+    expect(isWithinDepartureWakeWindow(MONDAY_MORNING(8, 0), [], 10, 30)).toBe(false);
+    expect(isWithinDepartureWakeWindow(MONDAY_MORNING(8, 0), null, 10, 30)).toBe(false);
   });
 
-  it('is active inside a configured window on the right day', () => {
-    const windows = [{ day_of_week: 0, window_start: '07:30', window_end: '09:00' }];
-    expect(isWithinActiveWindow(MONDAY_MORNING(8, 0), windows)).toBe(true);
+  it('is awake inside the window around a candidate departure on a day it runs', () => {
+    const candidates = [dep('08:00')];
+    expect(isWithinDepartureWakeWindow(MONDAY_MORNING(7, 50), candidates, 10, 30)).toBe(true); // 10 min before
+    expect(isWithinDepartureWakeWindow(MONDAY_MORNING(8, 30), candidates, 10, 30)).toBe(true); // 30 min after
   });
 
-  it('is dormant outside the configured time range on the right day', () => {
-    const windows = [{ day_of_week: 0, window_start: '07:30', window_end: '09:00' }];
-    expect(isWithinActiveWindow(MONDAY_MORNING(12, 0), windows)).toBe(false);
+  it('is dormant outside the before/after window, even on a day the candidate runs', () => {
+    const candidates = [dep('08:00')];
+    expect(isWithinDepartureWakeWindow(MONDAY_MORNING(7, 49), candidates, 10, 30)).toBe(false); // 11 min before
+    expect(isWithinDepartureWakeWindow(MONDAY_MORNING(8, 31), candidates, 10, 30)).toBe(false); // 31 min after
   });
 
-  it('is dormant on a day with no matching window, even at the right time', () => {
-    const windows = [{ day_of_week: 0, window_start: '07:30', window_end: '09:00' }];
-    expect(isWithinActiveWindow(TUESDAY_MORNING(8, 0), windows)).toBe(false);
+  it('is dormant on a day the candidate does not run, even at the right time', () => {
+    const candidates = [dep('08:00', [6, 7])]; // Saturday/Sunday only
+    expect(isWithinDepartureWakeWindow(MONDAY_MORNING(8, 0), candidates, 10, 30)).toBe(false);
   });
 
-  it('supports multiple windows per day (split morning/afternoon run) with a dormant gap between', () => {
-    const windows = [
-      { day_of_week: 0, window_start: '07:30', window_end: '09:00' },
-      { day_of_week: 0, window_start: '15:00', window_end: '16:30' },
-    ];
-    expect(isWithinActiveWindow(MONDAY_MORNING(8, 0), windows)).toBe(true); // morning run
-    expect(isWithinActiveWindow(MONDAY_MORNING(12, 0), windows)).toBe(false); // dead gap between runs
-    expect(isWithinActiveWindow(MONDAY_MORNING(15, 30), windows)).toBe(true); // afternoon run
+  it('is awake if ANY candidate is within its own window, even when others are not', () => {
+    const morning = dep('08:00');
+    const afternoon = dep('15:30');
+    expect(isWithinDepartureWakeWindow(MONDAY_MORNING(8, 0), [morning, afternoon], 10, 30)).toBe(true);
+    expect(isWithinDepartureWakeWindow(TUESDAY_MORNING(12, 0), [morning, afternoon], 10, 30)).toBe(false); // dead gap between runs
   });
 });

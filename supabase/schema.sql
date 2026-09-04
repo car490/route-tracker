@@ -1457,21 +1457,38 @@ grant execute on function public.end_announce_device_journey(uuid) to anon;
 -- the same vehicle. Validates ownership inside the function body (device and
 -- vehicle must share a company_id) rather than via RLS+JWT claim, since a
 -- manual-selection-flow driver device may carry no JWT claims at all.
+--
+-- p_force guards against silently converting an already-commissioned Solo
+-- device (candidate_departure_ids populated) into Lite (driver-device) mode
+-- -- found live 2026-09-04: a Solo tablet got flipped with no driver device
+-- actually pushing to it, and sat waiting for a push that would never
+-- arrive. See docs/ANNOUNCE-PRODUCT-TIERS.md and announceDeviceFeed.js's
+-- self-heal watchdog (announceLiteMode.js's shouldSelfHeal) for the other
+-- half of this fix.
 create or replace function public.link_announce_device(
   p_device_id  uuid,
-  p_vehicle_id uuid
+  p_vehicle_id uuid,
+  p_force      boolean default false
 ) returns boolean
 language plpgsql security definer
 as $$
 declare
   v_device_company  uuid;
+  v_candidate_count int;
   v_vehicle_company uuid;
 begin
-  select company_id into v_device_company
+  select company_id, cardinality(candidate_departure_ids)
+    into v_device_company, v_candidate_count
   from public.announce_devices where id = p_device_id;
 
   if v_device_company is null then
     raise exception 'announce device % not found', p_device_id;
+  end if;
+
+  if v_candidate_count > 0 and not p_force then
+    raise exception
+      'announce device % is commissioned as Solo (has candidate_departure_ids) -- pass p_force := true to link it anyway',
+      p_device_id;
   end if;
 
   select company_id into v_vehicle_company
@@ -1492,7 +1509,7 @@ begin
 end;
 $$;
 
-grant execute on function public.link_announce_device(uuid, uuid) to anon;
+grant execute on function public.link_announce_device(uuid, uuid, boolean) to anon;
 
 -- Called by the Driver PWA (anon) to unlink an Announce device — reversible
 -- at any time, drops the device back to internal (self-contained) GPS mode.
@@ -1562,51 +1579,16 @@ $$;
 
 grant execute on function public.get_linked_announce_device_id(uuid) to anon;
 
--- Solo-mode active windows: which days/times this device wakes to poll its
--- own GPS at all (schedule-autopilot's idle loop — see
--- announceSoloAutopilot.js's isWithinActiveWindow gate). Same shape as
--- employees' own employee_availability table (day_of_week 0=Mon..6=Sun,
--- window_start/window_end, window_end > window_start — a split day like a
--- morning run + afternoon run is two rows, not one midnight-wrapping
--- window). A device with zero rows here never wakes — same conservative
--- default an empty candidate_departure_ids list already gives it.
-create table if not exists public.announce_device_active_windows (
-  id                  uuid primary key default gen_random_uuid(),
-  announce_device_id  uuid not null references public.announce_devices(id) on delete cascade,
-  day_of_week         smallint not null check (day_of_week between 0 and 6),
-  window_start        time not null,
-  window_end          time not null,
-  check (window_end > window_start)
-);
-
-create index if not exists announce_device_active_windows_device_id_idx
-  on public.announce_device_active_windows (announce_device_id);
-
-grant select on public.announce_device_active_windows to anon;
-grant all    on public.announce_device_active_windows to authenticated;
-
-alter table public.announce_device_active_windows enable row level security;
-
--- Ops (dashboard login): full CRUD scoped to the parent device's company.
-create policy "company_all" on public.announce_device_active_windows
-  for all to authenticated
-  using (
-    announce_device_id in (
-      select id from public.announce_devices where company_id = current_company_id()
-    )
-  )
-  with check (
-    announce_device_id in (
-      select id from public.announce_devices where company_id = current_company_id()
-    )
-  );
-
--- Announce device (anon): may read only its own windows, same device_id
--- JWT-claim scoping as announce_devices' own device_self policy.
-create policy "device_self" on public.announce_device_active_windows
-  for select to anon
-  using (announce_device_id = (auth.jwt() ->> 'device_id')::uuid);
-
+-- announce_device_active_windows (Solo-mode admin-configured day/time
+-- wake bands) was dropped 2026-09-04 — it hand-duplicated day/time data
+-- that already lives on timetable_departures.days_of_week/scheduled_time,
+-- reachable via schedule_view. announceSoloAutopilot.js now derives its
+-- wake window straight from each candidate departure's own data
+-- (scheduleAutopilot.js's isWithinDepartureWakeWindow) instead of a
+-- separately admin-maintained table that could quietly drift out of sync
+-- with the real timetable. See
+-- supabase/migration_announce_devices_drop_active_windows.sql and
+-- docs/ANNOUNCE-PRODUCT-TIERS.md's simplification writeup.
 
 -- ── Views ─────────────────────────────────────────────────────────────────────
 -- Returns one row per (departure × stop).

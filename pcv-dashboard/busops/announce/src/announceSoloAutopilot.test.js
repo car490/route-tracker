@@ -2,13 +2,15 @@
 //
 // BusOps Announce Solo — integration test for startSoloAutopilot's
 // journey-start/completion orchestration. scheduleAutopilot.js's own pure
-// matching logic (findScheduleMatch/isWithinActiveWindow/isJourneyComplete)
-// is covered separately in tests/scheduleAutopilot.test.js; this file
-// covers the wiring around it: a real bug found in code review where a
-// completed Solo journey never signalled onJourneyEnd, leaving its sign
-// visible over the idle screen (onboard.js) until the next journey
-// started — and the active-window gating that keeps a Solo device from
-// polling its own GPS outside its configured days/times.
+// matching logic (findScheduleMatch/isWithinDepartureWakeWindow/
+// isJourneyComplete) is covered separately in tests/scheduleAutopilot.test.js;
+// this file covers the wiring around it: a real bug found in code review
+// where a completed Solo journey never signalled onJourneyEnd, leaving its
+// sign visible over the idle screen (onboard.js) until the next journey
+// started — the departure-relative wake-window gating that keeps a Solo
+// device from polling its own GPS outside a candidate's own scheduled
+// departure window — and a live bug (2026-09-04) where the tracker could
+// freeze at nextStopIndex=0 for the rest of a journey.
 //
 // GPS tracking (announceGps.js) and speech (announceSpeech.js) are both
 // side-effecting and mocked out — same idiom as announceLink.test.js's
@@ -25,9 +27,9 @@ import { speakState } from './announceSpeech.js';
 import { startSoloAutopilot } from './announceSoloAutopilot.js';
 
 // Returns a chainable, thenable query-builder stub matching however much of
-// the real supabase-js surface fetchCandidateDepartures/fetchDepartureDetails/
-// fetchActiveWindows actually call (select/in/eq/order) — resolves to
-// { data, error: null } however it's awaited, regardless of chain shape.
+// the real supabase-js surface fetchCandidateDepartures/fetchDepartureDetails
+// actually call (select/in/eq/order) — resolves to { data, error: null }
+// however it's awaited, regardless of chain shape.
 function chainable(data) {
   const obj = {
     select: () => obj,
@@ -40,9 +42,9 @@ function chainable(data) {
 }
 
 // Fails (returns { data: null, error }) on its first `failCount` awaits, then
-// resolves with `data` from then on — for exercising the boot-time fetch
-// retry (refreshCandidates/refreshActiveWindows) added after the first beta
-// test found a failed boot-time fetch was never retried.
+// resolves with `data` from then on — for exercising the boot-time
+// candidate-fetch retry (refreshCandidates) added after the first beta test
+// found a failed boot-time fetch was never retried.
 function flakyChainable(data, failCount) {
   let calls = 0;
   const obj = {
@@ -62,17 +64,21 @@ function flakyChainable(data, failCount) {
 const DEPOT = { lat: 52.9, lon: -0.6 };
 
 // One departure, two stops — enough to exercise start -> final-stop
-// completion without needing a longer route.
+// completion without needing a longer route. days_of_week (ISO dow,
+// 1=Mon..7=Sun) runs Mon-Fri — 2026-08-24 (the test fixture date below) is
+// a Monday.
 const SCHEDULE_ROWS = [
   {
     departure_id: 'dep-1', service_code: 'S125S', display_name: 'Depot',
     lat: DEPOT.lat, lon: DEPOT.lon, scheduled_time: '08:00:00', sequence: 1,
     stop_type: 'timing_point', timetable_stop_id: 'ts-1', stop_id: 'stop-1',
+    days_of_week: [1, 2, 3, 4, 5],
   },
   {
     departure_id: 'dep-1', service_code: 'S125S', display_name: 'College',
     lat: 52.95, lon: -0.5, scheduled_time: '08:30:00', sequence: 2,
     stop_type: 'timing_point', timetable_stop_id: 'ts-2', stop_id: 'stop-2',
+    days_of_week: [1, 2, 3, 4, 5],
   },
 ];
 
@@ -87,11 +93,10 @@ function thenableOnly(value) {
   return { then: (resolve) => resolve(value) };
 }
 
-function makeClient({ activeWindows = [] } = {}) {
+function makeClient() {
   return {
     from: vi.fn((table) => {
       if (table === 'schedule_view') return chainable(SCHEDULE_ROWS);
-      if (table === 'announce_device_active_windows') return chainable(activeWindows);
       throw new Error(`unexpected table in test stub: ${table}`);
     }),
     rpc: vi.fn((name) => {
@@ -129,8 +134,8 @@ describe('startSoloAutopilot', () => {
     startAnnounceGpsTracking.mockReset();
   });
 
-  it('starts a journey once matched, then calls onJourneyEnd (not just the idle callback) on completion, after the terminus hold delay', async () => {
-    vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0)); // Monday 08:00 — inside the window below
+  it('starts a journey once matched, then calls onJourneyEnd (not just the idle callback) on completion, after the post-journey hold delay', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0)); // Monday 08:00 — inside dep-1's own wake window (07:45-08:30)
     const getCurrentPosition = vi.fn((success) => success({ coords: { latitude: DEPOT.lat, longitude: DEPOT.lon } }));
     vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } });
     vi.stubGlobal('crypto', { randomUUID: () => 'client-generated-id' });
@@ -138,10 +143,10 @@ describe('startSoloAutopilot', () => {
     let onUpdate;
     startAnnounceGpsTracking.mockImplementation((opts) => {
       onUpdate = opts.onUpdate;
-      return { stop: vi.fn() };
+      return { stop: vi.fn(), jumpToStop: vi.fn() };
     });
 
-    const client = makeClient({ activeWindows: [{ day_of_week: 0, window_start: '07:00', window_end: '10:00' }] });
+    const client = makeClient();
     const onSchedule = vi.fn();
     const onState = vi.fn();
     const onIdleNextDeparture = vi.fn();
@@ -170,26 +175,59 @@ describe('startSoloAutopilot', () => {
     // activeJourney guard) — just not the scenario this test means to cover.
     getCurrentPosition.mockImplementation((success) => success({ coords: { latitude: 0, longitude: 0 } }));
 
-    // onJourneyEnd is deliberately delayed (TERMINUS_HOLD_MS, 5 minutes) —
-    // see completeActiveJourney's own comment — so the terminus message
-    // stays on screen long enough for passengers to actually read/hear it,
-    // rather than the sign flipping back to idle right behind it.
+    // onJourneyEnd is deliberately delayed (POST_JOURNEY_HOLD_MS, 10
+    // minutes) — see completeActiveJourney's own comment — so the terminus
+    // message stays on screen, and the physical screen stays awake, long
+    // enough for passengers to actually read/hear it, rather than the sign
+    // flipping back to idle right behind it.
     expect(onJourneyEnd).not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+    await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
     await flush();
 
     expect(onJourneyEnd).toHaveBeenCalledTimes(1); // the fix under test: previously never called for Solo
     expect(onIdleNextDeparture).toHaveBeenCalled(); // still reports the next departure afterwards
   });
 
-  it('does not poll GPS at all outside its configured active windows, and shows the sleep screen instead of idle branding', async () => {
-    vi.setSystemTime(new Date(2026, 7, 24, 12, 0, 0)); // Monday noon — outside the window below
+  it('confirms the vehicle at stop 0 immediately on match, so tracking never freezes waiting for the tighter 50m street-stop geofence', async () => {
+    // Regression for a live bug found 2026-09-04: Solo matches at
+    // terminus_radius_m (150m default, deliberately loose for a depot/
+    // terminus forecourt) but shared/gps.js only ever sets hasReachedStart
+    // (required for any arrival/approach/forward-match detection) once the
+    // vehicle physically enters GEOFENCE_RADIUS_M (50m) of stop 0's exact
+    // coordinates. A vehicle matched at, say, 120m from stop 0 could
+    // legitimately never enter that tighter 50m ring, freezing the tracker
+    // at nextStopIndex=0 for the rest of the journey — no announcements,
+    // no visual progress, for hours. The fix: jumpToStop(0) right after the
+    // tracker starts, confirming position the same way a manual override
+    // would.
+    vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0));
+    const getCurrentPosition = vi.fn((success) => success({ coords: { latitude: DEPOT.lat, longitude: DEPOT.lon } }));
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } });
+    vi.stubGlobal('crypto', { randomUUID: () => 'client-generated-id' });
+
+    const jumpToStop = vi.fn();
+    startAnnounceGpsTracking.mockImplementation(() => ({ stop: vi.fn(), jumpToStop }));
+
+    const client = makeClient();
+    startSoloAutopilot(client, BASE_DEVICE_ROW, {
+      onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture: vi.fn(), onJourneyEnd: vi.fn(),
+    });
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000);
+    await flush();
+
+    expect(jumpToStop).toHaveBeenCalledTimes(1);
+    expect(jumpToStop).toHaveBeenCalledWith(0);
+  });
+
+  it('does not poll GPS at all outside the wake window around its candidate departures, and shows the sleep screen instead of idle branding', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 12, 0, 0)); // Monday noon — well outside dep-1's 07:45-08:30 window
     const getCurrentPosition = vi.fn();
     vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } });
 
     const onIdleNextDeparture = vi.fn();
     const onSleep = vi.fn();
-    const client = makeClient({ activeWindows: [{ day_of_week: 0, window_start: '07:00', window_end: '09:00' }] });
+    const client = makeClient();
     startSoloAutopilot(client, BASE_DEVICE_ROW, { onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture, onJourneyEnd: vi.fn(), onSleep });
     await flush();
 
@@ -203,15 +241,17 @@ describe('startSoloAutopilot', () => {
     expect(onIdleNextDeparture).not.toHaveBeenCalled();
   });
 
-  it('does not poll GPS at all when no active windows are configured, and shows the sleep screen', async () => {
-    vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0)); // would be inside a window, if any were configured
+  it('does not poll GPS at all when no candidate departures are configured, and shows the sleep screen', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0)); // would be inside dep-1's window, if it were configured
     const getCurrentPosition = vi.fn();
     vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } });
 
     const onIdleNextDeparture = vi.fn();
     const onSleep = vi.fn();
-    const client = makeClient({ activeWindows: [] });
-    startSoloAutopilot(client, BASE_DEVICE_ROW, { onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture, onJourneyEnd: vi.fn(), onSleep });
+    const client = makeClient();
+    startSoloAutopilot(client, { ...BASE_DEVICE_ROW, candidate_departure_ids: [] }, {
+      onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture, onJourneyEnd: vi.fn(), onSleep,
+    });
     await flush();
 
     await vi.advanceTimersByTimeAsync(5000);
@@ -221,21 +261,21 @@ describe('startSoloAutopilot', () => {
     expect(onIdleNextDeparture).not.toHaveBeenCalled();
   });
 
-  it('wakes (shows idle branding, starts polling) the instant an active window opens, with no restart needed', async () => {
-    vi.setSystemTime(new Date(2026, 7, 24, 6, 59, 57)); // Monday 06:59:57 — 3s before the window opens, so one 5s idle tick crosses it
+  it('wakes (shows idle branding, starts polling) the instant a candidate\'s wake window opens, with no restart needed', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 7, 44, 57)); // Monday 07:44:57 — 3s before dep-1's window opens (08:00 - 15min), so one 5s idle tick crosses it
     const getCurrentPosition = vi.fn((success) => success({ coords: { latitude: DEPOT.lat, longitude: DEPOT.lon } }));
     vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } });
 
     const onIdleNextDeparture = vi.fn();
     const onSleep = vi.fn();
-    const client = makeClient({ activeWindows: [{ day_of_week: 0, window_start: '07:00', window_end: '09:00' }] });
+    const client = makeClient();
     startSoloAutopilot(client, BASE_DEVICE_ROW, { onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture, onJourneyEnd: vi.fn(), onSleep });
     await flush();
 
     expect(onSleep).toHaveBeenCalledTimes(1); // asleep at boot, 3s before the window
     expect(getCurrentPosition).not.toHaveBeenCalled();
 
-    // Crosses 07:00 on this tick — the idle loop's own applyWakeState()
+    // Crosses 07:45 on this tick — the idle loop's own applyWakeState()
     // check should catch it without anything else restarting the device.
     await vi.advanceTimersByTimeAsync(5000);
 
@@ -252,10 +292,10 @@ describe('startSoloAutopilot', () => {
     let onUpdate;
     startAnnounceGpsTracking.mockImplementation((opts) => {
       onUpdate = opts.onUpdate;
-      return { stop: vi.fn() };
+      return { stop: vi.fn(), jumpToStop: vi.fn() };
     });
 
-    const client = makeClient({ activeWindows: [{ day_of_week: 0, window_start: '07:00', window_end: '10:00' }] });
+    const client = makeClient();
     startSoloAutopilot(client, BASE_DEVICE_ROW, {
       onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture: vi.fn(), onJourneyEnd: vi.fn(),
     });
@@ -275,24 +315,21 @@ describe('startSoloAutopilot', () => {
     expect(speakState).toHaveBeenCalledTimes(1);
   });
 
-  it('retries a failed boot-time active-windows fetch instead of staying dormant all day', async () => {
-    vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0)); // inside the window, once it's actually loaded
+  it('retries a failed boot-time candidate-departures fetch instead of staying dormant all day', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0)); // inside dep-1's window, once it's actually loaded
     const getCurrentPosition = vi.fn((success) => success({ coords: { latitude: DEPOT.lat, longitude: DEPOT.lon } }));
     vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } });
 
     // Built once, outside the `from` factory — the failure count must
     // persist across the two separate `client.from(...)` calls
-    // (fetchActiveWindows re-calls .from() on each retry, same as the real
-    // supabase-js query builder would), not reset on every call.
-    const flakyActiveWindows = flakyChainable(
-      [{ day_of_week: 0, window_start: '07:00', window_end: '10:00' }], 1
-    );
+    // (fetchCandidateDepartures re-calls .from() on each retry, same as the
+    // real supabase-js query builder would), not reset on every call.
+    const flakySchedule = flakyChainable(SCHEDULE_ROWS, 1);
     const client = {
       from: vi.fn((table) => {
-        if (table === 'schedule_view') return chainable(SCHEDULE_ROWS);
         // Fails once — simulating the transient boot-time connectivity blip
         // reported in the first beta test — then succeeds on retry.
-        if (table === 'announce_device_active_windows') return flakyActiveWindows;
+        if (table === 'schedule_view') return flakySchedule;
         throw new Error(`unexpected table in test stub: ${table}`);
       }),
       rpc: vi.fn(() => thenableOnly({ data: null, error: null })),
@@ -306,7 +343,7 @@ describe('startSoloAutopilot', () => {
     await flush();
 
     // Before the retry fires: the failed fetch must not have been silently
-    // treated as "no windows configured" — that would show the sleep
+    // treated as "no candidates configured" — that would show the sleep
     // screen and never retry again, exactly the bug this fix closes.
     expect(onSleep).not.toHaveBeenCalled();
     expect(onIdleNextDeparture).not.toHaveBeenCalled();

@@ -126,7 +126,7 @@
   "isRunning": true,
   "jsAlerts": true,
   "keepOnWhileFullscreen": true,
-  "keepScreenOn": true,
+  "keepScreenOn": false,
   "keepScreenOnAdvanced": false,
   "keepSleepingIfUnplugged": false,
   "killAppsBeforeStartingList": "",

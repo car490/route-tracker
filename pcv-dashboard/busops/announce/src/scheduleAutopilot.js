@@ -154,34 +154,48 @@ export function isJourneyComplete({ atStop, allStopsLength, startedAt, now, time
 }
 
 /**
- * Whether "now" falls inside one of this device's configured active
- * windows — a Solo device only wakes to poll its own GPS during specified
- * days/times (see announce_device_active_windows), staying fully dormant
- * (no geolocation calls at all) the rest of the time. Same
- * day_of_week/window_start/window_end shape as employees' own
- * employee_availability table, including its `window_end > window_start`
- * convention (enforced by a DB check constraint) — a split day (e.g. a
- * morning run and an afternoon run with a dead gap between) is two rows,
- * not one midnight-wrapping window, exactly like a SPLITSHIFT employee's
- * two availability rows.
+ * Whether "now" falls inside the wake window around any candidate's own
+ * scheduled departure — a Solo device only wakes (GPS polling, and the
+ * screen itself — see announceSoloAutopilot.js's isAwake) within
+ * [scheduled_time - beforeMin, scheduled_time + afterMin] of a departure
+ * it's actually commissioned for, on a day that departure actually runs
+ * (candidate.daysOfWeek — ISO day-of-week, 1=Mon..7=Sun, matching
+ * timetable_departures.days_of_week/`extract(isodow from ...)` elsewhere in
+ * this schema — NOT the same 0-indexed convention as the old
+ * announce_device_active_windows.day_of_week column).
  *
- * No windows configured at all means the device never wakes — same
+ * Replaces that admin-configured announce_device_active_windows table
+ * entirely (dropped 2026-09-04) — it hand-duplicated day/time data that
+ * already lives on the timetable itself; see
+ * docs/ANNOUNCE-PRODUCT-TIERS.md for the writeup. Reuses the exact same
+ * before/after minute window as findScheduleMatch's own match-validity
+ * check (matchWindowBeforeMin/matchWindowAfterMin) — one meaning for "how
+ * close to departure do we care", not a second, near-duplicate check that
+ * could quietly drift out of sync with it.
+ *
+ * Known edge case, not handled: a departure scheduled within beforeMin
+ * minutes of midnight could have its own wake window start on the previous
+ * calendar day, whose ISO day-of-week this check would then reject. Not a
+ * real scenario for any currently commissioned route (all run well clear of
+ * midnight) — flagged rather than engineered around.
+ *
+ * No candidates configured at all means the device never wakes — same
  * conservative default a freshly registered device already gets from an
- * empty candidate_departure_ids list (see findScheduleMatch above): it
- * stays inert until someone deliberately commissions it.
+ * empty candidate_departure_ids list: it stays inert until someone
+ * deliberately commissions it.
  *
  * @param {Date} now
- * @param {Array<{day_of_week: number, window_start: string, window_end: string}>} windows
+ * @param {Array<{departureTime: string, daysOfWeek: number[]}>} candidates
+ * @param {number} beforeMin
+ * @param {number} afterMin
  * @returns {boolean}
  */
-export function isWithinActiveWindow(now, windows) {
-  if (!windows?.length) return false;
-  const day = (now.getDay() + 6) % 7; // JS Date: 0=Sun..6=Sat -> project convention: 0=Mon..6=Sun
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-  return windows.some((w) => {
-    if (w.day_of_week !== day) return false;
-    const [sh, sm] = w.window_start.split(':').map(Number);
-    const [eh, em] = w.window_end.split(':').map(Number);
-    return nowMin >= sh * 60 + sm && nowMin < eh * 60 + em;
+export function isWithinDepartureWakeWindow(now, candidates, beforeMin, afterMin) {
+  if (!candidates?.length) return false;
+  const isoDow = now.getDay() === 0 ? 7 : now.getDay(); // JS Date: 0=Sun..6=Sat -> ISO dow: 1=Mon..7=Sun
+  return candidates.some((candidate) => {
+    if (!candidate.daysOfWeek?.includes(isoDow)) return false;
+    const diffMin = minutesFromScheduled(candidate.departureTime, now);
+    return diffMin >= -beforeMin && diffMin <= afterMin;
   });
 }
