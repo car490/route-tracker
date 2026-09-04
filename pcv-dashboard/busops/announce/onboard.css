@@ -308,17 +308,13 @@ body {
   white-space: nowrap;
 }
 
-/* The scrolling strip — holds one .route-segment (service code +
-   destination) normally, and a second cloned copy of it, appended by
-   applyTopbarMarquee() with this element's own `gap` as the breathing room
-   between repeats, only while .marquee is active. Static (no transform)
-   until that overflow measurement adds .marquee + the two custom
-   properties below; most service/destination combinations never get past
-   the single, un-cloned segment at all. */
+/* The scrolling strip — one .route-segment (service code + destination).
+   Static (no transform) until applyTopbarMarquee() measures a real overflow
+   and adds .marquee + the two custom properties below; most service/
+   destination combinations never get that class at all. */
 #sign-route-track {
   display: inline-flex;
   align-items: baseline;
-  gap: 6vw; /* only visible once a second (looping) segment exists */
   white-space: nowrap;
 }
 
@@ -329,37 +325,33 @@ body {
   white-space: nowrap;
 }
 
-/* 2 iterations (onboard.js's MARQUEE_LOOPS_PER_CYCLE — keep the two in
-   sync if this ever changes), not infinite — user feedback 2026-09-04:
-   scrolling non-stop for the whole journey was too much permanent motion.
-   onboard.js restarts this class for another 2 passes after a rest period;
-   see applyTopbarMarquee's own comment for how the rest itself needs no
-   code at all (the animation just ends and stays at its default position). */
+/* Infinite, no pause, no rest gap — user feedback 2026-09-04, arrived at
+   after two other versions: scroll-then-pause-then-snap-back read as
+   "jumping to the start"; a two-copy seamless-ticker version with a
+   scroll-twice-then-12s-rest cycle was still an unwanted delay. Settled on:
+   scroll the one segment left until its own trailing edge has fully
+   exited, then go straight back to the start — see applyTopbarMarquee's
+   own comment for why that reset is invisible (nothing is on screen at
+   that instant) and needs no JS timer to feel "immediate". */
 #sign-route-track.marquee {
   animation-name: topbar-marquee;
   animation-duration: var(--topbar-marquee-duration, 4s);
   animation-timing-function: linear;
-  animation-iteration-count: 2;
+  animation-iteration-count: infinite;
 }
 
-/* Continuous within a cycle, no pauses — user feedback 2026-09-04: an
-   earlier version that scrolled to the end, paused, then snapped back to
-   the start read as "jumping to the start" rather than scrolling round.
-   --topbar-marquee-distance (negative px, set alongside
-   --topbar-marquee-duration by applyTopbarMarquee()) is exactly one
-   segment's width plus this element's own gap — the point at which the
-   second (cloned) segment sits exactly where the first one started, so
-   looping back to 0% lands on identical content and reads as one
-   continuous scroll, not a reset. */
+/* --topbar-marquee-distance (negative px, set alongside
+   --topbar-marquee-duration by applyTopbarMarquee()) is the track's own
+   full width — enough that its trailing edge genuinely clears the
+   viewport, not just enough to stop overflowing. */
 @keyframes topbar-marquee {
   from { transform: translateX(0); }
   to   { transform: translateX(var(--topbar-marquee-distance, 0px)); }
 }
 
-/* Classes, not #sign-service-code/#sign-destination (kept on the original
-   pair only, for onboard.js's el() lookups) — applyTopbarMarquee()'s cloned
-   loop copy strips ids (duplicate ids are invalid HTML) but keeps classes,
-   so styling has to hang off these to survive the clone. */
+/* A class, not #sign-service-code/#sign-destination directly — those ids
+   stay on the elements for onboard.js's el() lookups, but styling hangs off
+   these classes so it isn't tied to id selectors at all. */
 .route-code,
 .route-destination {
   font-family: var(--ep-font);

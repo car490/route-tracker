@@ -141,25 +141,10 @@ window.addEventListener('resize', positionBrand);
 // positionBrand's own pattern above.
 const MARQUEE_SPEED_PX_PER_S = 220; // fast, deliberately brisk per user feedback 2026-09-04 — tune here if it reads too fast/slow live
 const MARQUEE_MIN_DURATION_S = 2.5; // floor so a barely-overflowing line doesn't scroll imperceptibly fast
-const MARQUEE_LOOPS_PER_CYCLE = 2; // scroll through this many times, then rest — not permanent motion for the whole journey (user feedback 2026-09-04)
-const MARQUEE_REST_MS = 12000; // ...then hold static (showing the start of the line) this long before scrolling again
-
-let marqueeCycleTimer = null;
-
-function stopMarqueeCycle() {
-  if (marqueeCycleTimer !== null) {
-    clearTimeout(marqueeCycleTimer);
-    marqueeCycleTimer = null;
-  }
-}
 
 function applyTopbarMarquee() {
   const viewport = el('sign-route-line');
   const track = el('sign-route-track');
-  stopMarqueeCycle();
-  // A previous call may have appended a second (looping) copy of the
-  // segment — strip back down to the one real one before measuring.
-  track.querySelectorAll('.route-segment').forEach((seg, i) => { if (i > 0) seg.remove(); });
   track.classList.remove('marquee');
   track.style.removeProperty('--topbar-marquee-distance');
   track.style.removeProperty('--topbar-marquee-duration');
@@ -167,41 +152,25 @@ function applyTopbarMarquee() {
   // browser has laid it out — reading it straight after a class/text change
   // in the same tick is reliable in practice here (no animation/transition
   // on the track itself to race), so no extra rAF/reflow trick is needed.
-  const segmentWidthPx = track.scrollWidth; // exactly one segment at this point
-  if (segmentWidthPx <= viewport.clientWidth) return; // fits — stays static, the common case
+  const trackWidthPx = track.scrollWidth;
+  if (trackWidthPx <= viewport.clientWidth) return; // fits — stays static, the common case
 
-  // Seamless circular loop: clone the segment, append it after the real one
-  // (separated by the track's own `gap`, read back from computed style so
-  // CSS stays the one source of truth for that spacing), then animate
-  // exactly that combined width to the left. At that point the clone sits
-  // precisely where the original started, so looping back to translateX(0)
-  // lands on identical content — reads as continuous scrolling, not a jump.
-  const clone = track.querySelector('.route-segment').cloneNode(true);
-  clone.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
-  track.appendChild(clone);
-
-  const loopGapPx = parseFloat(getComputedStyle(track).columnGap) || 0;
-  const distancePx = segmentWidthPx + loopGapPx;
+  // Single copy, moving right to left until its own trailing edge has fully
+  // cleared the viewport (distance = the track's own full width — not just
+  // the overflow amount — so the last character genuinely exits, not just
+  // stops overflowing), then straight back to the start with no rest gap —
+  // user feedback 2026-09-04, twice: first a version that paused then
+  // snapped back read as "jumping to the start"; a two-copy seamless-ticker
+  // version with a scroll-twice-then-rest cycle was still "too much" and
+  // added a delay that wasn't wanted either. The reset itself is invisible
+  // regardless — nothing is on screen at the moment it happens, since the
+  // text has just fully exited left — so a plain infinite CSS loop with no
+  // fill-mode/pause needs no JS timer at all to restart it "immediately".
+  const distancePx = trackWidthPx;
   const durationS = Math.max(distancePx / MARQUEE_SPEED_PX_PER_S, MARQUEE_MIN_DURATION_S);
   track.style.setProperty('--topbar-marquee-distance', `-${distancePx}px`);
   track.style.setProperty('--topbar-marquee-duration', `${durationS}s`);
-
-  // .marquee's animation-iteration-count (onboard.css) is fixed at
-  // MARQUEE_LOOPS_PER_CYCLE, so it plays that many times and then — no
-  // animation-fill-mode set, so it's the CSS default ("none") — the track
-  // reverts to its unanimated position (translateX(0), the start of the
-  // line) on its own and just sits there. This timer only exists to
-  // restart it after the rest period: remove the class, force a reflow (a
-  // class re-add with no reflow between is a no-op, the animation won't
-  // replay), then re-add it for another MARQUEE_LOOPS_PER_CYCLE passes.
-  const cycleMs = durationS * MARQUEE_LOOPS_PER_CYCLE * 1000 + MARQUEE_REST_MS;
-  const runCycle = () => {
-    track.classList.remove('marquee');
-    void track.offsetWidth; // force the reflow the restart needs
-    track.classList.add('marquee');
-    marqueeCycleTimer = setTimeout(runCycle, cycleMs);
-  };
-  runCycle();
+  track.classList.add('marquee');
 }
 window.addEventListener('resize', applyTopbarMarquee);
 
@@ -509,7 +478,6 @@ export function onState(msg) {
 // rather than a new idle-rendering path.
 export function onJourneyEnd() {
   clearSequenceTimers();
-  stopMarqueeCycle();
   el('onboard-sign').hidden = true;
   showNextDeparture(null);
 }
