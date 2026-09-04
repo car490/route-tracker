@@ -329,34 +329,45 @@ body {
   white-space: nowrap;
 }
 
+/* 2 iterations (onboard.js's MARQUEE_LOOPS_PER_CYCLE — keep the two in
+   sync if this ever changes), not infinite — user feedback 2026-09-04:
+   scrolling non-stop for the whole journey was too much permanent motion.
+   onboard.js restarts this class for another 2 passes after a rest period;
+   see applyTopbarMarquee's own comment for how the rest itself needs no
+   code at all (the animation just ends and stays at its default position). */
 #sign-route-track.marquee {
   animation-name: topbar-marquee;
   animation-duration: var(--topbar-marquee-duration, 4s);
   animation-timing-function: linear;
-  animation-iteration-count: infinite;
+  animation-iteration-count: 2;
 }
 
-/* Continuous, no pauses — user feedback 2026-09-04: an earlier version that
-   scrolled to the end, paused, then snapped back to the start read as
-   "jumping to the start" rather than scrolling round. --topbar-marquee-
-   distance (negative px, set alongside --topbar-marquee-duration by
-   applyTopbarMarquee()) is exactly one segment's width plus this element's
-   own gap — the point at which the second (cloned) segment sits exactly
-   where the first one started, so looping back to 0% lands on identical
-   content and reads as one continuous scroll, not a reset. */
+/* Continuous within a cycle, no pauses — user feedback 2026-09-04: an
+   earlier version that scrolled to the end, paused, then snapped back to
+   the start read as "jumping to the start" rather than scrolling round.
+   --topbar-marquee-distance (negative px, set alongside
+   --topbar-marquee-duration by applyTopbarMarquee()) is exactly one
+   segment's width plus this element's own gap — the point at which the
+   second (cloned) segment sits exactly where the first one started, so
+   looping back to 0% lands on identical content and reads as one
+   continuous scroll, not a reset. */
 @keyframes topbar-marquee {
   from { transform: translateX(0); }
   to   { transform: translateX(var(--topbar-marquee-distance, 0px)); }
 }
 
-#sign-service-code,
-#sign-destination {
+/* Classes, not #sign-service-code/#sign-destination (kept on the original
+   pair only, for onboard.js's el() lookups) — applyTopbarMarquee()'s cloned
+   loop copy strips ids (duplicate ids are invalid HTML) but keeps classes,
+   so styling has to hang off these to survive the clone. */
+.route-code,
+.route-destination {
   font-family: var(--ep-font);
   font-size: var(--min-text);
   font-weight: 800;
 }
 
-#sign-destination {
+.route-destination {
   letter-spacing: 0.01em;
   /* No text-transform: uppercase — passenger-facing text must stay proper/
      camel case (RNIB clear-print guidance: long runs of capitals are
@@ -364,7 +375,7 @@ body {
      "BOSTON COLLEGE". Removed 2026-09-02. */
 }
 
-#sign-destination::before {
+.route-destination::before {
   content: 'to\00A0';
 }
 
