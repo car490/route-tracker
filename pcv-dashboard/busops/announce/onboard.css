@@ -326,13 +326,10 @@ body {
 }
 
 /* Infinite, no pause, no rest gap — user feedback 2026-09-04, arrived at
-   after two other versions: scroll-then-pause-then-snap-back read as
-   "jumping to the start"; a two-copy seamless-ticker version with a
-   scroll-twice-then-12s-rest cycle was still an unwanted delay. Settled on:
-   scroll the one segment left until its own trailing edge has fully
-   exited, then go straight back to the start — see applyTopbarMarquee's
-   own comment for why that reset is invisible (nothing is on screen at
-   that instant) and needs no JS timer to feel "immediate". */
+   after three other versions (see applyTopbarMarquee's own comment for the
+   full history). Both ends of the loop (--topbar-marquee-start/-end,
+   below) are off-screen, so the infinite reset is invisible and the whole
+   visible motion reads as one continuous, uninterrupted scroll. */
 #sign-route-track.marquee {
   animation-name: topbar-marquee;
   animation-duration: var(--topbar-marquee-duration, 4s);
@@ -340,13 +337,14 @@ body {
   animation-iteration-count: infinite;
 }
 
-/* --topbar-marquee-distance (negative px, set alongside
-   --topbar-marquee-duration by applyTopbarMarquee()) is the track's own
-   full width — enough that its trailing edge genuinely clears the
-   viewport, not just enough to stop overflowing. */
+/* --topbar-marquee-start/-end (px, set alongside --topbar-marquee-duration
+   by applyTopbarMarquee()) are the viewport's own width (fully off-screen
+   right) and the negative of the track's own full width (fully off-screen
+   left) — the segment enters by sliding in from the right rather than
+   popping into view already readable. */
 @keyframes topbar-marquee {
-  from { transform: translateX(0); }
-  to   { transform: translateX(var(--topbar-marquee-distance, 0px)); }
+  from { transform: translateX(var(--topbar-marquee-start, 0px)); }
+  to   { transform: translateX(var(--topbar-marquee-end, 0px)); }
 }
 
 /* A class, not #sign-service-code/#sign-destination directly — those ids

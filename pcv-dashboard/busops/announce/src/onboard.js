@@ -146,29 +146,33 @@ function applyTopbarMarquee() {
   const viewport = el('sign-route-line');
   const track = el('sign-route-track');
   track.classList.remove('marquee');
-  track.style.removeProperty('--topbar-marquee-distance');
+  track.style.removeProperty('--topbar-marquee-start');
+  track.style.removeProperty('--topbar-marquee-end');
   track.style.removeProperty('--topbar-marquee-duration');
   // scrollWidth reflects the text just set by onSchedule() only once the
   // browser has laid it out — reading it straight after a class/text change
   // in the same tick is reliable in practice here (no animation/transition
   // on the track itself to race), so no extra rAF/reflow trick is needed.
+  const viewportWidthPx = viewport.clientWidth;
   const trackWidthPx = track.scrollWidth;
-  if (trackWidthPx <= viewport.clientWidth) return; // fits — stays static, the common case
+  if (trackWidthPx <= viewportWidthPx) return; // fits — stays static, the common case
 
-  // Single copy, moving right to left until its own trailing edge has fully
-  // cleared the viewport (distance = the track's own full width — not just
-  // the overflow amount — so the last character genuinely exits, not just
-  // stops overflowing), then straight back to the start with no rest gap —
-  // user feedback 2026-09-04, twice: first a version that paused then
-  // snapped back read as "jumping to the start"; a two-copy seamless-ticker
-  // version with a scroll-twice-then-rest cycle was still "too much" and
-  // added a delay that wasn't wanted either. The reset itself is invisible
-  // regardless — nothing is on screen at the moment it happens, since the
-  // text has just fully exited left — so a plain infinite CSS loop with no
-  // fill-mode/pause needs no JS timer at all to restart it "immediately".
-  const distancePx = trackWidthPx;
-  const durationS = Math.max(distancePx / MARQUEE_SPEED_PX_PER_S, MARQUEE_MIN_DURATION_S);
-  track.style.setProperty('--topbar-marquee-distance', `-${distancePx}px`);
+  // Single copy, travelling from fully off-screen right to fully off-screen
+  // left — not "already visible" to "fully exited" — so every loop enters
+  // by sliding in from the right rather than popping into view already
+  // readable. User feedback 2026-09-04, three rounds: pause-then-snap-back
+  // read as "jumping to the start"; a two-copy seamless-ticker version with
+  // a scroll-twice-then-rest cycle added an unwanted delay; a single-copy
+  // version starting already on-screen (translateX(0)) scrolled smoothly
+  // but still popped in abruptly at the top of each loop. Both endpoints
+  // here are off-screen, so the infinite loop's reset is invisible and the
+  // whole visible motion — enter right, cross, exit left — reads as one
+  // continuous, uninterrupted scroll with no JS timer needed to drive it.
+  const startPx = viewportWidthPx; // fully off-screen right
+  const endPx = -trackWidthPx; // fully off-screen left
+  const durationS = Math.max((startPx - endPx) / MARQUEE_SPEED_PX_PER_S, MARQUEE_MIN_DURATION_S);
+  track.style.setProperty('--topbar-marquee-start', `${startPx}px`);
+  track.style.setProperty('--topbar-marquee-end', `${endPx}px`);
   track.style.setProperty('--topbar-marquee-duration', `${durationS}s`);
   track.classList.add('marquee');
 }
