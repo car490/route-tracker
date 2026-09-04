@@ -12,10 +12,18 @@
    corners, status normally carried by text rather than colour. Deliberate
    exceptions: the brand mark keeps its real CoachMate colours (this is an
    LCD tablet, not actual e-ink hardware — the monochrome look is
-   aesthetic, not a hardware limit), and the diversion state (Regulation
-   10) gets a background-colour change — never the only signal (the
-   headline text, and on tiers with audio the spoken announcement, both
-   also change), just a supplementary visual emphasis so it's noticed. */
+   aesthetic, not a hardware limit), the diversion state (Regulation 10)
+   gets a background-colour change — never the only signal (the headline
+   text, and on tiers with audio the spoken announcement, both also
+   change), just a supplementary visual emphasis so it's noticed — and the
+   topbar's route/destination line scrolls (see #sign-route-track's own
+   comment) on the narrow minority of service+destination combinations too
+   long to fit at the fixed 22mm minimum character height. Character size
+   is a hard floor, never traded down for a long destination name, so
+   scrolling is the only way to still show the full text rather than
+   truncating it — added 2026-09-04 per user feedback live-testing S116S to
+   Boston Bus Station, only ever active when the text genuinely doesn't
+   fit. */
 
 :root {
   --ep-font:      var(--pcv-font-sans);
@@ -286,13 +294,50 @@ body {
   color: var(--ep-paper);
 }
 
+/* Fixed-width clipping viewport — #sign-route-track (below) is the part
+   that actually scrolls, this element only ever clips it. Was itself the
+   flex row directly (service-code/destination as its own children) until
+   2026-09-04: ellipsis-truncating a long destination silently hid part of
+   the name from passengers, which is worse than a moving line of text —
+   see the file-header comment's "motion-free" exception for this. */
 #sign-route-line {
-  display: flex;
-  align-items: baseline;
-  gap: 1.5vw;
+  display: block;
   min-width: 0;
   max-width: 90vw;
   overflow: hidden;
+  white-space: nowrap;
+}
+
+/* The actual scrolling unit — service code + destination together, so nothing
+   is ever partially hidden. Static (no transform) until onboard.js's
+   applyTopbarMarquee() measures a real overflow against #sign-route-line's
+   clientWidth and adds .marquee + the two custom properties below; most
+   service/destination combinations never get this class at all. */
+#sign-route-track {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1.5vw;
+  white-space: nowrap;
+}
+
+#sign-route-track.marquee {
+  animation-name: topbar-marquee;
+  animation-duration: var(--topbar-marquee-duration, 4s);
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+/* Pauses briefly fully-visible at the start and fully-scrolled at the end
+   (10%/90%) rather than scrolling continuously with no rest — gives a
+   reader a moment to start reading and a moment to finish, same reasoning
+   real destination blinds pause at each end instead of scrolling in a flat
+   loop. --topbar-marquee-distance (negative px, set alongside
+   --topbar-marquee-duration by applyTopbarMarquee()) is exactly how far
+   left the track must move for its trailing edge to fully clear the
+   viewport. */
+@keyframes topbar-marquee {
+  0%, 10%  { transform: translateX(0); }
+  90%, 100% { transform: translateX(var(--topbar-marquee-distance, 0px)); }
 }
 
 #sign-service-code,
@@ -308,10 +353,6 @@ body {
      camel case (RNIB clear-print guidance: long runs of capitals are
      measurably harder to read); this was forcing "Boston College" to
      "BOSTON COLLEGE". Removed 2026-09-02. */
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
 }
 
 #sign-destination::before {

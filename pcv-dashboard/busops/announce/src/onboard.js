@@ -131,6 +131,38 @@ function positionBrand() {
 }
 window.addEventListener('resize', positionBrand);
 
+// ── Topbar marquee — character height is a hard floor (PSVAIR's 22mm
+// minimum, --min-text), never traded down for a long service+destination
+// combination, so a line too wide for the panel scrolls instead of
+// truncating. Only ever active when the text genuinely doesn't fit —
+// #sign-route-track (see onboard.css) has no .marquee class, and no
+// animation, until this measures a real overflow. Re-run whenever
+// onSchedule() sets new text (below) and on resize, mirroring
+// positionBrand's own pattern above.
+const MARQUEE_SPEED_PX_PER_S = 220; // fast, deliberately brisk per user feedback 2026-09-04 — tune here if it reads too fast/slow live
+const MARQUEE_MIN_DURATION_S = 2.5; // floor so a barely-overflowing line doesn't scroll imperceptibly fast
+const MARQUEE_EDGE_BUFFER_PX = 24; // small gap past the viewport edge so the trailing edge visibly clears it, not just touches it
+
+function applyTopbarMarquee() {
+  const viewport = el('sign-route-line');
+  const track = el('sign-route-track');
+  track.classList.remove('marquee');
+  track.style.removeProperty('--topbar-marquee-distance');
+  track.style.removeProperty('--topbar-marquee-duration');
+  // scrollWidth reflects the text just set by onSchedule() only once the
+  // browser has laid it out — reading it straight after a class/text change
+  // in the same tick is reliable in practice here (no animation/transition
+  // on the track itself to race), so no extra rAF/reflow trick is needed.
+  const overflowPx = track.scrollWidth - viewport.clientWidth;
+  if (overflowPx <= 0) return; // fits — stays static, the common case
+  const distancePx = overflowPx + MARQUEE_EDGE_BUFFER_PX;
+  const durationS = Math.max(distancePx / MARQUEE_SPEED_PX_PER_S, MARQUEE_MIN_DURATION_S);
+  track.style.setProperty('--topbar-marquee-distance', `-${distancePx}px`);
+  track.style.setProperty('--topbar-marquee-duration', `${durationS}s`);
+  track.classList.add('marquee');
+}
+window.addEventListener('resize', applyTopbarMarquee);
+
 // ── Rendering — purely visual: no audio, no Supabase, no GPS — just DOM
 // updates off an already-resolved {stateKey, vars} pushed from whichever
 // device is driving this journey (Driver, or this device's own Solo
@@ -405,6 +437,9 @@ export function onSchedule(msg) {
   el('onboard-idle').hidden = true;
   el('onboard-sign').hidden = false;
   el('onboard-brand').hidden = false; // undo showSleepScreen()'s hide, if a Solo journey matched right as its window opened
+  // Measured after unhiding #onboard-sign, not before — #sign-route-track's
+  // scrollWidth/clientWidth are both 0 while its ancestor is display:none.
+  applyTopbarMarquee();
   // Forces the first state of this journey to always start a fresh reveal
   // sequence, even in the unlikely case its {stateKey, vars} happens to
   // match whatever the sign was last showing at the end of a prior journey
