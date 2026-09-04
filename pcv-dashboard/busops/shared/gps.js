@@ -31,6 +31,12 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
   let fixCount = 0;
   let pendingMatch = null; // { index, count } — forward geofence match awaiting a second confirming ping
   let lastGpsUploadMs = 0; // throttle GPS fix uploads to every 30 s
+  // Stays false until the vehicle physically enters initialStopIndex's own
+  // geofence for the first time. Until then, forward-match skip-ahead is
+  // disabled (so passing near a LATER timing point on the way to the actual
+  // start point can't be mistaken for an arrival/skip) and no GPS fix is
+  // uploaded — driving to the start point shouldn't count as "tracking" yet.
+  let hasReachedStart = false;
 
   for (let i = 0; i < initialStopIndex; i++) {
     stopStates[i].status = 'not_tracked';
@@ -75,15 +81,19 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
 
       let distanceToNextM = haversine(latitude, longitude, schedule[nextStopIndex].lat, schedule[nextStopIndex].lon);
       const dwelling = stopStates[nextStopIndex].status === 'arrived';
+      let departedIndex = null; // set only on the tick the vehicle exits a dwell — see onUpdate below
 
       if (dwelling) {
         // Dwelling at a stop — wait for the vehicle to exit the geo-fence (75 m hysteresis)
         if (distanceToNextM > 75) {
           log('depart', `Departed: ${schedule[nextStopIndex].name}`);
+          departedIndex = nextStopIndex;
           stopStates[nextStopIndex].status = 'departed';
           stopStates[nextStopIndex].departedAt = now;
           nextStopIndex++;
-          distanceToNextM = haversine(latitude, longitude, schedule[nextStopIndex].lat, schedule[nextStopIndex].lon);
+          if (nextStopIndex < schedule.length) {
+            distanceToNextM = haversine(latitude, longitude, schedule[nextStopIndex].lat, schedule[nextStopIndex].lon);
+          }
         }
       } else if (distanceToNextM < GEOFENCE_RADIUS_M) {
         // Entering geo-fence — record arrival, enter dwell mode. Includes
@@ -94,6 +104,7 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
         stopStates[nextStopIndex].arrivedAt = arrivalTime;
         log('arrive', `Arrived: ${schedule[nextStopIndex].name} (${distanceToNextM.toFixed(0)} m)`);
         pendingMatch = null;
+        hasReachedStart = true;
 
         // Log early arrival once on entry
         const [h, m] = schedule[nextStopIndex].time.split(':').map(Number);
@@ -103,11 +114,12 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
           const minEarly = Math.round((scheduledDepart - arrivalTime) / 60000);
           log('info', `Running ${minEarly} min early — wait until ${scheduledDepart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
         }
-      } else {
+      } else if (hasReachedStart) {
         // Off-route: normal next-stop geofence missed — search forward for a later
         // stop the vehicle has actually reached (road closure / detour / GPS gap).
         // A no-op if nextStopIndex is already the last stop (nothing further
-        // to search forward into).
+        // to search forward into). Only runs once the journey has genuinely
+        // started — see the pre-start branch below.
         const match = findForwardMatch({ schedule, nextStopIndex, lat: latitude, lon: longitude, pendingMatch });
         pendingMatch = match.pendingMatch;
 
@@ -128,11 +140,18 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
           // approach so the UI can show "approaching" ahead of "arrived".
           stopStates[nextStopIndex].status = isApproaching({ distanceM: distanceToNextM, speedMps }) ? 'approaching' : 'upcoming';
         }
+      } else {
+        // Pre-start: not yet within initialStopIndex's own geofence. No
+        // skip-ahead is possible here — only track approach to the start
+        // stop itself, so passing near a LATER timing point on the way to
+        // the actual start point can never be mistaken for an arrival/skip.
+        stopStates[nextStopIndex].status = isApproaching({ distanceM: distanceToNextM, speedMps }) ? 'approaching' : 'upcoming';
       }
 
-      // Throttled GPS fix upload — fire-and-forget every 30 s
+      // Throttled GPS fix upload — fire-and-forget every 30 s. Gated on
+      // hasReachedStart: driving to the start point isn't "tracking" yet.
       const nowMs = now.getTime();
-      if (onGpsFix && nowMs - lastGpsUploadMs >= 30000) {
+      if (hasReachedStart && onGpsFix && nowMs - lastGpsUploadMs >= 30000) {
         lastGpsUploadMs = nowMs;
         onGpsFix({
           lat: latitude,
@@ -143,7 +162,7 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
         });
       }
 
-      const dwellIndex = stopStates[nextStopIndex].status === 'arrived' ? nextStopIndex : null;
+      const dwellIndex = nextStopIndex < schedule.length && stopStates[nextStopIndex].status === 'arrived' ? nextStopIndex : null;
       const atStop = dwellIndex !== null ? { stopIndex: dwellIndex } : null;
       const earlyWait = computeEarlyWait(now, dwellIndex);
 
@@ -158,18 +177,20 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
       // written — masked because the old STOP_DEPARTURE wording also named
       // the next stop, so passengers still heard *a* next-stop announcement,
       // just never the dedicated approach one a beat earlier.
-      const approachingIndex = stopStates[nextStopIndex].status === 'approaching' ? nextStopIndex : null;
+      const approachingIndex = nextStopIndex < schedule.length && stopStates[nextStopIndex].status === 'approaching' ? nextStopIndex : null;
       const approaching = approachingIndex !== null ? { stopIndex: approachingIndex } : null;
 
-      const timing = computeTiming({
-        now,
-        currentDistanceM: distanceToNextM,
-        speedMps,
-        nextStop: schedule[nextStopIndex],
-        lateAllowanceMin,
-      });
+      const timing = nextStopIndex < schedule.length
+        ? computeTiming({
+            now,
+            currentDistanceM: distanceToNextM,
+            speedMps,
+            nextStop: schedule[nextStopIndex],
+            lateAllowanceMin,
+          })
+        : null;
 
-      onUpdate({ timing, nextStopIndex, speedMps, distanceToNextM, stopStates, earlyWait, atStop, approaching, lat: latitude, lon: longitude });
+      onUpdate({ timing, nextStopIndex, speedMps, distanceToNextM, stopStates, earlyWait, atStop, approaching, departedStopIndex: departedIndex, lat: latitude, lon: longitude });
     },
     (err) => {
       if (gpsLostAt === null) {
@@ -187,6 +208,7 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
       pendingMatch = null;
       log('info', `Jumped to: ${schedule[idx].name}`);
       nextStopIndex = idx;
+      hasReachedStart = true; // manual override confirms actual position
     },
   };
 }

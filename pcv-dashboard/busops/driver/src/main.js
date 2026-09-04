@@ -182,14 +182,22 @@ function greetingPrefix() {
   return 'Good evening,';
 }
 
-// Shown once a trip finishes (automatically or via the manual fallback).
-// Dismissed by the OK tap or, if the driver doesn't touch it, on its own
-// after a few seconds — either way runs onDismiss exactly once.
+// Shown once a trip finishes (automatically or via the manual fallback), and
+// reused for any other end-of-trip, information-only notice (e.g. the
+// offline "saved on this device" case below) — dismissed by the OK tap or,
+// if the driver doesn't touch it, on its own after a few seconds. Either
+// way runs onDismiss exactly once. Deliberately non-blocking (unlike
+// window.alert()/confirm(), which freeze the JS main thread and were found
+// 2026-09-04 to stall the final PSVAIR announcement's audio queue when
+// shown right after the terminus arrival announcement).
 const TRIP_COMPLETE_AUTO_DISMISS_MS = 8000;
+const PENDING_SYNC_AUTO_DISMISS_MS = 10000;
 
-function showTripCompleteBanner(onDismiss) {
+function showInfoBanner({ title, body, durationMs, onDismiss }) {
   const overlay = document.getElementById('trip-complete-overlay');
   const okBtn = document.getElementById('trip-complete-ok-btn');
+  document.querySelector('#trip-complete-modal .tc-title').textContent = title;
+  document.querySelector('#trip-complete-modal .tc-body').textContent = body;
   let dismissed = false;
   const dismiss = () => {
     if (dismissed) return;
@@ -199,7 +207,11 @@ function showTripCompleteBanner(onDismiss) {
   };
   okBtn.onclick = dismiss;
   overlay.hidden = false;
-  setTimeout(dismiss, TRIP_COMPLETE_AUTO_DISMISS_MS);
+  setTimeout(dismiss, durationMs);
+}
+
+function showTripCompleteBanner(onDismiss) {
+  showInfoBanner({ title: 'Trip Complete', body: 'Data saved', durationMs: TRIP_COMPLETE_AUTO_DISMISS_MS, onDismiss });
 }
 
 // ── Tracker ───────────────────────────────────────────────────────────────────
@@ -238,28 +250,40 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   document.getElementById('header-line1').textContent =
     `${stripIndicator(firstStop.name)} → ${stripIndicator(lastStop.name)}`;
 
-  // Tells the Controller which journey/stops this run's state updates refer
-  // to — it has no Supabase access of its own to look this up (see
-  // docs/HARDWARE.md "Read this first" and §3). accentColor/primaryColor are absent
-  // on the manual-selection path (no company branding lookup there today);
-  // broadcastSchedule/buildSchedulePayload already default both to null.
-  const scheduleState = {
-    journeyId,
-    serviceCode,
-    destination: stripIndicator(lastStop.name),
-    allStops,
-    accentColor,
-    primaryColor,
-  };
-  broadcastSchedule(scheduleState);
-
-  // BusOps Announce Lite (paired install) — same payload shape, pushed via
-  // Supabase instead of the Controller WebSocket. Remembered (see the
-  // fetchLinkedAnnounceDeviceId lookup above) in case the device lookup
-  // hasn't resolved yet.
-  lastAnnounceLiteSchedule = buildSchedulePayload(scheduleState);
-  if (linkedAnnounceDeviceId) {
-    pushAnnounceDeviceState(linkedAnnounceDeviceId, lastAnnounceLiteSchedule, null).catch(() => {});
+  // Pushes the schedule (topbar: service code/destination/branding) to both
+  // transports — same pair pushSignState below uses. Called once, from the
+  // isJourneyStart branch in onUpdate, NOT here at Start-button press:
+  // 2026-09-04, revealing the topbar immediately on Start meant the sign
+  // showed live route info during the yard-to-first-stop deadhead leg, the
+  // same premature-reveal problem ROUTE_START had (see routeStarted's own
+  // comment below) — just one layer up, on the schedule push instead of the
+  // state push. Announce Solo already only ever calls its equivalent
+  // (onSchedule) once its own geofence match confirms real arrival (see
+  // announceSoloAutopilot.js's tryMatch), so this makes the Driver/Lite path
+  // match that same "nothing is pushed to a passenger-facing display until
+  // the vehicle is genuinely at the route's first stop" rule.
+  // accentColor/primaryColor are absent on the manual-selection path (no
+  // company branding lookup there today); broadcastSchedule/
+  // buildSchedulePayload already default both to null.
+  function revealSchedule() {
+    const scheduleState = {
+      journeyId,
+      serviceCode,
+      destination: stripIndicator(lastStop.name),
+      allStops,
+      accentColor,
+      primaryColor,
+    };
+    broadcastSchedule(scheduleState);
+    // BusOps Announce Lite (paired install) — same payload shape, pushed via
+    // Supabase instead of the Controller WebSocket. Remembered (see the
+    // fetchLinkedAnnounceDeviceId lookup above) in case the device lookup
+    // hasn't resolved yet — that .then() callback checks lastAnnounceLiteSchedule
+    // itself and pushes if this already ran by the time it resolves.
+    lastAnnounceLiteSchedule = buildSchedulePayload(scheduleState);
+    if (linkedAnnounceDeviceId) {
+      pushAnnounceDeviceState(linkedAnnounceDeviceId, lastAnnounceLiteSchedule, null).catch(() => {});
+    }
   }
 
   // Pushes the sign's current display state to both transports at once —
@@ -322,18 +346,37 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   // the sign and the audio must change together) — only the audio call
   // needs de-duplicating.
   let lastAnnouncedApproachIdx = null;
+  // Guards the STOP_DEPARTURE announcement against firing twice for the
+  // same stop — gps.js's departedStopIndex is only non-null on the single
+  // tick the vehicle exits a stop's dwell ring, so in practice this is
+  // mostly a belt-and-braces de-dupe (kept for symmetry with the other
+  // lastAnnounced* guards above).
+  let lastAnnouncedDepartureIdx = null;
+  // Flips true the moment the vehicle genuinely arrives at initialStopIndex's
+  // own geofence — see the isJourneyStart branch in the atStop block below.
+  // Gates the approaching block too: before this is true, gps.js's
+  // forward-match is disabled (see shared/gps.js's hasReachedStart), so
+  // `approaching` can only ever refer to initialStopIndex itself during this
+  // phase — suppressing the whole block until routeStarted is a complete,
+  // not partial, "stay on IDLE until the route genuinely begins" gate.
+  let routeStarted = false;
   // Guards completeTrip() against firing twice — once from GPS arrival at
   // the final stop and again from the manual fallback link, or from GPS
   // reporting arrival on more than one fix while parked at the final stop.
   let tripCompleted = false;
 
-  // Fires once per journey, regardless of psvairEnabled — the sign's Start
-  // of Route headline is useful passenger information even on a route
-  // that's out of PSVAIR's audio-announcement scope (see the unconditional
-  // broadcastState below, same reasoning). The spoken half is gated inside
-  // the psvairEnabled block below.
+  // Route Start no longer fires here, at the Start button press — 2026-09-04:
+  // a driver leaving the yard for the actual first stop of the route (a
+  // deadhead leg, sometimes several minutes/miles) was having the sign show
+  // "This is a S125S to Boston College" the instant they tapped Start, well
+  // before the route had genuinely begun. The sign now shows IDLE
+  // (resolveAnnouncementText returns null text for it) from Start until the
+  // vehicle actually arrives at initialStopIndex's own geofence — see the
+  // isJourneyStart branch in the atStop block below, which fires
+  // ROUTE_START at that true arrival instead. routeStartVars is still built
+  // here since both that branch and this initial push need it.
   const routeStartVars = { serviceCode, destination: stripIndicator(lastStop.name) };
-  pushSignState(ANNOUNCE_STATES.ROUTE_START, routeStartVars);
+  pushSignState(ANNOUNCE_STATES.IDLE, {});
 
   if (psvairEnabled) {
     onAnnouncementChange(text => { psvairText.textContent = text; });
@@ -370,8 +413,9 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
     psvairVoiceBtn.onclick = () => { psvairVoicePanel.hidden = !psvairVoicePanel.hidden; };
     psvairVoiceSelect.onchange = () => setSelectedVoiceURI(psvairVoiceSelect.value);
     psvairVoiceTestBtn.onclick = () => previewVoice(psvairVoiceSelect.value);
-
-    announceState(ANNOUNCE_STATES.ROUTE_START, routeStartVars, { serviceCode, destination: lastStop.name });
+    // ROUTE_START's spoken half no longer fires here either — see the
+    // isJourneyStart branch below, which speaks it at the same true-arrival
+    // moment the sign switches off IDLE.
   }
 
   // Remembers whichever non-diversion state was last pushed, so clearing a
@@ -379,7 +423,7 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   // diversionConfirmBtn handler below) — the sign has no clock/history of
   // its own, it only ever shows the last thing it was told (see onSchedule/
   // onState in onboard.js).
-  let lastNormalState = { stateKey: ANNOUNCE_STATES.ROUTE_START, vars: routeStartVars };
+  let lastNormalState = { stateKey: ANNOUNCE_STATES.IDLE, vars: {} };
 
   // ── Diversion alert ────────────────────────────────────────────────────────
   // Two triggers, both resulting in the same fixed DIVERSION state (see
@@ -518,7 +562,7 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
           }).catch(() => {}); // fire-and-forget; GPS loop must not block
         }
       : null,
-    onUpdate: ({ timing, nextStopIndex, speedMps, distanceToNextM, stopStates, earlyWait, atStop, approaching, lat, lon }) => {
+    onUpdate: ({ timing, nextStopIndex, speedMps, distanceToNextM, stopStates, earlyWait, atStop, approaching, departedStopIndex, lat, lon }) => {
       stopStatesRef = stopStates;
       lastStopIdx = nextStopIndex;
       if (lat !== undefined) { lastLat = lat; lastLon = lon; }
@@ -528,8 +572,12 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
       // status card show) — including the final stop, now with the same
       // "This is X" wording as any other stop (see shared/announceStates.js
       // — the terminus-specific "all change please" wording moved to
-      // arrival, below, so it isn't said twice).
-      if (approaching) {
+      // arrival, below, so it isn't said twice). Gated on routeStarted: see
+      // that flag's own comment — before the vehicle's first real arrival at
+      // initialStopIndex, `approaching` can only be about that same stop, so
+      // this is part of the "stay on IDLE until the route genuinely starts"
+      // rule, not a separate suppression.
+      if (approaching && routeStarted) {
         const resolved = resolveApproachOrArrivalState({ approaching, atStop: null, allStops });
         lastNormalState = resolved;
         if (psvairEnabled && approaching.stopIndex !== lastAnnouncedApproachIdx) {
@@ -553,8 +601,24 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
       if (atStop && atStop.stopIndex !== lastAnnouncedStopIdx) {
         lastAnnouncedStopIdx = atStop.stopIndex;
         const isFinal = atStop.stopIndex === allStops.length - 1;
+        const isJourneyStart = !routeStarted && atStop.stopIndex === initialStopIndex;
 
-        if (isFinal) {
+        if (isJourneyStart) {
+          // The route has now genuinely begun — see routeStarted's own
+          // comment and the IDLE push at journey launch above. Fires once,
+          // at the true arrival, instead of at the Start button press.
+          // Schedule (topbar) and ROUTE_START (headline) reveal together,
+          // same order Announce Solo already uses in tryMatch — see
+          // revealSchedule's own comment.
+          routeStarted = true;
+          revealSchedule();
+          lastNormalState = { stateKey: ANNOUNCE_STATES.ROUTE_START, vars: routeStartVars };
+          if (psvairEnabled) {
+            announceState(ANNOUNCE_STATES.ROUTE_START, routeStartVars, {
+              serviceCode, destination: lastStop.name,
+            });
+          }
+        } else if (isFinal) {
           const arrival = resolveApproachOrArrivalState({ approaching: null, atStop, allStops });
           lastNormalState = arrival;
           if (psvairEnabled) {
@@ -562,25 +626,36 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
               stopId: allStops[atStop.stopIndex].stop_id,
             }, !!diversionAlertState);
           }
-        } else {
-          // State 3 (Departure from stop) — names the next stop for
-          // passengers boarding here. Never fires for the final stop
-          // (nothing to depart towards, handled in the isFinal branch
-          // above instead) or while diverted (announceStopEvent's
-          // diversion handling only applies to the isFinal branch now,
-          // since that's the only one still calling it on arrival — a
-          // diversion mid-route still gets its own DIVERSION state pushed
-          // separately, see triggerDiversionAlert below, unaffected by
-          // this restructure).
+        }
+        // Non-final, non-journey-start stops get no arrival-edge
+        // announcement/display update — the sign's headline simply holds
+        // whatever approach last showed through the dwell. "The next stop is
+        // Y" fires below, on the true departure edge, not here on arrival.
+      }
+
+      // Departure (gps.js's departedStopIndex is only non-null on the single
+      // tick the vehicle exits a stop's 75 m dwell ring) — State 3, names
+      // the next stop for passengers boarding here. Moved off the arrival
+      // edge above 2026-09-04: firing this on arrival meant "the next stop
+      // is Y" was announced (and shown on the sign) the moment the vehicle
+      // reached the CURRENT stop, before it had actually left — while the
+      // ETA/timing on screen was still for the stop just arrived at, so the
+      // two looked mismatched. Never fires for the final stop (nothing to
+      // depart towards) or while diverted (a diversion mid-route still gets
+      // its own DIVERSION state pushed separately, see triggerDiversionAlert
+      // below).
+      if (departedStopIndex !== null && departedStopIndex !== lastAnnouncedDepartureIdx) {
+        lastAnnouncedDepartureIdx = departedStopIndex;
+        if (departedStopIndex < allStops.length - 1) {
           const departureVars = {
             serviceCode,
             destination: stripIndicator(lastStop.name),
-            nextStopName: stripIndicator(allStops[atStop.stopIndex + 1].name),
+            nextStopName: stripIndicator(allStops[departedStopIndex + 1].name),
           };
           lastNormalState = { stateKey: ANNOUNCE_STATES.STOP_DEPARTURE, vars: departureVars };
           if (psvairEnabled && !diversionAlertState) {
             announceState(ANNOUNCE_STATES.STOP_DEPARTURE, departureVars, {
-              serviceCode, destination: lastStop.name, nextStopId: allStops[atStop.stopIndex + 1].stop_id,
+              serviceCode, destination: lastStop.name, nextStopId: allStops[departedStopIndex + 1].stop_id,
             });
           }
         }
@@ -727,16 +802,21 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
         showTripCompleteBanner(finish);
       } else {
         enqueuePendingTrip({ journeyId, stopRows });
-        alert(
-          `Trip ended.\n\n${stopRows.length} stop time(s) saved on this device and will ` +
-          `sync automatically once back in signal — no action needed.`
-        );
-        finish();
+        showInfoBanner({
+          title: 'Trip Ended',
+          body: `${stopRows.length} stop time(s) saved on this device and will sync automatically once back in signal — no action needed.`,
+          durationMs: PENDING_SYNC_AUTO_DISMISS_MS,
+          onDismiss: finish,
+        });
       }
     } else {
       log('warn', 'No journey ID — stop times not saved');
-      alert('Trip ended.\n\nNo journey ID was set — stop times were not saved.\nAsk ops to share the driver link for this journey.');
-      finish();
+      showInfoBanner({
+        title: 'Trip Ended',
+        body: 'No journey ID was set — stop times were not saved. Ask ops to share the driver link for this journey.',
+        durationMs: PENDING_SYNC_AUTO_DISMISS_MS,
+        onDismiss: finish,
+      });
     }
   }
 
