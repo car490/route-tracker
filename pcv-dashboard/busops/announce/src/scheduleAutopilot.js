@@ -153,18 +153,48 @@ export function isJourneyComplete({ atStop, allStopsLength, startedAt, now, time
   return elapsedMin >= timeoutMin;
 }
 
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+// Local calendar date (not UTC — a device is always local to its own
+// vehicle) as 'YYYY-MM-DD', matching term_dates.start_date/end_date and
+// service_exceptions.exception_date's date-only representation.
+function localDateString(now) {
+  return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+}
+
+function isWithinAnyTermRange(dateStr, termDateRanges) {
+  return termDateRanges.some((r) => dateStr >= r.start_date && dateStr <= r.end_date);
+}
+
+// Mirrors get_or_create_manual_journey's own occurrence rule exactly
+// ((daysOfWeek AND NOT removed) OR added, with schoolTermTime as an extra
+// AND'd condition on the daysOfWeek branch) — see
+// migration_school_term_time.sql. Kept as one shared predicate so a Solo
+// device's wake window can never quietly drift out of sync with what the
+// driver-PWA manual-selection flow considers "running today".
+function isCandidateRunningOn(candidate, dateStr, isoDow, termDateRanges) {
+  if (candidate.addedDates?.includes(dateStr)) return true;
+  if (candidate.removedDates?.includes(dateStr)) return false;
+  if (!candidate.daysOfWeek?.includes(isoDow)) return false;
+  if (candidate.schoolTermTime && !isWithinAnyTermRange(dateStr, termDateRanges)) return false;
+  return true;
+}
+
 /**
  * Whether "now" falls inside the wake window around any candidate's own
  * scheduled departure — a Solo device only wakes (GPS polling, and the
  * screen itself — see announceSoloAutopilot.js's isAwake) within
  * [scheduled_time - beforeMin, scheduled_time + afterMin] of a departure
- * it's actually commissioned for, on a day that departure actually runs
- * (candidate.daysOfWeek — ISO day-of-week, 1=Mon..7=Sun, matching
- * timetable_departures.days_of_week/`extract(isodow from ...)` elsewhere in
- * this schema — NOT the same 0-indexed convention as the old
- * announce_device_active_windows.day_of_week column).
+ * it's actually commissioned for, on a day that departure actually runs.
+ * "Runs" now means the same thing here as it does for the driver PWA's
+ * manual-selection flow — days_of_week, school_term_time (against
+ * termDateRanges — term_dates rows), and service_exceptions
+ * (added/removed) — not just days_of_week alone; see
+ * isCandidateRunningOn above.
  *
- * Replaces that admin-configured announce_device_active_windows table
+ * Replaces the old admin-configured announce_device_active_windows table
  * entirely (dropped 2026-09-04) — it hand-duplicated day/time data that
  * already lives on the timetable itself; see
  * docs/ANNOUNCE-PRODUCT-TIERS.md for the writeup. Reuses the exact same
@@ -175,7 +205,8 @@ export function isJourneyComplete({ atStop, allStopsLength, startedAt, now, time
  *
  * Known edge case, not handled: a departure scheduled within beforeMin
  * minutes of midnight could have its own wake window start on the previous
- * calendar day, whose ISO day-of-week this check would then reject. Not a
+ * calendar day, whose ISO day-of-week (and calendar date, for the
+ * school_term_time/exception checks) this check would then reject. Not a
  * real scenario for any currently commissioned route (all run well clear of
  * midnight) — flagged rather than engineered around.
  *
@@ -185,16 +216,18 @@ export function isJourneyComplete({ atStop, allStopsLength, startedAt, now, time
  * deliberately commissions it.
  *
  * @param {Date} now
- * @param {Array<{departureTime: string, daysOfWeek: number[]}>} candidates
+ * @param {Array<{departureTime: string, daysOfWeek: number[], schoolTermTime?: boolean, removedDates?: string[], addedDates?: string[]}>} candidates
  * @param {number} beforeMin
  * @param {number} afterMin
+ * @param {Array<{start_date: string, end_date: string}>} [termDateRanges] — only consulted for a candidate with schoolTermTime set
  * @returns {boolean}
  */
-export function isWithinDepartureWakeWindow(now, candidates, beforeMin, afterMin) {
+export function isWithinDepartureWakeWindow(now, candidates, beforeMin, afterMin, termDateRanges = []) {
   if (!candidates?.length) return false;
   const isoDow = now.getDay() === 0 ? 7 : now.getDay(); // JS Date: 0=Sun..6=Sat -> ISO dow: 1=Mon..7=Sun
+  const dateStr = localDateString(now);
   return candidates.some((candidate) => {
-    if (!candidate.daysOfWeek?.includes(isoDow)) return false;
+    if (!isCandidateRunningOn(candidate, dateStr, isoDow, termDateRanges)) return false;
     const diffMin = minutesFromScheduled(candidate.departureTime, now);
     return diffMin >= -beforeMin && diffMin <= afterMin;
   });

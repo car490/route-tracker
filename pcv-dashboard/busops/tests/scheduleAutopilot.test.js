@@ -256,4 +256,34 @@ describe('isWithinDepartureWakeWindow', () => {
     expect(isWithinDepartureWakeWindow(MONDAY_MORNING(8, 0), [morning, afternoon], 10, 30)).toBe(true);
     expect(isWithinDepartureWakeWindow(TUESDAY_MORNING(12, 0), [morning, afternoon], 10, 30)).toBe(false); // dead gap between runs
   });
+
+  // 2026-08-24 (the MONDAY_MORNING fixture date) falls inside this range;
+  // 2026-08-25 (TUESDAY_MORNING) does not.
+  const IN_TERM_RANGE = [{ start_date: '2026-08-24', end_date: '2026-08-24' }];
+
+  it('a school_term_time candidate is dormant on a weekday outside every term_dates range', () => {
+    const candidates = [{ ...dep('08:00'), schoolTermTime: true }];
+    expect(isWithinDepartureWakeWindow(MONDAY_MORNING(8, 0), candidates, 10, 30, IN_TERM_RANGE)).toBe(true);
+    expect(isWithinDepartureWakeWindow(TUESDAY_MORNING(8, 0), candidates, 10, 30, IN_TERM_RANGE)).toBe(false);
+  });
+
+  it('a school_term_time candidate with no term_dates ranges at all never wakes', () => {
+    const candidates = [{ ...dep('08:00'), schoolTermTime: true }];
+    expect(isWithinDepartureWakeWindow(MONDAY_MORNING(8, 0), candidates, 10, 30)).toBe(false);
+  });
+
+  it('a removed exception on today overrides an otherwise-running day (INSET day)', () => {
+    const candidates = [{ ...dep('08:00'), schoolTermTime: true, removedDates: ['2026-08-24'] }];
+    expect(isWithinDepartureWakeWindow(MONDAY_MORNING(8, 0), candidates, 10, 30, IN_TERM_RANGE)).toBe(false);
+  });
+
+  it('an added exception on today wakes the device even outside days_of_week/term_dates', () => {
+    const candidates = [{ departureTime: '08:00', daysOfWeek: [6, 7], addedDates: ['2026-08-24'] }]; // weekend-only pattern, plus a one-off Monday
+    expect(isWithinDepartureWakeWindow(MONDAY_MORNING(8, 0), candidates, 10, 30)).toBe(true);
+  });
+
+  it('a non-school_term_time candidate ignores term_dates entirely, even if today is outside every range', () => {
+    const candidates = [dep('08:00')];
+    expect(isWithinDepartureWakeWindow(MONDAY_MORNING(8, 0), candidates, 10, 30, [])).toBe(true);
+  });
 });
