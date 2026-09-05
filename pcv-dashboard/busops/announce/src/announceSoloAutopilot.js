@@ -72,35 +72,62 @@ function stripIndicator(name) {
   return name.replace(/\s*\([^)]*\)\s*$/, '');
 }
 
-// Returns null (not []) on a fetch failure, distinct from "genuinely no
-// candidates configured" — callers need that distinction to know whether to
-// retry (see refreshCandidates below). days_of_week comes straight off
-// timetable_departures via schedule_view — the single source of truth for
-// which days this candidate actually runs, reused by
-// isWithinDepartureWakeWindow instead of a separately admin-maintained
-// day/time table (see that function's own header comment).
+// Returns null (not { candidates: [], termDateRanges: [] }) on a fetch
+// failure, distinct from "genuinely no candidates configured" — callers
+// need that distinction to know whether to retry (see refreshCandidates
+// below). days_of_week/school_term_time come straight off
+// timetable_departures via schedule_view, term_dates/service_exceptions are
+// fetched alongside — together the single source of truth for which days
+// this candidate actually runs, reused by isWithinDepartureWakeWindow
+// instead of a separately admin-maintained day/time table (see that
+// function's own header comment). service_exceptions is queried unfiltered
+// by type (added + removed) since isCandidateRunningOn needs both.
 async function fetchCandidateDepartures(client, departureIds) {
-  if (!departureIds?.length) return [];
-  const { data, error } = await client
-    .from('schedule_view')
-    .select('departure_id, lat, lon, scheduled_time, sequence, days_of_week')
-    .in('departure_id', departureIds)
-    .order('sequence');
-  if (error || !data) return null;
+  if (!departureIds?.length) return { candidates: [], termDateRanges: [] };
+  const [scheduleResult, exceptionsResult, termDatesResult] = await Promise.all([
+    client
+      .from('schedule_view')
+      .select('departure_id, lat, lon, scheduled_time, sequence, days_of_week, school_term_time')
+      .in('departure_id', departureIds)
+      .order('sequence'),
+    client
+      .from('service_exceptions')
+      .select('timetable_departure_id, exception_date, exception_type')
+      .in('timetable_departure_id', departureIds),
+    client.from('term_dates').select('start_date, end_date'),
+  ]);
+  if (scheduleResult.error || !scheduleResult.data) return null;
+
+  const exceptionsByDeparture = new Map();
+  for (const row of exceptionsResult.data ?? []) {
+    if (!exceptionsByDeparture.has(row.timetable_departure_id)) {
+      exceptionsByDeparture.set(row.timetable_departure_id, { removedDates: [], addedDates: [] });
+    }
+    const bucket = exceptionsByDeparture.get(row.timetable_departure_id);
+    (row.exception_type === 'removed' ? bucket.removedDates : bucket.addedDates).push(row.exception_date);
+  }
+
   const firstByDeparture = new Map();
-  for (const row of data) {
+  for (const row of scheduleResult.data) {
     if (!firstByDeparture.has(row.departure_id)) firstByDeparture.set(row.departure_id, row);
   }
-  return departureIds
+  const candidates = departureIds
     .map((id) => firstByDeparture.get(id))
     .filter(Boolean)
-    .map((row) => ({
-      departureId: row.departure_id,
-      firstStopLat: row.lat,
-      firstStopLon: row.lon,
-      departureTime: row.scheduled_time.substring(0, 5),
-      daysOfWeek: row.days_of_week,
-    }));
+    .map((row) => {
+      const { removedDates = [], addedDates = [] } = exceptionsByDeparture.get(row.departure_id) ?? {};
+      return {
+        departureId: row.departure_id,
+        firstStopLat: row.lat,
+        firstStopLon: row.lon,
+        departureTime: row.scheduled_time.substring(0, 5),
+        daysOfWeek: row.days_of_week,
+        schoolTermTime: row.school_term_time,
+        removedDates,
+        addedDates,
+      };
+    });
+  return { candidates, termDateRanges: termDatesResult.data ?? [] };
 }
 
 async function fetchDepartureDetails(client, departureId) {
@@ -145,6 +172,7 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
   // idle-poll tick instead of requiring a device reload.
   let deviceRow = initialDeviceRow;
   let candidates = [];
+  let termDateRanges = [];
   let activeJourney = null; // { journeyId, startedAt, tracker }
   // Starts undetermined (not false!) — applyWakeState()'s transition check
   // is `awake === isAwake`, and false is a real, reachable outcome (asleep
@@ -179,7 +207,7 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
   function applyWakeState() {
     if (activeJourney) return;
     const awake = isWithinDepartureWakeWindow(
-      new Date(), candidates, deviceRow.match_window_before_min, deviceRow.match_window_after_min
+      new Date(), candidates, deviceRow.match_window_before_min, deviceRow.match_window_after_min, termDateRanges
     );
     if (awake === isAwake) return;
     isAwake = awake;
@@ -193,7 +221,8 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
       setTimeout(refreshCandidates, BOOT_FETCH_RETRY_MS);
       return;
     }
-    candidates = result;
+    candidates = result.candidates;
+    termDateRanges = result.termDateRanges;
     applyWakeState(); // first real determination of awake/asleep, now that candidates are actually loaded
     if (isAwake) reportNextDeparture();
   }
@@ -253,7 +282,7 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
       // every candidate's own wake window while this journey's terminus
       // message was still showing.
       isAwake = isWithinDepartureWakeWindow(
-        new Date(), candidates, deviceRow.match_window_before_min, deviceRow.match_window_after_min
+        new Date(), candidates, deviceRow.match_window_before_min, deviceRow.match_window_after_min, termDateRanges
       );
       if (isAwake) reportNextDeparture();
       else onSleep?.();

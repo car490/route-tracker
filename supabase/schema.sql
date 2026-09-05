@@ -454,6 +454,10 @@ create table timetable_departures (
   valid_from           date,
   valid_to             date,
   vehicle_journey_code text        not null,
+  -- When true, "does this run today" also requires today to fall inside a
+  -- term_dates range, instead of relying on valid_from/valid_to to cover a
+  -- whole academic year (see migration_school_term_time.sql).
+  school_term_time     boolean     not null default false,
   created_at           timestamptz not null default now(),
   check (valid_to is null or valid_to >= valid_from)
 );
@@ -930,6 +934,13 @@ begin
     (
       (
         extract(isodow from p_journey_date)::int = any(td.days_of_week)
+        and (
+          not td.school_term_time
+          or exists (
+            select 1 from term_dates tdt
+            where p_journey_date between tdt.start_date and tdt.end_date
+          )
+        )
         and not exists (
           select 1 from service_exceptions se
           where se.timetable_departure_id = td.id
@@ -1634,7 +1645,8 @@ create or replace view schedule_view with (security_invoker = true) as
       select 1 from journey_types jt
       where jt.name = any(r.journey_type) and jt.requires_bods
     )                    as psvair_in_scope,
-    s.id                 as stop_id
+    s.id                 as stop_id,
+    td.school_term_time  as school_term_time
   from timetable_stops     ts
   join stops               s  on s.id  = ts.stop_id
   join timetables          t  on t.id  = ts.timetable_id

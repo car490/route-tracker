@@ -97,6 +97,8 @@ function makeClient() {
   return {
     from: vi.fn((table) => {
       if (table === 'schedule_view') return chainable(SCHEDULE_ROWS);
+      if (table === 'service_exceptions') return chainable([]);
+      if (table === 'term_dates') return chainable([]);
       throw new Error(`unexpected table in test stub: ${table}`);
     }),
     rpc: vi.fn((name) => {
@@ -330,6 +332,8 @@ describe('startSoloAutopilot', () => {
         // Fails once — simulating the transient boot-time connectivity blip
         // reported in the first beta test — then succeeds on retry.
         if (table === 'schedule_view') return flakySchedule;
+        if (table === 'service_exceptions') return chainable([]);
+        if (table === 'term_dates') return chainable([]);
         throw new Error(`unexpected table in test stub: ${table}`);
       }),
       rpc: vi.fn(() => thenableOnly({ data: null, error: null })),
