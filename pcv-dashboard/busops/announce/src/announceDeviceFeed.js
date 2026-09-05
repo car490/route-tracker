@@ -47,6 +47,23 @@ function scheduleChanged(a, b) {
   return JSON.stringify(a) !== JSON.stringify(b);
 }
 
+// A Lite device between journeys has latest_schedule cleared to null via
+// end_announce_device_journey — a non-null value that's very old means the
+// row was never properly cleared (crash, power loss, stuck driver device),
+// not a genuinely in-progress journey. Without this, a fresh page load (e.g.
+// after a reboot) unconditionally replays whatever's sitting in the row, so a
+// device could flash a day-old journey to real passengers before anything
+// corrects it — found live 2026-09-05 on an Announce Solo unit stuck showing
+// a 2026-09-04 test journey. Mirrors announceSoloAutopilot.js's
+// COMPLETION_TIMEOUT_MIN (2h) — same "how long before untouched journey
+// state stops being trustworthy" question, answered the same way for both
+// tiers.
+const STALE_PUSH_THRESHOLD_MS = 2 * 60 * 60 * 1000;
+
+function isPushStale(row) {
+  return !!row.state_updated_at && Date.now() - new Date(row.state_updated_at).getTime() > STALE_PUSH_THRESHOLD_MS;
+}
+
 // companies is anon-readable (schema.sql's "anon_read" policy, `using
 // (true)` — same one driver/src/supabaseApi.js's fetchCompanyName() already
 // relies on), so no new RLS surface is needed for this. logo_path is a
@@ -128,17 +145,20 @@ export function connectAnnounceDeviceFeed(deviceToken, { onSchedule, onState, on
     if (!row) return;
     liteLastStateUpdatedAt = row.state_updated_at ?? liteLastStateUpdatedAt;
     liteCandidateDepartureIds = row.candidate_departure_ids ?? liteCandidateDepartureIds;
-    if (row.latest_schedule && scheduleChanged(row.latest_schedule, lastSchedule)) {
-      lastSchedule = row.latest_schedule;
-      onSchedule(row.latest_schedule);
-    } else if (!row.latest_schedule && lastSchedule !== null) {
+    // A stale push (see isPushStale above) is treated as no schedule at all —
+    // never rendered, regardless of how long it's been sitting in the row.
+    const effectiveSchedule = row.latest_schedule && !isPushStale(row) ? row.latest_schedule : null;
+    if (effectiveSchedule && scheduleChanged(effectiveSchedule, lastSchedule)) {
+      lastSchedule = effectiveSchedule;
+      onSchedule(effectiveSchedule);
+    } else if (!effectiveSchedule && lastSchedule !== null) {
       // Journey ended (end_announce_device_journey cleared both columns) —
       // the Realtime-transport equivalent of the base tier's
       // {type:'complete'} WebSocket message (see onboard.js's onJourneyEnd).
       lastSchedule = null;
       onJourneyEnd?.();
     }
-    if (row.latest_state) onState(row.latest_state);
+    if (effectiveSchedule && row.latest_state) onState(row.latest_state);
   }
 
   function startSolo(row) {
@@ -167,7 +187,7 @@ export function connectAnnounceDeviceFeed(deviceToken, { onSchedule, onState, on
     // onboard.html) until the first push arrives. onIdleNextDeparture(null)
     // unhides the idle board without showing a next-departure caption (that
     // caption is Solo-only) — reused rather than adding a new function.
-    if (!row.latest_schedule) onIdleNextDeparture?.(null);
+    if (!row.latest_schedule || isPushStale(row)) onIdleNextDeparture?.(null);
     lastSchedule = null;
     applyPushedRow(row);
   }
