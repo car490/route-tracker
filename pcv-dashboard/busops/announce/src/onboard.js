@@ -417,6 +417,7 @@ export function applyIdleBranding({ name, logoUrl, accentColor }) {
   }
 
   el('onboard-idle').hidden = false;
+  el('onboard-brand').hidden = false; // undo showSleepScreen()'s hide, if it ran before this branding fetch resolved
   positionBrand();
 }
 
