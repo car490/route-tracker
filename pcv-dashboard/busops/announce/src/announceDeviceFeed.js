@@ -258,8 +258,15 @@ export function connectAnnounceDeviceFeed(deviceToken, { onSchedule, onState, on
     // all. Every device writes this itself now, independent of mode or of
     // anything else pushing through it (see
     // migration_announce_devices_config_version.sql).
+    // client.rpc(...) is thenable but not a real Promise against the
+    // vendored supabase-js client (see the identical fix in
+    // switchMode()/announceSoloAutopilot.js) — a bare .catch() throws
+    // "client.rpc(...).catch is not a function" synchronously, and
+    // startHeartbeat's setInterval has no try/catch around writeFn(), so
+    // this was an uncaught exception on every single tick. Found live
+    // 2026-09-05 against the real Solo tablet.
     heartbeat = startHeartbeat(
-      () => client.rpc('report_device_heartbeat').catch(() => {}),
+      () => Promise.resolve(client.rpc('report_device_heartbeat')).catch(() => {}),
       HEARTBEAT_INTERVAL_MS
     );
   }
