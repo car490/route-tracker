@@ -1,0 +1,1338 @@
+{
+  "generatedAt": "2026-09-05T11:52:40.821Z",
+  "departures": [
+    {
+      "serviceCode": "S116S",
+      "departureId": "6414c87f-45e6-49b7-aa9d-79f989257aeb",
+      "label": "Morning Outbound 07:40",
+      "departureTime": "07:40",
+      "destination": "Donington, Cowley Secondary School",
+      "article": "an",
+      "stopCount": 30,
+      "stepCount": 60,
+      "steps": [
+        {
+          "event": "ROUTE_START",
+          "stopName": null,
+          "text": "This is an S116S to Donington, Cowley Secondary School.",
+          "visual": "normal",
+          "firesOnce": true
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Boston, Bus Station",
+          "text": "The next stop is Boston, The Minstrels.",
+          "visual": "normal",
+          "note": "origin stop — fires right after ROUTE_START, no APPROACHING before it"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Boston, The Minstrels",
+          "text": "This is Boston, The Minstrels.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Boston, The Minstrels",
+          "text": "The next stop is Boston, Rosebery Avenue.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Boston, Rosebery Avenue",
+          "text": "This is Boston, Rosebery Avenue.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Boston, Rosebery Avenue",
+          "text": "The next stop is Boston, Footpath to Arundel Crescent.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Boston, Footpath to Arundel Crescent",
+          "text": "This is Boston, Footpath to Arundel Crescent.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Boston, Footpath to Arundel Crescent",
+          "text": "The next stop is Boston, Wyberton High Bridge.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Boston, Wyberton High Bridge",
+          "text": "This is Boston, Wyberton High Bridge.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Boston, Wyberton High Bridge",
+          "text": "The next stop is Boston, Oldrids.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Boston, Oldrids",
+          "text": "This is Boston, Oldrids.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Boston, Oldrids",
+          "text": "The next stop is Wyberton, Pincushion Inn.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Wyberton, Pincushion Inn",
+          "text": "This is Wyberton, Pincushion Inn.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Wyberton, Pincushion Inn",
+          "text": "The next stop is Wyberton, Ralphs Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Wyberton, Ralphs Lane",
+          "text": "This is Wyberton, Ralphs Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Wyberton, Ralphs Lane",
+          "text": "The next stop is Frampton, Millfield Lane West.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Frampton, Millfield Lane West",
+          "text": "This is Frampton, Millfield Lane West.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Frampton, Millfield Lane West",
+          "text": "The next stop is Frampton, Middlegate Road.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Frampton, Middlegate Road",
+          "text": "This is Frampton, Middlegate Road.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Frampton, Middlegate Road",
+          "text": "The next stop is Kirton, Woodlands Court.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Kirton, Woodlands Court",
+          "text": "This is Kirton, Woodlands Court.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Kirton, Woodlands Court",
+          "text": "The next stop is Kirton, War Memorial.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Kirton, War Memorial",
+          "text": "This is Kirton, War Memorial.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Kirton, War Memorial",
+          "text": "The next stop is Kirton End, Post Office.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Kirton End, Post Office",
+          "text": "This is Kirton End, Post Office.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Kirton End, Post Office",
+          "text": "The next stop is Blackjack, Crossroads.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Blackjack, Crossroads",
+          "text": "This is Blackjack, Crossroads.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Blackjack, Crossroads",
+          "text": "The next stop is Swineshead, Fenhouses Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Swineshead, Fenhouses Lane",
+          "text": "This is Swineshead, Fenhouses Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Swineshead, Fenhouses Lane",
+          "text": "The next stop is Kirton Holme, Fenhouses Drove.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Kirton Holme, Fenhouses Drove",
+          "text": "This is Kirton Holme, Fenhouses Drove.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Kirton Holme, Fenhouses Drove",
+          "text": "The next stop is Baythorpe, Hardwick Plot Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Baythorpe, Hardwick Plot Lane",
+          "text": "This is Baythorpe, Hardwick Plot Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Baythorpe, Hardwick Plot Lane",
+          "text": "The next stop is Swineshead, Golden Cross PH.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Swineshead, Golden Cross PH",
+          "text": "This is Swineshead, Golden Cross PH.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Swineshead, Golden Cross PH",
+          "text": "The next stop is Swineshead, Tarry Hill.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Swineshead, Tarry Hill",
+          "text": "This is Swineshead, Tarry Hill.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Swineshead, Tarry Hill",
+          "text": "The next stop is Swineshead, Cole's Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Swineshead, Cole's Lane",
+          "text": "This is Swineshead, Cole's Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Swineshead, Cole's Lane",
+          "text": "The next stop is Swineshead, King John's Road.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Swineshead, King John's Road",
+          "text": "This is Swineshead, King John's Road.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Swineshead, King John's Road",
+          "text": "The next stop is Swineshead, St Mary's Church.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Swineshead, St Mary's Church",
+          "text": "This is Swineshead, St Mary's Church.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Swineshead, St Mary's Church",
+          "text": "The next stop is Swineshead, Bullens Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Swineshead, Bullens Lane",
+          "text": "This is Swineshead, Bullens Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Swineshead, Bullens Lane",
+          "text": "The next stop is Swineshead, High Green.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Swineshead, High Green",
+          "text": "This is Swineshead, High Green.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Swineshead, High Green",
+          "text": "The next stop is Swineshead, Bentley's Garage.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Swineshead, Bentley's Garage",
+          "text": "This is Swineshead, Bentley's Garage.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Swineshead, Bentley's Garage",
+          "text": "The next stop is Bicker Bar, Bicker Bar Hotel.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Bicker Bar, Bicker Bar Hotel",
+          "text": "This is Bicker Bar, Bicker Bar Hotel.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Bicker Bar, Bicker Bar Hotel",
+          "text": "The next stop is Northorpe, Browntoft Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Northorpe, Browntoft Lane",
+          "text": "This is Northorpe, Browntoft Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Northorpe, Browntoft Lane",
+          "text": "The next stop is Northorpe, Church Street.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Northorpe, Church Street",
+          "text": "This is Northorpe, Church Street.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Northorpe, Church Street",
+          "text": "The next stop is Donington, Market Place.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Donington, Market Place",
+          "text": "This is Donington, Market Place.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Donington, Market Place",
+          "text": "The next stop is Donington, Cowley Secondary School.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Donington, Cowley Secondary School",
+          "text": "This is Donington, Cowley Secondary School.",
+          "visual": "normal"
+        },
+        {
+          "event": "AT_STOP",
+          "stopName": "Donington, Cowley Secondary School",
+          "text": "This service terminates here, all change please.",
+          "visual": "terminus"
+        }
+      ]
+    },
+    {
+      "serviceCode": "S116S",
+      "departureId": "d421ed53-80ed-4a1a-a5ed-59d4e8050e9c",
+      "label": "Afternoon Inbound 15:23",
+      "departureTime": "15:23",
+      "destination": "Boston, Bus Station",
+      "article": "an",
+      "stopCount": 30,
+      "stepCount": 60,
+      "steps": [
+        {
+          "event": "ROUTE_START",
+          "stopName": null,
+          "text": "This is an S116S to Boston, Bus Station.",
+          "visual": "normal",
+          "firesOnce": true
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Donington, Cowley Secondary School",
+          "text": "The next stop is Donington, Market Place.",
+          "visual": "normal",
+          "note": "origin stop — fires right after ROUTE_START, no APPROACHING before it"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Donington, Market Place",
+          "text": "This is Donington, Market Place.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Donington, Market Place",
+          "text": "The next stop is Northorpe, Church Street.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Northorpe, Church Street",
+          "text": "This is Northorpe, Church Street.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Northorpe, Church Street",
+          "text": "The next stop is Northorpe, Browntoft Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Northorpe, Browntoft Lane",
+          "text": "This is Northorpe, Browntoft Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Northorpe, Browntoft Lane",
+          "text": "The next stop is Bicker Bar, Bicker Bar Hotel.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Bicker Bar, Bicker Bar Hotel",
+          "text": "This is Bicker Bar, Bicker Bar Hotel.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Bicker Bar, Bicker Bar Hotel",
+          "text": "The next stop is Swineshead, Bentley's Garage.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Swineshead, Bentley's Garage",
+          "text": "This is Swineshead, Bentley's Garage.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Swineshead, Bentley's Garage",
+          "text": "The next stop is Swineshead, High Green.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Swineshead, High Green",
+          "text": "This is Swineshead, High Green.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Swineshead, High Green",
+          "text": "The next stop is Swineshead, Bullens Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Swineshead, Bullens Lane",
+          "text": "This is Swineshead, Bullens Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Swineshead, Bullens Lane",
+          "text": "The next stop is Swineshead, St Mary's Church.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Swineshead, St Mary's Church",
+          "text": "This is Swineshead, St Mary's Church.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Swineshead, St Mary's Church",
+          "text": "The next stop is Swineshead, King John's Road.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Swineshead, King John's Road",
+          "text": "This is Swineshead, King John's Road.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Swineshead, King John's Road",
+          "text": "The next stop is Swineshead, Cole's Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Swineshead, Cole's Lane",
+          "text": "This is Swineshead, Cole's Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Swineshead, Cole's Lane",
+          "text": "The next stop is Swineshead, Tarry Hill.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Swineshead, Tarry Hill",
+          "text": "This is Swineshead, Tarry Hill.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Swineshead, Tarry Hill",
+          "text": "The next stop is Swineshead, Golden Cross PH.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Swineshead, Golden Cross PH",
+          "text": "This is Swineshead, Golden Cross PH.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Swineshead, Golden Cross PH",
+          "text": "The next stop is Baythorpe, Hardwick Plot Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Baythorpe, Hardwick Plot Lane",
+          "text": "This is Baythorpe, Hardwick Plot Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Baythorpe, Hardwick Plot Lane",
+          "text": "The next stop is Kirton Holme, Fenhouses Drove.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Kirton Holme, Fenhouses Drove",
+          "text": "This is Kirton Holme, Fenhouses Drove.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Kirton Holme, Fenhouses Drove",
+          "text": "The next stop is Swineshead, Fenhouses Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Swineshead, Fenhouses Lane",
+          "text": "This is Swineshead, Fenhouses Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Swineshead, Fenhouses Lane",
+          "text": "The next stop is Blackjack, Crossroads.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Blackjack, Crossroads",
+          "text": "This is Blackjack, Crossroads.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Blackjack, Crossroads",
+          "text": "The next stop is Kirton End, Post Office.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Kirton End, Post Office",
+          "text": "This is Kirton End, Post Office.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Kirton End, Post Office",
+          "text": "The next stop is Kirton, War Memorial.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Kirton, War Memorial",
+          "text": "This is Kirton, War Memorial.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Kirton, War Memorial",
+          "text": "The next stop is Kirton, Woodlands Court.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Kirton, Woodlands Court",
+          "text": "This is Kirton, Woodlands Court.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Kirton, Woodlands Court",
+          "text": "The next stop is Frampton, Middlegate Road.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Frampton, Middlegate Road",
+          "text": "This is Frampton, Middlegate Road.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Frampton, Middlegate Road",
+          "text": "The next stop is Frampton, Millfield Lane West.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Frampton, Millfield Lane West",
+          "text": "This is Frampton, Millfield Lane West.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Frampton, Millfield Lane West",
+          "text": "The next stop is Wyberton, Ralphs Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Wyberton, Ralphs Lane",
+          "text": "This is Wyberton, Ralphs Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Wyberton, Ralphs Lane",
+          "text": "The next stop is Wyberton, Pincushion Inn.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Wyberton, Pincushion Inn",
+          "text": "This is Wyberton, Pincushion Inn.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Wyberton, Pincushion Inn",
+          "text": "The next stop is Boston, Oldrids.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Boston, Oldrids",
+          "text": "This is Boston, Oldrids.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Boston, Oldrids",
+          "text": "The next stop is Boston, Wyberton High Bridge.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Boston, Wyberton High Bridge",
+          "text": "This is Boston, Wyberton High Bridge.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Boston, Wyberton High Bridge",
+          "text": "The next stop is Boston, Footpath to Arundel Crescent.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Boston, Footpath to Arundel Crescent",
+          "text": "This is Boston, Footpath to Arundel Crescent.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Boston, Footpath to Arundel Crescent",
+          "text": "The next stop is Boston, Rosebery Avenue.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Boston, Rosebery Avenue",
+          "text": "This is Boston, Rosebery Avenue.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Boston, Rosebery Avenue",
+          "text": "The next stop is Boston, The Minstrels.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Boston, The Minstrels",
+          "text": "This is Boston, The Minstrels.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Boston, The Minstrels",
+          "text": "The next stop is Boston, Bus Station.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Boston, Bus Station",
+          "text": "This is Boston, Bus Station.",
+          "visual": "normal"
+        },
+        {
+          "event": "AT_STOP",
+          "stopName": "Boston, Bus Station",
+          "text": "This service terminates here, all change please.",
+          "visual": "terminus"
+        }
+      ]
+    },
+    {
+      "serviceCode": "S125S",
+      "departureId": "338aebc6-8b5e-4a86-acad-a56bcf7a123b",
+      "label": "Morning Outbound 07:27",
+      "departureTime": "07:27",
+      "destination": "Boston College",
+      "article": "an",
+      "stopCount": 23,
+      "stepCount": 46,
+      "steps": [
+        {
+          "event": "ROUTE_START",
+          "stopName": null,
+          "text": "This is an S125S to Boston College.",
+          "visual": "normal",
+          "firesOnce": true
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Weston, The Chequers PH",
+          "text": "The next stop is Weston, Delgate Bank.",
+          "visual": "normal",
+          "note": "origin stop — fires right after ROUTE_START, no APPROACHING before it"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Weston, Delgate Bank",
+          "text": "This is Weston, Delgate Bank.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Weston, Delgate Bank",
+          "text": "The next stop is Moulton, Bell Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Moulton, Bell Lane",
+          "text": "This is Moulton, Bell Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Moulton, Bell Lane",
+          "text": "The next stop is Moulton, River Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Moulton, River Lane",
+          "text": "This is Moulton, River Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Moulton, River Lane",
+          "text": "The next stop is Whaplode, St Mary's Gardens.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Whaplode, St Mary's Gardens",
+          "text": "This is Whaplode, St Mary's Gardens.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Whaplode, St Mary's Gardens",
+          "text": "The next stop is Whaplode, Darjeeling Restaurant.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Whaplode, Darjeeling Restaurant",
+          "text": "This is Whaplode, Darjeeling Restaurant.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Whaplode, Darjeeling Restaurant",
+          "text": "The next stop is Whaplode, Middle Road.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Whaplode, Middle Road",
+          "text": "This is Whaplode, Middle Road.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Whaplode, Middle Road",
+          "text": "The next stop is Whaplode, Stockwell Gate.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Whaplode, Stockwell Gate",
+          "text": "This is Whaplode, Stockwell Gate.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Whaplode, Stockwell Gate",
+          "text": "The next stop is Holbeach, Wignals Gate.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Holbeach, Wignals Gate",
+          "text": "This is Holbeach, Wignals Gate.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Holbeach, Wignals Gate",
+          "text": "The next stop is Holbeach, Netherfield.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Holbeach, Netherfield",
+          "text": "This is Holbeach, Netherfield.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Holbeach, Netherfield",
+          "text": "The next stop is Holbeach, Fairfields.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Holbeach, Fairfields",
+          "text": "This is Holbeach, Fairfields.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Holbeach, Fairfields",
+          "text": "The next stop is Holbeach, Stukeley Hall Drive.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Holbeach, Stukeley Hall Drive",
+          "text": "This is Holbeach, Stukeley Hall Drive.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Holbeach, Stukeley Hall Drive",
+          "text": "The next stop is Holbeach, Interchange Shelter.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Holbeach, Interchange Shelter",
+          "text": "This is Holbeach, Interchange Shelter.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Holbeach, Interchange Shelter",
+          "text": "The next stop is Holbeach, Damgate.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Holbeach, Damgate",
+          "text": "This is Holbeach, Damgate.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Holbeach, Damgate",
+          "text": "The next stop is Holbeach, Rowan Close.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Holbeach, Rowan Close",
+          "text": "This is Holbeach, Rowan Close.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Holbeach, Rowan Close",
+          "text": "The next stop is Fleet Hargate, Fleet Road.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Fleet Hargate, Fleet Road",
+          "text": "This is Fleet Hargate, Fleet Road.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Fleet Hargate, Fleet Road",
+          "text": "The next stop is Fleet Hargate, Winslow Gate.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Fleet Hargate, Winslow Gate",
+          "text": "This is Fleet Hargate, Winslow Gate.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Fleet Hargate, Winslow Gate",
+          "text": "The next stop is Fleet Hargate, Proctors Close.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Fleet Hargate, Proctors Close",
+          "text": "This is Fleet Hargate, Proctors Close.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Fleet Hargate, Proctors Close",
+          "text": "The next stop is Holbeach Cackle Hill, 188 Boston Road.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Holbeach Cackle Hill, 188 Boston Road",
+          "text": "This is Holbeach Cackle Hill, 188 Boston Road.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Holbeach Cackle Hill, 188 Boston Road",
+          "text": "The next stop is Saracens Head, New Saracen's Head PH.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Saracens Head, New Saracen's Head PH",
+          "text": "This is Saracens Head, New Saracen's Head PH.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Saracens Head, New Saracen's Head PH",
+          "text": "The next stop is Fosdyke, Village Hall.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Fosdyke, Village Hall",
+          "text": "This is Fosdyke, Village Hall.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Fosdyke, Village Hall",
+          "text": "The next stop is Fosdyke, All Saint's Church.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Fosdyke, All Saint's Church",
+          "text": "This is Fosdyke, All Saint's Church.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Fosdyke, All Saint's Church",
+          "text": "The next stop is Boston College.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Boston College",
+          "text": "This is Boston College.",
+          "visual": "normal"
+        },
+        {
+          "event": "AT_STOP",
+          "stopName": "Boston College",
+          "text": "This service terminates here, all change please.",
+          "visual": "terminus"
+        }
+      ]
+    },
+    {
+      "serviceCode": "S125S",
+      "departureId": "192195c8-3d88-42ba-9a7d-a4a7136a3cd2",
+      "label": "Afternoon Inbound 16:50",
+      "departureTime": "16:50",
+      "destination": "Weston, The Chequers PH",
+      "article": "an",
+      "stopCount": 23,
+      "stepCount": 46,
+      "steps": [
+        {
+          "event": "ROUTE_START",
+          "stopName": null,
+          "text": "This is an S125S to Weston, The Chequers PH.",
+          "visual": "normal",
+          "firesOnce": true
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Boston College",
+          "text": "The next stop is Fosdyke, All Saint's Church.",
+          "visual": "normal",
+          "note": "origin stop — fires right after ROUTE_START, no APPROACHING before it"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Fosdyke, All Saint's Church",
+          "text": "This is Fosdyke, All Saint's Church.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Fosdyke, All Saint's Church",
+          "text": "The next stop is Fosdyke, Village Hall.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Fosdyke, Village Hall",
+          "text": "This is Fosdyke, Village Hall.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Fosdyke, Village Hall",
+          "text": "The next stop is Saracens Head, New Saracen's Head PH.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Saracens Head, New Saracen's Head PH",
+          "text": "This is Saracens Head, New Saracen's Head PH.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Saracens Head, New Saracen's Head PH",
+          "text": "The next stop is Holbeach Cackle Hill, 188 Boston Road.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Holbeach Cackle Hill, 188 Boston Road",
+          "text": "This is Holbeach Cackle Hill, 188 Boston Road.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Holbeach Cackle Hill, 188 Boston Road",
+          "text": "The next stop is Fleet Hargate, Proctors Close.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Fleet Hargate, Proctors Close",
+          "text": "This is Fleet Hargate, Proctors Close.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Fleet Hargate, Proctors Close",
+          "text": "The next stop is Fleet Hargate, Winslow Gate.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Fleet Hargate, Winslow Gate",
+          "text": "This is Fleet Hargate, Winslow Gate.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Fleet Hargate, Winslow Gate",
+          "text": "The next stop is Fleet Hargate, Fleet Road.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Fleet Hargate, Fleet Road",
+          "text": "This is Fleet Hargate, Fleet Road.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Fleet Hargate, Fleet Road",
+          "text": "The next stop is Holbeach, Rowan Close.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Holbeach, Rowan Close",
+          "text": "This is Holbeach, Rowan Close.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Holbeach, Rowan Close",
+          "text": "The next stop is Holbeach, Damgate.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Holbeach, Damgate",
+          "text": "This is Holbeach, Damgate.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Holbeach, Damgate",
+          "text": "The next stop is Holbeach, Interchange Shelter.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Holbeach, Interchange Shelter",
+          "text": "This is Holbeach, Interchange Shelter.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Holbeach, Interchange Shelter",
+          "text": "The next stop is Holbeach, Stukeley Hall Drive.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Holbeach, Stukeley Hall Drive",
+          "text": "This is Holbeach, Stukeley Hall Drive.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Holbeach, Stukeley Hall Drive",
+          "text": "The next stop is Holbeach, Fairfields.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Holbeach, Fairfields",
+          "text": "This is Holbeach, Fairfields.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Holbeach, Fairfields",
+          "text": "The next stop is Holbeach, Netherfield.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Holbeach, Netherfield",
+          "text": "This is Holbeach, Netherfield.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Holbeach, Netherfield",
+          "text": "The next stop is Holbeach, Wignals Gate.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Holbeach, Wignals Gate",
+          "text": "This is Holbeach, Wignals Gate.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Holbeach, Wignals Gate",
+          "text": "The next stop is Whaplode, Stockwell Gate.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Whaplode, Stockwell Gate",
+          "text": "This is Whaplode, Stockwell Gate.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Whaplode, Stockwell Gate",
+          "text": "The next stop is Whaplode, Middle Road.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Whaplode, Middle Road",
+          "text": "This is Whaplode, Middle Road.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Whaplode, Middle Road",
+          "text": "The next stop is Whaplode, Darjeeling Restaurant.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Whaplode, Darjeeling Restaurant",
+          "text": "This is Whaplode, Darjeeling Restaurant.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Whaplode, Darjeeling Restaurant",
+          "text": "The next stop is Whaplode, St Mary's Gardens.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Whaplode, St Mary's Gardens",
+          "text": "This is Whaplode, St Mary's Gardens.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Whaplode, St Mary's Gardens",
+          "text": "The next stop is Moulton, River Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Moulton, River Lane",
+          "text": "This is Moulton, River Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Moulton, River Lane",
+          "text": "The next stop is Moulton, Bell Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Moulton, Bell Lane",
+          "text": "This is Moulton, Bell Lane.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Moulton, Bell Lane",
+          "text": "The next stop is Weston, Delgate Bank.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Weston, Delgate Bank",
+          "text": "This is Weston, Delgate Bank.",
+          "visual": "normal"
+        },
+        {
+          "event": "STOP_DEPARTURE",
+          "stopName": "Weston, Delgate Bank",
+          "text": "The next stop is Weston, The Chequers PH.",
+          "visual": "normal"
+        },
+        {
+          "event": "APPROACHING",
+          "stopName": "Weston, The Chequers PH",
+          "text": "This is Weston, The Chequers PH.",
+          "visual": "normal"
+        },
+        {
+          "event": "AT_STOP",
+          "stopName": "Weston, The Chequers PH",
+          "text": "This service terminates here, all change please.",
+          "visual": "terminus"
+        }
+      ]
+    }
+  ],
+  "diversion": {
+    "event": "DIVERSION",
+    "text": "Attention, this bus is on diversion.",
+    "visual": "diversion"
+  }
+}
