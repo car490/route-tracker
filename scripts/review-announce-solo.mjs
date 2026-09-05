@@ -77,23 +77,45 @@ console.log('Stops:');
 STOPS.forEach((s, i) => console.log(`  ${i}. ${stripIndicator(s.name)}`));
 
 // ── adb helpers — read/tunnel only, never touch a setting ─────────────────
+// Resolved once at startup: env ADB override, then bare 'adb' (PATH), then a
+// few known Windows install locations (this repo's other adb-driven scripts
+// — setup-solo-device.sh/setup-cab-device.sh — only ever assumed PATH or an
+// explicit ADB= override; this adds the common installer paths too, since
+// Android Studio's SDK manager doesn't always put platform-tools on PATH).
+const KNOWN_ADB_PATHS = [
+  'C:\\Program Files (x86)\\Android\\android-sdk\\platform-tools\\adb.exe',
+  'C:\\Program Files\\Android\\android-sdk\\platform-tools\\adb.exe',
+  `${process.env.LOCALAPPDATA}\\Android\\Sdk\\platform-tools\\adb.exe`,
+];
+let ADB_BIN = null;
+function resolveAdbBin() {
+  if (ADB_BIN) return ADB_BIN;
+  const candidates = [process.env.ADB, 'adb', ...KNOWN_ADB_PATHS].filter(Boolean);
+  for (const candidate of candidates) {
+    try {
+      execFileSync(candidate, ['version'], { stdio: 'pipe' });
+      ADB_BIN = candidate;
+      return candidate;
+    } catch { /* try next */ }
+  }
+  throw new Error(
+    'adb not found on PATH or in any known install location. Install Android platform-tools,\n' +
+    'or set ADB=/path/to/adb.exe, then re-run. Nothing on the tablet needs changing for this.',
+  );
+}
+
 function adb(args) {
+  const bin = resolveAdbBin();
   try {
-    return execFileSync('adb', args, { encoding: 'utf8' });
+    return execFileSync(bin, args, { encoding: 'utf8' });
   } catch (err) {
-    throw new Error(`adb ${args.join(' ')} failed: ${err.stderr || err.message}`);
+    throw new Error(`${bin} ${args.join(' ')} failed: ${err.stderr || err.message}`);
   }
 }
 
 function checkAdbAvailable() {
-  try {
-    execFileSync('adb', ['version'], { stdio: 'pipe' });
-  } catch {
-    throw new Error(
-      'adb not found on PATH. Install Android platform-tools (adb is the only tool this script\n' +
-      'needs) and make sure it is on PATH, then re-run. Nothing on the tablet needs changing for this.',
-    );
-  }
+  const bin = resolveAdbBin();
+  console.log(`Using adb: ${bin}`);
 }
 
 function checkDeviceConnected() {
