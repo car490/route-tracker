@@ -62,19 +62,26 @@
       commissioning time (mele-server/DEPLOY.md), so a missing file (logo
       never commissioned, or a demo/dev environment) just 404s and
       idle-logo hides itself.
-      Logo only, no operator-name text — a top bar is shown here too (empty,
-      same accent colour as #sign-topbar) so the idle screen previews the
-      same chrome the active sign will use once a journey starts, rather
-      than switching layouts abruptly.
+      Logo only, no operator-name text — a top bar is shown here too, same
+      accent colour as #sign-topbar so the idle screen previews the same
+      chrome the active sign will use once a journey starts, rather than
+      switching layouts abruptly. Solo (driverless) schedule-autopilot's
+      next-departure caption(s) live inside this topbar, not under the logo
+      — moved here 2026-09-06 so a device with several services' worth of
+      candidates (e.g. real + test-route clones) can't push its own
+      content off the bottom of the screen: the topbar is a fixed band
+      above the logo, not fighting it for the same vertical space. See
+      onboard.css's #idle-topbar/#idle-next-departure comments.
     -->
     <div id="onboard-idle" hidden>
-      <div id="idle-topbar"></div>
-      <div id="idle-main">
-        <img id="idle-logo" alt="" hidden />
+      <div id="idle-topbar">
         <!-- Solo (driverless) schedule-autopilot only — see
              announceSoloAutopilot.js. Paired/Standard idle screens
              never populate this, so it stays hidden for them. -->
         <div id="idle-next-departure" hidden></div>
+      </div>
+      <div id="idle-main">
+        <img id="idle-logo" alt="" hidden />
       </div>
     </div>
 
