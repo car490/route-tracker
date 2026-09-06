@@ -427,13 +427,25 @@ export function applyIdleBranding({ name, logoUrl, accentColor }) {
 // registered with no candidate_departure_ids configured), so the kiosk
 // visibly confirms it booted into Solo mode rather than looking
 // identical to a broken/not-yet-connected device. Only the next-departure
-// caption itself is conditional. candidate is
-// { departureId, firstStopLat, firstStopLon, departureTime } (scheduleAutopilot.js's
-// shape) or null once nothing is cached yet / commissioned.
-export function showNextDeparture(candidate) {
+// caption itself is conditional. nextDepartures is one entry per distinct
+// service this device carries candidates for — [{ serviceCode, departureTime }]
+// (announceSoloAutopilot.js's reportNextDeparture) — or null once nothing is
+// cached yet / commissioned. One line per service, not a single merged
+// soonest-overall time (found live 2026-09-06: a device with two services'
+// worth of candidates showed one ambiguous time, telling a waiting
+// passenger/driver nothing concrete about either actual service).
+export function showNextDeparture(nextDepartures) {
   const box = el('idle-next-departure');
-  box.hidden = !candidate;
-  box.textContent = candidate ? `Next departure ${candidate.departureTime}` : '';
+  const hasEntries = Array.isArray(nextDepartures) && nextDepartures.length > 0;
+  box.hidden = !hasEntries;
+  box.replaceChildren();
+  if (hasEntries) {
+    for (const { serviceCode, departureTime } of nextDepartures) {
+      const line = document.createElement('div');
+      line.textContent = `${serviceCode} next departure ${departureTime}`;
+      box.appendChild(line);
+    }
+  }
   el('onboard-idle').hidden = false;
   el('onboard-brand').hidden = false; // undo showSleepScreen()'s hide, if it ran
   // Solo's wake-window transition into "awake" reaches here (see

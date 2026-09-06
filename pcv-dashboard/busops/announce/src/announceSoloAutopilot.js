@@ -87,7 +87,7 @@ async function fetchCandidateDepartures(client, departureIds) {
   const [scheduleResult, exceptionsResult, termDatesResult] = await Promise.all([
     client
       .from('schedule_view')
-      .select('departure_id, lat, lon, scheduled_time, sequence, days_of_week, school_term_time')
+      .select('departure_id, service_code, lat, lon, scheduled_time, sequence, days_of_week, school_term_time')
       .in('departure_id', departureIds)
       .order('sequence'),
     client
@@ -118,6 +118,7 @@ async function fetchCandidateDepartures(client, departureIds) {
       const { removedDates = [], addedDates = [] } = exceptionsByDeparture.get(row.departure_id) ?? {};
       return {
         departureId: row.departure_id,
+        serviceCode: row.service_code,
         firstStopLat: row.lat,
         firstStopLon: row.lon,
         departureTime: row.scheduled_time.substring(0, 5),
@@ -182,15 +183,30 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
   // determination, whichever way it goes, always fires its callback once.
   let isAwake = null;
 
+  // One entry per distinct service among this device's candidates, not one
+  // merged soonest-overall time — a device commissioned for two real
+  // services (or, as here, dozens of same-service test clones) previously
+  // showed a single ambiguous time that could belong to either, telling a
+  // waiting passenger/driver nothing concrete. Found live 2026-09-06
+  // reviewing the idle screen against a device carrying both S116x/S125x
+  // candidates. Sorted by service code for a stable on-screen order.
   function reportNextDeparture() {
     if (!candidates.length) {
       onIdleNextDeparture?.(null);
       return;
     }
     const now = new Date();
-    const next = [...candidates].sort(
-      (a, b) => msUntilNextOccurrence(a.departureTime, now) - msUntilNextOccurrence(b.departureTime, now)
-    )[0];
+    const bestByService = new Map();
+    for (const candidate of candidates) {
+      const msUntil = msUntilNextOccurrence(candidate.departureTime, now);
+      const current = bestByService.get(candidate.serviceCode);
+      if (!current || msUntil < current.msUntil) {
+        bestByService.set(candidate.serviceCode, { serviceCode: candidate.serviceCode, departureTime: candidate.departureTime, msUntil });
+      }
+    }
+    const next = [...bestByService.values()]
+      .sort((a, b) => a.serviceCode.localeCompare(b.serviceCode))
+      .map(({ serviceCode, departureTime }) => ({ serviceCode, departureTime }));
     onIdleNextDeparture?.(next);
   }
 
