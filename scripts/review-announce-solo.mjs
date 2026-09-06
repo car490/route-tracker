@@ -17,7 +17,11 @@
 // showing, under its own already-configured candidates/active window.
 //
 // Usage:
-//   node scripts/review-announce-solo.mjs [S125S|S116S] [outbound|inbound] [secondsPerStop]
+//   node scripts/review-announce-solo.mjs <serviceCode> [outbound|inbound] [secondsPerStop]
+// serviceCode is whatever's in schedule.json — S125S/S116S (production-mirrored) or S125T/S116T
+// (all-day, all-week test clones some devices are candidate-configured for) both work, as does
+// any other service code, as long as the device is actually candidate-configured for it. Run
+// `node scripts/generate-schedule.mjs --dev` first if schedule.json doesn't have it yet.
 //
 // Requires: `adb` on PATH, the tablet connected over USB with USB debugging
 // already authorized (unchanged from however it's set up today), and Fully
@@ -48,8 +52,9 @@ const SUB_STEPS = 6;
 const APPROACHING_RADIUS_M = 250; // mirrors gps.js's own threshold — narration only
 const FORWARD_PORT = 9223; // arbitrary local port for the adb tunnel; freed on exit
 
-if (!['S125S', 'S116S'].includes(SERVICE)) {
-  console.error('Usage: node scripts/review-announce-solo.mjs [S125S|S116S] [outbound|inbound] [secondsPerStop]');
+if (!/^[A-Z]\d{2,3}[A-Z]?$/.test(SERVICE)) {
+  console.error('Usage: node scripts/review-announce-solo.mjs <serviceCode> [outbound|inbound] [secondsPerStop]');
+  console.error('  e.g. S125S, S116S, S116T, S125T — any service code present in schedule.json.');
   process.exit(1);
 }
 
