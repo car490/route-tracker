@@ -236,19 +236,29 @@ body {
     "main";
 }
 
+/* #idle-topbar's height is intentionally NOT --topbar-height any more
+   (that value is still shared byte-for-byte with #sign-topbar, the active
+   sign's single-line route/destination band — different content, different
+   shape). This band instead sizes to whatever #idle-next-departure actually
+   holds (min-height keeps it looking substantial with zero/one entry,
+   growing automatically for more) — moved here 2026-09-06 so a device
+   candidate-configured for several services (real + test-route clones)
+   shows all of them without fighting the logo for vertical space below. */
 #idle-topbar {
   grid-area: topbar;
-  height: var(--topbar-height); /* same shared value #sign-topbar uses — guaranteed identical, not just approximated */
+  min-height: var(--topbar-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1vh 2vw;
   background: var(--operator-accent, var(--ep-purple));
 }
 
 #idle-main {
   grid-area: main;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2vh;
   /* Matches #onboard-sign's own paper background (var(--ep-paper)) — the
      logo file itself sits on white, so leaving this on the page's cream
      --ep-bg made it read as a pasted-on rectangle instead of blending into
@@ -258,36 +268,37 @@ body {
 
 #idle-logo {
   /* ~3x the previous 50vw/35vh, still capped well inside the panel (never
-     the full viewport) so it can't crowd the topbar or the next-departure
-     caption below it (Solo tier) — object-fit: contain means the source
-     image's own aspect ratio picks whichever of these two caps actually
-     binds, not a forced square. User feedback 2026-09-02: make the
-     customer logo bigger, up to ~3x, while staying fully on the panel. */
+     the full viewport) — object-fit: contain means the source image's own
+     aspect ratio picks whichever of these two caps actually binds, not a
+     forced square. User feedback 2026-09-02: make the customer logo
+     bigger, up to ~3x, while staying fully on the panel. */
   max-width: 80vw;
   max-height: 65vh;
   object-fit: contain;
 }
 
-/* Solo (driverless) schedule-autopilot's next-departure caption(s) —
-   see announceSoloAutopilot.js/onboard.js's showNextDeparture(). One line
-   per service this device carries candidates for. Not held to the active
+/* Solo (driverless) schedule-autopilot's next-departure caption(s) — see
+   announceSoloAutopilot.js/onboard.js's showNextDeparture(). One entry per
+   service this device carries candidates for, laid out two-per-row (a
+   device with several services' worth of candidates reads as a compact
+   grid instead of either one cramped line or a tall stack competing with
+   the logo for room below — found live 2026-09-06). Not held to the active
    sign's 22mm PSVAIR minimum (--min-text) — that requirement is for
-   in-service passenger information, not this before-boarding idle caption.
-   The font-size rule used to say that in the comment but still read
-   `calc(var(--min-text) * 0.6)` below it — on the small Solo panel that
-   produced a comically oversized caption that shoved itself down onto/
-   behind #onboard-brand's corner mark. Found live 2026-09-06; fixed with a
-   fixed, panel-diagonal-independent size instead. */
+   in-service passenger information, not this before-boarding idle caption
+   (a real, separate bug found the same session: this rule used to read
+   `calc(var(--min-text) * 0.6)` despite its own comment already saying it
+   shouldn't follow --min-text at all). */
 #idle-next-departure {
   font-family: var(--ep-font);
   font-weight: 700;
-  font-size: 3.2vh;
+  font-size: 2.6vh;
   line-height: 1.3;
-  color: var(--ep-ink-soft);
+  color: var(--ep-paper); /* sits on the topbar's accent colour now, not the white paper band */
   text-align: center;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5vh;
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  column-gap: 3vw;
+  row-gap: 0.4vh;
 }
 
 /* ── Top bar — brand accent, white lettering (logo keeps its own brand
