@@ -459,8 +459,9 @@ reasonable stand-in for testing.
    unless `now` is within match_window_before_min/after_min of some
    candidate, or you pick a candidate whose scheduled time is close to now,
    or you widen the columns as above too.
-3. Open the device's install link — the idle screen should show a
-   **"Next departure HH:MM"** caption once candidates load
+3. Open the device's install link — the idle screen should show one
+   **"&lt;SERVICE&gt; next departure HH:MM"** caption per distinct service the
+   device carries candidates for, once candidates load
 4. Open DevTools (F12) → **Sensors** → set **Custom location** to the
    candidate's first stop's lat/lon, within `terminus_radius_m` (150m
    default)

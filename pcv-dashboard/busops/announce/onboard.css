@@ -268,17 +268,26 @@ body {
   object-fit: contain;
 }
 
-/* Solo (driverless) schedule-autopilot's next-departure caption —
-   see announceSoloAutopilot.js/onboard.js's showNextDeparture(). Not
-   held to the active sign's 22mm PSVAIR minimum (--min-text) — that
-   requirement is for in-service passenger information, not this
-   before-boarding idle caption. */
+/* Solo (driverless) schedule-autopilot's next-departure caption(s) —
+   see announceSoloAutopilot.js/onboard.js's showNextDeparture(). One line
+   per service this device carries candidates for. Not held to the active
+   sign's 22mm PSVAIR minimum (--min-text) — that requirement is for
+   in-service passenger information, not this before-boarding idle caption.
+   The font-size rule used to say that in the comment but still read
+   `calc(var(--min-text) * 0.6)` below it — on the small Solo panel that
+   produced a comically oversized caption that shoved itself down onto/
+   behind #onboard-brand's corner mark. Found live 2026-09-06; fixed with a
+   fixed, panel-diagonal-independent size instead. */
 #idle-next-departure {
   font-family: var(--ep-font);
   font-weight: 700;
-  font-size: calc(var(--min-text) * 0.6);
+  font-size: 3.2vh;
+  line-height: 1.3;
   color: var(--ep-ink-soft);
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5vh;
 }
 
 /* ── Top bar — brand accent, white lettering (logo keeps its own brand
