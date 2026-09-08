@@ -207,6 +207,19 @@ function applyTopbarMarquee() {
   applyMarquee(el('sign-route-line'), el('sign-route-track'));
 }
 
+// Terminus hides the topbar outright (onboard.css) — this actively stops
+// the animation underneath rather than leaving it scrolling behind a
+// display:none element, per user feedback 2026-09-08. Not just tidiness:
+// it's also what a later applyTopbarMarquee() re-measures from cleanly the
+// next time a schedule sets new route text (e.g. the return journey).
+function stopTopbarMarquee() {
+  const track = el('sign-route-track');
+  track.classList.remove('marquee');
+  track.style.removeProperty('--marquee-start');
+  track.style.removeProperty('--marquee-end');
+  track.style.removeProperty('--marquee-duration');
+}
+
 // Re-measures every currently-rendered headline town/stop line — plural
 // because a two-sentence sequence briefly holds none, and a resize can hit
 // while either line is showing.
@@ -407,7 +420,9 @@ function render(stateKey, vars, earlyWait) {
   // tiers with audio, the spoken announcement both already carry the
   // message — this full-page colour is a supplementary "notice me" cue on
   // top, per user feedback 2026-09-02, not the only signal.
-  el('onboard-sign').classList.toggle('terminus', stateKey === ANNOUNCE_STATES.AT_STOP);
+  const isTerminus = stateKey === ANNOUNCE_STATES.AT_STOP;
+  el('onboard-sign').classList.toggle('terminus', isTerminus);
+  if (isTerminus) stopTopbarMarquee();
 
   updateEarlyWaitDisplay(stateKey, earlyWait);
   positionBrand(); // banner/verb-line toggling above can change layout height

@@ -156,10 +156,18 @@ body {
    the page a notice me colour"). Distinct red (--ep-late, already the
    design system's own "urgent" token, reused rather than inventing a new
    one) rather than diversion's amber, since the two mean different things
-   and shouldn't look alike. Text flips to paper-white for contrast against
-   the new background — #sign-topbar's text was already white; only
-   #sign-headline needs overriding here. */
-#onboard-sign.terminus #sign-topbar,
+   and shouldn't look alike.
+   The topbar hides outright now rather than just recolouring (per user
+   feedback 2026-09-08: the route/destination line — and its marquee scroll,
+   see onboard.js's applyTopbarMarquee/stopTopbarMarquee — had no reason to
+   keep showing/scrolling once the journey has actually ended). The
+   "auto"-height topbar grid row collapses to 0 when its content is
+   display:none, so #sign-main's "1fr" row grows to fill the freed space —
+   no grid-template-areas change needed. */
+#onboard-sign.terminus #sign-topbar {
+  display: none;
+}
+
 #onboard-sign.terminus #sign-main {
   background: var(--ep-late);
 }
@@ -492,7 +500,13 @@ body {
 .hl-marquee-viewport {
   display: block;
   width: 100%;
-  overflow: hidden;
+  /* Horizontal clipping only — plain `overflow: hidden` clips both axes,
+     which at this tight line-height (1.15, inherited from .hl-three-line)
+     was cutting off the bottom of descenders (g, y, p...) on every
+     town/stop line, not just the ones actually scrolling — found live
+     2026-09-08. */
+  overflow-x: hidden;
+  overflow-y: visible;
   white-space: nowrap;
   text-align: center;
 }
