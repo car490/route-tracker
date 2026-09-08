@@ -1,10 +1,11 @@
 # Announcement audio: server-triggered generation + sync — plan
 
-**Status: proposed, not approved. No code has been changed as part of this plan.**
+**Status: design settled 2026-09-08, all open questions resolved. Not yet implemented — no
+product code has been changed as part of this plan, doc changes only.**
 Written 2026-09-08 following a design discussion flagged in `docs/DECISIONS.md`'s
-"Shared journey-tracking core" open item. Once approved, this doc's outcome should be folded
-back into `docs/DECISIONS.md` and `CLAUDE.md`'s "PSVAIR announcement audio" section, same as
-every other architecture decision in this repo.
+"Shared journey-tracking core" open item. Once implementation starts, this doc's outcome should
+be folded back into `docs/DECISIONS.md` and `CLAUDE.md`'s "PSVAIR announcement audio" section,
+same as every other architecture decision in this repo.
 
 ## Problem
 
@@ -102,6 +103,11 @@ Azure calls inside one DB write. Instead:
   table only for genuine changes.
 - This also naturally coalesces a burst of changes (e.g. a bulk migration) into one drain pass
   instead of a storm of webhook calls.
+- **Decided 2026-09-08: cap the drain batch size per cycle** (e.g. N jobs per run, remainder
+  picked up next cycle). A bulk data change — a future large NaPTAN import touching hundreds of
+  stops is the concrete example — should trickle out across several cron cycles rather than
+  firing one uncapped burst at Azure in a single run, which risks hitting rate limits or a sudden
+  cost spike.
 
 ### 4. Edge Function: `generate-announcement-clip`
 Deno/TypeScript, alongside the existing `naptan-import`/`dvsa-vol-lookup` functions in
@@ -126,6 +132,19 @@ Both already read Supabase; add:
 - Optionally subscribe via Supabase Realtime for push-notified updates instead of polling —
   this repo already has the pattern in `shared/deviceStateSync.js`'s `subscribeToChanges`.
 - Download only what's missing/changed; store keyed the same way clips are looked up today.
+
+**Decided 2026-09-08 — full precache, sourced live, not a build-time snapshot.** Driver's
+`busops/service-worker.js` currently precaches every clip listed in a static `manifest.json`
+baked into the deploy. Instead of replacing that with a CI-generated snapshot of
+`announcement_clips` (which would just reintroduce "something must regenerate this file," now
+tied to deploy cadence instead of a human), the service worker's own `install`/`update` event
+queries `announcement_clips` live and precaches everything it returns — no build-time step at
+all. Rationale: full precache directly closes one of the four original failure scenarios
+("offline before first cache" — see Problem above); a bounded/on-demand cache would reopen it
+for a brand-new device that goes offline before ever completing an online pass. It's also not a
+new cost — Driver already ships every clip bundled with every deploy today, so this only changes
+*where* the bytes come from, not how many there are. Same mechanism applies to Solo's own local
+cache once it has one (see Rollout below).
 
 ## The part that actually delivers G1: never play a missing clip
 
@@ -209,6 +228,13 @@ long as that device and vehicle already share a `company_id`. Flagging this beca
 cross-tenant boundary on a `SECURITY DEFINER` function, not because it's part of this plan's
 scope — worth a second look regardless of whether the auto-detect UI above gets built.
 
+**Decided 2026-09-08 — split into two, different urgency:**
+- The `link_announce_device` caller-authorization gap gets fixed as its **own fast-follow**,
+  independent of this plan's timeline — it's a live cross-tenant exposure, not something that
+  should wait on an audio pipeline's rollout schedule.
+- The detect-and-confirm ops-dashboard UI is real but separate product work — tracked as a
+  fast-follow, **out of scope for this plan's initial phases**.
+
 ## Rollout, phased
 
 1. **Build the pipeline, no client changes.** Storage bucket, `announcement_clips` +
@@ -219,11 +245,13 @@ scope — worth a second look regardless of whether the auto-detect UI above get
    files to Storage/table-backed cache. Keep the bundled files as a temporary fallback during the
    transition; remove once parity is proven on dev, then production.
 3. **Solo gets clip playback for the first time** — currently pure `speechSynthesis`, so this is
-   net-new capability, not a migration. `announceSpeech.js`'s live-TTS call becomes the same
-   last-resort-gated-by-the-Option-A/B-decision path as Driver's, not the default.
-4. **Retire or repurpose `scripts/generate-announcement-audio.mjs`** — open question: keep it as
-   a local dev/preview tool (e.g. previewing a wording change before it ships), or remove
-   entirely now that the pipeline is server-driven.
+   net-new capability, not a migration. `announceSpeech.js`'s live-TTS call becomes gated by the
+   same hybrid decision as Driver's (see "The part that actually delivers G1" above): visual-only
+   per stop when a clip isn't confirmed, never a live-TTS fallback.
+4. **Repurpose `scripts/generate-announcement-audio.mjs`, don't retire it.** Decided 2026-09-08:
+   keep it as a local dev/preview tool only — auditioning a wording change before it ships — and
+   explicitly stop it writing to the shared Storage bucket or `announcement_clips` table. It's no
+   longer part of the production pipeline once the Edge Function/queue/drain above ships.
 5. **Update docs**: `CLAUDE.md`'s "PSVAIR announcement audio" section and `docs/DECISIONS.md`'s
    "still open" row on the shared tracking core, per this repo's own hygiene rule of updating the
    decision doc and its source together.
@@ -261,21 +289,27 @@ scope — worth a second look regardless of whether the auto-detect UI above get
   as the current publicly-committed `.mp3` files, so moving them to a public-read bucket isn't a
   new disclosure, but flagging it here explicitly since you've called security paramount.
 
-## Open questions requiring your decision before implementation starts
+## Open questions — all decided 2026-09-08
 
-1. ~~Option A (block) vs Option B (degrade + alert)~~ — **Decided 2026-09-08: hybrid.** See
-   "The part that actually delivers G1" above — never block journey start, warn at dispatch time
-   plus a loud ops alert, per-stop visual-only fallback, never synthesized.
-2. Keep a full build-time `manifest.json` for the service worker's install-time precache (so
-   Driver still has every clip for full offline use from first install), or move to a bounded
-   cache (e.g. prefetch only the current day's scheduled duty's stops)? The former keeps today's
-   offline guarantee but reintroduces a "someone/something must regenerate this static file at
-   deploy time" step; the latter is more honestly dynamic but changes what "works offline" means
-   for a brand-new device.
-3. Retire `scripts/generate-announcement-audio.mjs` outright, or keep it as a local
-   preview/dev tool for previewing wording changes before they ship?
-4. Any cost/rate concern about a bulk data change (e.g. a future large NaPTAN import) triggering
-   a large drain batch against Azure in one go — do we need a per-drain-cycle cap?
-5. Solo → Lite conversion: build the detect-and-confirm ops-dashboard flow described above, or
-   leave device linking manual/SQL-only for now? Separately: should the `link_announce_device`
-   caller-authorization gap be fixed as its own fast-follow regardless of that decision?
+All five questions originally raised here have been settled; kept as a record of what was open
+and how it was resolved, per this repo's own convention (`docs/DECISIONS.md`) of moving a
+resolved item rather than deleting the trail.
+
+1. ~~Option A (block) vs Option B (degrade + alert)~~ — **Hybrid.** See "The part that actually
+   delivers G1" above — never block journey start, warn at dispatch time plus a loud ops alert,
+   per-stop visual-only fallback, never synthesized.
+2. ~~Full build-time `manifest.json` vs bounded cache~~ — **Full precache, sourced live** by the
+   service worker at install/update time, not a build-time snapshot. See "Client-side sync"
+   above.
+3. ~~Retire `scripts/generate-announcement-audio.mjs`?~~ — **Keep, narrowed to a local
+   dev/preview tool only**, no longer part of the production pipeline. See Rollout step 4.
+4. ~~Bulk-change rate concern~~ — **Yes, cap the scheduled drain's batch size per cycle.** See
+   "Job queue" above.
+5. ~~Solo → Lite detect-and-confirm UI, and the `link_announce_device` auth gap~~ — **Split.**
+   The auth gap is a fast-follow fixed on its own, independent of this plan's timeline; the
+   detect-and-confirm UI is real but separate product work, out of scope for this plan's initial
+   phases. See "Related" above.
+
+**Status update: this plan has no remaining open questions.** Ready to move from design to
+implementation planning (task breakdown, migration file, Edge Function scaffold) whenever you
+want to proceed.
