@@ -157,28 +157,28 @@ function positionBrand() {
 }
 window.addEventListener('resize', positionBrand);
 
-// ── Topbar marquee — character height is a hard floor (PSVAIR's 22mm
-// minimum, --min-text), never traded down for a long service+destination
-// combination, so a line too wide for the panel scrolls instead of
-// truncating. Only ever active when the text genuinely doesn't fit —
-// #sign-route-track (see onboard.css) has no .marquee class, and no
-// animation, until this measures a real overflow. Re-run whenever
-// onSchedule() sets new text (below) and on resize, mirroring
-// positionBrand's own pattern above.
+// ── Marquee — character height is a hard floor (PSVAIR's 22mm minimum,
+// --min-text), never traded down for a long line of text, so a line too
+// wide for the panel scrolls instead of truncating or wrapping. Generic:
+// used by the topbar's service+destination line (#sign-route-line/-track,
+// the original use, 2026-09-04) and, since 2026-09-08, the three-line
+// headline's town/stop lines (a bold two-word stop name at full 22mm size
+// can be too wide for the Solo tablet's narrower panel — found live,
+// wrapping onto an unwanted extra line). Only ever active when the text
+// genuinely doesn't fit — a track has no .marquee class, and no animation,
+// until this measures a real overflow.
 const MARQUEE_SPEED_PX_PER_S = 220; // fast, deliberately brisk per user feedback 2026-09-04 — tune here if it reads too fast/slow live
 const MARQUEE_MIN_DURATION_S = 2.5; // floor so a barely-overflowing line doesn't scroll imperceptibly fast
 
-function applyTopbarMarquee() {
-  const viewport = el('sign-route-line');
-  const track = el('sign-route-track');
+function applyMarquee(viewport, track) {
   track.classList.remove('marquee');
-  track.style.removeProperty('--topbar-marquee-start');
-  track.style.removeProperty('--topbar-marquee-end');
-  track.style.removeProperty('--topbar-marquee-duration');
-  // scrollWidth reflects the text just set by onSchedule() only once the
-  // browser has laid it out — reading it straight after a class/text change
-  // in the same tick is reliable in practice here (no animation/transition
-  // on the track itself to race), so no extra rAF/reflow trick is needed.
+  track.style.removeProperty('--marquee-start');
+  track.style.removeProperty('--marquee-end');
+  track.style.removeProperty('--marquee-duration');
+  // scrollWidth reflects the text just set only once the browser has laid
+  // it out — reading it straight after a class/text change in the same
+  // tick is reliable in practice here (no animation/transition on the
+  // track itself to race), so no extra rAF/reflow trick is needed.
   const viewportWidthPx = viewport.clientWidth;
   const trackWidthPx = track.scrollWidth;
   if (trackWidthPx <= viewportWidthPx) return; // fits — stays static, the common case
@@ -197,12 +197,29 @@ function applyTopbarMarquee() {
   const startPx = viewportWidthPx; // fully off-screen right
   const endPx = -trackWidthPx; // fully off-screen left
   const durationS = Math.max((startPx - endPx) / MARQUEE_SPEED_PX_PER_S, MARQUEE_MIN_DURATION_S);
-  track.style.setProperty('--topbar-marquee-start', `${startPx}px`);
-  track.style.setProperty('--topbar-marquee-end', `${endPx}px`);
-  track.style.setProperty('--topbar-marquee-duration', `${durationS}s`);
+  track.style.setProperty('--marquee-start', `${startPx}px`);
+  track.style.setProperty('--marquee-end', `${endPx}px`);
+  track.style.setProperty('--marquee-duration', `${durationS}s`);
   track.classList.add('marquee');
 }
-window.addEventListener('resize', applyTopbarMarquee);
+
+function applyTopbarMarquee() {
+  applyMarquee(el('sign-route-line'), el('sign-route-track'));
+}
+
+// Re-measures every currently-rendered headline town/stop line — plural
+// because a two-sentence sequence briefly holds none, and a resize can hit
+// while either line is showing.
+function applyHeadlineMarquees() {
+  el('sign-headline').querySelectorAll('.hl-marquee-viewport').forEach((viewport) => {
+    applyMarquee(viewport, viewport.querySelector('.hl-marquee-track'));
+  });
+}
+
+window.addEventListener('resize', () => {
+  applyTopbarMarquee();
+  applyHeadlineMarquees();
+});
 
 // ── Rendering — purely visual: no audio, no Supabase, no GPS — just DOM
 // updates off an already-resolved {stateKey, vars} pushed from whichever
@@ -268,19 +285,34 @@ function renderHeadlineText(stateKey, vars, text) {
     return;
   }
 
+  const verbLine = document.createElement('div');
+  verbLine.className = 'hl-verb';
+  verbLine.textContent = spec.verb;
+  // Stashed so updateEarlyWaitDisplay() can restore the plain verb text
+  // after overlaying (and later clearing) the "wait here" box on it.
+  verbLine.dataset.verbText = spec.verb;
+  headline.appendChild(verbLine);
+
+  // Town/stop each get a marquee viewport+track (see applyMarquee) rather
+  // than a plain div — a bold two-word stop name at the full 22mm-minimum
+  // size can be too wide for the Solo tablet's panel, and PSVAIR's minimum
+  // character height is never traded down for length (same reasoning as
+  // the topbar's own marquee) — found live 2026-09-08 wrapping onto an
+  // unwanted extra line. Static (no scroll) whenever the text actually
+  // fits — applyMarquee only adds .marquee on a real overflow.
   [
-    ['hl-verb', spec.verb],
     ['hl-town', stopName.slice(0, commaIndex).trim()],
     ['hl-stop', stopName.slice(commaIndex + 1).trim()],
   ].forEach(([className, lineText]) => {
-    const line = document.createElement('div');
-    line.className = className;
-    line.textContent = lineText;
-    // Stashed so updateEarlyWaitDisplay() can restore the plain verb text
-    // after overlaying (and later clearing) the "wait here" box on it.
-    if (className === 'hl-verb') line.dataset.verbText = lineText;
-    headline.appendChild(line);
+    const viewport = document.createElement('div');
+    viewport.className = `${className} hl-marquee-viewport`;
+    const track = document.createElement('div');
+    track.className = 'hl-marquee-track';
+    track.textContent = lineText;
+    viewport.appendChild(track);
+    headline.appendChild(viewport);
   });
+  applyHeadlineMarquees();
 }
 
 function showHeadline(stateKey, vars) {

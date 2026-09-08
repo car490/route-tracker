@@ -363,26 +363,30 @@ body {
   white-space: nowrap;
 }
 
-/* Infinite, no pause, no rest gap — user feedback 2026-09-04, arrived at
-   after three other versions (see applyTopbarMarquee's own comment for the
-   full history). Both ends of the loop (--topbar-marquee-start/-end,
-   below) are off-screen, so the infinite reset is invisible and the whole
-   visible motion reads as one continuous, uninterrupted scroll. */
-#sign-route-track.marquee {
-  animation-name: topbar-marquee;
-  animation-duration: var(--topbar-marquee-duration, 4s);
+/* Generic marquee animation — shared by the topbar's #sign-route-track and
+   (since 2026-09-08) the headline's .hl-marquee-track lines, see
+   onboard.js's applyMarquee(). Not scoped to either element by id/class
+   beyond .marquee itself, so any scrolling track can reuse it. Infinite, no
+   pause, no rest gap — user feedback 2026-09-04, arrived at after three
+   other versions (see applyMarquee's own comment for the full history).
+   Both ends of the loop (--marquee-start/-end, below) are off-screen, so the
+   infinite reset is invisible and the whole visible motion reads as one
+   continuous, uninterrupted scroll. */
+.marquee {
+  animation-name: line-marquee;
+  animation-duration: var(--marquee-duration, 4s);
   animation-timing-function: linear;
   animation-iteration-count: infinite;
 }
 
-/* --topbar-marquee-start/-end (px, set alongside --topbar-marquee-duration
-   by applyTopbarMarquee()) are the viewport's own width (fully off-screen
-   right) and the negative of the track's own full width (fully off-screen
-   left) — the segment enters by sliding in from the right rather than
-   popping into view already readable. */
-@keyframes topbar-marquee {
-  from { transform: translateX(var(--topbar-marquee-start, 0px)); }
-  to   { transform: translateX(var(--topbar-marquee-end, 0px)); }
+/* --marquee-start/-end (px, set alongside --marquee-duration by
+   applyMarquee()) are the viewport's own width (fully off-screen right) and
+   the negative of the track's own full width (fully off-screen left) — the
+   track enters by sliding in from the right rather than popping into view
+   already readable. */
+@keyframes line-marquee {
+  from { transform: translateX(var(--marquee-start, 0px)); }
+  to   { transform: translateX(var(--marquee-end, 0px)); }
 }
 
 /* A class, not #sign-service-code/#sign-destination directly — those ids
@@ -471,6 +475,26 @@ body {
 #sign-headline.hl-three-line .hl-town,
 #sign-headline.hl-three-line .hl-stop {
   font-weight: 800;
+}
+
+/* Marquee viewport/track for the town/stop lines — see onboard.js's
+   applyMarquee()/applyHeadlineMarquees(). width: 100% (not the flex
+   container's default content-fit sizing) so the viewport is the full
+   headline width to clip against, letting a two-word stop name that's
+   wider than that actually overflow and scroll rather than wrap — found
+   live 2026-09-08 at the full 22mm-minimum bold size. font/colour are
+   inherited from .hl-town/.hl-stop above, not repeated here. */
+.hl-marquee-viewport {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.hl-marquee-track {
+  display: inline-block;
+  white-space: nowrap;
 }
 
 /* "Wait here, running early" — same amber-box treatment as the Driver
