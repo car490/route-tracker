@@ -139,19 +139,29 @@ checks, not just a `playClip()` failure it papers over:
 
 - Before a journey starts (or before showing a stop that isn't cached yet), check that every
   clip the resolved route/schedule needs is present and hash-confirmed locally.
-- **Open question — needs your decision, not mine:** what happens when one is missing?
-  - **Option A — block.** Refuse to start the journey / suppress that specific announcement
-    entirely, with a clear operator-visible reason ("announcement audio not yet available for
-    [stop] — contact ops"). Strongest guarantee against G1 being violated; has a real
-    operational cost (a driver could be blocked from starting a route over one missing clip).
-  - **Option B — degrade to visual-only.** Show the on-screen text (already required regardless,
-    same as today) but play no audio for that one stop, and raise a loud, visible ops-facing
-    alert (not a silent `console.warn`) so the gap gets fixed fast. Keeps the journey running;
-    means a passenger gets the visual announcement but not audio for that specific stop until the
-    clip catches up.
 
-  This is a genuine product/compliance trade-off (safety/availability vs. the "never
-  synthesized" bar), and I'd rather you pick it explicitly than have it default one way.
+**Decided 2026-09-08 — hybrid, not either pure block or pure degrade:**
+
+- **Never block journey start.** A pure "block" design was rejected: it contradicts the
+  offline-resilience principle this codebase already shipped deliberately
+  (`docs/DECISIONS.md` "Offline resilience," 2026-08-25) — a manually-started journey is never
+  blocked by backend unavailability, and treating a missing clip differently from any other
+  backend hiccup would be inconsistent with that precedent. A driver can always start their
+  route.
+- **Surface it at two points, not zero.** At journey start, if any stop on the resolved route
+  lacks a confirmed clip, show the driver a visible, non-blocking warning ("audio not yet ready
+  for N stops on this route"). Separately, fire a loud ops-facing alert (not a silent
+  `console.warn`) so the gap gets fixed on a pipeline timescale rather than discovered via a
+  passenger complaint.
+- **Per stop, when actually reached: visual-only, never synthesized.** Show the on-screen text
+  (already required regardless, same as today) but play no audio for that specific stop rather
+  than falling back to `speechSynthesis`. This is the mechanism that actually delivers G1 — the
+  system is allowed to have a rare, narrow, self-correcting gap in *audio coverage*, but never
+  allowed to substitute a synthesized voice to paper over it.
+
+Rationale: keeps the "never synthesized" guarantee absolute (the actual requirement) without
+reversing the existing "never block a route over a backend issue" precedent, and replaces a
+silent gap with visibility at both dispatch time and in ops monitoring.
 
 ## Related: Solo → Lite conversion when a Driver device arrives later
 
@@ -227,9 +237,10 @@ scope — worth a second look regardless of whether the auto-detect UI above get
   produce (from `shared/announceStates.js`'s `ANNOUNCE_STATES`), assert a corresponding
   `announcement_clips` row exists post-drain — catches "text rule changed, clip pipeline didn't"
   before it ships.
-- **Client integration tests** (Vitest, both `driver/src` and `announce/src`): journey-start /
-  announcement behaviour when a required clip is absent — whichever of Option A/B is chosen,
-  test that behaviour explicitly, plus the ops-alert path for Option B.
+- **Client integration tests** (Vitest, both `driver/src` and `announce/src`): journey-start
+  proceeds with a visible non-blocking warning when a route has unconfirmed clips; a reached stop
+  with no confirmed clip shows visual-only and never calls `speechSynthesis`; the ops alert fires
+  in both cases.
 - **RLS tests** (`supabase/tests/`) for `announcement_clips`/`announcement_clip_jobs`, per
   existing convention — confirm anon can read clips but never write, and jobs are never
   anon/authenticated-writable at all (only the trigger and service-role Edge Function touch that
@@ -252,9 +263,9 @@ scope — worth a second look regardless of whether the auto-detect UI above get
 
 ## Open questions requiring your decision before implementation starts
 
-1. **Option A (block) vs Option B (degrade + alert)** for a journey/stop whose clip isn't
-   confirmed present yet — see above. This is the one decision that actually determines whether
-   G1 is met, not just approximated.
+1. ~~Option A (block) vs Option B (degrade + alert)~~ — **Decided 2026-09-08: hybrid.** See
+   "The part that actually delivers G1" above — never block journey start, warn at dispatch time
+   plus a loud ops alert, per-stop visual-only fallback, never synthesized.
 2. Keep a full build-time `manifest.json` for the service worker's install-time precache (so
    Driver still has every clip for full offline use from first install), or move to a bounded
    cache (e.g. prefetch only the current day's scheduled duty's stops)? The former keeps today's
