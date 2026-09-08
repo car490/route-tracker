@@ -428,7 +428,12 @@ function wcagContrastRatio(hex1, hex2) {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-const EP_PAPER = '#FFFFFF'; // white paper the accent sits on/against — accent is tested against this
+// Read from the CSS token rather than duplicated as a literal here — this
+// used to be a hardcoded '#FFFFFF' and silently drifted out of sync when
+// --ep-paper changed to the approved-palette off-white (#F9FAF4), found
+// 2026-09-08.
+const EP_PAPER = getComputedStyle(document.documentElement)
+  .getPropertyValue('--ep-paper').trim();
 // companies.accent_color's DB default — see comment above. Read from brand-tokens.css
 // (imported via onboard.css) rather than duplicated as a literal here.
 const PLATFORM_DEFAULT_ACCENT = getComputedStyle(document.documentElement)

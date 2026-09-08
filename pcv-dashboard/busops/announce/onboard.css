@@ -29,7 +29,13 @@
   --ep-font:      var(--pcv-font-sans);
 
   --ep-bg:        #ECEAE2;
-  --ep-ink:       #1A1A18;
+  /* Pure black, not a near-black like #1A1A18 — the passenger-facing sign
+     text (headline, brand mark, PSVAIR-relevant copy) is held to the
+     approved accessible palette's own documented ratios (docs/BRAND.md),
+     which are all computed against literal #000, not an near-black. Kept
+     as its own token rather than inlining #000 at each call site so the
+     "this is the mandated ink colour" intent stays legible. */
+  --ep-ink:       #000000;
   --ep-ink-soft:  #5A5850;
 
   --ep-teal:      var(--pcv-color-primary-action);
@@ -57,7 +63,11 @@
      property). Leaving it undeclared until onboard.js's setProperty() call
      is what makes `var(--operator-accent, var(--ep-purple))` below
      actually fall back to purple when no override applies. */
-  --ep-paper:       #FFFFFF;
+  /* Off-white, not pure #FFFFFF — one of the 5 swatches in the company's
+     approved accessible palette (docs/BRAND.md), chosen for the sign's main
+     background specifically for its contrast ratio against pure black text
+     (20.01:1, see --ep-ink above) — per user feedback 2026-09-08. */
+  --ep-paper:       #F9FAF4;
   --ep-purple:      #2E1065;
   --ep-purple-soft: rgba(255, 255, 255, 0.72);
 
