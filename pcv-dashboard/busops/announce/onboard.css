@@ -35,6 +35,14 @@
   --ep-teal:      var(--pcv-color-primary-action);
   --ep-late:      #EF4444;
   --ep-diversion: #F59E0B; /* amber — caution, distinct from the brand accent/purple bars */
+  /* Same amber as --ep-diversion by value, but a distinct token: this is
+     the Driver PWA's own --early token (busops/driver/style.css) for its
+     "WAIT HERE / running early" banner, reused here so the onboard sign's
+     early-wait indicator matches that display exactly, per user feedback
+     2026-09-08 — coincidence that it's the same hex as diversion's amber,
+     not a shared meaning; keep them separate tokens in case either needs
+     to change independently later. */
+  --ep-early:     #F59E0B;
 
   /* Brand accent, used by the top bar — the only colour besides white and
      the diversion amber anywhere on the sign. Defaults to CoachMate's dark
@@ -430,9 +438,74 @@ body {
   white-space: normal;
 }
 
-/* ── Early-wait caption — not one of the 7 display states (see
-   onboard.html's comment), kept small and secondary rather than a
-   competing full-size headline. */
+/* Verb phrase / town / stop stacked as three lines — see onboard.js's
+   renderHeadlineText(). Each line keeps the parent's font-size
+   (var(--min-text), the 22mm PSVAIR floor) — this is an alternate layout of
+   the same text, not a smaller/secondary treatment of any of it. The verb
+   phrase reads secondary in weight/tone (it carries no new information on
+   repeat announcements) while town/stop, the actual passenger-facing
+   content, stay full-weight. */
+#sign-headline.hl-three-line {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5vh;
+  line-height: 1.15;
+}
+
+#sign-headline.hl-three-line .hl-verb {
+  font-weight: 500;
+  color: var(--ep-ink-soft);
+}
+
+#sign-headline.hl-three-line .hl-town,
+#sign-headline.hl-three-line .hl-stop {
+  font-weight: 800;
+}
+
+/* "Wait here, running early" — same amber-box treatment as the Driver
+   PWA's own #early-wait-banner, rendered in place of the verb line's plain
+   text rather than as a separate block below the headline (see
+   onboard.js's updateEarlyWaitDisplay() for why: that separate block used
+   to roll off the bottom of the Solo tablet's squarer panel once the
+   headline grew to three lines). Sized to still clear a legible line
+   height at this position, not the full 22mm floor — this is a
+   supplementary status box, not the passenger-facing stop name itself
+   (which resumes here, same size as before, the moment this clears). */
+#sign-headline.hl-three-line .hl-verb.hl-verb--early {
+  background: var(--ep-early);
+  color: #000;
+  border-radius: 0.6vh;
+  padding: 0.4vh 2vw;
+  line-height: 1.2;
+  animation: ewb-flash 1s ease-in-out infinite;
+}
+
+#sign-headline.hl-three-line .hl-verb--early .ewb-title {
+  font-size: calc(var(--min-text) * 0.42);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #000;
+}
+
+#sign-headline.hl-three-line .hl-verb--early .ewb-msg {
+  font-size: calc(var(--min-text) * 0.3);
+  font-weight: 600;
+  margin-top: 0.2vh;
+  color: #000;
+}
+
+@keyframes ewb-flash {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+
+/* ── Early-wait caption fallback — only reached when the headline is
+   showing a single line (the resolved stop name had no comma to split
+   on), so the amber-box-on-the-verb-line treatment above has nothing to
+   attach to. Not one of the 7 display states (see onboard.html's
+   comment), kept small and secondary rather than a competing full-size
+   headline. */
 
 #early-wait-banner {
   text-align: center;
