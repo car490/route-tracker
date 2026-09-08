@@ -455,26 +455,31 @@ body {
 /* Verb phrase / town / stop stacked as three lines — see onboard.js's
    renderHeadlineText(). Each line keeps the parent's font-size
    (var(--min-text), the 22mm PSVAIR floor) — this is an alternate layout of
-   the same text, not a smaller/secondary treatment of any of it. The verb
-   phrase reads secondary in weight/tone (it carries no new information on
-   repeat announcements) while town/stop, the actual passenger-facing
-   content, stay full-weight. */
+   the same text, not a smaller/secondary treatment of any of it. All three
+   lines share one weight and colour — an earlier version made the verb
+   line lighter/greyer to read as secondary, but user feedback live on the
+   real tablet 2026-09-08 was that the visible weight/colour split looked
+   wrong, not intentional; 700 (one step down from the original town/stop
+   800) is the "something between" the two original weights the user asked
+   for, in pure black (--ep-ink) throughout. */
 #sign-headline.hl-three-line {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.5vh;
   line-height: 1.15;
-}
-
-#sign-headline.hl-three-line .hl-verb {
-  font-weight: 500;
-  color: var(--ep-ink-soft);
-}
-
-#sign-headline.hl-three-line .hl-town,
-#sign-headline.hl-three-line .hl-stop {
-  font-weight: 800;
+  font-weight: 700;
+  color: var(--ep-ink);
+  /* Small upward nudge — #sign-main centers this block via flex
+     justify-content, but it still read visually low on the real tablet
+     (more empty space below the last line than above the first) — per
+     user feedback 2026-09-08, most likely font-metric half-leading
+     asymmetry (most fonts reserve more space above cap-height than below
+     the baseline) rather than a real centering bug. Proportional to
+     --min-text, not a flat vh, so it scales with panel size like
+     everything else here. Re-tune this one value against the real device
+     if it's not quite balanced yet. */
+  margin-top: calc(var(--min-text) * -0.15);
 }
 
 /* Marquee viewport/track for the town/stop lines — see onboard.js's
