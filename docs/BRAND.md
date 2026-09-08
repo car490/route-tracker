@@ -62,6 +62,26 @@ tier.
   `pcv-dashboard/src/shared/brandTokens.test.js` guard those three links against naming a
   different family than the token.
 
+### Accessible surface palette
+
+Approved 2026-09-08 (user-supplied, pre-vetted for contrast against pure-black `#000000` text)
+— fills the "surface/background" gap noted below, at least for one real consumer so far. Each
+swatch's ratio is against literal black text, not `ink`/`#242F35` above — a stricter pairing,
+deliberately chosen where the "black text mandated" requirement applies (currently just the
+onboard sign, see below).
+
+| Hex | Contrast vs. black text | WCAG 2.2 AA (4.5:1 text) | In use |
+|---|---|---|---|
+| `#E3DADF` | 15.36:1 | ✅ pass | not yet adopted |
+| `#BAD9D5` | 13.97:1 | ✅ pass | not yet adopted |
+| `#BED6DF` | 13.87:1 | ✅ pass | not yet adopted |
+| `#D8E2F5` | 16.12:1 | ✅ pass | not yet adopted |
+| `#F9FAF4` | 20.01:1 | ✅ pass | **onboard sign main background** (`--ep-paper` in `busops/announce/onboard.css`), paired with `--ep-ink: #000000` |
+
+The other four are available as future surface/background tokens for other surfaces (dashboard
+cards, driver PWA) — adopt by adding a named role here and in `brand-tokens.css` when a real
+product need picks one, per the "don't silently fill" convention below.
+
 ### Semantic role tokens
 
 Products should consume **roles**, not raw hex values, so the brand can evolve without every
@@ -75,10 +95,14 @@ are defined below — see `brand-tokens.css` for the literal CSS.
 | `primary-action-hover` | PCV Cyan, darkened (`#009BBF`) | Button/link hover states |
 | `sidebar-accent-tint` | PCV Cyan, lightened (`#8CDDED`) | Dashboard sidebar accent — the base `primary-action` cyan only reaches ~3.1:1 contrast against the sidebar's slate background (fails WCAG AA); this tint reaches ~5.6:1 |
 
-**Gap, not silently filled:** roles like surface/background, and general success/warning/error
-states aren't established anywhere in the codebase today. Rather than invent values here,
-they're left undefined until a real product need defines them — add them to both this table
-and `brand-tokens.css` together when that happens, don't let them diverge.
+**Gap, not silently filled:** general success/warning/error states aren't established anywhere
+in the codebase today. Rather than invent values here, they're left undefined until a real
+product need defines them — add them to both this table and `brand-tokens.css` together when
+that happens, don't let them diverge. Surface/background got a first real answer 2026-09-08 —
+see "Accessible surface palette" above — but it's a per-consumer CSS token in each product's own
+stylesheet (`--ep-paper`, etc.) rather than a `brand-tokens.css` role yet, since only the onboard
+sign has picked one so far; promote it to a shared role here once a second surface adopts one of
+the remaining four.
 
 ### Logo
 

@@ -117,6 +117,7 @@ the rest of the product to the same bar.
 | `sidebar-accent-tint` on `sidebar-bg` (dashboard) | `#8CDDED` | `#475569` | 4.94:1 | 4.5:1 text | ✅ pass — already deliberately tuned as its own token, see `brand-tokens.css`'s comment on `--pcv-color-sidebar-accent-tint` |
 | `#app-brand` mark, `.cm-wordmark` (driver PWA footer, "PCV Technologies") | `#00B4D8` blended at 0.55 opacity → `#10788F` | `#242F35` | 2.68:1 | 4.5:1 text | ❌ **fail** |
 | `#app-brand` mark, `.cm-powered-by` ("From") | `#8BA4B0` blended at 0.55 opacity → `#5D6F79` | `#242F35` | 2.62:1 | 4.5:1 text | ❌ **fail** |
+| Onboard sign headline/main text (`--ep-ink` on `--ep-paper`, `busops/announce/onboard.css`) — added 2026-09-08, part of the "Accessible surface palette" in `docs/BRAND.md` | `#000000` | `#F9FAF4` | 20.01:1 | 4.5:1 text | ✅ pass |
 
 Dropped from this pass (resolved, no longer applicable): the original audit's Phil Haines
 Coaches gradient-logo finding — `pcv-dashboard/busops/shared/icons/icon-192.png`/`icon-512.png`
