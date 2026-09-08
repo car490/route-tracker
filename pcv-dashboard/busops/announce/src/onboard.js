@@ -237,6 +237,52 @@ function clearSequenceTimers() {
   sequenceTimers = [];
 }
 
+// APPROACHING ("This is X.") and STOP_DEPARTURE ("The next stop is X.") each
+// name a single stop (vars.stopName / vars.nextStopName) whose resolved text
+// (stops.announcement_name, see display_name() in schema.sql) is shaped
+// "Town,Specific stop" — split here so the sign can show it as three stacked
+// lines (verb phrase / town / stop) instead of one running sentence, per
+// user feedback 2026-09-07/08. Keyed off stateKey/vars, deliberately NOT by
+// pattern-matching the resolved sentence text: ROUTE_START's "This is a X to
+// Y." also starts with "This is" and can itself contain a comma (whenever Y
+// is Town,Stop-shaped), which a text-only regex mismatched into three
+// nonsense lines — found live 2026-09-08. Display-only — the spoken text
+// (speechSynthesis/pre-rendered clips) stays the one unchanged flowing
+// sentence; PSVAIR Reg 12(1) governs audio/visual content consistency, not
+// identical line-breaking.
+const HEADLINE_STOP_FIELD = {
+  [ANNOUNCE_STATES.APPROACHING]: { verb: 'This is', field: 'stopName' },
+  [ANNOUNCE_STATES.STOP_DEPARTURE]: { verb: 'The next stop is', field: 'nextStopName' },
+};
+
+function renderHeadlineText(stateKey, vars, text) {
+  const headline = el('sign-headline');
+  const spec = HEADLINE_STOP_FIELD[stateKey];
+  const stopName = spec ? vars[spec.field] : null;
+  const commaIndex = stopName ? stopName.indexOf(',') : -1;
+
+  headline.textContent = '';
+  headline.classList.toggle('hl-three-line', commaIndex !== -1);
+  if (commaIndex === -1) {
+    headline.textContent = text;
+    return;
+  }
+
+  [
+    ['hl-verb', spec.verb],
+    ['hl-town', stopName.slice(0, commaIndex).trim()],
+    ['hl-stop', stopName.slice(commaIndex + 1).trim()],
+  ].forEach(([className, lineText]) => {
+    const line = document.createElement('div');
+    line.className = className;
+    line.textContent = lineText;
+    // Stashed so updateEarlyWaitDisplay() can restore the plain verb text
+    // after overlaying (and later clearing) the "wait here" box on it.
+    if (className === 'hl-verb') line.dataset.verbText = lineText;
+    headline.appendChild(line);
+  });
+}
+
 function showHeadline(stateKey, vars) {
   const text = resolveAnnouncementText(stateKey, vars) ?? '';
   const sentences = text.split(/(?<=\.)\s+/);
@@ -244,17 +290,71 @@ function showHeadline(stateKey, vars) {
 
   clearSequenceTimers();
   if (sentences.length < 2) {
-    headline.textContent = text;
+    renderHeadlineText(stateKey, vars, text);
     return;
   }
 
-  headline.textContent = sentences[0];
+  renderHeadlineText(stateKey, vars, sentences[0]);
   sequenceTimers.push(setTimeout(() => {
     headline.textContent = '';
+    headline.classList.remove('hl-three-line');
     sequenceTimers.push(setTimeout(() => {
-      headline.textContent = sentences[1];
+      renderHeadlineText(stateKey, vars, sentences[1]);
     }, CLEAR_GAP_MS));
   }, FIRST_SENTENCE_MS));
+}
+
+function fmtEarlyWaitTime(earlyWait) {
+  return new Date(earlyWait.scheduledTime)
+    .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+// Renders the "wait here, running early" indicator as an amber box — same
+// treatment as the Driver PWA's own #early-wait-banner (busops/driver/
+// style.css) — directly over the three-line headline's verb line, instead
+// of a separate block below the headline. That separate block used to roll
+// off the bottom of the Solo tablet's squarer panel once the headline grew
+// to three lines; overlaying the verb line keeps the sign's total headline
+// height constant whether or not the bus is running early. Per user
+// feedback 2026-09-08: only ever shown during APPROACHING (i.e. while
+// dwelling at the stop the headline is currently naming — see
+// shared/gps.js's computeEarlyWait, only ever non-null mid-dwell) —
+// clears the instant STOP_DEPARTURE fires, since the bus is then moving and
+// "wait here" no longer applies.
+function updateEarlyWaitDisplay(stateKey, earlyWait) {
+  const headline = el('sign-headline');
+  const verbLine = headline.querySelector('.hl-verb');
+  const banner = el('early-wait-banner');
+
+  if (verbLine) {
+    banner.hidden = true;
+    const showEarly = !!earlyWait && stateKey === ANNOUNCE_STATES.APPROACHING;
+    verbLine.classList.toggle('hl-verb--early', showEarly);
+    if (showEarly) {
+      verbLine.replaceChildren(
+        Object.assign(document.createElement('div'), { className: 'ewb-title', textContent: 'WAIT HERE' }),
+        Object.assign(document.createElement('div'), {
+          className: 'ewb-msg',
+          textContent: `Running early — depart at ${fmtEarlyWaitTime(earlyWait)}`,
+        }),
+      );
+    } else {
+      verbLine.textContent = verbLine.dataset.verbText ?? verbLine.textContent;
+    }
+    return;
+  }
+
+  // Fallback for a single-line headline (resolved stop name has no comma) —
+  // the original below-headline banner, same terminus suppression as
+  // before this change: "running early, depart at X" doesn't mean anything
+  // once the bus has actually reached its final stop and passengers are
+  // being told to get off (found live 2026-09-02).
+  if (earlyWait && stateKey !== ANNOUNCE_STATES.AT_STOP) {
+    banner.hidden = false;
+    el('ewb-time').textContent = fmtEarlyWaitTime(earlyWait);
+  } else {
+    banner.hidden = true;
+  }
 }
 
 function render(stateKey, vars, earlyWait) {
@@ -277,21 +377,8 @@ function render(stateKey, vars, earlyWait) {
   // top, per user feedback 2026-09-02, not the only signal.
   el('onboard-sign').classList.toggle('terminus', stateKey === ANNOUNCE_STATES.AT_STOP);
 
-  // Suppressed at terminus — "running early, depart at X" doesn't mean
-  // anything once the bus has actually reached its final stop and
-  // passengers are being told to get off; found live, 2026-09-02, showing
-  // confusingly on top of the new terminus colour (pre-existing gap, not
-  // something this change introduced — earlyWait and stateKey were always
-  // independent — just made newly obvious by that background).
-  const banner = el('early-wait-banner');
-  if (earlyWait && stateKey !== ANNOUNCE_STATES.AT_STOP) {
-    banner.hidden = false;
-    el('ewb-time').textContent = new Date(earlyWait.scheduledTime)
-      .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-  } else {
-    banner.hidden = true;
-  }
-  positionBrand(); // banner toggling above can change the topbar's own height
+  updateEarlyWaitDisplay(stateKey, earlyWait);
+  positionBrand(); // banner/verb-line toggling above can change layout height
 }
 
 // ── Operator branding ─────────────────────────────────────────────────────
