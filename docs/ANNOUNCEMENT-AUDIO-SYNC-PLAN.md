@@ -153,6 +153,52 @@ checks, not just a `playClip()` failure it papers over:
   This is a genuine product/compliance trade-off (safety/availability vs. the "never
   synthesized" bar), and I'd rather you pick it explicitly than have it default one way.
 
+## Related: Solo → Lite conversion when a Driver device arrives later
+
+Came up during this review, not part of the audio pipeline itself, but the same "should this
+be automatic or explicit" question applies — folded in here rather than as a separate doc.
+
+**Question:** if a vehicle already has a Solo-commissioned Announce device installed (no
+driver, running its own GPS/autopilot per `announceSoloAutopilot.js`), and a Driver device is
+later installed in that same vehicle, should the Announce device implicitly convert to Lite
+(stop running its own tracking, become a pure renderer of the Driver's pushed state)?
+
+**Current mechanism, confirmed in `supabase/migration_announce_devices_solo_guard.sql`:**
+- The only path from Solo (`gps_source = 'internal'`) to Lite (`gps_source = 'driver-device'`)
+  is `link_announce_device(p_device_id, p_vehicle_id, p_force)`.
+- If the device is Solo-commissioned (`candidate_departure_ids` populated), the function
+  **refuses by default** — raises unless `p_force := true` is passed explicitly.
+- There is **no dashboard/PWA UI for this at all yet** — linking today is a manual
+  `select link_announce_device(...)` SQL call (`docs/TESTING.md` §17).
+
+**Why the guard exists:** a live incident on 2026-09-04 — a Solo tablet got linked (flipped to
+Lite) with no driver device ever actually pushing to it, so it sat blank indefinitely waiting
+for a feed that would never arrive. The fix has two halves: this DB-side refusal, plus a
+client-side watchdog (`shouldSelfHeal` in `announceLiteMode.js`) that reverts a stuck Lite
+device back to autopilot if no push arrives within a timeout — covering the case even when the
+guard *is* deliberately overridden with `p_force`.
+
+**Recommendation: detect-and-confirm, not fully automatic, not manual-SQL-only.**
+Neither extreme is right — full automation repeats the exact failure class the guard was built
+to stop (a flip nobody actively decided on, with a real if-bridged screen-blank gap); leaving it
+SQL-only is an acknowledged gap (the migration's own comment implies it), not a considered
+design. Concretely: when a Driver journey starts for a `vehicle_id` that already has an
+`announce_devices` row with `candidate_departure_ids` populated and `gps_source <> 'driver-device'`,
+surface a prompt in the ops dashboard ("this vehicle has a Solo-commissioned Announce device —
+link it to this driver?") and call `link_announce_device(..., p_force := true)` only on explicit
+confirmation. Natural home: the `tracking` or `vehicles` slice in `pcv-dashboard/src/features/`.
+
+**Security note, found while reading this function — worth checking independently of the above:**
+`link_announce_device` is `security definer` and its grant is `to anon` (matching the PWA's "no
+login, ever" convention). It checks that the device and vehicle share the same `company_id` as
+*each other*, but nothing in it checks the *caller* is authorized for that company — no
+`auth.uid()`/`current_company_id()` gate. Given the anon key is public by design (shipped in
+`busops/driver/src/config.js`, safe only because RLS is supposed to be what actually gates
+access), anyone holding it can currently link any device to any vehicle across any company, as
+long as that device and vehicle already share a `company_id`. Flagging this because it's a
+cross-tenant boundary on a `SECURITY DEFINER` function, not because it's part of this plan's
+scope — worth a second look regardless of whether the auto-detect UI above gets built.
+
 ## Rollout, phased
 
 1. **Build the pipeline, no client changes.** Storage bucket, `announcement_clips` +
@@ -219,3 +265,6 @@ checks, not just a `playClip()` failure it papers over:
    preview/dev tool for previewing wording changes before they ship?
 4. Any cost/rate concern about a bulk data change (e.g. a future large NaPTAN import) triggering
    a large drain batch against Azure in one go — do we need a per-drain-cycle cap?
+5. Solo → Lite conversion: build the detect-and-confirm ops-dashboard flow described above, or
+   leave device linking manual/SQL-only for now? Separately: should the `link_announce_device`
+   caller-authorization gap be fixed as its own fast-follow regardless of that decision?
