@@ -408,8 +408,21 @@ new hardware commitment now.
 Carried from PSV(AI)R Appendix A, not re-solved here — not committed
 roadmap items:
 
-- **Induction hearing loop** (§2.5) — not addressed anywhere in the
-  current build, independent of the audio-ownership decision above.
+- **Induction hearing loop** (§2.5) — an assistive-listening (T-coil) loop
+  for hard-of-hearing passengers, distinct from the PA/speaker audio path
+  above. Not addressed anywhere in the current build, and still has **no
+  assigned hardware owner or committed procurement** — carried over from
+  PSV(AI)R Appendix A, not re-solved here.
+  **If/when this gets picked up**, the software tie-in is small and
+  follows the same pattern already built for the PA amp: a loop driver
+  amplifier just needs an audio feed, so it would tap the same
+  announcement audio path (`announce()` → Controller playback,
+  `vehicle_audio_config` / `getAudioLevelForVehicle()` in
+  `src/audioConfigPipeline.js`) via a splitter or a second Controller
+  audio output — no new PSVAIR trigger logic, clip generation, or driver
+  PWA change needed. The work itself (loop driver + perimeter loop cable,
+  IEC 60118-4 field-strength calibration) is a professional install, not
+  something this repo builds.
 - **No door-open sensor** (§3.1) — GPS-confirmed arrival is used as a
   proxy trigger for "doors open" announcements instead.
 - **No alert-tone/chime** (§4A/5.1) — diversion and final-stop
@@ -720,6 +733,9 @@ ignition-switched-USB setup and isn't covered here.
 - **Display power connector + wattage** (§6) — panel itself still TBD.
 - **PA amp** (§4) — no amplifier/speaker hardware specified anywhere yet;
   the wiring implications depend on whether the AUX test succeeds.
+- **Induction hearing loop** (§4) — no loop driver or loop cable run
+  specified anywhere; same "not committed" status as the PA amp, budget
+  headroom only if this gets picked up.
 - **Bus Controller power draw** (§1) — needs reconfirming against the
   MeLE Quieter4C, not carried over from the old CM5-specific numbers.
 - **WiFi antenna routing** — not documented for the new board, see above.
