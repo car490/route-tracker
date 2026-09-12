@@ -1,201 +1,154 @@
-# Route Timing Tracker
+# CoachMate
 
-A zero-dependency PWA for tracking bus routes against a timed schedule in real time. No frameworks, no build tools, no data plan needed after first load.
+A real-time bus route timing system for Phil Haines Coaches drivers, plus an ops back-office
+dashboard. Three deployable surfaces share one Supabase backend:
+
+| Surface | Path | Stack | Deploys to |
+|---|---|---|---|
+| **BusOps Driver** (driver PWA) | `pcv-dashboard/busops/driver/` | Vanilla JS, ES modules, no build step | GitHub Pages today (live production); migrating to Cloudflare Workers (`driver.pcvtechnologies.co.uk`), auto-deployed from `develop` |
+| **PCV Dashboard** (ops back office) | `pcv-dashboard/` | React + Vite | Vercel, auto on push |
+| **BusOps Announce** (onboard passenger sign) | `pcv-dashboard/busops/announce/` + `mele-server/` | Vanilla JS + Node (WebSocket relay) | Bus Controller box + HDMI display |
+
+PCV Dashboard is the mandatory umbrella product every customer gets; BusOps (Driver + Announce)
+is the first product module built on it. See `docs/BRAND.md` for the full brand hierarchy.
 
 ---
 
 ## Purpose
 
-Drivers open the app on a phone before departure, select their service and run direction, then tap Start. The app uses the device GPS to measure distance to each upcoming stop, computes an ETA, and shows whether the run is **on time**, **early**, or **late**. Actual arrival times are recorded as each stop is passed, building a live log for the whole run.
+Drivers open **BusOps Driver** on a phone before departure, pick their scheduled duty (or a
+service manually), then tap Start. The app uses the device GPS to measure distance to each
+upcoming stop, computes an ETA against the timetable, and shows whether the run is on time,
+early, or late — advancing to the next stop automatically via geofencing, recording actual
+arrival times, and playing PSVAIR-compliant audio/visual announcements. **BusOps Announce** is a
+separate onboard sign, driven only by what the driver's device pushes to it over a local WiFi
+link — no GPS or database access of its own. **PCV Dashboard** is where ops staff manage routes,
+timetables, vehicles, employees, and live tracking.
 
 ---
 
-## How to run the dev server
+## Repo layout
 
-The project uses a split folder structure (`public/` for static assets, `src/` for ES modules). A zero-dependency Node server bridges both directories:
+```
+pcv-dashboard/                  # PCV Dashboard — Vercel app root
+├── src/, package.json, vite.config.js, ...   # the dashboard app itself
+├── coachmate/                   # empty — reserved for a future product
+└── busops/                      # BusOps product (Driver + Announce)
+    ├── package.json, wrangler.jsonc, server.js
+    ├── service-worker.js
+    ├── tests/                   # cross-cutting Jest suite
+    ├── shared/                  # shared between driver/ and announce/ (icons, gps/geofence, brand tokens)
+    ├── driver/                  # BusOps Driver (the PWA)
+    │   ├── index.html, manifest.json, style.css, lib/, audio/, cab-device/
+    │   └── src/
+    └── announce/                # BusOps Announce (onboard sign)
+        ├── onboard.html, onboard.css, src/onboard.js
+        └── mele-server/         # Bus Controller-side companion app
+
+supabase/           # Schema, migrations, RLS tests, edge functions — shared backend
+graphhopper/        # Local routing engine, shared infra
+scripts/            # Dev/release tooling shared across surfaces
+docs/               # Reference docs — see docs/DECISIONS.md for what's settled vs. open
+```
+
+There is no `public/` folder anywhere in this repo — the driver PWA is served directly from
+`pcv-dashboard/busops/driver/`.
+
+---
+
+## Running it locally
+
+Start all three local dev pieces (driver PWA, dashboard, local GraphHopper) together:
 
 ```sh
-cd route-tracker
-node server.js
+node scripts/dev-all.mjs
 ```
 
-Then open `http://localhost:8080` in Chrome.
+Or run pieces individually:
 
-> GPS and service workers require HTTPS in production. On `localhost` both work without it. To test on a phone use ngrok:
-> ```sh
-> ngrok http 8080
-> ```
-> Open the `https://…ngrok-free.app` URL in Chrome on the phone.
+```sh
+cd pcv-dashboard/busops && node server.js   # driver PWA        → http://localhost:8080
+cd pcv-dashboard && npm run dev             # ops dashboard      → http://localhost:5173
+```
+
+`http://localhost:8080/?debug` enables the PWA's debug mode (adds a Log tab, hides Directions).
+
+GPS and service workers require HTTPS in production; both work without it on `localhost`. To
+test on a phone, tunnel port 8080 (e.g. with ngrok) and open the HTTPS URL in Chrome/Safari, then
+**Add to Home Screen** to install the PWA.
+
+The PWA and dashboard both talk to a shared Supabase backend — dev vs. production project is
+selected automatically based on hostname (see `pcv-dashboard/busops/driver/src/config.js` and
+`pcv-dashboard/.env.development`).
 
 ---
 
-## How to install the PWA
+## Tests
 
-### Android (Chrome)
-1. Open the HTTPS URL in Chrome.
-2. Tap **⋮ → Add to Home screen → Install**.
+The driver PWA has two independent test setups (both run from `pcv-dashboard/busops/`):
 
-### iOS (Safari)
-1. Open the HTTPS URL in Safari.
-2. Tap the **Share** icon → **Add to Home Screen → Add**.
+```sh
+npm test              # Jest — tests/*.test.js (cross-cutting: driver/, announce/, shared/)
+npm run test:vitest   # Vitest — driver/src/*.test.js (co-located with the module they test)
+```
 
-Once installed, the app launches from the home screen icon and runs fully offline — GPS still works as it is a hardware API that does not need network.
+The dashboard has its own Vitest suite:
 
-> **Icons:** Place `icon-192.png` and `icon-512.png` in `public/icons/` to satisfy the manifest. Without them the PWA installs but shows a browser-default icon.
+```sh
+cd pcv-dashboard && npm test
+```
+
+CI (`.github/workflows/ci.yml`) runs all of the above plus dashboard lint/build on every push
+and PR.
+
+## Lint / build (dashboard only — the PWA has no build step)
+
+```sh
+cd pcv-dashboard
+npm run lint
+npm run build
+```
 
 ---
 
-## Using the app
+## Architecture
 
-### 1 — Picker screen
-On launch the app shows a picker with two dropdowns:
-
-| Field | Description |
-|---|---|
-| **Service** | Populated from the route keys in `schedule.json` (e.g. S125S, S116S) |
-| **Run** | AM or PM — defaults to AM before noon, PM from noon onwards |
-
-Tap **Start** to begin tracking.
-
-### 2 — Tracker screen
-The tracker screen has four sections, top to bottom:
-
-**Route header** — service number in a dark blue badge, followed by the first and last stop of the selected run in white.
-
-**Status card** — updates on every GPS fix:
-- Next stop name
-- Scheduled arrival time and computed ETA
-- Delta (e.g. `+2m` or `−1m`) coloured green / amber / red
-- Distance to next stop and current speed
-
-**Progress bar** — shows position through the run from first to last stop.
-
-**Stop list** — scrollable list of all stops with scheduled time and actual arrival time filled in as each stop is passed. The current next stop is highlighted and auto-scrolled into view.
-
-### Status colours
-| Colour | Meaning |
-|---|---|
-| Green border | On time (within ±2 minutes of schedule) |
-| Red border | Late (more than 2 minutes behind) |
-| Amber border | Early (more than 2 minutes ahead) |
-
-### Stop advancement
-The app advances to the next stop automatically when GPS places the vehicle within **30 metres** of the current next stop. No interaction needed.
-
-### Wake lock
-The app requests a screen wake lock on start so the display stays on throughout the run.
-
----
-
-## File structure
-
-```
-route-tracker/
-├── server.js             # Zero-dependency dev server (Node built-ins only)
-├── public/
-│   ├── index.html        # App shell — picker and tracker UI, SW registration
-│   ├── style.css         # Dark high-contrast theme, status classes, stop list
-│   ├── manifest.json     # PWA manifest
-│   └── service-worker.js # Cache-first offline strategy (versioned cache)
-├── src/
-│   ├── schedule.json     # All routes, keyed by service number
-│   ├── geo.js            # Pure haversine(lat1,lon1,lat2,lon2) → metres
-│   ├── engine.js         # Pure computeTiming({…}) → {status, eta, …}
-│   ├── gps.js            # navigator.geolocation wrapper; records arrivals
-│   ├── ui.js             # DOM updater — status card, progress bar, stop list
-│   └── main.js           # Entry point: picker logic, wake lock, GPS start
-└── tests/
-    └── engine.test.js    # Jest-compatible unit tests for the timing engine
-```
-
-### Data flow
-
+### Driver PWA data flow
 ```
 GPS fix
-  └─► gps.js  (haversine distance, 30m stop advancement, arrival timestamps)
-        └─► engine.js  (pure: ETA, minutesDifference, status)
-              └─► ui.js  (status card, progress bar, stop list)
+  └─► gps.js       (haversine distance, arrival timestamps)
+        └─► geofence.js   (pure: is-within-radius checks)
+        └─► engine.js     (pure: ETA, minutesDifference, on-time/early/late status)
+              └─► ui.js         (status card, progress bar, stop list)
+              └─► map.js        (Leaflet map, OSRM-routed polyline)
+              └─► directions.js (turn-by-turn for the current leg)
+              └─► announcements.js (PSVAIR announcement playback)
 ```
 
-Each module is a pure ES module with no circular imports. `gps.js` is the only layer with side effects (geolocation watch, clock reads).
+`main.js` wires the above together (picker/duty-card logic, wake lock, journey start/stop,
+Supabase upload of arrival times). The app falls back to a `localStorage` cache when Supabase is
+unreachable, and can start a journey offline, queuing the write for retry on reconnect.
+
+### Onboard sign (BusOps Announce)
+A pure renderer with no reads of its own — no GPS, no schedule queries, no logins. It's driven
+entirely by pushes from the driver's device (schedule at journey start, then live state updates)
+relayed through the Bus Controller box. See `docs/HARDWARE.md`.
+
+### Dashboard
+Vertical Slice Architecture — `pcv-dashboard/src/features/<slice>/` (e.g. `routes`,
+`route-planner`, `journeys`, `schedule`, `tracking`, `employees`, `vehicles`); shared code lives
+in `pcv-dashboard/src/shared/`.
 
 ---
 
-## Schedule format
+## Where to look next
 
-`src/schedule.json` is keyed by service number. Each service has an `am` and `pm` run:
-
-```json
-{
-  "S125S": {
-    "am": {
-      "service": "S125S",
-      "stops": [
-        { "name": "Stop Name", "lat": 52.807997, "lon": -0.083951, "time": "07:27" }
-      ]
-    },
-    "pm": {
-      "service": "S125S",
-      "stops": [ ... ]
-    }
-  }
-}
-```
-
-Stop coordinates are sourced from the NaPTAN database via bustimes.org.
-
-### Current routes
-
-| Service | AM | PM |
-|---|---|---|
-| S125S | Weston → Boston College (23 stops) | Boston College → Weston (23 stops) |
-| S116S | Boston Bus Station → Donington (30 stops) | Donington → Boston Bus Station (30 stops) |
-
----
-
-## Adding a new route
-
-1. Add a new key to `src/schedule.json` following the format above.
-2. Look up stop coordinates from [bustimes.org](https://bustimes.org) (NaPTAN data).
-3. Restart the server — the new service appears in the picker dropdown automatically.
-
-No code changes required.
-
----
-
-## How to run the tests
-
-The tests use Jest's `describe`/`test`/`expect` API with ES modules. Jest is a dev-only tool and is not part of the app bundle.
-
-```sh
-npm init -y
-npm install --save-dev jest @jest/globals
-
-npx jest --experimental-vm-modules tests/engine.test.js
-```
-
-`engine.js` is a pure function with no browser APIs so it runs in Node without any mocking.
-
----
-
-## Updating cached assets
-
-When any source file changes, bump the cache version in `public/service-worker.js`:
-
-```js
-const CACHE_NAME = 'route-tracker-v2';  // increment on each deployment
-```
-
-The old cache is deleted automatically on the next online visit.
-
----
-
-## How to extend
-
-| Goal | Where to change |
-|---|---|
-| Add a new route | `src/schedule.json` — new service key with `am`/`pm` stops |
-| Change late/early tolerance | `lateAllowanceMin` in `src/main.js` |
-| Change stop-advance radius | The `30` metre threshold in `src/gps.js` |
-| Change cache strategy | Fetch handler in `public/service-worker.js` |
-| Add new UI elements | `public/index.html` + `src/ui.js` |
+- **`CLAUDE.md`** — the canonical, detailed guide to this codebase (commands, Supabase schema
+  rules, git/release workflow, full architecture).
+- **`docs/DECISIONS.md`** — scannable ledger of settled vs. still-open architecture/hardware
+  decisions.
+- **`docs/HARDWARE.md`** — Bus Controller, GPS, displays, driver device, and onboard software
+  architecture.
+- **`docs/BRAND.md`** — company/product brand hierarchy and accessibility standard.
+- **`docs/TESTING.md`** — manual test guide for all three surfaces.
+- **`docs/TODO.md`** — known engineering follow-ups.
