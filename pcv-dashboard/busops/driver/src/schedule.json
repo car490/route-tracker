@@ -6,7 +6,7 @@
       "departure_time": "07:50",
       "stops": [
         {
-          "name": "Stickney, William Lovell School",
+          "name": "William Lovell School, Stickney",
           "lat": 53.091145,
           "lon": 0.003531,
           "time": "15:15",
@@ -15,7 +15,7 @@
           "stop_id": "43849a31-d4b9-471c-a034-2b07a7ed9c20"
         },
         {
-          "name": "Stickney, Primary School (adj)",
+          "name": "Primary School, Main Road, Stickney",
           "lat": 53.092841,
           "lon": 0.004789,
           "time": "15:20",
@@ -24,7 +24,7 @@
           "stop_id": "8bcc7ee1-0fd8-44e4-84d7-14fb331cefa7"
         },
         {
-          "name": "Stickney, Pinfold Lane (adj)",
+          "name": "Pinfold Lane, Main Road, Stickney",
           "lat": 53.079682,
           "lon": 0.006238,
           "time": "15:23",
@@ -33,7 +33,7 @@
           "stop_id": "f3db9b4c-6b46-4b52-acc8-23efd97b4f13"
         },
         {
-          "name": "Keal Cotes, The Coach House PH (opp)",
+          "name": "The Coach House PH, Keal Cotes",
           "lat": 53.127708,
           "lon": 0.0394,
           "time": "15:28",
@@ -42,7 +42,7 @@
           "stop_id": "8880428d-7826-40ec-8ba5-076e2460491a"
         },
         {
-          "name": "Stickford, Church Road (adj)",
+          "name": "Church Road, A16, Stickford",
           "lat": 53.117633,
           "lon": 0.017793,
           "time": "15:30",
@@ -51,7 +51,7 @@
           "stop_id": "ac754a09-81cd-4073-9fe3-53949672e6f1"
         },
         {
-          "name": "East Kirkby, War Memorial (opp)",
+          "name": "War Memorial, East Kirkby",
           "lat": 53.140834,
           "lon": -0.006538,
           "time": "15:38",
@@ -60,7 +60,7 @@
           "stop_id": "1c434d89-34ec-42e6-b5e9-4ec385bb6d76"
         },
         {
-          "name": "New Bolingbroke, Occupation Lane (opp)",
+          "name": "Occupation Lane, New Bolingbroke",
           "lat": 53.10386,
           "lon": -0.047462,
           "time": "15:42",
@@ -69,7 +69,7 @@
           "stop_id": "6d4ea3d2-f9e4-4e8c-a98a-009fe0261db2"
         },
         {
-          "name": "New Bolingbroke, Royal Oak Inn (opp)",
+          "name": "Royal Oak Inn, New Bolingbroke",
           "lat": 53.096355,
           "lon": -0.046502,
           "time": "15:43",
@@ -78,7 +78,7 @@
           "stop_id": "6b1b3c0e-d622-4481-8285-9addbef41db0"
         },
         {
-          "name": "Sandy Bank, Willow Farm (adj)",
+          "name": "Willow Farm, Sandy Bank",
           "lat": 53.080171,
           "lon": -0.120648,
           "time": "15:50",
@@ -87,7 +87,7 @@
           "stop_id": "01299dea-ffcb-49ba-8be2-186c55eeb839"
         },
         {
-          "name": "Sandy Bank, Willow Farm (adj)",
+          "name": "Willow Farm, Sandy Bank",
           "lat": 53.080171,
           "lon": -0.120648,
           "time": "15:52",
@@ -96,7 +96,7 @@
           "stop_id": "01299dea-ffcb-49ba-8be2-186c55eeb839"
         },
         {
-          "name": "Bunkers Hill, Hundlehouse Lane (NW-bound)",
+          "name": "Hundlehouse Lane, Leagate Road, Bunkers Hill",
           "lat": 53.058432,
           "lon": -0.10985,
           "time": "15:53",
@@ -105,7 +105,7 @@
           "stop_id": "580ef07d-6bbf-4c05-b857-e13f8d2c7bf9"
         },
         {
-          "name": "Gipsey Bridge, Castlegate (adj)",
+          "name": "Castlegate, Leagate Road, Gipsey Bridge",
           "lat": 53.03292,
           "lon": -0.09343,
           "time": "15:54",
@@ -114,7 +114,7 @@
           "stop_id": "c35eb9ed-852e-4a0d-b193-648e47a4860b"
         },
         {
-          "name": "Gipsey Bridge, Castlegate (adj)",
+          "name": "Castlegate, Leagate Road, Gipsey Bridge",
           "lat": 53.03292,
           "lon": -0.09343,
           "time": "15:56",
@@ -123,7 +123,7 @@
           "stop_id": "c35eb9ed-852e-4a0d-b193-648e47a4860b"
         },
         {
-          "name": "Langrick, Ivydene House (opp)",
+          "name": "Ivydene House",
           "lat": 53.022558731,
           "lon": -0.105797404,
           "time": "15:59",
@@ -132,7 +132,7 @@
           "stop_id": "fc678e8a-64d5-4c1b-9356-53ffeba17912"
         },
         {
-          "name": "Antons Gowt, Junction with Meer Booth Road (NW-bound)",
+          "name": "Junction Meer Booth Road, Leagate Road, Antons Gowt",
           "lat": 53.01134,
           "lon": -0.07081,
           "time": "16:04",
@@ -148,7 +148,7 @@
       "departure_time": "15:15",
       "stops": [
         {
-          "name": "Stickney, William Lovell School",
+          "name": "William Lovell School, Stickney",
           "lat": 53.091145,
           "lon": 0.003531,
           "time": "22:40",
@@ -157,7 +157,7 @@
           "stop_id": "43849a31-d4b9-471c-a034-2b07a7ed9c20"
         },
         {
-          "name": "Stickney, Primary School (adj)",
+          "name": "Primary School, Main Road, Stickney",
           "lat": 53.092841,
           "lon": 0.004789,
           "time": "22:45",
@@ -166,7 +166,7 @@
           "stop_id": "8bcc7ee1-0fd8-44e4-84d7-14fb331cefa7"
         },
         {
-          "name": "Stickney, Pinfold Lane (adj)",
+          "name": "Pinfold Lane, Main Road, Stickney",
           "lat": 53.079682,
           "lon": 0.006238,
           "time": "22:48",
@@ -175,7 +175,7 @@
           "stop_id": "f3db9b4c-6b46-4b52-acc8-23efd97b4f13"
         },
         {
-          "name": "Keal Cotes, The Coach House PH (opp)",
+          "name": "The Coach House PH, Keal Cotes",
           "lat": 53.127708,
           "lon": 0.0394,
           "time": "22:53",
@@ -184,7 +184,7 @@
           "stop_id": "8880428d-7826-40ec-8ba5-076e2460491a"
         },
         {
-          "name": "Stickford, Church Road (adj)",
+          "name": "Church Road, A16, Stickford",
           "lat": 53.117633,
           "lon": 0.017793,
           "time": "22:55",
@@ -193,7 +193,7 @@
           "stop_id": "ac754a09-81cd-4073-9fe3-53949672e6f1"
         },
         {
-          "name": "East Kirkby, War Memorial (opp)",
+          "name": "War Memorial, East Kirkby",
           "lat": 53.140834,
           "lon": -0.006538,
           "time": "23:03",
@@ -202,7 +202,7 @@
           "stop_id": "1c434d89-34ec-42e6-b5e9-4ec385bb6d76"
         },
         {
-          "name": "New Bolingbroke, Occupation Lane (opp)",
+          "name": "Occupation Lane, New Bolingbroke",
           "lat": 53.10386,
           "lon": -0.047462,
           "time": "23:07",
@@ -211,7 +211,7 @@
           "stop_id": "6d4ea3d2-f9e4-4e8c-a98a-009fe0261db2"
         },
         {
-          "name": "New Bolingbroke, Royal Oak Inn (opp)",
+          "name": "Royal Oak Inn, New Bolingbroke",
           "lat": 53.096355,
           "lon": -0.046502,
           "time": "23:08",
@@ -220,7 +220,7 @@
           "stop_id": "6b1b3c0e-d622-4481-8285-9addbef41db0"
         },
         {
-          "name": "Sandy Bank, Willow Farm (adj)",
+          "name": "Willow Farm, Sandy Bank",
           "lat": 53.080171,
           "lon": -0.120648,
           "time": "23:15",
@@ -229,7 +229,7 @@
           "stop_id": "01299dea-ffcb-49ba-8be2-186c55eeb839"
         },
         {
-          "name": "Sandy Bank, Willow Farm (adj)",
+          "name": "Willow Farm, Sandy Bank",
           "lat": 53.080171,
           "lon": -0.120648,
           "time": "23:17",
@@ -238,7 +238,7 @@
           "stop_id": "01299dea-ffcb-49ba-8be2-186c55eeb839"
         },
         {
-          "name": "Bunkers Hill, Hundlehouse Lane (NW-bound)",
+          "name": "Hundlehouse Lane, Leagate Road, Bunkers Hill",
           "lat": 53.058432,
           "lon": -0.10985,
           "time": "23:18",
@@ -247,7 +247,7 @@
           "stop_id": "580ef07d-6bbf-4c05-b857-e13f8d2c7bf9"
         },
         {
-          "name": "Gipsey Bridge, Castlegate (adj)",
+          "name": "Castlegate, Leagate Road, Gipsey Bridge",
           "lat": 53.03292,
           "lon": -0.09343,
           "time": "23:19",
@@ -256,7 +256,7 @@
           "stop_id": "c35eb9ed-852e-4a0d-b193-648e47a4860b"
         },
         {
-          "name": "Gipsey Bridge, Castlegate (adj)",
+          "name": "Castlegate, Leagate Road, Gipsey Bridge",
           "lat": 53.03292,
           "lon": -0.09343,
           "time": "23:21",
@@ -265,7 +265,7 @@
           "stop_id": "c35eb9ed-852e-4a0d-b193-648e47a4860b"
         },
         {
-          "name": "Langrick, Ivydene House (opp)",
+          "name": "Ivydene House",
           "lat": 53.022558731,
           "lon": -0.105797404,
           "time": "23:24",
@@ -274,7 +274,7 @@
           "stop_id": "fc678e8a-64d5-4c1b-9356-53ffeba17912"
         },
         {
-          "name": "Antons Gowt, Junction with Meer Booth Road (NW-bound)",
+          "name": "Junction Meer Booth Road, Leagate Road, Antons Gowt",
           "lat": 53.01134,
           "lon": -0.07081,
           "time": "23:29",
@@ -292,7 +292,7 @@
       "departure_time": "07:54",
       "stops": [
         {
-          "name": "Kirton, War Memorial (opp)",
+          "name": "War Memorial, High Street, Kirton",
           "lat": 52.92897,
           "lon": -0.0581,
           "time": "07:54",
@@ -301,7 +301,7 @@
           "stop_id": "a5a43dae-b3cf-47da-86b3-2fddb4c74b81"
         },
         {
-          "name": "Wyberton, Pincushion Inn (adj)",
+          "name": "Pincushion Inn, London Road, Wyberton",
           "lat": 52.951864,
           "lon": -0.044044,
           "time": "07:58",
@@ -310,7 +310,7 @@
           "stop_id": "f307468c-0d2e-4df4-9daa-a63f90604f6b"
         },
         {
-          "name": "Wyberton, Tytton Lane East (adj)",
+          "name": "Tytton Lane East, Wyberton Low Road",
           "lat": 52.958427,
           "lon": -0.019599,
           "time": "08:01",
@@ -319,7 +319,7 @@
           "stop_id": "49b7159a-8ded-43ec-82b1-bf5a7b29e132"
         },
         {
-          "name": "Boston, Bus Station (Bay 1)",
+          "name": "Bus Station, Rosegarth Street, Boston",
           "lat": 52.976744,
           "lon": -0.028443,
           "time": "08:10",
@@ -328,7 +328,7 @@
           "stop_id": "b963f833-ad7c-4702-8f80-7b4774e56d8e"
         },
         {
-          "name": "Stickney, William Lovell School",
+          "name": "William Lovell School, Stickney",
           "lat": 53.091145,
           "lon": 0.003531,
           "time": "08:35",
@@ -344,7 +344,7 @@
       "departure_time": "15:15",
       "stops": [
         {
-          "name": "Stickney, William Lovell School",
+          "name": "William Lovell School, Stickney",
           "lat": 53.091145,
           "lon": 0.003531,
           "time": "15:15",
@@ -353,7 +353,7 @@
           "stop_id": "43849a31-d4b9-471c-a034-2b07a7ed9c20"
         },
         {
-          "name": "Boston, Bus Station (Bay 1)",
+          "name": "Bus Station, Rosegarth Street, Boston",
           "lat": 52.976744,
           "lon": -0.028443,
           "time": "15:40",
@@ -362,7 +362,7 @@
           "stop_id": "b963f833-ad7c-4702-8f80-7b4774e56d8e"
         },
         {
-          "name": "Wyberton, Tytton Lane East (adj)",
+          "name": "Tytton Lane East, Wyberton Low Road",
           "lat": 52.958427,
           "lon": -0.019599,
           "time": "15:49",
@@ -371,7 +371,7 @@
           "stop_id": "49b7159a-8ded-43ec-82b1-bf5a7b29e132"
         },
         {
-          "name": "Wyberton, Pincushion Inn (adj)",
+          "name": "Pincushion Inn, London Road, Wyberton",
           "lat": 52.951864,
           "lon": -0.044044,
           "time": "15:52",
@@ -380,7 +380,7 @@
           "stop_id": "f307468c-0d2e-4df4-9daa-a63f90604f6b"
         },
         {
-          "name": "Kirton, War Memorial (opp)",
+          "name": "War Memorial, High Street, Kirton",
           "lat": 52.92897,
           "lon": -0.0581,
           "time": "15:56",
@@ -552,7 +552,7 @@
       "departure_time": "07:40",
       "stops": [
         {
-          "name": "Boston, Bus Station (Bay 8)",
+          "name": "Boston Bus Station",
           "lat": 52.976687,
           "lon": -0.029339,
           "time": "07:40",
@@ -561,7 +561,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000001"
         },
         {
-          "name": "Boston, The Minstrels (adj)",
+          "name": "The Minstrels, Sleaford Road, Boston",
           "lat": 52.97684,
           "lon": -0.04244,
           "time": "07:43",
@@ -570,7 +570,7 @@
           "stop_id": "bbb6e60b-18a4-4b8a-ab29-5ea40b4c8f76"
         },
         {
-          "name": "Boston, Rosebery Avenue (opp)",
+          "name": "Boston,Rosebery Avenue",
           "lat": 52.975334,
           "lon": -0.048138,
           "time": "07:44",
@@ -579,7 +579,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000003"
         },
         {
-          "name": "Boston, Footpath to Arundel Crescent (opp)",
+          "name": "Boston,Footpath to Arundel Crescent",
           "lat": 52.974449,
           "lon": -0.051216,
           "time": "07:44",
@@ -588,7 +588,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000004"
         },
         {
-          "name": "Boston, Wyberton High Bridge (SW-bound)",
+          "name": "Boston Wyberton High Bridge",
           "lat": 52.972652,
           "lon": -0.057314,
           "time": "07:45",
@@ -597,7 +597,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000005"
         },
         {
-          "name": "Boston, Oldrids (opp)",
+          "name": "Boston,Oldrids",
           "lat": 52.970495,
           "lon": -0.058468,
           "time": "07:46",
@@ -606,7 +606,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000006"
         },
         {
-          "name": "Wyberton, Pincushion Inn (opp)",
+          "name": "Wyberton,Pincushion Inn",
           "lat": 52.952315,
           "lon": -0.043071,
           "time": "07:53",
@@ -615,7 +615,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000007"
         },
         {
-          "name": "Wyberton, Ralphs Lane (opp)",
+          "name": "Wyberton,Ralphs Lane",
           "lat": 52.949823,
           "lon": -0.046265,
           "time": "07:53",
@@ -624,7 +624,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000008"
         },
         {
-          "name": "Frampton, Millfield Lane West (adj)",
+          "name": "Frampton,Millfield Lane West",
           "lat": 52.947574,
           "lon": -0.048911,
           "time": "07:54",
@@ -633,7 +633,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000009"
         },
         {
-          "name": "Frampton, Middlegate Road (adj)",
+          "name": "Frampton,Middlegate Road",
           "lat": 52.936887,
           "lon": -0.05786,
           "time": "07:55",
@@ -642,7 +642,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000010"
         },
         {
-          "name": "Kirton, Woodlands Court (opp)",
+          "name": "Woodlands Court, Boston Road, Kirton",
           "lat": 52.93226,
           "lon": -0.05848,
           "time": "07:57",
@@ -651,7 +651,7 @@
           "stop_id": "c2a13592-2b75-4574-ae6f-8894fda2935d"
         },
         {
-          "name": "Kirton, War Memorial (adj)",
+          "name": "Kirton,War Memorial",
           "lat": 52.928605,
           "lon": -0.058305,
           "time": "07:58",
@@ -660,7 +660,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000012"
         },
         {
-          "name": "Kirton End, Post Office (NW-bound)",
+          "name": "Kirton End Post Office",
           "lat": 52.942522,
           "lon": -0.080423,
           "time": "08:03",
@@ -669,7 +669,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000013"
         },
         {
-          "name": "Blackjack, Crossroads (N-bound)",
+          "name": "Blackjack Crossroads",
           "lat": 52.939293,
           "lon": -0.124779,
           "time": "08:05",
@@ -678,7 +678,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000014"
         },
         {
-          "name": "Swineshead, Fenhouses Lane (adj)",
+          "name": "Swineshead,Fenhouses Lane",
           "lat": 52.946015,
           "lon": -0.127451,
           "time": "08:07",
@@ -687,7 +687,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000015"
         },
         {
-          "name": "Kirton Holme, Fenhouses Drove (adj)",
+          "name": "Kirton Holme,Fenhouses Drove",
           "lat": 52.958665,
           "lon": -0.133217,
           "time": "08:08",
@@ -696,7 +696,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000016"
         },
         {
-          "name": "Baythorpe, Hardwick Plot Lane (opp)",
+          "name": "Baythorpe,Hardwick Plot Lane",
           "lat": 52.957289,
           "lon": -0.146973,
           "time": "08:10",
@@ -705,7 +705,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000017"
         },
         {
-          "name": "Swineshead, Golden Cross PH (opp)",
+          "name": "Swineshead,Golden Cross PH",
           "lat": 52.955383,
           "lon": -0.169013,
           "time": "08:13",
@@ -714,7 +714,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000018"
         },
         {
-          "name": "Swineshead, Tarry Hill (adj)",
+          "name": "Swineshead,Tarry Hill",
           "lat": 52.953391,
           "lon": -0.166313,
           "time": "08:15",
@@ -723,7 +723,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000019"
         },
         {
-          "name": "Swineshead, Cole's Lane (opp)",
+          "name": "Swineshead,Cole's Lane",
           "lat": 52.949887,
           "lon": -0.162427,
           "time": "08:15",
@@ -732,7 +732,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000020"
         },
         {
-          "name": "Swineshead, King John's Road (adj)",
+          "name": "Swineshead,King John's Road",
           "lat": 52.947266,
           "lon": -0.160961,
           "time": "08:16",
@@ -741,7 +741,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000021"
         },
         {
-          "name": "Swineshead, St Mary's Church (opp)",
+          "name": "Swineshead,St Mary's Church",
           "lat": 52.945254,
           "lon": -0.159305,
           "time": "08:17",
@@ -750,7 +750,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000022"
         },
         {
-          "name": "Swineshead, Bullens Lane (adj)",
+          "name": "Swineshead,Bullens Lane",
           "lat": 52.941771,
           "lon": -0.15731,
           "time": "08:17",
@@ -759,7 +759,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000023"
         },
         {
-          "name": "Swineshead, High Green (adj)",
+          "name": "Swineshead,High Green",
           "lat": 52.936049,
           "lon": -0.15416,
           "time": "08:18",
@@ -768,7 +768,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000024"
         },
         {
-          "name": "Swineshead, Bentley's Garage (adj)",
+          "name": "Swineshead,Bentley's Garage",
           "lat": 52.93341,
           "lon": -0.1539,
           "time": "08:18",
@@ -777,7 +777,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000025"
         },
         {
-          "name": "Bicker Bar, Bicker Bar Hotel (opp)",
+          "name": "Bicker Bar Hotel",
           "lat": 52.931014,
           "lon": -0.157067,
           "time": "08:19",
@@ -786,7 +786,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000026"
         },
         {
-          "name": "Northorpe, Browntoft Lane (adj)",
+          "name": "Northorpe,Browntoft Lane",
           "lat": 52.911188,
           "lon": -0.194405,
           "time": "08:21",
@@ -795,7 +795,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000027"
         },
         {
-          "name": "Northorpe, Church Street (adj)",
+          "name": "Northorpe,Church Street",
           "lat": 52.908128,
           "lon": -0.203648,
           "time": "08:22",
@@ -804,7 +804,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000028"
         },
         {
-          "name": "Donington, Market Place (adj)",
+          "name": "Donington,Market Place",
           "lat": 52.905188,
           "lon": -0.20429,
           "time": "08:24",
@@ -813,7 +813,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000029"
         },
         {
-          "name": "Donington, Cowley Secondary School (o/s)",
+          "name": "Donington, o/s Cowley Secondary School",
           "lat": 52.904789,
           "lon": -0.198715,
           "time": "08:25",
@@ -829,7 +829,7 @@
       "departure_time": "15:23",
       "stops": [
         {
-          "name": "Donington, Cowley Secondary School (o/s)",
+          "name": "Donington, o/s Cowley Secondary School",
           "lat": 52.904789,
           "lon": -0.198715,
           "time": "15:23",
@@ -838,7 +838,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000030"
         },
         {
-          "name": "Donington, Market Place (opp)",
+          "name": "Donington,Market Place",
           "lat": 52.904987,
           "lon": -0.204655,
           "time": "15:24",
@@ -847,7 +847,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000002"
         },
         {
-          "name": "Northorpe, Church Street (opp)",
+          "name": "Northorpe,Church Street",
           "lat": 52.908371,
           "lon": -0.203073,
           "time": "15:27",
@@ -856,7 +856,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000003"
         },
         {
-          "name": "Northorpe, Browntoft Lane (opp)",
+          "name": "Northorpe,Browntoft Lane",
           "lat": 52.911166,
           "lon": -0.194763,
           "time": "15:28",
@@ -865,7 +865,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000004"
         },
         {
-          "name": "Bicker Bar, Bicker Bar Hotel (adj)",
+          "name": "Bicker Bar Hotel",
           "lat": 52.93101,
           "lon": -0.15738,
           "time": "15:30",
@@ -874,7 +874,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000005"
         },
         {
-          "name": "Swineshead, Bentley's Garage (opp)",
+          "name": "Swineshead,Bentley's Garage",
           "lat": 52.933377,
           "lon": -0.154095,
           "time": "15:31",
@@ -883,7 +883,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000006"
         },
         {
-          "name": "Swineshead, High Green (opp)",
+          "name": "Swineshead,High Green",
           "lat": 52.935989,
           "lon": -0.154401,
           "time": "15:31",
@@ -892,7 +892,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000007"
         },
         {
-          "name": "Swineshead, Bullens Lane (opp)",
+          "name": "Swineshead,Bullens Lane",
           "lat": 52.941584,
           "lon": -0.157422,
           "time": "15:32",
@@ -901,7 +901,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000008"
         },
         {
-          "name": "Swineshead, St Mary's Church (adj)",
+          "name": "Swineshead,St Mary's Church",
           "lat": 52.944598,
           "lon": -0.159318,
           "time": "15:32",
@@ -910,7 +910,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000009"
         },
         {
-          "name": "Swineshead, King John's Road (opp)",
+          "name": "Swineshead,King John's Road",
           "lat": 52.947342,
           "lon": -0.161226,
           "time": "15:33",
@@ -919,7 +919,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000010"
         },
         {
-          "name": "Swineshead, Cole's Lane (adj)",
+          "name": "Swineshead,Cole's Lane",
           "lat": 52.949551,
           "lon": -0.162159,
           "time": "15:33",
@@ -928,7 +928,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000011"
         },
         {
-          "name": "Swineshead, Tarry Hill (opp)",
+          "name": "Swineshead,Tarry Hill",
           "lat": 52.951651,
           "lon": -0.164883,
           "time": "15:35",
@@ -937,7 +937,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000012"
         },
         {
-          "name": "Swineshead, Golden Cross PH (o/s)",
+          "name": "Golden Cross PH, Boston Road, Swineshead",
           "lat": 52.95544,
           "lon": -0.16914,
           "time": "15:37",
@@ -946,7 +946,7 @@
           "stop_id": "f14e3a5e-c097-4aa7-a02a-8cb7b7f8fc2a"
         },
         {
-          "name": "Baythorpe, Hardwick Plot Lane (adj)",
+          "name": "Baythorpe,Hardwick Plot Lane",
           "lat": 52.957341,
           "lon": -0.146837,
           "time": "15:40",
@@ -955,7 +955,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000014"
         },
         {
-          "name": "Kirton Holme, Fenhouses Drove (opp)",
+          "name": "Kirton Holme,Fenhouses Drove",
           "lat": 52.95881,
           "lon": -0.133255,
           "time": "15:42",
@@ -964,7 +964,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000015"
         },
         {
-          "name": "Swineshead, Fenhouses Lane (opp)",
+          "name": "Swineshead,Fenhouses Lane",
           "lat": 52.94604,
           "lon": -0.127316,
           "time": "15:43",
@@ -973,7 +973,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000016"
         },
         {
-          "name": "Blackjack, Crossroads (S-bound)",
+          "name": "Blackjack Crossroads",
           "lat": 52.939308,
           "lon": -0.124615,
           "time": "15:45",
@@ -982,7 +982,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000017"
         },
         {
-          "name": "Kirton End, Post Office (SW-bound)",
+          "name": "Kirton End Post Office",
           "lat": 52.942661,
           "lon": -0.080104,
           "time": "15:47",
@@ -991,7 +991,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000018"
         },
         {
-          "name": "Kirton, War Memorial (opp)",
+          "name": "War Memorial, High Street, Kirton",
           "lat": 52.92897,
           "lon": -0.0581,
           "time": "15:52",
@@ -1000,7 +1000,7 @@
           "stop_id": "a5a43dae-b3cf-47da-86b3-2fddb4c74b81"
         },
         {
-          "name": "Kirton, Woodlands Court (adj)",
+          "name": "Kirton,Woodlands Court",
           "lat": 52.932162,
           "lon": -0.058681,
           "time": "15:52",
@@ -1009,7 +1009,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000020"
         },
         {
-          "name": "Frampton, Middlegate Road (opp)",
+          "name": "Frampton,Middlegate Road",
           "lat": 52.937541,
           "lon": -0.057696,
           "time": "15:53",
@@ -1018,7 +1018,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000021"
         },
         {
-          "name": "Frampton, Millfield Lane West (opp)",
+          "name": "Frampton,Millfield Lane West",
           "lat": 52.947447,
           "lon": -0.049349,
           "time": "15:53",
@@ -1027,7 +1027,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000022"
         },
         {
-          "name": "Wyberton, Ralphs Lane (adj)",
+          "name": "Wyberton,Ralphs Lane",
           "lat": 52.950092,
           "lon": -0.046223,
           "time": "15:54",
@@ -1036,7 +1036,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000023"
         },
         {
-          "name": "Wyberton, Pincushion Inn (adj)",
+          "name": "Pincushion Inn, London Road, Wyberton",
           "lat": 52.951864,
           "lon": -0.044044,
           "time": "15:55",
@@ -1045,7 +1045,7 @@
           "stop_id": "f307468c-0d2e-4df4-9daa-a63f90604f6b"
         },
         {
-          "name": "Boston, Oldrids (adj)",
+          "name": "Boston,Oldrids",
           "lat": 52.970562,
           "lon": -0.058703,
           "time": "16:01",
@@ -1054,7 +1054,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000025"
         },
         {
-          "name": "Boston, Wyberton High Bridge (NE-bound)",
+          "name": "Boston Wyberton High Bridge",
           "lat": 52.972934,
           "lon": -0.056959,
           "time": "16:02",
@@ -1063,7 +1063,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000026"
         },
         {
-          "name": "Boston, Footpath to Arundel Crescent (adj)",
+          "name": "Boston,Footpath to Arundel Crescent",
           "lat": 52.974626,
           "lon": -0.051014,
           "time": "16:03",
@@ -1072,7 +1072,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000027"
         },
         {
-          "name": "Boston, Rosebery Avenue (adj)",
+          "name": "Rosebery Avenue, Sleaford Road, Boston",
           "lat": 52.975425,
           "lon": -0.048208,
           "time": "16:04",
@@ -1081,7 +1081,7 @@
           "stop_id": "d50ee2f0-66c3-4a7e-9ed1-a16efde126a9"
         },
         {
-          "name": "Boston, The Minstrels (opp)",
+          "name": "Boston,The Minstrels",
           "lat": 52.977,
           "lon": -0.042328,
           "time": "16:05",
@@ -1090,7 +1090,7 @@
           "stop_id": "00000000-0000-0000-0005-000000000029"
         },
         {
-          "name": "Boston, Bus Station (Bay 8)",
+          "name": "Boston Bus Station",
           "lat": 52.976687,
           "lon": -0.029339,
           "time": "16:08",
@@ -1108,7 +1108,7 @@
       "departure_time": "07:27",
       "stops": [
         {
-          "name": "Weston, The Chequers PH (adj)",
+          "name": "Weston,The Chequers",
           "lat": 52.808106507,
           "lon": -0.084034973,
           "time": "07:27",
@@ -1117,7 +1117,7 @@
           "stop_id": "00000000-0000-0000-0002-000000000001"
         },
         {
-          "name": "Weston, Delgate Bank (opp)",
+          "name": "Weston,Delgate Bank",
           "lat": 52.807162,
           "lon": -0.074017,
           "time": "07:28",
@@ -1126,7 +1126,7 @@
           "stop_id": "00000000-0000-0000-0002-000000000002"
         },
         {
-          "name": "Moulton, Bell Lane (opp)",
+          "name": "Moulton,Bell Lane",
           "lat": 52.805379,
           "lon": -0.065016,
           "time": "07:30",
@@ -1135,7 +1135,7 @@
           "stop_id": "00000000-0000-0000-0002-000000000003"
         },
         {
-          "name": "Moulton, River Lane (adj)",
+          "name": "Moulton,River Lane",
           "lat": 52.804524,
           "lon": -0.057221,
           "time": "07:31",
@@ -1144,7 +1144,7 @@
           "stop_id": "00000000-0000-0000-0002-000000000004"
         },
         {
-          "name": "Whaplode, St Mary's Gardens (opp)",
+          "name": "Whaplode,St Mary's Gardens",
           "lat": 52.800272,
           "lon": -0.041953,
           "time": "07:34",
@@ -1153,7 +1153,7 @@
           "stop_id": "00000000-0000-0000-0002-000000000005"
         },
         {
-          "name": "Whaplode, Darjeeling Restaurant (adj)",
+          "name": "Whaplode,Darjeeling Restaurant",
           "lat": 52.800214,
           "lon": -0.036289,
           "time": "07:35",
@@ -1162,7 +1162,7 @@
           "stop_id": "00000000-0000-0000-0002-000000000006"
         },
         {
-          "name": "Whaplode, Middle Road (opp)",
+          "name": "Whaplode,Middle Road",
           "lat": 52.800127,
           "lon": -0.032125,
           "time": "07:35",
@@ -1171,7 +1171,7 @@
           "stop_id": "00000000-0000-0000-0002-000000000007"
         },
         {
-          "name": "Whaplode, Stockwell Gate (adj)",
+          "name": "Whaplode,Stockwell Gate",
           "lat": 52.80104,
           "lon": -0.026476,
           "time": "07:36",
@@ -1180,7 +1180,7 @@
           "stop_id": "00000000-0000-0000-0002-000000000008"
         },
         {
-          "name": "Holbeach, Wignals Gate (opp)",
+          "name": "Holbeach,Wignals Gate",
           "lat": 52.803429,
           "lon": -0.01177,
           "time": "07:36",
@@ -1189,7 +1189,7 @@
           "stop_id": "00000000-0000-0000-0002-000000000009"
         },
         {
-          "name": "Holbeach, Netherfield (opp)",
+          "name": "Holbeach,Netherfield",
           "lat": 52.804283,
           "lon": -0.001034,
           "time": "07:37",
@@ -1198,7 +1198,7 @@
           "stop_id": "00000000-0000-0000-0002-000000000010"
         },
         {
-          "name": "Holbeach, Fairfields (adj)",
+          "name": "Holbeach,Fairfields",
           "lat": 52.804876,
           "lon": 0.005373,
           "time": "07:40",
@@ -1207,7 +1207,7 @@
           "stop_id": "00000000-0000-0000-0002-000000000011"
         },
         {
-          "name": "Holbeach, Stukeley Hall Drive (opp)",
+          "name": "Holbeach,Stukeley Hall Drive",
           "lat": 52.80472,
           "lon": 0.009816,
           "time": "07:41",
@@ -1216,7 +1216,7 @@
           "stop_id": "00000000-0000-0000-0002-000000000012"
         },
         {
-          "name": "Holbeach, Interchange Shelter (opp)",
+          "name": "Holbeach,Interchange Shelter",
           "lat": 52.803419,
           "lon": 0.018658,
           "time": "07:43",
@@ -1225,7 +1225,7 @@
           "stop_id": "00000000-0000-0000-0002-000000000013"
         },
         {
-          "name": "Holbeach, Damgate (opp)",
+          "name": "Holbeach,Damgate",
           "lat": 52.803826,
           "lon": 0.023765,
           "time": "07:43",
@@ -1234,7 +1234,7 @@
           "stop_id": "00000000-0000-0000-0002-000000000014"
         },
         {
-          "name": "Holbeach, Rowan Close (adj)",
+          "name": "Holbeach,Rowan Close",
           "lat": 52.803854,
           "lon": 0.031629,
           "time": "07:50",
@@ -1243,7 +1243,7 @@
           "stop_id": "00000000-0000-0000-0002-000000000015"
         },
         {
-          "name": "Fleet Hargate, Fleet Road (opp)",
+          "name": "Fleet Road",
           "lat": 52.805217,
           "lon": 0.052731,
           "time": "07:51",
@@ -1252,7 +1252,7 @@
           "stop_id": "00000000-0000-0000-0002-000000000016"
         },
         {
-          "name": "Fleet Hargate, Winslow Gate (adj)",
+          "name": "Fleet Hargate,Winslow Gate",
           "lat": 52.804581,
           "lon": 0.058324,
           "time": "07:52",
@@ -1261,7 +1261,7 @@
           "stop_id": "00000000-0000-0000-0002-000000000017"
         },
         {
-          "name": "Fleet Hargate, Proctors Close (opp)",
+          "name": "Fleet Hargate,Proctors Close",
           "lat": 52.804406,
           "lon": 0.062188,
           "time": "07:53",
@@ -1270,7 +1270,7 @@
           "stop_id": "00000000-0000-0000-0002-000000000018"
         },
         {
-          "name": "Holbeach Cackle Hill, 188 Boston Road (opp)",
+          "name": "Holbeach Cackle Hill,188 Boston Road",
           "lat": 52.81834,
           "lon": 0.002431,
           "time": "08:00",
@@ -1279,7 +1279,7 @@
           "stop_id": "00000000-0000-0000-0002-000000000019"
         },
         {
-          "name": "Saracens Head, New Saracen's Head PH (adj)",
+          "name": "New Saracen's Head PH",
           "lat": 52.824392,
           "lon": -0.012074,
           "time": "08:03",
@@ -1288,7 +1288,7 @@
           "stop_id": "00000000-0000-0000-0002-000000000020"
         },
         {
-          "name": "Fosdyke, Village Hall (adj)",
+          "name": "Fosdyke,Village Hall",
           "lat": 52.880265,
           "lon": -0.045871,
           "time": "08:10",
@@ -1297,7 +1297,7 @@
           "stop_id": "00000000-0000-0000-0002-000000000021"
         },
         {
-          "name": "Fosdyke, All Saint's Church (opp)",
+          "name": "Fosdyke,All Saint's Church",
           "lat": 52.880896,
           "lon": -0.047091,
           "time": "08:10",
@@ -1322,7 +1322,7 @@
       "departure_time": "16:50",
       "stops": [
         {
-          "name": "Boston College",
+          "name": "Boston College Car Park",
           "lat": 52.972644,
           "lon": -0.018537,
           "time": "16:50",
@@ -1331,7 +1331,7 @@
           "stop_id": "00000000-0000-0000-0003-000000000001"
         },
         {
-          "name": "Fosdyke, All Saint's Church (adj)",
+          "name": "Fosdyke,All Saint's Church",
           "lat": 52.880978,
           "lon": -0.047132,
           "time": "17:05",
@@ -1340,7 +1340,7 @@
           "stop_id": "00000000-0000-0000-0003-000000000002"
         },
         {
-          "name": "Fosdyke, Village Hall (opp)",
+          "name": "Fosdyke,Village Hall",
           "lat": 52.880436,
           "lon": -0.045893,
           "time": "17:09",
@@ -1349,7 +1349,7 @@
           "stop_id": "00000000-0000-0000-0003-000000000003"
         },
         {
-          "name": "Saracens Head, New Saracen's Head PH (opp)",
+          "name": "New Saracen's Head PH",
           "lat": 52.824361,
           "lon": -0.011838,
           "time": "17:16",
@@ -1358,7 +1358,7 @@
           "stop_id": "00000000-0000-0000-0003-000000000004"
         },
         {
-          "name": "Holbeach Cackle Hill, 188 Boston Road (adj)",
+          "name": "Holbeach Cackle Hill,188 Boston Road",
           "lat": 52.818263,
           "lon": 0.002724,
           "time": "17:19",
@@ -1367,7 +1367,7 @@
           "stop_id": "00000000-0000-0000-0003-000000000005"
         },
         {
-          "name": "Fleet Hargate, Proctors Close (adj)",
+          "name": "Fleet Hargate,Proctors Close",
           "lat": 52.80428,
           "lon": 0.062167,
           "time": "17:26",
@@ -1376,7 +1376,7 @@
           "stop_id": "00000000-0000-0000-0003-000000000006"
         },
         {
-          "name": "Fleet Hargate, Winslow Gate (opp)",
+          "name": "Fleet Hargate,Winslow Gate",
           "lat": 52.804457,
           "lon": 0.058214,
           "time": "17:26",
@@ -1385,7 +1385,7 @@
           "stop_id": "00000000-0000-0000-0003-000000000007"
         },
         {
-          "name": "Fleet Hargate, Fleet Road (adj)",
+          "name": "Fleet Road",
           "lat": 52.805131,
           "lon": 0.052994,
           "time": "17:28",
@@ -1394,7 +1394,7 @@
           "stop_id": "00000000-0000-0000-0003-000000000008"
         },
         {
-          "name": "Holbeach, Rowan Close (opp)",
+          "name": "Holbeach,Rowan Close",
           "lat": 52.803711,
           "lon": 0.031578,
           "time": "17:29",
@@ -1403,7 +1403,7 @@
           "stop_id": "00000000-0000-0000-0003-000000000009"
         },
         {
-          "name": "Holbeach, Damgate (adj)",
+          "name": "Holbeach,Damgate",
           "lat": 52.803616,
           "lon": 0.023429,
           "time": "17:30",
@@ -1412,7 +1412,7 @@
           "stop_id": "00000000-0000-0000-0003-000000000010"
         },
         {
-          "name": "Holbeach, Interchange Shelter (adj)",
+          "name": "Holbeach,Interchange Shelter",
           "lat": 52.803333,
           "lon": 0.018431,
           "time": "17:31",
@@ -1421,7 +1421,7 @@
           "stop_id": "00000000-0000-0000-0003-000000000011"
         },
         {
-          "name": "Holbeach, Stukeley Hall Drive (adj)",
+          "name": "Holbeach,Stukeley Hall Drive",
           "lat": 52.804498,
           "lon": 0.010192,
           "time": "17:33",
@@ -1430,7 +1430,7 @@
           "stop_id": "00000000-0000-0000-0003-000000000012"
         },
         {
-          "name": "Holbeach, Fairfields (opp)",
+          "name": "Holbeach,Fairfields",
           "lat": 52.804733,
           "lon": 0.005292,
           "time": "17:35",
@@ -1439,7 +1439,7 @@
           "stop_id": "00000000-0000-0000-0003-000000000013"
         },
         {
-          "name": "Holbeach, Netherfield (adj)",
+          "name": "Holbeach,Netherfield",
           "lat": 52.804253,
           "lon": -0.000308,
           "time": "17:35",
@@ -1448,7 +1448,7 @@
           "stop_id": "00000000-0000-0000-0003-000000000014"
         },
         {
-          "name": "Holbeach, Wignals Gate (adj)",
+          "name": "Holbeach,Wignals Gate",
           "lat": 52.803359,
           "lon": -0.011313,
           "time": "17:36",
@@ -1457,7 +1457,7 @@
           "stop_id": "00000000-0000-0000-0003-000000000015"
         },
         {
-          "name": "Whaplode, Stockwell Gate (opp)",
+          "name": "Whaplode,Stockwell Gate",
           "lat": 52.801387,
           "lon": -0.024606,
           "time": "17:37",
@@ -1466,7 +1466,7 @@
           "stop_id": "00000000-0000-0000-0003-000000000016"
         },
         {
-          "name": "Whaplode, Middle Road (adj)",
+          "name": "Whaplode,Middle Road",
           "lat": 52.79997,
           "lon": -0.031331,
           "time": "17:37",
@@ -1475,7 +1475,7 @@
           "stop_id": "00000000-0000-0000-0003-000000000017"
         },
         {
-          "name": "Whaplode, Darjeeling Restaurant (opp)",
+          "name": "Whaplode,Darjeeling Restaurant",
           "lat": 52.800097,
           "lon": -0.036546,
           "time": "17:39",
@@ -1484,7 +1484,7 @@
           "stop_id": "00000000-0000-0000-0003-000000000018"
         },
         {
-          "name": "Whaplode, St Mary's Gardens (adj)",
+          "name": "Whaplode,St Mary's Gardens",
           "lat": 52.800141,
           "lon": -0.041662,
           "time": "17:40",
@@ -1493,7 +1493,7 @@
           "stop_id": "00000000-0000-0000-0003-000000000019"
         },
         {
-          "name": "Moulton, River Lane (opp)",
+          "name": "Moulton,River Lane",
           "lat": 52.804244,
           "lon": -0.05661,
           "time": "17:41",
@@ -1502,7 +1502,7 @@
           "stop_id": "00000000-0000-0000-0003-000000000020"
         },
         {
-          "name": "Moulton, Bell Lane (adj)",
+          "name": "Moulton,Bell Lane",
           "lat": 52.805291,
           "lon": -0.064546,
           "time": "17:42",
@@ -1511,7 +1511,7 @@
           "stop_id": "00000000-0000-0000-0003-000000000021"
         },
         {
-          "name": "Weston, Delgate Bank (adj)",
+          "name": "Weston,Delgate Bank",
           "lat": 52.807251,
           "lon": -0.075082,
           "time": "17:43",
@@ -1520,7 +1520,7 @@
           "stop_id": "00000000-0000-0000-0003-000000000022"
         },
         {
-          "name": "Weston, The Chequers PH (opp)",
+          "name": "Weston,The Chequers",
           "lat": 52.807997,
           "lon": -0.083951,
           "time": "17:45",
@@ -1538,7 +1538,7 @@
       "departure_time": "11:50",
       "stops": [
         {
-          "name": "Donington, Primary School (adj)",
+          "name": "Primary School",
           "lat": 52.901205991,
           "lon": -0.202536499,
           "time": "16:40",
@@ -1547,7 +1547,7 @@
           "stop_id": "47526c90-4a9b-431d-95fa-359a78af0532"
         },
         {
-          "name": "Swineshead, Primary School (o/s)",
+          "name": "Swineshead Primary School",
           "lat": 52.945367,
           "lon": -0.154848,
           "time": "16:47",
@@ -1556,7 +1556,7 @@
           "stop_id": "ae162e4f-3f9f-4d9f-acf1-5f1c6f50b853"
         },
         {
-          "name": "Swineshead, High Green (adj)",
+          "name": "Swineshead,High Green",
           "lat": 52.936049,
           "lon": -0.15416,
           "time": "11:50",
@@ -1565,7 +1565,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000024"
         },
         {
-          "name": "Sutterton, Bell Mere Pool (opp)",
+          "name": "Bell Mere Pool",
           "lat": 52.903821379,
           "lon": -0.092379215,
           "time": "17:04",
@@ -1574,7 +1574,7 @@
           "stop_id": "3a817a9e-c0ed-4b41-9fbb-c9c630487431"
         },
         {
-          "name": "Kirton, Middlecott School",
+          "name": "Middlecott School",
           "lat": 52.924305274,
           "lon": -0.059821228,
           "time": "16:59",
@@ -1590,7 +1590,7 @@
       "departure_time": "14:25",
       "stops": [
         {
-          "name": "Kirton, Middlecott School",
+          "name": "Middlecott School",
           "lat": 52.924305274,
           "lon": -0.059821228,
           "time": "21:50",
@@ -1599,7 +1599,7 @@
           "stop_id": "3d7f1bb0-b445-4d44-bfbf-69b3e94f42c0"
         },
         {
-          "name": "Sutterton, Bell Mere Pool (opp)",
+          "name": "Bell Mere Pool",
           "lat": 52.903821379,
           "lon": -0.092379215,
           "time": "21:55",
@@ -1608,7 +1608,7 @@
           "stop_id": "3a817a9e-c0ed-4b41-9fbb-c9c630487431"
         },
         {
-          "name": "Swineshead, Primary School (o/s)",
+          "name": "Swineshead Primary School",
           "lat": 52.945367,
           "lon": -0.154848,
           "time": "22:03",
@@ -1617,7 +1617,7 @@
           "stop_id": "ae162e4f-3f9f-4d9f-acf1-5f1c6f50b853"
         },
         {
-          "name": "Swineshead, High Green (adj)",
+          "name": "Swineshead,High Green",
           "lat": 52.936049,
           "lon": -0.15416,
           "time": "14:25",
@@ -1626,7 +1626,7 @@
           "stop_id": "00000000-0000-0000-0004-000000000024"
         },
         {
-          "name": "Donington, Primary School (adj)",
+          "name": "Primary School",
           "lat": 52.901205991,
           "lon": -0.202536499,
           "time": "22:11",

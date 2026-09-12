@@ -364,7 +364,7 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     // the atStop edge below.
     const routeStartVars = { serviceCode: details.serviceCode, destination: stripIndicator(lastStop.name) };
     onState({ type: 'state', ts: Date.now(), journeyId: resolvedId, stateKey: ANNOUNCE_STATES.ROUTE_START, vars: routeStartVars, earlyWait: null });
-    speakState(ANNOUNCE_STATES.ROUTE_START, routeStartVars);
+    speakState(ANNOUNCE_STATES.ROUTE_START, routeStartVars, { serviceCode: details.serviceCode, destination: lastStop.name });
 
     let lastAnnouncedStopIdx = null;
     // Mirrors lastAnnouncedStopIdx for the approaching edge — without this,
@@ -402,14 +402,14 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
             if (s.status === DEVIATION_STOP_STATUS) announcedDetourStops.add(i);
           });
           lastState = { stateKey: ANNOUNCE_STATES.DIVERSION, vars: {} };
-          speakState(ANNOUNCE_STATES.DIVERSION, {});
+          speakState(ANNOUNCE_STATES.DIVERSION, {}, {});
           if (state.atStop) lastAnnouncedStopIdx = state.atStop.stopIndex; // still counts as "arrival announced" for this stop
         } else {
           if (state.approaching) {
             lastState = resolveApproachOrArrivalState({ approaching: state.approaching, atStop: null, allStops: details.allStops });
             if (state.approaching.stopIndex !== lastAnnouncedApproachIdx) {
               lastAnnouncedApproachIdx = state.approaching.stopIndex;
-              speakState(lastState.stateKey, lastState.vars);
+              speakState(lastState.stateKey, lastState.vars, { stopId: details.allStops[state.approaching.stopIndex].stop_id });
             }
           }
 
@@ -424,7 +424,7 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
 
             if (isFinal) {
               lastState = resolveApproachOrArrivalState({ approaching: null, atStop: state.atStop, allStops: details.allStops });
-              speakState(lastState.stateKey, lastState.vars);
+              speakState(lastState.stateKey, lastState.vars, { stopId: details.allStops[state.atStop.stopIndex].stop_id });
             } else {
               const departureVars = {
                 serviceCode: details.serviceCode,
@@ -432,7 +432,10 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
                 nextStopName: stripIndicator(details.allStops[state.atStop.stopIndex + 1].name),
               };
               lastState = { stateKey: ANNOUNCE_STATES.STOP_DEPARTURE, vars: departureVars };
-              speakState(ANNOUNCE_STATES.STOP_DEPARTURE, departureVars);
+              speakState(ANNOUNCE_STATES.STOP_DEPARTURE, departureVars, {
+                serviceCode: details.serviceCode, destination: lastStop.name,
+                nextStopId: details.allStops[state.atStop.stopIndex + 1].stop_id,
+              });
             }
           }
         }
