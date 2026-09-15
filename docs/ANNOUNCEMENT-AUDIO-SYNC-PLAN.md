@@ -61,11 +61,17 @@ every migration goes to dev (`cgcbfgceputvdvhzrgio`) first, then production
   flagging as a latent bug in that same unused file, not fixed here.
 
 ### Phase 1 — server-side generation pipeline (no client changes yet)
-- [ ] Migration: `announcement_clips` table (GRANT select to anon/authenticated, RLS
-      `public_read` policy, no client write policy).
-- [ ] Migration: `announcement_clip_jobs` table (no client GRANTs at all — trigger + Edge
-      Function only) plus the trigger on whatever `schedule_view`/`display_name()` ultimately
-      reads (stops, timetable departures) that enqueues a job on relevant changes.
+- [x] Migration: `announcement_clips` table (GRANT select to anon/authenticated, RLS
+      `public_read` policy, no client write policy). See `supabase/migration_announcement_clips.sql`.
+- [x] Migration: `announcement_clip_jobs` table, plus triggers on `stops` (approach/departure)
+      and `routes` (ROUTE_START) that enqueue a job on relevant changes. TDD verified against dev
+      (`cgcbfgceputvdvhzrgio`): red before the migration, green after — including a real bug found
+      and fixed along the way (`article_for('100')` mis-articled; fixed to judge only the first
+      *spoken word*, same as the client's own logic) and a security gap found and closed (this
+      project's default privileges grant anon/authenticated blanket access to every new
+      table/function automatically — `announcement_clip_jobs` and both trigger functions now get
+      an explicit `REVOKE`, not just "no GRANT", as defense-in-depth; confirmed via `get_advisors`
+      and `information_schema.role_table_grants`/`role_routine_grants`).
 - [ ] Supabase Storage bucket `announcement-audio` (public read, service-role write only).
 - [ ] Edge Function `supabase/functions/generate-announcement-clip/`: imports slug/key logic
       from `shared/announceStates.js`/`shared/announcementAudio.js` directly (Deno can import the
@@ -73,11 +79,13 @@ every migration goes to dev (`cgcbfgceputvdvhzrgio`) first, then production
       "keep `slug()` in sync by hand" risk called out in both this doc and `CLAUDE.md`.
   - [ ] Unit tests: hash-skip idempotency (no Azure call on unchanged text/voice); key generation
         parity against the shared module.
-- [ ] Scheduled cron drain (Supabase cron) with a capped batch size per cycle.
+- [ ] Scheduled cron drain (Supabase cron) with a capped batch size per cycle — mirror
+      `migration_naptan_trigger.sql`'s existing pg_net/pg_cron/vault-secret/app_config pattern
+      rather than inventing a new one.
+- [x] RLS tests for both new tables — `supabase/tests/announcement_clips_rls.sql` (anon/
+      authenticated can read clips but never write; jobs completely inaccessible to both).
 - [ ] Coverage/contract test: every `(stateKey, ids)` combination `clipKeysFor()` can produce has
-      a corresponding `announcement_clips` row after a drain pass.
-- [ ] RLS tests for both new tables (anon can read clips, never write; jobs never
-      client-writable at all).
+      a corresponding `announcement_clips` row after a drain pass (needs the Edge Function first).
 - [ ] Verify parity: regenerate everything, diff output against the currently-committed
       `driver/audio/announcements/` clips before treating the pipeline as trustworthy.
 
