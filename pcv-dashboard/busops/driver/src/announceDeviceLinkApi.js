@@ -21,8 +21,16 @@ export async function fetchAnnounceDevicesForVehicle(vehicleId) {
   return res.json();
 }
 
-export async function linkAnnounceDevice(deviceId, vehicleId) {
-  return rpc('link_announce_device', { p_device_id: deviceId, p_vehicle_id: vehicleId });
+// pairingSecret must be the target device's own announce_devices.pairing_secret
+// (see migration_link_announce_device_caller_auth.sql) -- whatever UI ends up
+// calling this still needs to source it from somewhere the driver has
+// legitimate access to (not solved here; this file has no caller yet).
+export async function linkAnnounceDevice(deviceId, vehicleId, pairingSecret) {
+  return rpc('link_announce_device', {
+    p_device_id: deviceId,
+    p_vehicle_id: vehicleId,
+    p_pairing_secret: pairingSecret,
+  });
 }
 
 export async function unlinkAnnounceDevice(deviceId) {
