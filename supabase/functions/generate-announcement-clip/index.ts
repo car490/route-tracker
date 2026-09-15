@@ -16,11 +16,25 @@
  * Required Edge Function secrets (Supabase Dashboard -> Edge Functions -> Secrets):
  *   AZURE_SPEECH_KEY, AZURE_SPEECH_REGION
  *
- * Secured the same way naptan-import is: the caller's Authorization Bearer
- * token must match SUPABASE_SERVICE_ROLE_KEY (auto-available in Edge
- * Functions). One-time DB setup per environment, if not already done for
- * naptan-import's own token (same vault secret can be reused):
- *   select vault.create_secret('<service_role_key>', 'naptan_import_token');
+ * Secured by comparing the caller's Authorization Bearer token against a
+ * dedicated CALLER_AUTH_TOKEN Edge Function secret -- deliberately NOT
+ * Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') (naptan-import's pattern, which
+ * this function originally copied): on this project, the auto-injected
+ * SUPABASE_SERVICE_ROLE_KEY has drifted to the newer sb_secret_-format key,
+ * while the platform's own verify_jwt gateway check only accepts a
+ * legacy-JWT-format bearer token -- confirmed live via a temporary
+ * diagnostic log (2026-09-15): tokenPrefix 'eyJhbG' (legacy JWT, from vault,
+ * passes the gateway) vs envKeyPrefix 'sb_sec' (new format, what
+ * SUPABASE_SERVICE_ROLE_KEY now equals) -- no single credential satisfies
+ * both checks simultaneously. CALLER_AUTH_TOKEN is set to the same legacy
+ * JWT value stored in the naptan_import_token vault secret, so both the
+ * gateway and this function's own check agree.
+ *
+ * One-time DB setup per environment, if not already done for naptan-import's
+ * own token (same vault secret can be reused):
+ *   select vault.create_secret('<legacy service_role JWT>', 'naptan_import_token');
+ * And set the matching Edge Function secret:
+ *   supabase secrets set CALLER_AUTH_TOKEN=<the same legacy service_role JWT>
  *
  * key/text/voice generation happens entirely in the enqueue triggers
  * (fn_announcement_clip_enqueue_on_stop_change/_on_route_change) -- this
@@ -51,7 +65,7 @@ interface ClipJob {
 
 Deno.serve(async (req) => {
   const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
-  if (!token || token !== Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')) {
+  if (!token || token !== Deno.env.get('CALLER_AUTH_TOKEN')) {
     return new Response('Unauthorized', { status: 401 })
   }
 
