@@ -1,31 +1,85 @@
 # Announcement audio: server-triggered generation + sync — plan
 
-**Status: design settled 2026-09-08, all open questions resolved. Partially implemented —
-see "Implementation status" below.**
+**Status: design settled 2026-09-08. Phase 0 shipped (dev + production). Phase 1 shipped and
+verified end-to-end on dev only — not yet applied to production. Phases 2-5 not started. See
+"Where things stand" immediately below for exactly what a fresh session needs to know.**
 Written 2026-09-08 following a design discussion flagged in `docs/DECISIONS.md`'s
 "Shared journey-tracking core" open item. Once implementation is complete, this doc's outcome
 should be folded back into `docs/DECISIONS.md` and `CLAUDE.md`'s "PSVAIR announcement audio"
 section, same as every other architecture decision in this repo.
 
-## Implementation status (updated 2026-09-15)
+## Where things stand (updated 2026-09-15, end of session)
 
-Checked against `develop` before starting the rest of this work:
+**Done and merged to `develop`** (PRs #36–#40, all merged):
+- Phase 0 (security fix) — **live on dev AND production.**
+- Phase 1 (server-side clip pipeline: tables, triggers, Storage bucket, Edge Function, cron) —
+  **live on dev only, verified genuinely working end-to-end** (see below). Not yet applied to
+  production.
+
+**Verified for real on dev**, not just deployed: manually fired the exact `net.http_post()` call
+the cron uses, got a live `200` with `{"rendered":2,"skipped":0,"failed":0}`, confirmed the
+resulting `announcement_clips` rows, confirmed the actual `.mp3` files exist in the
+`announcement-audio` Storage bucket (real Azure-rendered audio, 26–30KB, `audio/mpeg`), and
+confirmed the public read URL serves them with correct headers. Test data cleaned up afterward
+(two small harmless orphaned test clip files remain in the bucket — direct SQL `DELETE` on
+`storage.objects` is blocked by Supabase's own `storage.protect_delete()`; not worth fighting the
+CLI's project-link state to remove two 26KB files).
+
+**Three real bugs found and fixed along the way** (all via actually running things against dev,
+not just code review):
+1. `article_for('100')` mis-articled ('an' instead of 'a') — fixed.
+2. `net.http_post`'s `body` parameter needs `jsonb`, not `::text` — was silently failing the
+   drain cron on every single run, and had an identical latent bug in the pre-existing
+   `fn_naptan_import_on_county_change` trigger (would have hard-failed the dashboard's
+   company-edit action if it ever fired). Both fixed.
+3. `generate-announcement-clip`'s caller-auth check compared the incoming Bearer token against
+   `Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')` (copied from `naptan-import`'s own pattern) — but
+   on this Supabase project that auto-injected env var has drifted to the newer
+   `sb_secret_...`-format key, while the platform's `verify_jwt` gateway check only accepts a
+   legacy-JWT-format bearer token. No single credential satisfied both. Fixed with a dedicated
+   `CALLER_AUTH_TOKEN` Edge Function secret, set to the same legacy JWT already stored in the
+   `naptan_import_token` vault secret. **`naptan-weekly-refresh` was very likely also silently
+   failing every week** from the same malformed vault-secret issue (its stored value was
+   originally only 25 characters — the user has since fixed it via `vault.update_secret`) — worth
+   confirming its next Sunday run actually succeeds, but not otherwise acted on here.
+
+**What's left for Phase 1 to be fully done:**
+- [ ] Apply all of Phase 1's migrations + the Edge Function + the cron to **production**
+  (`nwhayupsvcelyiwltdqo`). Bigger than Phase 0's production step since it includes a live Edge
+  Function and cron job, not just a DB function — go through the same dev-verified migrations
+  (`migration_announcement_clips.sql`, `migration_announcement_audio_bucket.sql`,
+  `migration_announcement_clip_drain_cron.sql`), redeploy the Edge Function, set its
+  `AZURE_SPEECH_KEY`/`AZURE_SPEECH_REGION`/`CALLER_AUTH_TOKEN` secrets on production, and confirm
+  the production `naptan_import_token` vault secret is also a valid legacy JWT before relying on
+  the shared cron pattern there.
+- [ ] Coverage/contract test + "verify parity vs currently-committed clips" (see Phase 1
+  checklist below) — not done, arguably lower priority now that real rendering is proven to work.
+- [ ] The two orphaned test clip files in the dev `announcement-audio` bucket
+  (`approach/6753f879-f1ae-4fe2-9bdf-dc44157e9822.mp3`,
+  `departure/6753f879-f1ae-4fe2-9bdf-dc44157e9822.mp3`) — harmless, optional cleanup via the
+  Storage dashboard.
+
+**Then Phase 2 onward** (not started at all): get Driver/Solo actually reading from this pipeline
+instead of the bundled clips, then Phase 3 (the actual point of this whole plan — eliminate the
+`speechSynthesis` fallback), then Phases 4-5. See the checklist below for each phase's detail.
+
+## Implementation status (superseded by "Where things stand" above — kept as a historical record)
+
+Checked against `develop` before starting this work, 2026-09-15:
 
 - ✅ **Rollout step 3 — Solo gets clip playback.** Shipped independently via PR #25
   (`fix/announce-audio-architecture`, merged 2026-09-08). `shared/announcementAudio.js` now
   holds `clipKeysFor()`/`createAnnouncementPlayer()`, imported by both
   `driver/src/announcements.js` and `announce/src/announceSpeech.js`. Partial G2 (shared audio
   code path) is already true.
-- ❌ Everything else in this doc is still open: no `announcement_clips`/`announcement_clip_jobs`
-  tables, no `announcement-audio` Storage bucket, no `generate-announcement-clip` Edge Function,
-  no cron drain — generation is still the manual `npm run generate:audio` script writing into
-  the repo. **G1 is not met**: both `announcements.js` and `announceSpeech.js` still fall back to
-  live `speechSynthesis` on a missing/failed clip.
-- ⚠️ **Live security gap, still unfixed**: `link_announce_device` (`supabase/schema.sql`) is
-  `security definer`, granted to `anon`, and validates only that the device and vehicle share a
-  `company_id` with *each other* — no `auth.uid()`/caller-authorization check at all. Anyone
-  holding the public anon key can link any device to any vehicle sharing a `company_id`. Treated
-  as Phase 0 below per this doc's own "fix independent of this plan's timeline" call.
+- ❌ Everything else in this doc was still open at that point: no `announcement_clips`/
+  `announcement_clip_jobs` tables, no `announcement-audio` Storage bucket, no
+  `generate-announcement-clip` Edge Function, no cron drain — generation was still the manual
+  `npm run generate:audio` script writing into the repo. **G1 was not met**: both
+  `announcements.js` and `announceSpeech.js` still fall back to live `speechSynthesis` on a
+  missing/failed clip — still true today, since that's Phase 3, not started.
+- ⚠️ **Live security gap, since fixed**: `link_announce_device` had no caller-authorization
+  check at all. Closed by Phase 0, live on dev and production.
 
 ## Implementation checklist
 
@@ -35,7 +89,7 @@ next phase starts. Every new/changed Supabase object follows `CLAUDE.md`'s GRANT
 every migration goes to dev (`cgcbfgceputvdvhzrgio`) first, then production
 (`nwhayupsvcelyiwltdqo`) after verification, per the repo's standard workflow.
 
-### Phase 0 — security fast-follow (do first, independent of everything else) — DONE (dev), pending production
+### Phase 0 — security fast-follow (do first, independent of everything else) — DONE (dev + production)
 - [x] Add caller authorization to `link_announce_device`. The PWA has no login/JWT at all
       (`current_company_id()` isn't available to it), so the fix is a device-held
       `pairing_secret` (uuid, generated per row) the caller must present — checked before the
@@ -46,10 +100,8 @@ every migration goes to dev (`cgcbfgceputvdvhzrgio`) first, then production
       updated to pass the secret. TDD verified against dev (`cgcbfgceputvdvhzrgio`): confirmed
       red (`column "pairing_secret" does not exist`) before the migration, green after.
 - [x] Migration file: `supabase/migration_link_announce_device_caller_auth.sql`. Applied to dev.
-- [ ] Apply to production (`nwhayupsvcelyiwltdqo`) — held pending review, since nothing in the
-      client currently calls this RPC (`announceDeviceLinkApi.js`'s `linkAnnounceDevice` was
-      unused dead code before this change) — no live traffic depends on the old signature, but
-      it's still a production DB change worth a second look before applying.
+- [x] Applied to production (`nwhayupsvcelyiwltdqo`) — confirmed via
+      `information_schema.columns` that `pairing_secret` exists there too.
 - Note: `unlink_announce_device` has the same shape (anon-callable, no caller-auth check) but
   wasn't flagged in the original plan doc and is lower severity (worst case: knocks a device back
   to Solo autopilot, which self-heals) — left alone here; worth the same treatment later if this
@@ -60,7 +112,7 @@ every migration goes to dev (`cgcbfgceputvdvhzrgio`) first, then production
   would also return zero rows under current RLS (no anon policy selects by `vehicle_id`) —
   flagging as a latent bug in that same unused file, not fixed here.
 
-### Phase 1 — server-side generation pipeline (no client changes yet)
+### Phase 1 — server-side generation pipeline — DONE (dev only, verified end-to-end)
 - [x] Migration: `announcement_clips` table (GRANT select to anon/authenticated, RLS
       `public_read` policy, no client write policy). See `supabase/migration_announcement_clips.sql`.
 - [x] Migration: `announcement_clip_jobs` table, plus triggers on `stops` (approach/departure)
@@ -84,38 +136,36 @@ every migration goes to dev (`cgcbfgceputvdvhzrgio`) first, then production
       Deployed to dev, `verify_jwt: true` (matching `naptan-import`/`dvsa-vol-lookup`).
   - [x] Hash algorithm cross-checked against `scripts/generate-announcement-audio.mjs`'s
         `hashText()`: ran both Node's `crypto` and Node's `webcrypto.subtle` (the same API Deno
-        uses) against identical inputs, got byte-identical output. Real verification, not just
-        code review — Deno itself isn't installed locally so the function's own test suite
-        couldn't run directly.
-  - [ ] **Not yet successfully invoked end-to-end.** Manual test attempts hit a real, unresolved
-        finding: this project's legacy `service_role` JWT (`supabase projects api-keys`) passes
-        the platform's `verify_jwt` gateway check and reaches the function, but fails the
-        function's own `token !== Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')` comparison (a plain
-        401 from the function's own code, not a gateway rejection) — while the newer
-        `sb_secret_...`-format key gets rejected by the gateway itself ("Invalid API key") before
-        reaching the function at all. Root cause not confirmed (likely the auto-injected
-        `SUPABASE_SERVICE_ROLE_KEY` env var has drifted to the new-style key format on this
-        project while gateway `verify_jwt` still only accepts legacy-JWT bearer tokens) — worth
-        checking whether `naptan-import` has the identical latent issue, since it uses the same
-        pattern. **Test via the Supabase Dashboard's own Edge Functions invoke UI** (handles auth
-        without needing to handle the raw key by hand) before trusting this function works.
+        uses) against identical inputs, got byte-identical output.
+  - [x] **Successfully invoked end-to-end on dev, with real output verified.** Manually fired the
+        same `net.http_post()` call the cron uses: got a genuine `200` with
+        `{"rendered":2,"skipped":0,"failed":0}`, confirmed the `announcement_clips` rows, the
+        actual `.mp3` files in the bucket (26-30KB, `audio/mpeg`), and the public read URL serving
+        them with correct headers. Getting here needed two more fixes beyond the pipeline itself
+        — see "Where things stand" at the top of this doc (`net.http_post`'s `body` param
+        needing `jsonb` not `::text`, and the `CALLER_AUTH_TOKEN` auth fix). Test data cleaned up
+        from `announcement_clips`/`stops`/`announcement_clip_jobs`; two small test `.mp3` files
+        remain in the bucket (harmless, `storage.protect_delete()` blocks direct SQL cleanup).
 - [ ] Unit tests: key generation parity — moot now (key generation lives in the enqueue
       triggers, already covered by `supabase/tests/announcement_clips_rls.sql`), striking this
       sub-item rather than leaving it stale.
 - [x] Scheduled cron drain (Supabase cron), `*/5 * * * *`, batch size 20 per cycle — mirrors
-      `migration_naptan_trigger.sql`'s pg_net/pg_cron/vault-secret/app_config pattern exactly,
-      reusing the same `naptan_import_token` vault secret rather than creating a duplicate. That
-      vault secret does **not exist yet on dev** (checked directly — `naptan-import`'s own cron
-      is presumably equally dormant until someone runs its one-time
-      `vault.create_secret(...)` setup step). `AZURE_SPEECH_KEY`/`AZURE_SPEECH_REGION` Edge
-      Function secrets **are** set on dev now (via `supabase secrets set --env-file` from a local
-      `.env.audio`, values never seen by the assistant).
+      `migration_naptan_trigger.sql`'s pg_net/pg_cron/vault-secret/app_config pattern, reusing the
+      same `naptan_import_token` vault secret. Confirmed actually dispatching successfully on dev
+      (`cron.job_run_details`) after both the `body` cast fix and the vault secret being
+      corrected to a valid legacy JWT.
 - [x] RLS tests for both new tables — `supabase/tests/announcement_clips_rls.sql` (anon/
       authenticated can read clips but never write; jobs completely inaccessible to both).
 - [ ] Coverage/contract test: every `(stateKey, ids)` combination `clipKeysFor()` can produce has
       a corresponding `announcement_clips` row after a drain pass (needs the Edge Function first).
 - [ ] Verify parity: regenerate everything, diff output against the currently-committed
       `driver/audio/announcements/` clips before treating the pipeline as trustworthy.
+- [ ] **Apply all of the above to production** (`nwhayupsvcelyiwltdqo`): the three migrations,
+      redeploy the Edge Function, set its three secrets there
+      (`AZURE_SPEECH_KEY`/`AZURE_SPEECH_REGION`/`CALLER_AUTH_TOKEN`), and confirm production's own
+      `naptan_import_token` vault secret is a valid legacy JWT (219 chars, starts `eyJ`) before
+      trusting the cron there — don't assume it's fine just because dev's now is; dev's was wrong
+      for months before this session fixed it.
 
 ### Phase 2 — Driver + Solo read from the new source
 - [ ] Switch `shared/announcementAudio.js`'s clip lookup from bundled files to the
