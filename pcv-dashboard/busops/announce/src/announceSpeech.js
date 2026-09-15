@@ -1,40 +1,37 @@
-// Announce Solo's only audio path. This tier has no driver
-// device and ships no pre-rendered clips (driver/audio/ is driver-only —
-// see CLAUDE.md's repo layout) — speechSynthesis is the whole story here,
-// not a fallback for a missing clip the way it is for the Driver device
-// (driver/src/announcements.js). Never imported by onboard.js itself —
-// onboard.js stays purely visual (see its own header comment); only
-// announceSoloAutopilot.js calls this, since that's the one producer
-// with no Driver device around to speak on its behalf.
+// Announce Solo's audio path. Tries the same pre-rendered Azure Neural TTS
+// clips the Driver/Lite tier plays (driver/audio/announcements/, served
+// from the same origin as this app — see AUDIO_BASE below) via the shared
+// playback engine (shared/announcementAudio.js), falling back to live
+// speechSynthesis exactly like Driver/Lite does for a clip that isn't
+// rendered/cached yet. On this tier's real hardware (Android WebView via a
+// generic kiosk host) that fallback is currently still a graceful no-op —
+// speechSynthesis doesn't exist in that WebView at all, confirmed live —
+// but it's no regression, and becomes real coverage on any device that
+// does have it.
+//
+// Never imported by onboard.js itself — onboard.js stays purely visual (see
+// its own header comment); only announceSoloAutopilot.js calls this, since
+// that's the one producer with no Driver device around to speak on its
+// behalf.
 
-import { speakUtterance } from '../../shared/speech.js';
 import { resolveAnnouncementText } from '../../shared/announceStates.js';
+import { clipKeysFor, createAnnouncementPlayer } from '../../shared/announcementAudio.js';
 
-let isBusy = false;
-// Holds at most the single most recent announcement that arrived while
-// something else was playing — same reasoning as driver/src/announcements.js's
-// own queue: a stale "approaching X" isn't worth playing once something
-// newer has already superseded it.
-let queued = null; // { stateKey, vars } | null
+// Absolute path from site root, not a relative one — announce/ and driver/
+// deploy under the same origin (see CLAUDE.md's Wrangler setup at
+// pcv-dashboard/busops/), so this is simpler than maintaining two different
+// relative paths to what's really the same clip directory.
+const AUDIO_BASE = '/driver/audio/announcements/';
 
-async function playNow(stateKey, vars) {
-  isBusy = true;
-  await speakUtterance(resolveAnnouncementText(stateKey, vars));
-  isBusy = false;
+const player = createAnnouncementPlayer(AUDIO_BASE);
 
-  if (queued) {
-    const next = queued;
-    queued = null;
-    playNow(next.stateKey, next.vars); // fire-and-forget — same as the original call
-  }
-}
-
-export function speakState(stateKey, vars) {
+// ids carries whatever stop/service identifiers stateKey needs to look up
+// its pre-rendered clip — a subset of { stopId, nextStopId, serviceCode,
+// destination } depending on stateKey, all optional (missing ids just fall
+// back to live synthesis, same as a missing clip file does) — see
+// shared/announcementAudio.js's clipKeysFor.
+export function speakState(stateKey, vars, ids = {}) {
   const text = resolveAnnouncementText(stateKey, vars);
   if (!text) return;
-  if (isBusy) {
-    queued = { stateKey, vars };
-    return;
-  }
-  playNow(stateKey, vars);
+  player.speak(text, clipKeysFor(stateKey, vars, ids));
 }

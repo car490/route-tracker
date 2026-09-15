@@ -3,16 +3,42 @@ import { supabase } from '../../shared/supabase'
 import { S, DAYS, DEP_EMPTY } from './constants'
 
 export default function DeparturesCard({ timetableId, timetables, departures, setDepartures, isSchoolRoute }) {
-  const [depModal,  setDepModal]  = useState(null)
-  const [depForm,   setDepForm]   = useState(DEP_EMPTY)
-  const [depSaving, setDepSaving] = useState(false)
-  const [depError,  setDepError]  = useState('')
-  const [termDates, setTermDates] = useState([])
+  const [depModal,   setDepModal]   = useState(null)
+  const [depForm,    setDepForm]    = useState(DEP_EMPTY)
+  const [depSaving,  setDepSaving]  = useState(false)
+  const [depError,   setDepError]   = useState('')
+  const [termDates,  setTermDates]  = useState([])
+  const [exceptions, setExceptions] = useState([])
+  const [newExceptionDate, setNewExceptionDate] = useState('')
 
   useEffect(() => {
     if (!isSchoolRoute) return
     supabase.from('term_dates').select('*').order('start_date').then(({ data }) => setTermDates(data ?? []))
   }, [isSchoolRoute])
+
+  async function loadExceptions(departureId) {
+    const { data } = await supabase
+      .from('service_exceptions').select('*').eq('timetable_departure_id', departureId)
+      .eq('exception_type', 'removed').order('exception_date')
+    setExceptions(data ?? [])
+  }
+
+  async function addException(e) {
+    e.preventDefault()
+    if (!newExceptionDate || depModal === 'add') return
+    await supabase.from('service_exceptions').insert({
+      timetable_departure_id: depModal.id,
+      exception_date: newExceptionDate,
+      exception_type: 'removed',
+    })
+    setNewExceptionDate('')
+    loadExceptions(depModal.id)
+  }
+
+  async function deleteException(id) {
+    await supabase.from('service_exceptions').delete().eq('id', id)
+    loadExceptions(depModal.id)
+  }
 
   async function loadDepartures(ttId) {
     const { data } = await supabase
@@ -31,6 +57,7 @@ export default function DeparturesCard({ timetableId, timetables, departures, se
       vehicle_journey_code: depForm.vehicle_journey_code,
       valid_from:           depForm.valid_from || null,
       valid_to:             depForm.valid_to   || null,
+      school_term_time:     depForm.school_term_time,
     }
     const { error } = depModal === 'add'
       ? await supabase.from('timetable_departures').insert(payload)
@@ -41,6 +68,7 @@ export default function DeparturesCard({ timetableId, timetables, departures, se
           vehicle_journey_code: depForm.vehicle_journey_code,
           valid_from:           depForm.valid_from || null,
           valid_to:             depForm.valid_to   || null,
+          school_term_time:     depForm.school_term_time,
         }).eq('id', depModal.id)
     setDepSaving(false)
     if (error) { setDepError(error.message); return }
@@ -72,6 +100,8 @@ export default function DeparturesCard({ timetableId, timetables, departures, se
             const vjc = await nextVjc()
             setDepForm({ ...DEP_EMPTY, vehicle_journey_code: vjc, valid_from: new Date().toISOString().slice(0, 10) })
             setDepError('')
+            setExceptions([])
+            setNewExceptionDate('')
             setDepModal('add')
           }}
         >+ Add</button>
@@ -88,12 +118,19 @@ export default function DeparturesCard({ timetableId, timetables, departures, se
           </span>
           <span style={{ fontSize: 11, color: 'var(--text-muted)', flex: 1 }}>
             {dep.days_of_week.map(d => DAYS[d - 1]).join(' ')}
+            {dep.school_term_time && (
+              <span style={{ marginLeft: 6, padding: '1px 5px', borderRadius: 8, background: 'var(--navy-brand)', color: '#fff', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Term time
+              </span>
+            )}
             </span>
           <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{dep.vehicle_journey_code}</span>
           <button className="btn btn-ghost btn-sm" style={{ padding: '1px 5px', minWidth: 0, fontSize: 11 }}
             onClick={() => {
-              setDepForm({ departure_time: dep.departure_time.slice(0, 5), days_of_week: dep.days_of_week, timing_profile: dep.timing_profile, vehicle_journey_code: dep.vehicle_journey_code, valid_from: dep.valid_from ?? '', valid_to: dep.valid_to ?? '' })
+              setDepForm({ departure_time: dep.departure_time.slice(0, 5), days_of_week: dep.days_of_week, timing_profile: dep.timing_profile, vehicle_journey_code: dep.vehicle_journey_code, valid_from: dep.valid_from ?? '', valid_to: dep.valid_to ?? '', school_term_time: dep.school_term_time ?? false })
               setDepError('')
+              setNewExceptionDate('')
+              loadExceptions(dep.id)
               setDepModal(dep)
             }}
           >Edit</button>
@@ -118,22 +155,43 @@ export default function DeparturesCard({ timetableId, timetables, departures, se
                   const dayNum = idx + 1
                   const on = depForm.days_of_week.includes(dayNum)
                   return (
-                    <button key={d} type="button"
+                    <button key={d} type="button" disabled={depForm.school_term_time}
                       onClick={() => setDepForm(f => ({ ...f, days_of_week: on ? f.days_of_week.filter(x => x !== dayNum) : [...f.days_of_week, dayNum].sort((a, b) => a - b) }))}
-                      style={{ padding: '2px 6px', fontSize: 10, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1.5, border: `1px solid ${on ? 'var(--navy-brand)' : 'var(--border)'}`, background: on ? 'var(--navy-brand)' : 'transparent', color: on ? '#fff' : 'var(--text-muted)' }}
+                      style={{ padding: '2px 6px', fontSize: 10, borderRadius: 8, cursor: depForm.school_term_time ? 'default' : 'pointer', fontFamily: 'inherit', lineHeight: 1.5, opacity: depForm.school_term_time ? 0.6 : 1, border: `1px solid ${on ? 'var(--navy-brand)' : 'var(--border)'}`, background: on ? 'var(--navy-brand)' : 'transparent', color: on ? '#fff' : 'var(--text-muted)' }}
                     >{d}</button>
                   )
                 })}
               </div>
             </div>
+            {isSchoolRoute && (
+              <div style={{ marginBottom: 6 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={depForm.school_term_time}
+                    onChange={e => {
+                      const on = e.target.checked
+                      setDepForm(f => ({ ...f, school_term_time: on, days_of_week: on ? [1, 2, 3, 4, 5] : f.days_of_week }))
+                    }} />
+                  Runs every schoolday (term time only)
+                </label>
+                {depForm.school_term_time && (
+                  <p style={{ fontSize: 10.5, color: 'var(--text-muted)', margin: '3px 0 0' }}>
+                    Follows the term_dates table automatically — no need to set an end date or
+                    recreate this departure each academic year. Add a closure date below for
+                    INSET/staff-training days.
+                  </p>
+                )}
+              </div>
+            )}
             <div style={{ marginBottom: 6 }}>
               <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Journey Code (VJC)</div>
               <input className="form-input" value={depForm.vehicle_journey_code}
                 onChange={e => setDepForm(f => ({ ...f, vehicle_journey_code: e.target.value }))} required />
             </div>
             <div style={{ marginBottom: 8 }}>
-              <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Service Validity</div>
-              {isSchoolRoute && termDates.length > 0 && (
+              <div style={{ ...S.sectionLabel, marginBottom: 3 }}>
+                {depForm.school_term_time ? 'Overall Validity (optional)' : 'Service Validity'}
+              </div>
+              {isSchoolRoute && !depForm.school_term_time && termDates.length > 0 && (
                 <select className="form-select" style={{ fontSize: 11, marginBottom: 4, width: '100%' }}
                   value=""
                   onChange={e => {
@@ -159,6 +217,28 @@ export default function DeparturesCard({ timetableId, timetables, departures, se
                   onChange={e => setDepForm(f => ({ ...f, valid_to: e.target.value }))} />
               </div>
             </div>
+            {depForm.school_term_time && depModal !== 'add' && (
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Closure Dates (INSET days etc.)</div>
+                {exceptions.length === 0 && (
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 4px' }}>None set.</p>
+                )}
+                {exceptions.map(ex => (
+                  <div key={ex.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                    <span style={{ fontSize: 11, flex: 1 }}>{ex.exception_date}</span>
+                    <button type="button" className="btn btn-danger btn-sm" style={{ padding: '1px 5px', minWidth: 0, fontSize: 11 }}
+                      onClick={() => deleteException(ex.id)}>×</button>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                  <input type="date" className="form-input" style={{ flex: 1, fontSize: 11 }}
+                    value={newExceptionDate}
+                    onChange={e => setNewExceptionDate(e.target.value)} />
+                  <button type="button" className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: 11 }}
+                    disabled={!newExceptionDate} onClick={addException}>+ Add</button>
+                </div>
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDepModal(null)}>Cancel</button>
               <button type="submit" className="btn btn-primary btn-sm" disabled={depSaving}>{depSaving ? 'Saving…' : 'Save'}</button>

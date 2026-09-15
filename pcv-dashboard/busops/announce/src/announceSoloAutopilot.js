@@ -11,12 +11,13 @@
 // with no candidates yet just shows the idle screen, same as before this
 // feature existed.
 //
-// Also only actually polls its own GPS during its configured active
-// windows (announce_device_active_windows — day_of_week/window_start/
-// window_end, same shape as employees' own employee_availability table) —
-// a device with none configured stays fully dormant, same conservative
-// default as an empty candidate list. See isWithinActiveWindow in
-// scheduleAutopilot.js.
+// Also only actually awake (GPS polling, and the screen itself — see
+// onboard.js's wake-lock acquire/release) within the wake window around one
+// of its own commissioned candidate departures — a device with none
+// configured stays fully dormant, same conservative default as an empty
+// candidate list. See isWithinDepartureWakeWindow in scheduleAutopilot.js.
+// Replaces the old admin-configured announce_device_active_windows table
+// (dropped 2026-09-04) — see that function's own header comment for why.
 //
 // Hard precondition (see docs/ANNOUNCE-PRODUCT-TIERS.md): only safe when the
 // commissioned candidate routes' start/end points don't overlap with any
@@ -37,7 +38,7 @@
 
 import { startAnnounceGpsTracking } from './announceGps.js';
 import {
-  findScheduleMatch, findTestingScheduleMatch, isJourneyComplete, isWithinActiveWindow,
+  findScheduleMatch, findTestingScheduleMatch, isJourneyComplete, isWithinDepartureWakeWindow,
   describeConfigUpdate,
 } from './scheduleAutopilot.js';
 import { shiftStopTimes } from '../../shared/scheduleTimeShift.js';
@@ -47,63 +48,87 @@ import {
 import { speakState } from './announceSpeech.js';
 
 const IDLE_POLL_MS = 5000; // own-GPS check interval while no journey is active
-// Boot-time candidate/active-window fetch retry — matches
-// announceDeviceFeed.js's RECONNECT_DELAY_MS. Without this, a transient
-// connectivity blip at boot (e.g. right after the device reconnects to
-// WiFi) left candidates/activeWindows permanently empty for the rest of the
-// day, with the device silently stuck on idle — first-beta-test feedback
-// 2026-09-03.
+// Boot-time candidate fetch retry — matches announceDeviceFeed.js's
+// RECONNECT_DELAY_MS. Without this, a transient connectivity blip at boot
+// (e.g. right after the device reconnects to WiFi) left candidates
+// permanently empty for the rest of the day, with the device silently stuck
+// on idle — first-beta-test feedback 2026-09-03.
 const BOOT_FETCH_RETRY_MS = 3000;
 const COMPLETION_TIMEOUT_MIN = 120; // safety net — no driver to notice a stuck journey
-// How long the sign keeps showing the terminus state before reverting to
-// idle — matches driver/src/main.js's TERMINUS_DISPLAY_MS exactly (same
-// user feedback 2026-09-02: passengers need real time to read/hear "all
-// change please" and disembark). Only the *display* reset is delayed —
-// complete_journey (below) still fires immediately, since that's a
-// backend/reporting concern, not a passenger-facing one.
-const TERMINUS_HOLD_MS = 5 * 60 * 1000;
+// How long the sign keeps showing the terminus state, and the screen itself
+// stays awake (see onboard.js's wake lock), after the last stop is reached
+// before reverting to idle/asleep — one number governing both the content
+// hold and the power-state hold, per the user's own spec ("Screen Always on
+// ... up until 10 minutes after the last stop has been reached"). Replaces
+// the old 5-minute TERMINUS_HOLD_MS (which only ever governed the content
+// hold, matching driver/src/main.js's TERMINUS_DISPLAY_MS) — deliberately
+// not kept as a second, separate timer alongside a new power-hold timer;
+// see docs/ANNOUNCE-PRODUCT-TIERS.md's simplification writeup, 2026-09-04.
+// complete_journey (below) still fires immediately regardless of this hold
+// — that's a backend/reporting concern, not a passenger-facing one.
+const POST_JOURNEY_HOLD_MS = 10 * 60 * 1000;
 
 function stripIndicator(name) {
   return name.replace(/\s*\([^)]*\)\s*$/, '');
 }
 
-// Returns null (not []) on a fetch failure, distinct from "genuinely no
-// candidates configured" — callers need that distinction to know whether to
-// retry (see refreshCandidates below).
+// Returns null (not { candidates: [], termDateRanges: [] }) on a fetch
+// failure, distinct from "genuinely no candidates configured" — callers
+// need that distinction to know whether to retry (see refreshCandidates
+// below). days_of_week/school_term_time come straight off
+// timetable_departures via schedule_view, term_dates/service_exceptions are
+// fetched alongside — together the single source of truth for which days
+// this candidate actually runs, reused by isWithinDepartureWakeWindow
+// instead of a separately admin-maintained day/time table (see that
+// function's own header comment). service_exceptions is queried unfiltered
+// by type (added + removed) since isCandidateRunningOn needs both.
 async function fetchCandidateDepartures(client, departureIds) {
-  if (!departureIds?.length) return [];
-  const { data, error } = await client
-    .from('schedule_view')
-    .select('departure_id, lat, lon, scheduled_time, sequence')
-    .in('departure_id', departureIds)
-    .order('sequence');
-  if (error || !data) return null;
+  if (!departureIds?.length) return { candidates: [], termDateRanges: [] };
+  const [scheduleResult, exceptionsResult, termDatesResult] = await Promise.all([
+    client
+      .from('schedule_view')
+      .select('departure_id, service_code, lat, lon, scheduled_time, sequence, days_of_week, school_term_time')
+      .in('departure_id', departureIds)
+      .order('sequence'),
+    client
+      .from('service_exceptions')
+      .select('timetable_departure_id, exception_date, exception_type')
+      .in('timetable_departure_id', departureIds),
+    client.from('term_dates').select('start_date, end_date'),
+  ]);
+  if (scheduleResult.error || !scheduleResult.data) return null;
+
+  const exceptionsByDeparture = new Map();
+  for (const row of exceptionsResult.data ?? []) {
+    if (!exceptionsByDeparture.has(row.timetable_departure_id)) {
+      exceptionsByDeparture.set(row.timetable_departure_id, { removedDates: [], addedDates: [] });
+    }
+    const bucket = exceptionsByDeparture.get(row.timetable_departure_id);
+    (row.exception_type === 'removed' ? bucket.removedDates : bucket.addedDates).push(row.exception_date);
+  }
+
   const firstByDeparture = new Map();
-  for (const row of data) {
+  for (const row of scheduleResult.data) {
     if (!firstByDeparture.has(row.departure_id)) firstByDeparture.set(row.departure_id, row);
   }
-  return departureIds
+  const candidates = departureIds
     .map((id) => firstByDeparture.get(id))
     .filter(Boolean)
-    .map((row) => ({
-      departureId: row.departure_id,
-      firstStopLat: row.lat,
-      firstStopLon: row.lon,
-      departureTime: row.scheduled_time.substring(0, 5),
-    }));
-}
-
-// Returns null (not []) on a fetch failure — same reasoning as
-// fetchCandidateDepartures above: a failed fetch must not be
-// indistinguishable from "no windows configured", which isWithinActiveWindow
-// treats as "stay dormant" (see refreshActiveWindows below).
-async function fetchActiveWindows(client, deviceId) {
-  const { data, error } = await client
-    .from('announce_device_active_windows')
-    .select('day_of_week, window_start, window_end')
-    .eq('announce_device_id', deviceId);
-  if (error || !data) return null;
-  return data;
+    .map((row) => {
+      const { removedDates = [], addedDates = [] } = exceptionsByDeparture.get(row.departure_id) ?? {};
+      return {
+        departureId: row.departure_id,
+        serviceCode: row.service_code,
+        firstStopLat: row.lat,
+        firstStopLon: row.lon,
+        departureTime: row.scheduled_time.substring(0, 5),
+        daysOfWeek: row.days_of_week,
+        schoolTermTime: row.school_term_time,
+        removedDates,
+        addedDates,
+      };
+    });
+  return { candidates, termDateRanges: termDatesResult.data ?? [] };
 }
 
 async function fetchDepartureDetails(client, departureId) {
@@ -148,7 +173,7 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
   // idle-poll tick instead of requiring a device reload.
   let deviceRow = initialDeviceRow;
   let candidates = [];
-  let activeWindows = [];
+  let termDateRanges = [];
   let activeJourney = null; // { journeyId, startedAt, tracker }
   // Starts undetermined (not false!) — applyWakeState()'s transition check
   // is `awake === isAwake`, and false is a real, reachable outcome (asleep
@@ -158,21 +183,38 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
   // determination, whichever way it goes, always fires its callback once.
   let isAwake = null;
 
+  // One entry per distinct service among this device's candidates, not one
+  // merged soonest-overall time — a device commissioned for two real
+  // services (or, as here, dozens of same-service test clones) previously
+  // showed a single ambiguous time that could belong to either, telling a
+  // waiting passenger/driver nothing concrete. Found live 2026-09-06
+  // reviewing the idle screen against a device carrying both S116x/S125x
+  // candidates. Sorted by service code for a stable on-screen order.
   function reportNextDeparture() {
     if (!candidates.length) {
       onIdleNextDeparture?.(null);
       return;
     }
     const now = new Date();
-    const next = [...candidates].sort(
-      (a, b) => msUntilNextOccurrence(a.departureTime, now) - msUntilNextOccurrence(b.departureTime, now)
-    )[0];
+    const bestByService = new Map();
+    for (const candidate of candidates) {
+      const msUntil = msUntilNextOccurrence(candidate.departureTime, now);
+      const current = bestByService.get(candidate.serviceCode);
+      if (!current || msUntil < current.msUntil) {
+        bestByService.set(candidate.serviceCode, { serviceCode: candidate.serviceCode, departureTime: candidate.departureTime, msUntil });
+      }
+    }
+    const next = [...bestByService.values()]
+      .sort((a, b) => a.serviceCode.localeCompare(b.serviceCode))
+      .map(({ serviceCode, departureTime }) => ({ serviceCode, departureTime }));
     onIdleNextDeparture?.(next);
   }
 
-  // Shows/hides the idle screen itself based on whether *now* falls inside
-  // a configured active window. Previously only GPS polling (the idleTimer
-  // below) was gated by the window — the idle screen (branding, logo,
+  // Shows/hides the idle screen itself (and, via onSleep/reportNextDeparture,
+  // the physical screen power — see onboard.js's wake lock) based on
+  // whether *now* falls inside the wake window around one of this device's
+  // own candidate departures. Previously only GPS polling (the idleTimer
+  // below) was gated by this — the idle screen (branding, logo,
   // next-departure caption) stayed lit around the clock regardless, which
   // made no sense for a device that only runs a school-run twice a day.
   // Never touches anything while a journey is actually active — a window
@@ -180,7 +222,9 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
   // passengers; only ever affects the idle state either side of one.
   function applyWakeState() {
     if (activeJourney) return;
-    const awake = isWithinActiveWindow(new Date(), activeWindows);
+    const awake = isWithinDepartureWakeWindow(
+      new Date(), candidates, deviceRow.match_window_before_min, deviceRow.match_window_after_min, termDateRanges
+    );
     if (awake === isAwake) return;
     isAwake = awake;
     if (awake) reportNextDeparture();
@@ -193,18 +237,10 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
       setTimeout(refreshCandidates, BOOT_FETCH_RETRY_MS);
       return;
     }
-    candidates = result;
+    candidates = result.candidates;
+    termDateRanges = result.termDateRanges;
+    applyWakeState(); // first real determination of awake/asleep, now that candidates are actually loaded
     if (isAwake) reportNextDeparture();
-  }
-
-  async function refreshActiveWindows() {
-    const result = await fetchActiveWindows(client, deviceRow.id);
-    if (result === null) {
-      setTimeout(refreshActiveWindows, BOOT_FETCH_RETRY_MS);
-      return;
-    }
-    activeWindows = result;
-    applyWakeState(); // first real determination of awake/asleep, now that windows are actually loaded
   }
 
   // Applies a fresh announce_devices row read after a live config change
@@ -247,7 +283,7 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     // onJourneyEnd() here since both only make sense once idle is actually
     // being shown.
     //
-    // Delayed (TERMINUS_HOLD_MS), not immediate — mirrors driver/src/
+    // Delayed (POST_JOURNEY_HOLD_MS), not immediate — mirrors driver/src/
     // main.js's completeTrip(). activeJourney was just set to null above;
     // if tryMatch() finds a new candidate before this timer fires, it's
     // non-null again by the time this runs, and this guard skips clearing
@@ -257,13 +293,16 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     setTimeout(() => {
       if (activeJourney) return;
       onJourneyEnd?.();
-      // Recompute fresh rather than trusting isAwake — TERMINUS_HOLD_MS is
-      // 5 minutes, easily enough for the device's active window to have
-      // closed while this journey's terminus message was still showing.
-      isAwake = isWithinActiveWindow(new Date(), activeWindows);
+      // Recompute fresh rather than trusting isAwake — POST_JOURNEY_HOLD_MS
+      // is 10 minutes, easily enough for the device to have drifted outside
+      // every candidate's own wake window while this journey's terminus
+      // message was still showing.
+      isAwake = isWithinDepartureWakeWindow(
+        new Date(), candidates, deviceRow.match_window_before_min, deviceRow.match_window_after_min, termDateRanges
+      );
       if (isAwake) reportNextDeparture();
       else onSleep?.();
-    }, TERMINUS_HOLD_MS);
+    }, POST_JOURNEY_HOLD_MS);
   }
 
   async function tryMatch(lat, lon) {
@@ -325,7 +364,7 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     // the atStop edge below.
     const routeStartVars = { serviceCode: details.serviceCode, destination: stripIndicator(lastStop.name) };
     onState({ type: 'state', ts: Date.now(), journeyId: resolvedId, stateKey: ANNOUNCE_STATES.ROUTE_START, vars: routeStartVars, earlyWait: null });
-    speakState(ANNOUNCE_STATES.ROUTE_START, routeStartVars);
+    speakState(ANNOUNCE_STATES.ROUTE_START, routeStartVars, { serviceCode: details.serviceCode, destination: lastStop.name });
 
     let lastAnnouncedStopIdx = null;
     // Mirrors lastAnnouncedStopIdx for the approaching edge — without this,
@@ -363,14 +402,14 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
             if (s.status === DEVIATION_STOP_STATUS) announcedDetourStops.add(i);
           });
           lastState = { stateKey: ANNOUNCE_STATES.DIVERSION, vars: {} };
-          speakState(ANNOUNCE_STATES.DIVERSION, {});
+          speakState(ANNOUNCE_STATES.DIVERSION, {}, {});
           if (state.atStop) lastAnnouncedStopIdx = state.atStop.stopIndex; // still counts as "arrival announced" for this stop
         } else {
           if (state.approaching) {
             lastState = resolveApproachOrArrivalState({ approaching: state.approaching, atStop: null, allStops: details.allStops });
             if (state.approaching.stopIndex !== lastAnnouncedApproachIdx) {
               lastAnnouncedApproachIdx = state.approaching.stopIndex;
-              speakState(lastState.stateKey, lastState.vars);
+              speakState(lastState.stateKey, lastState.vars, { stopId: details.allStops[state.approaching.stopIndex].stop_id });
             }
           }
 
@@ -385,7 +424,7 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
 
             if (isFinal) {
               lastState = resolveApproachOrArrivalState({ approaching: null, atStop: state.atStop, allStops: details.allStops });
-              speakState(lastState.stateKey, lastState.vars);
+              speakState(lastState.stateKey, lastState.vars, { stopId: details.allStops[state.atStop.stopIndex].stop_id });
             } else {
               const departureVars = {
                 serviceCode: details.serviceCode,
@@ -393,7 +432,10 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
                 nextStopName: stripIndicator(details.allStops[state.atStop.stopIndex + 1].name),
               };
               lastState = { stateKey: ANNOUNCE_STATES.STOP_DEPARTURE, vars: departureVars };
-              speakState(ANNOUNCE_STATES.STOP_DEPARTURE, departureVars);
+              speakState(ANNOUNCE_STATES.STOP_DEPARTURE, departureVars, {
+                serviceCode: details.serviceCode, destination: lastStop.name,
+                nextStopId: details.allStops[state.atStop.stopIndex + 1].stop_id,
+              });
             }
           }
         }
@@ -414,20 +456,31 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
         }
       },
     });
+    // Confirms the vehicle's position immediately, the same way a manual
+    // override does (shared/gps.js's jumpToStop sets hasReachedStart=true) —
+    // needed because Solo's own match just fired at terminus_radius_m
+    // (150m default, deliberately loose for a depot/terminus forecourt),
+    // which is well outside GEOFENCE_RADIUS_M (50m, gps.js's own street-stop
+    // arrival threshold). Without this, hasReachedStart could stay false for
+    // the rest of the journey if the vehicle never physically enters that
+    // tighter 50m ring around stop 0's exact coordinates — freezing arrival/
+    // approach/forward-match detection at nextStopIndex=0 permanently. Found
+    // live 2026-09-04: this is why a whole multi-hour Solo journey produced
+    // no announcements past the initial ROUTE_START.
+    tracker.jumpToStop(0);
     activeJourney = { journeyId: resolvedId, startedAt, tracker };
   }
 
   refreshCandidates();
-  refreshActiveWindows();
 
   const idleTimer = setInterval(() => {
-    applyWakeState(); // catches a window opening/closing since the last tick — see its own comment
+    applyWakeState(); // catches a wake window opening/closing since the last tick — see its own comment
     if (activeJourney || !navigator.geolocation || !isAwake) return;
     // Stay fully dormant (no geolocation call at all — no battery/data use)
-    // outside this device's configured active windows. A device with no
-    // windows configured at all never wakes — see isWithinActiveWindow's
-    // own comment for why that's the safe default, matching an empty
-    // candidate_departure_ids list's existing no-op behaviour.
+    // outside every candidate's own wake window. A device with no
+    // candidates configured at all never wakes — see
+    // isWithinDepartureWakeWindow's own comment for why that's the safe
+    // default.
     navigator.geolocation.getCurrentPosition(
       (pos) => tryMatch(pos.coords.latitude, pos.coords.longitude),
       () => {}, // GPS error — just skip this tick, retried on the next one
@@ -441,7 +494,6 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
       activeJourney?.tracker?.stop();
     },
     refreshCandidates,
-    refreshActiveWindows,
     applyConfigUpdate,
   };
 }

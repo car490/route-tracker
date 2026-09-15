@@ -1,0 +1,22 @@
+-- supabase/migration_announce_devices_drop_active_windows.sql
+--
+-- Drops announce_device_active_windows entirely (2026-09-04). This table
+-- (added migration_announce_device_active_windows.sql) hand-duplicated
+-- day/time data that already lives on the timetable itself:
+-- timetable_departures.days_of_week + schedule_view.scheduled_time, both
+-- already reachable from a Solo device's own candidate-departure fetch.
+--
+-- Flagged as a real rabbit-hole risk before it caused one: two separate
+-- day/time checks (this table's admin-entered day_of_week/window_start/
+-- window_end, and the departure-relative match_window_before_min/
+-- match_window_after_min) that could quietly drift apart whenever a
+-- route's schedule changed in the dashboard but this table wasn't also
+-- updated to match.
+--
+-- announceSoloAutopilot.js/scheduleAutopilot.js no longer read this table
+-- at all (isWithinActiveWindow replaced by isWithinDepartureWakeWindow,
+-- which computes the wake window straight from each candidate's own
+-- days_of_week/scheduled_time) — see docs/ANNOUNCE-PRODUCT-TIERS.md's
+-- simplification writeup. Any existing rows (e.g. the SN06JVZ beta device's
+-- configured windows) are simply gone; nothing reads them after this ships.
+drop table if exists public.announce_device_active_windows;
