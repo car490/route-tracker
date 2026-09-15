@@ -40,7 +40,7 @@ select cron.schedule(
         where name = 'naptan_import_token' limit 1
       )
     ),
-    body    => jsonb_build_object('batch_size', 20)::text
+    body    => jsonb_build_object('batch_size', 20)
   );
   $$
 );
