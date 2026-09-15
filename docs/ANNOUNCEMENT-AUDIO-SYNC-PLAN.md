@@ -1,11 +1,103 @@
 # Announcement audio: server-triggered generation + sync — plan
 
-**Status: design settled 2026-09-08, all open questions resolved. Not yet implemented — no
-product code has been changed as part of this plan, doc changes only.**
+**Status: design settled 2026-09-08, all open questions resolved. Partially implemented —
+see "Implementation status" below.**
 Written 2026-09-08 following a design discussion flagged in `docs/DECISIONS.md`'s
-"Shared journey-tracking core" open item. Once implementation starts, this doc's outcome should
-be folded back into `docs/DECISIONS.md` and `CLAUDE.md`'s "PSVAIR announcement audio" section,
-same as every other architecture decision in this repo.
+"Shared journey-tracking core" open item. Once implementation is complete, this doc's outcome
+should be folded back into `docs/DECISIONS.md` and `CLAUDE.md`'s "PSVAIR announcement audio"
+section, same as every other architecture decision in this repo.
+
+## Implementation status (updated 2026-09-15)
+
+Checked against `develop` before starting the rest of this work:
+
+- ✅ **Rollout step 3 — Solo gets clip playback.** Shipped independently via PR #25
+  (`fix/announce-audio-architecture`, merged 2026-09-08). `shared/announcementAudio.js` now
+  holds `clipKeysFor()`/`createAnnouncementPlayer()`, imported by both
+  `driver/src/announcements.js` and `announce/src/announceSpeech.js`. Partial G2 (shared audio
+  code path) is already true.
+- ❌ Everything else in this doc is still open: no `announcement_clips`/`announcement_clip_jobs`
+  tables, no `announcement-audio` Storage bucket, no `generate-announcement-clip` Edge Function,
+  no cron drain — generation is still the manual `npm run generate:audio` script writing into
+  the repo. **G1 is not met**: both `announcements.js` and `announceSpeech.js` still fall back to
+  live `speechSynthesis` on a missing/failed clip.
+- ⚠️ **Live security gap, still unfixed**: `link_announce_device` (`supabase/schema.sql`) is
+  `security definer`, granted to `anon`, and validates only that the device and vehicle share a
+  `company_id` with *each other* — no `auth.uid()`/caller-authorization check at all. Anyone
+  holding the public anon key can link any device to any vehicle sharing a `company_id`. Treated
+  as Phase 0 below per this doc's own "fix independent of this plan's timeline" call.
+
+## Implementation checklist
+
+Ordered as independent vertical slices — each phase should ship as its own PR, tested
+(TDD: tests first per component, matching this repo's Jest/Vitest/RLS-test split) before the
+next phase starts. Every new/changed Supabase object follows `CLAUDE.md`'s GRANT+RLS rules;
+every migration goes to dev (`cgcbfgceputvdvhzrgio`) first, then production
+(`nwhayupsvcelyiwltdqo`) after verification, per the repo's standard workflow.
+
+### Phase 0 — security fast-follow (do first, independent of everything else)
+- [ ] Add caller authorization to `link_announce_device` (e.g. require the caller's
+      `current_company_id()` — or an equivalent claim available to the PWA's anon session — to
+      match the device/vehicle `company_id`, not just device-vs-vehicle equality).
+- [ ] `supabase/tests/announce_devices_rls.sql`: add a case proving an unauthorized caller is
+      rejected even when device and vehicle share a company.
+- [ ] Migration file: `supabase/migration_link_announce_device_caller_auth.sql`.
+- [ ] Apply to dev, test, apply to production.
+
+### Phase 1 — server-side generation pipeline (no client changes yet)
+- [ ] Migration: `announcement_clips` table (GRANT select to anon/authenticated, RLS
+      `public_read` policy, no client write policy).
+- [ ] Migration: `announcement_clip_jobs` table (no client GRANTs at all — trigger + Edge
+      Function only) plus the trigger on whatever `schedule_view`/`display_name()` ultimately
+      reads (stops, timetable departures) that enqueues a job on relevant changes.
+- [ ] Supabase Storage bucket `announcement-audio` (public read, service-role write only).
+- [ ] Edge Function `supabase/functions/generate-announcement-clip/`: imports slug/key logic
+      from `shared/announceStates.js`/`shared/announcementAudio.js` directly (Deno can import the
+      same relative file) instead of re-implementing it a third time — this is the fix for the
+      "keep `slug()` in sync by hand" risk called out in both this doc and `CLAUDE.md`.
+  - [ ] Unit tests: hash-skip idempotency (no Azure call on unchanged text/voice); key generation
+        parity against the shared module.
+- [ ] Scheduled cron drain (Supabase cron) with a capped batch size per cycle.
+- [ ] Coverage/contract test: every `(stateKey, ids)` combination `clipKeysFor()` can produce has
+      a corresponding `announcement_clips` row after a drain pass.
+- [ ] RLS tests for both new tables (anon can read clips, never write; jobs never
+      client-writable at all).
+- [ ] Verify parity: regenerate everything, diff output against the currently-committed
+      `driver/audio/announcements/` clips before treating the pipeline as trustworthy.
+
+### Phase 2 — Driver + Solo read from the new source
+- [ ] Switch `shared/announcementAudio.js`'s clip lookup from bundled files to the
+      Storage/table-backed source, with the bundled files kept as a temporary fallback during
+      transition.
+- [ ] `busops/service-worker.js`: precache clips by querying `announcement_clips` live at
+      install/update time, replacing the static `manifest.json`-driven precache.
+- [ ] Vitest integration tests for both `driver/src` and `announce/src` covering the new lookup
+      path (cache hit, cache miss during transition, offline).
+- [ ] Once parity is proven on dev then production, remove the bundled-file fallback and the
+      committed `driver/audio/announcements/` directory.
+
+### Phase 3 — G1: never synthesize (the actual point of this plan)
+- [ ] Journey-start check: before/at start, verify every clip the resolved route needs is
+      present and hash-confirmed locally; if not, show a non-blocking driver-facing warning
+      ("audio not yet ready for N stops on this route") — journey start is never blocked.
+- [ ] Fire a loud ops-facing alert (not `console.warn`) when journey start finds missing clips.
+- [ ] Per-stop, when reached: if the clip isn't confirmed, play nothing (visual text only) —
+      remove the `speechSynthesis` fallback from the live announcement path entirely, on both
+      `announcements.js` (Driver/Lite) and `announceSpeech.js` (Solo).
+- [ ] Vitest tests: journey-start warning fires correctly; a reached stop with no confirmed clip
+      never calls `speechSynthesis`; ops alert fires in both scenarios.
+
+### Phase 4 — repurpose the local generator script
+- [ ] `scripts/generate-announcement-audio.mjs`: narrow to a local dev/preview tool only (for
+      auditioning wording changes); stop it writing to the shared Storage bucket or
+      `announcement_clips` table once Phase 1–2 ship.
+
+### Phase 5 — docs
+- [ ] Update `CLAUDE.md`'s "PSVAIR announcement audio" section to describe the new pipeline.
+- [ ] Move the "Shared journey-tracking core" row in `docs/DECISIONS.md` to reflect this plan's
+      resolution, or add a new decided row referencing this doc.
+- [ ] File the Solo → Lite detect-and-confirm ops-dashboard UI as its own tracked fast-follow
+      (out of scope for this plan — see "Related" section below) — e.g. `docs/TODO.md`.
 
 ## Problem
 
