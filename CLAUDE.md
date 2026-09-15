@@ -221,6 +221,19 @@ grant all    on public.my_table to authenticated;
 
 Always follow GRANTs with the appropriate RLS policy.
 
+**If any Edge Function (service-role) code will read/write the table, grant `service_role`
+explicitly too** — don't rely on it having implicit access. Found 2026-09-15 while shipping the
+announcement-clip pipeline: production's `public` schema has no `pg_default_acl` entry for
+`service_role` at all (confirmed via `pg_default_acl`), while dev's does — so a brand-new table
+on production gets **zero** service_role access until explicitly granted, while the identical
+table on dev "just works" via dev's default privileges. A service-role client hitting this gets a
+genuine Postgres `permission denied for table` error, not an RLS deny (RLS/bypass is never even
+reached). Production's existing convention has always been per-table explicit `service_role`
+grants (e.g. `naptan_stops`) — this wasn't a regression, just a rule that hadn't been written
+down. Add `grant all on public.my_table to service_role;` alongside the anon/authenticated grants
+above whenever an Edge Function touches the table, on every environment, rather than assuming any
+project's default privileges cover it.
+
 ---
 
 ## Supabase: schema.sql hygiene

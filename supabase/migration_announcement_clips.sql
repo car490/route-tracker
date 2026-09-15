@@ -24,6 +24,7 @@ create table public.announcement_clips (
 
 grant select on public.announcement_clips to anon;
 grant select on public.announcement_clips to authenticated;
+grant all    on public.announcement_clips to service_role;
 
 alter table public.announcement_clips enable row level security;
 
@@ -61,8 +62,20 @@ create table public.announcement_clip_jobs (
 create index announcement_clip_jobs_key_idx on public.announcement_clip_jobs (key);
 
 revoke all on public.announcement_clip_jobs from anon, authenticated;
+grant all on public.announcement_clip_jobs to service_role;
 
 alter table public.announcement_clip_jobs enable row level security;
+
+-- Both explicit service_role grants above (and announcement_clips' own,
+-- further up) are required, not redundant with anon/authenticated's default
+-- privileges: found 2026-09-15 while applying this migration to production
+-- that production's public schema has no pg_default_acl entry for
+-- service_role at all (dev's does) -- an environment divergence, not
+-- something this migration created. Without the explicit grant,
+-- generate-announcement-clip's service-role client hits a genuine Postgres
+-- "permission denied for table", not an RLS deny -- RLS/bypass is never even
+-- reached. Applied as a follow-up fix to both dev and production; folded
+-- into this file so a fresh reset gets it too.
 
 -- ── article_for(): SQL port of announceStates.js's articleFor() ────────────────
 -- Needed so the server-rendered ROUTE_START clip text ("This is a/an X to
