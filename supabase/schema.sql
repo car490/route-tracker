@@ -1350,7 +1350,13 @@ create table if not exists public.announce_devices (
   config_version int not null default 1,
 
   last_seen_at  timestamptz,
-  created_at    timestamptz not null default now()
+  created_at    timestamptz not null default now(),
+
+  -- Device-held bearer credential link_announce_device() requires from its
+  -- caller -- see migration_link_announce_device_caller_auth.sql. Not
+  -- exposed beyond this table's own RLS policies (device_self lets a device
+  -- read its own row, including this column).
+  pairing_secret uuid not null default gen_random_uuid()
 );
 
 create index if not exists announce_devices_company_id_idx on public.announce_devices (company_id);
@@ -1469,6 +1475,15 @@ grant execute on function public.end_announce_device_journey(uuid) to anon;
 -- vehicle must share a company_id) rather than via RLS+JWT claim, since a
 -- manual-selection-flow driver device may carry no JWT claims at all.
 --
+-- p_pairing_secret must match the target device's own pairing_secret column
+-- -- see migration_link_announce_device_caller_auth.sql. Without this, the
+-- company_id check above was the *only* gate: since the anon key is shared
+-- across every company, anyone holding it could link any device to any
+-- vehicle as long as those two happened to already share a company_id.
+-- Checked before the Solo-guard/company checks below so a caller without
+-- the secret can't use this function's error messages to probe a device's
+-- state.
+--
 -- p_force guards against silently converting an already-commissioned Solo
 -- device (candidate_departure_ids populated) into Lite (driver-device) mode
 -- -- found live 2026-09-04: a Solo tablet got flipped with no driver device
@@ -1477,23 +1492,29 @@ grant execute on function public.end_announce_device_journey(uuid) to anon;
 -- self-heal watchdog (announceLiteMode.js's shouldSelfHeal) for the other
 -- half of this fix.
 create or replace function public.link_announce_device(
-  p_device_id  uuid,
-  p_vehicle_id uuid,
-  p_force      boolean default false
+  p_device_id      uuid,
+  p_vehicle_id     uuid,
+  p_pairing_secret uuid,
+  p_force          boolean default false
 ) returns boolean
 language plpgsql security definer
 as $$
 declare
   v_device_company  uuid;
+  v_device_secret   uuid;
   v_candidate_count int;
   v_vehicle_company uuid;
 begin
-  select company_id, cardinality(candidate_departure_ids)
-    into v_device_company, v_candidate_count
+  select company_id, cardinality(candidate_departure_ids), pairing_secret
+    into v_device_company, v_candidate_count, v_device_secret
   from public.announce_devices where id = p_device_id;
 
   if v_device_company is null then
     raise exception 'announce device % not found', p_device_id;
+  end if;
+
+  if p_pairing_secret is null or p_pairing_secret <> v_device_secret then
+    raise exception 'announce device % pairing secret does not match', p_device_id;
   end if;
 
   if v_candidate_count > 0 and not p_force then
@@ -1520,7 +1541,7 @@ begin
 end;
 $$;
 
-grant execute on function public.link_announce_device(uuid, uuid, boolean) to anon;
+grant execute on function public.link_announce_device(uuid, uuid, uuid, boolean) to anon;
 
 -- Called by the Driver PWA (anon) to unlink an Announce device — reversible
 -- at any time, drops the device back to internal (self-contained) GPS mode.

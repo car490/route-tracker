@@ -35,14 +35,30 @@ next phase starts. Every new/changed Supabase object follows `CLAUDE.md`'s GRANT
 every migration goes to dev (`cgcbfgceputvdvhzrgio`) first, then production
 (`nwhayupsvcelyiwltdqo`) after verification, per the repo's standard workflow.
 
-### Phase 0 — security fast-follow (do first, independent of everything else)
-- [ ] Add caller authorization to `link_announce_device` (e.g. require the caller's
-      `current_company_id()` — or an equivalent claim available to the PWA's anon session — to
-      match the device/vehicle `company_id`, not just device-vs-vehicle equality).
-- [ ] `supabase/tests/announce_devices_rls.sql`: add a case proving an unauthorized caller is
-      rejected even when device and vehicle share a company.
-- [ ] Migration file: `supabase/migration_link_announce_device_caller_auth.sql`.
-- [ ] Apply to dev, test, apply to production.
+### Phase 0 — security fast-follow (do first, independent of everything else) — DONE (dev), pending production
+- [x] Add caller authorization to `link_announce_device`. The PWA has no login/JWT at all
+      (`current_company_id()` isn't available to it), so the fix is a device-held
+      `pairing_secret` (uuid, generated per row) the caller must present — checked before the
+      Solo-guard and company checks so an unauthorized caller can't use error messages to probe
+      device state. See `supabase/migration_link_announce_device_caller_auth.sql`.
+- [x] `supabase/tests/announce_devices_rls.sql`: added case 3b proving a missing/wrong
+      `pairing_secret` is rejected even when device and vehicle share a company; existing cases
+      updated to pass the secret. TDD verified against dev (`cgcbfgceputvdvhzrgio`): confirmed
+      red (`column "pairing_secret" does not exist`) before the migration, green after.
+- [x] Migration file: `supabase/migration_link_announce_device_caller_auth.sql`. Applied to dev.
+- [ ] Apply to production (`nwhayupsvcelyiwltdqo`) — held pending review, since nothing in the
+      client currently calls this RPC (`announceDeviceLinkApi.js`'s `linkAnnounceDevice` was
+      unused dead code before this change) — no live traffic depends on the old signature, but
+      it's still a production DB change worth a second look before applying.
+- Note: `unlink_announce_device` has the same shape (anon-callable, no caller-auth check) but
+  wasn't flagged in the original plan doc and is lower severity (worst case: knocks a device back
+  to Solo autopilot, which self-heals) — left alone here; worth the same treatment later if this
+  plan doc is used as an argument for extending pairing_secret to it too.
+- Correction: the "no dashboard/PWA UI for this at all yet" claim above is stale —
+  `announceDeviceLinkApi.js`'s `linkAnnounceDevice`/`fetchAnnounceDevicesForVehicle` already exist
+  in `driver/src/`, just unwired (no caller). `fetchAnnounceDevicesForVehicle`'s raw REST select
+  would also return zero rows under current RLS (no anon policy selects by `vehicle_id`) —
+  flagging as a latent bug in that same unused file, not fixed here.
 
 ### Phase 1 — server-side generation pipeline (no client changes yet)
 - [ ] Migration: `announcement_clips` table (GRANT select to anon/authenticated, RLS
