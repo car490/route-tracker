@@ -72,16 +72,44 @@ every migration goes to dev (`cgcbfgceputvdvhzrgio`) first, then production
       table/function automatically — `announcement_clip_jobs` and both trigger functions now get
       an explicit `REVOKE`, not just "no GRANT", as defense-in-depth; confirmed via `get_advisors`
       and `information_schema.role_table_grants`/`role_routine_grants`).
-- [ ] Supabase Storage bucket `announcement-audio` (public read, service-role write only).
-- [ ] Edge Function `supabase/functions/generate-announcement-clip/`: imports slug/key logic
-      from `shared/announceStates.js`/`shared/announcementAudio.js` directly (Deno can import the
-      same relative file) instead of re-implementing it a third time — this is the fix for the
-      "keep `slug()` in sync by hand" risk called out in both this doc and `CLAUDE.md`.
-  - [ ] Unit tests: hash-skip idempotency (no Azure call on unchanged text/voice); key generation
-        parity against the shared module.
-- [ ] Scheduled cron drain (Supabase cron) with a capped batch size per cycle — mirror
-      `migration_naptan_trigger.sql`'s existing pg_net/pg_cron/vault-secret/app_config pattern
-      rather than inventing a new one.
+- [x] Supabase Storage bucket `announcement-audio` (public read, service-role write only). See
+      `supabase/migration_announcement_audio_bucket.sql` — follows the exact pattern already
+      established by `company-logos`/`operator-assets`/`system-assets` (explicit public-read
+      policy even though `public: true` already permits it), minus any write policy at all (not
+      even a company-scoped `authenticated` one like those buckets have — this bucket has none).
+- [x] Edge Function `supabase/functions/generate-announcement-clip/`. Deviates from this doc's
+      original "import `clipKeysFor` into the Edge Function" idea: key/text/voice generation
+      already happens entirely in the enqueue triggers (SQL), so the function just renders
+      whatever a job row already specifies — no slug logic to duplicate/import here at all.
+      Deployed to dev, `verify_jwt: true` (matching `naptan-import`/`dvsa-vol-lookup`).
+  - [x] Hash algorithm cross-checked against `scripts/generate-announcement-audio.mjs`'s
+        `hashText()`: ran both Node's `crypto` and Node's `webcrypto.subtle` (the same API Deno
+        uses) against identical inputs, got byte-identical output. Real verification, not just
+        code review — Deno itself isn't installed locally so the function's own test suite
+        couldn't run directly.
+  - [ ] **Not yet successfully invoked end-to-end.** Manual test attempts hit a real, unresolved
+        finding: this project's legacy `service_role` JWT (`supabase projects api-keys`) passes
+        the platform's `verify_jwt` gateway check and reaches the function, but fails the
+        function's own `token !== Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')` comparison (a plain
+        401 from the function's own code, not a gateway rejection) — while the newer
+        `sb_secret_...`-format key gets rejected by the gateway itself ("Invalid API key") before
+        reaching the function at all. Root cause not confirmed (likely the auto-injected
+        `SUPABASE_SERVICE_ROLE_KEY` env var has drifted to the new-style key format on this
+        project while gateway `verify_jwt` still only accepts legacy-JWT bearer tokens) — worth
+        checking whether `naptan-import` has the identical latent issue, since it uses the same
+        pattern. **Test via the Supabase Dashboard's own Edge Functions invoke UI** (handles auth
+        without needing to handle the raw key by hand) before trusting this function works.
+- [ ] Unit tests: key generation parity — moot now (key generation lives in the enqueue
+      triggers, already covered by `supabase/tests/announcement_clips_rls.sql`), striking this
+      sub-item rather than leaving it stale.
+- [x] Scheduled cron drain (Supabase cron), `*/5 * * * *`, batch size 20 per cycle — mirrors
+      `migration_naptan_trigger.sql`'s pg_net/pg_cron/vault-secret/app_config pattern exactly,
+      reusing the same `naptan_import_token` vault secret rather than creating a duplicate. That
+      vault secret does **not exist yet on dev** (checked directly — `naptan-import`'s own cron
+      is presumably equally dormant until someone runs its one-time
+      `vault.create_secret(...)` setup step). `AZURE_SPEECH_KEY`/`AZURE_SPEECH_REGION` Edge
+      Function secrets **are** set on dev now (via `supabase secrets set --env-file` from a local
+      `.env.audio`, values never seen by the assistant).
 - [x] RLS tests for both new tables — `supabase/tests/announcement_clips_rls.sql` (anon/
       authenticated can read clips but never write; jobs completely inaccessible to both).
 - [ ] Coverage/contract test: every `(stateKey, ids)` combination `clipKeysFor()` can produce has
