@@ -43,15 +43,25 @@ not just code review):
    originally only 25 characters — the user has since fixed it via `vault.update_secret`) — worth
    confirming its next Sunday run actually succeeds, but not otherwise acted on here.
 
-**What's left for Phase 1 to be fully done:**
-- [ ] Apply all of Phase 1's migrations + the Edge Function + the cron to **production**
-  (`nwhayupsvcelyiwltdqo`). Bigger than Phase 0's production step since it includes a live Edge
-  Function and cron job, not just a DB function — go through the same dev-verified migrations
-  (`migration_announcement_clips.sql`, `migration_announcement_audio_bucket.sql`,
-  `migration_announcement_clip_drain_cron.sql`), redeploy the Edge Function, set its
-  `AZURE_SPEECH_KEY`/`AZURE_SPEECH_REGION`/`CALLER_AUTH_TOKEN` secrets on production, and confirm
-  the production `naptan_import_token` vault secret is also a valid legacy JWT before relying on
-  the shared cron pattern there.
+**Production rollout — in progress, started 2026-09-15:**
+- [x] `migration_announcement_clips.sql` applied to production (tables, triggers, `article_for()`).
+- [x] `migration_announcement_audio_bucket.sql` applied to production (`announcement-audio` bucket
+      + public-read policy).
+- [x] `generate-announcement-clip` Edge Function deployed to production (`verify_jwt: true`,
+      matching dev).
+- [x] `AZURE_SPEECH_KEY`/`AZURE_SPEECH_REGION` secrets set on production — **shared with dev's
+      resource**, see the Security section's 2026-09-15 update above.
+- [ ] Production's `naptan_import_token` vault secret still needs fixing — pre-flight check found
+      it's a **placeholder** (`YOUR_P...`, 26 chars), not a valid legacy JWT. User is fixing this
+      directly via `vault.update_secret`/dashboard.
+- [ ] `CALLER_AUTH_TOKEN` Edge Function secret not yet set on production (needs to match whatever
+      legacy JWT ends up in the fixed `naptan_import_token` vault secret above).
+- [ ] `migration_announcement_clip_drain_cron.sql` not yet applied to production — blocked on the
+      two items above (the cron's `net.http_post` call reads `naptan_import_token` from vault for
+      its Authorization header, which the function then checks against `CALLER_AUTH_TOKEN`).
+- [ ] End-to-end verification on production once the cron is live — same method as dev: manually
+      fire the `net.http_post()` call, confirm `200` + rendered clips, confirm `.mp3` files in the
+      bucket, confirm the public read URL serves them.
 - [ ] Coverage/contract test + "verify parity vs currently-committed clips" (see Phase 1
   checklist below) — not done, arguably lower priority now that real rendering is proven to work.
 - [ ] The two orphaned test clip files in the dev `announcement-audio` bucket
@@ -160,12 +170,10 @@ every migration goes to dev (`cgcbfgceputvdvhzrgio`) first, then production
       a corresponding `announcement_clips` row after a drain pass (needs the Edge Function first).
 - [ ] Verify parity: regenerate everything, diff output against the currently-committed
       `driver/audio/announcements/` clips before treating the pipeline as trustworthy.
-- [ ] **Apply all of the above to production** (`nwhayupsvcelyiwltdqo`): the three migrations,
-      redeploy the Edge Function, set its three secrets there
-      (`AZURE_SPEECH_KEY`/`AZURE_SPEECH_REGION`/`CALLER_AUTH_TOKEN`), and confirm production's own
-      `naptan_import_token` vault secret is a valid legacy JWT (219 chars, starts `eyJ`) before
-      trusting the cron there — don't assume it's fine just because dev's now is; dev's was wrong
-      for months before this session fixed it.
+- [ ] **Apply all of the above to production** (`nwhayupsvcelyiwltdqo`) — **in progress, see
+      "Where things stand" at the top of this doc** for exactly what's done vs. still blocked
+      (tables/bucket/Edge Function/Azure secrets done; `naptan_import_token` vault-secret fix,
+      `CALLER_AUTH_TOKEN`, the cron migration, and end-to-end verification still open).
 
 ### Phase 2 — Driver + Solo read from the new source
 - [ ] Switch `shared/announcementAudio.js`'s clip lookup from bundled files to the
@@ -470,10 +478,14 @@ scope — worth a second look regardless of whether the auto-detect UI above get
 
 ## Security
 
-- Azure key/region: Edge Function secret only, provisioned per-project (dev `cgcbfgceputvdvhzrgio`
-  and production `nwhayupsvcelyiwltdqo` separately, matching this repo's existing dev/prod
-  migration discipline) — never reachable from `busops/driver/src/config.js` or any other
-  client-shipped file.
+- Azure key/region: Edge Function secret only — never reachable from
+  `busops/driver/src/config.js` or any other client-shipped file. **Decided 2026-09-15,
+  reversing this doc's original "provisioned per-project separately" plan:** dev
+  (`cgcbfgceputvdvhzrgio`) and production (`nwhayupsvcelyiwltdqo`) deliberately share one Azure
+  Speech resource/key, to stay within Azure's free tier. This function only *reads* the resource
+  (TTS synthesis, no writes/state), so the two environments sharing a quota carries no
+  cross-environment data risk — just a shared rate/cost ceiling, accepted as the tradeoff for
+  free-tier usage.
 - Storage bucket: public **read**, service-role-only **write** — no anon/authenticated insert,
   update, or delete policy on the bucket or on `announcement_clips`.
 - `announcement_clip_jobs` has no client-facing RPC to insert into it directly — only the DB
