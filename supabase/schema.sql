@@ -1327,6 +1327,7 @@ create table public.announcement_clips (
 
 grant select on public.announcement_clips to anon;
 grant select on public.announcement_clips to authenticated;
+grant all    on public.announcement_clips to service_role;
 
 alter table public.announcement_clips enable row level security;
 
@@ -1343,6 +1344,14 @@ create policy "public_read" on public.announcement_clips
 -- SELECT under RLS-deny silently returns zero rows, an INSERT/UPDATE raises
 -- a genuine RLS-violation error), plus an explicit REVOKE as defense in
 -- depth in case RLS is ever accidentally disabled.
+--
+-- Explicit `grant all ... to service_role` on both tables below is required,
+-- not redundant: found 2026-09-15 that production's public schema has no
+-- pg_default_acl entry for service_role at all (dev's does -- an environment
+-- divergence, not something this migration created), so a new table on
+-- production gets NO service_role access unless granted explicitly. Every
+-- table this pipeline's Edge Function touches needs this grant on every
+-- environment -- don't rely on a project's default privileges alone.
 create table public.announcement_clip_jobs (
   id           uuid primary key default gen_random_uuid(),
   key          text not null,
@@ -1354,6 +1363,7 @@ create table public.announcement_clip_jobs (
 create index announcement_clip_jobs_key_idx on public.announcement_clip_jobs (key);
 
 revoke all on public.announcement_clip_jobs from anon, authenticated;
+grant all on public.announcement_clip_jobs to service_role;
 
 alter table public.announcement_clip_jobs enable row level security;
 

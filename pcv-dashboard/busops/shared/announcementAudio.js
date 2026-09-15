@@ -10,9 +10,25 @@
 // scripts/generate-announcement-audio.mjs's own job keys — no shared import
 // between a browser module and that Node script, so keep them in sync by
 // hand.
+//
+// Phase 2 of docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md: playback now tries the
+// server-rendered clip in the `announcement-audio` Supabase Storage bucket
+// first (kept in sync automatically by Phase 1's trigger+cron pipeline),
+// falling back to the bundled `driver/audio/announcements/` copy the old
+// manual `npm run generate:audio` script produces — a **temporary** fallback
+// for the transition, per that doc's Rollout step 2, removed once parity is
+// proven on dev then production.
 
 import { speakUtterance } from './speech.js';
 import { ANNOUNCE_STATES } from './announceStates.js';
+import { SUPABASE_URL } from '../driver/src/config.js';
+
+// Public Storage bucket -- anon-readable by design (see
+// supabase/migration_announcement_audio_bucket.sql), so no key/auth needed
+// to fetch a clip, same trust level as the bundled .mp3 files this replaces.
+// Exported so tests assert against this single source of truth rather than
+// reconstructing the URL a second time.
+export const STORAGE_BASE = `${SUPABASE_URL}/storage/v1/object/public/announcement-audio/`;
 
 // NaPTAN stop names carry parenthetical indicators — "(opp)", "(adj)",
 // "(o/s)", "(NW-bound)" etc. — useful for visually telling apart stops on
@@ -62,23 +78,34 @@ export function clipKeysFor(stateKey, vars, ids) {
   }
 }
 
-// Plays one pre-rendered clip. Resolves false (never rejects) on any
+// Plays one clip from a single URL. Resolves false (never rejects) on any
 // failure — missing file, offline with nothing cached, decode error — so
-// callers can fall back to live synthesis without a try/catch.
-function playClip(audioBase, key, setCurrentAudio) {
+// callers can try the next source (or fall back to live synthesis) without
+// a try/catch.
+function playClipFromUrl(url, setCurrentAudio) {
   return new Promise((resolve) => {
-    const audio = new Audio(`${audioBase}${key}.mp3`);
+    const audio = new Audio(url);
     setCurrentAudio(audio);
     audio.onended = () => resolve(true);
     audio.onerror = () => {
-      console.warn(`[announcementAudio] clip failed to load: ${key}.mp3`, audio.error);
+      console.warn(`[announcementAudio] clip failed to load: ${url}`, audio.error);
       resolve(false);
     };
     audio.play().catch((err) => {
-      console.warn(`[announcementAudio] clip failed to play: ${key}.mp3`, err);
+      console.warn(`[announcementAudio] clip failed to play: ${url}`, err);
       resolve(false);
     });
   });
+}
+
+// Tries the Storage-backed clip first, then the bundled fallback copy — see
+// this file's header comment. Only the second attempt uses audioBase, so a
+// clip Phase 1's pipeline hasn't rendered yet (or a transient Storage
+// failure) still plays from whatever shipped with the last deploy, same
+// reliability as before Phase 2.
+function playClip(audioBase, key, setCurrentAudio) {
+  return playClipFromUrl(`${STORAGE_BASE}${key}.mp3`, setCurrentAudio)
+    .then((ok) => (ok ? true : playClipFromUrl(`${audioBase}${key}.mp3`, setCurrentAudio)));
 }
 
 // All-or-nothing: if any clip in the sequence is missing, fall back to a
@@ -95,11 +122,13 @@ async function playSequence(audioBase, keys, setCurrentAudio) {
 // call once per surface (Driver, Solo) rather than sharing a single
 // instance, so the two tiers' playback never contend over the same state.
 //
-// audioBase is the clip directory: a relative path from the caller's own
-// page (Driver, './audio/announcements/') or an absolute path from site
-// root (Solo, '/driver/audio/announcements/' — announce/ and driver/ deploy
-// under the same origin, see CLAUDE.md's Wrangler setup, so this is simpler
-// than maintaining two different relative paths to the same clips).
+// audioBase is the *bundled-fallback* clip directory, tried only after the
+// Storage-backed clip fails (see playClip above): a relative path from the
+// caller's own page (Driver, './audio/announcements/') or an absolute path
+// from site root (Solo, '/driver/audio/announcements/' — announce/ and
+// driver/ deploy under the same origin, see CLAUDE.md's Wrangler setup, so
+// this is simpler than maintaining two different relative paths to the same
+// clips).
 export function createAnnouncementPlayer(audioBase) {
   let currentAudio = null; // in-flight pre-rendered clip, cleared once its sequence finishes
   let isBusy = false; // true from the moment something starts playing until it fully finishes

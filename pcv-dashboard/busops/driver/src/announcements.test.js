@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+//
 // src/announcements.test.js
 //
 // Covers announceState()'s clip-key resolution and the DIVERSION state
@@ -5,6 +7,16 @@
 // match vitest.config.js's `src/**/*.test.js` include pattern (see
 // audioConfigPipeline.test.js for the established Slice 1 precedent;
 // tests/**/*.test.js runs on Jest).
+//
+// Real jsdom (not the suite's default 'node' environment) is required as of
+// Phase 2 of docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md: this file transitively
+// imports shared/announcementAudio.js, which now imports driver/src/config.js
+// — that module reads window.location at module scope to pick dev vs
+// production Supabase URLs, same reason tests/supabaseApi.test.js (Jest)
+// needs `@jest-environment jsdom`. See announce/src/announceSpeech.test.js
+// for the fuller Storage-vs-bundled fallback coverage — this file's own
+// Audio stub never inspects the constructed URL, so it isn't affected by
+// which of the two sources actually gets attempted.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as announcements from './announcements.js';

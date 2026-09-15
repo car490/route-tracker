@@ -1,7 +1,9 @@
 # Announcement audio: server-triggered generation + sync — plan
 
-**Status: design settled 2026-09-08. Phase 0 shipped (dev + production). Phase 1 shipped and
-verified end-to-end on dev only — not yet applied to production. Phases 2-5 not started. See
+**Status: design settled 2026-09-08. Phase 0 and Phase 1 both shipped and verified end-to-end on
+dev AND production. Phase 2 (Driver/Solo reading from the new pipeline) is coded, unit-tested, and
+manually verified against real dev Supabase in a real browser — not yet deployed anywhere, and the
+full service-worker install lifecycle still wants a real-device pass. Phases 3-5 not started. See
 "Where things stand" immediately below for exactly what a fresh session needs to know.**
 Written 2026-09-08 following a design discussion flagged in `docs/DECISIONS.md`'s
 "Shared journey-tracking core" open item. Once implementation is complete, this doc's outcome
@@ -10,11 +12,37 @@ section, same as every other architecture decision in this repo.
 
 ## Where things stand (updated 2026-09-15, end of session)
 
-**Done and merged to `develop`** (PRs #36–#40, all merged):
+**Done and merged to `develop`** (PRs #36–#42, all merged):
 - Phase 0 (security fix) — **live on dev AND production.**
 - Phase 1 (server-side clip pipeline: tables, triggers, Storage bucket, Edge Function, cron) —
-  **live on dev only, verified genuinely working end-to-end** (see below). Not yet applied to
-  production.
+  **live on dev AND production, verified genuinely working end-to-end on both** (see below).
+  **Phase 1 is fully done.**
+
+**In progress, not yet merged**: Phase 2 (`shared/announcementAudio.js` now tries the
+Storage-backed clip before the bundled fallback; `busops/service-worker.js` precaches from the
+live `announcement_clips` table) — code written, full Jest+Vitest suites pass (155+125 tests),
+**and manually verified for real in a live Chromium browser against dev Supabase** (Playwright,
+driven directly against `pcv-dashboard/busops/server.js` — not just unit tests):
+1. `fetchAnnouncementClipStorageUrls()` (the service worker's new precache source) called for
+   real in-browser: correctly returned `[]` against dev's empty `announcement_clips` table, then
+   correctly built `https://cgcbfgceputvdvhzrgio.supabase.co/storage/v1/object/public/announcement-audio/<storage_path>`
+   once a real test row was inserted.
+2. **Genuine Storage-backed audio playback confirmed**: pointed `createAnnouncementPlayer`'s
+   bundled-fallback base at a deliberately nonexistent path (so a pass could only mean the
+   Storage-backed attempt itself succeeded) and played
+   `approach/6753f879-f1ae-4fe2-9bdf-dc44157e9822.mp3` — one of the real Azure-rendered leftover
+   test clips already sitting in dev's bucket from Phase 1's own verification — the `<audio>`
+   element fired `ended`, i.e. it actually downloaded and played a real clip through the new code
+   path, no fallback needed. Test row cleaned up afterward (dev `announcement_clips` back to 0
+   rows).
+
+**Not yet done**: the full service-worker `install`/`activate` lifecycle (precaching everything,
+not just the one query) hasn't been observed end-to-end in a browser — a first attempt hung on
+this sandbox's restricted network access to the unrelated `TILE_CACHE` (OpenStreetMap tile)
+prefetch list, an environment limitation of this test run, not a code issue (confirmed by testing
+the actually-new logic directly instead, bypassing that unrelated blocker). Worth a real-device
+pass before wide rollout. Not yet deployed anywhere. See the Phase 2 section of the checklist
+below for exactly what's done vs. still open.
 
 **Verified for real on dev**, not just deployed: manually fired the exact `net.http_post()` call
 the cron uses, got a live `200` with `{"rendered":2,"skipped":0,"failed":0}`, confirmed the
@@ -43,21 +71,59 @@ not just code review):
    originally only 25 characters — the user has since fixed it via `vault.update_secret`) — worth
    confirming its next Sunday run actually succeeds, but not otherwise acted on here.
 
-**What's left for Phase 1 to be fully done:**
-- [ ] Apply all of Phase 1's migrations + the Edge Function + the cron to **production**
-  (`nwhayupsvcelyiwltdqo`). Bigger than Phase 0's production step since it includes a live Edge
-  Function and cron job, not just a DB function — go through the same dev-verified migrations
-  (`migration_announcement_clips.sql`, `migration_announcement_audio_bucket.sql`,
-  `migration_announcement_clip_drain_cron.sql`), redeploy the Edge Function, set its
-  `AZURE_SPEECH_KEY`/`AZURE_SPEECH_REGION`/`CALLER_AUTH_TOKEN` secrets on production, and confirm
-  the production `naptan_import_token` vault secret is also a valid legacy JWT before relying on
-  the shared cron pattern there.
+**Production rollout — DONE, completed 2026-09-15:**
+- [x] `migration_announcement_clips.sql` applied to production (tables, triggers, `article_for()`).
+- [x] `migration_announcement_audio_bucket.sql` applied to production (`announcement-audio` bucket
+      + public-read policy).
+- [x] `generate-announcement-clip` Edge Function deployed to production (`verify_jwt: true`,
+      matching dev).
+- [x] `AZURE_SPEECH_KEY`/`AZURE_SPEECH_REGION` secrets set on production — **shared with dev's
+      resource**, see the Security section's 2026-09-15 update above.
+- [x] Production's `naptan_import_token` vault secret fixed (was a placeholder, `YOUR_P...`,
+      26 chars) — replaced with production's own valid legacy-format service_role JWT via
+      `vault.update_secret`.
+- [x] `CALLER_AUTH_TOKEN` Edge Function secret set on production, matching the fixed vault secret.
+- [x] `migration_announcement_clip_drain_cron.sql` applied to production.
+- [x] **Fourth bug found and fixed, production-only** (see below): `service_role` had zero grants
+      on either new table on production — a genuine Postgres `permission denied`, not an RLS deny.
+- [x] End-to-end verification on production, same method as dev: queued a real test job, let the
+      actual 5-minute cron (not just a manual call) drain it, confirmed a live `200` from the
+      function, confirmed the `announcement_clips` row, confirmed the real Azure-rendered `.mp3`
+      (29,952 bytes, `audio/mpeg`) in the bucket, confirmed the public read URL serves it with
+      correct headers (`200`, `Content-Type: audio/mpeg`, `Access-Control-Allow-Origin: *`).
+      `announcement_clips` test row deleted afterward; the one small test `.mp3` file
+      (`test/prod-verify-2026-09-15.mp3`) remains in the bucket — same as dev, direct SQL
+      `DELETE` on `storage.objects` is blocked by `storage.protect_delete()`, not worth chasing
+      further for one 29KB file.
 - [ ] Coverage/contract test + "verify parity vs currently-committed clips" (see Phase 1
-  checklist below) — not done, arguably lower priority now that real rendering is proven to work.
-- [ ] The two orphaned test clip files in the dev `announcement-audio` bucket
+  checklist below) — not done, arguably lower priority now that real rendering is proven to work
+  on both environments.
+- [ ] Three small harmless orphaned test clip files remain across both buckets — two in dev
   (`approach/6753f879-f1ae-4fe2-9bdf-dc44157e9822.mp3`,
-  `departure/6753f879-f1ae-4fe2-9bdf-dc44157e9822.mp3`) — harmless, optional cleanup via the
-  Storage dashboard.
+  `departure/6753f879-f1ae-4fe2-9bdf-dc44157e9822.mp3`), one in production
+  (`test/prod-verify-2026-09-15.mp3`) — optional cleanup via the Storage dashboard, blocked from
+  SQL `DELETE` by `storage.protect_delete()`.
+
+**Fourth real bug found and fixed, production-only** (only surfaced because Phase 1 was actually
+exercised against production, not just deployed): `generate-announcement-clip`'s service-role
+Supabase client got a genuine Postgres `permission denied for table announcement_clip_jobs` on
+its very first real call — not an RLS-policy denial, a table-level GRANT failure, meaning
+RLS/service-role-bypass was never even reached. Root cause: **production's `public` schema has no
+`pg_default_acl` entry for `service_role` at all** (confirmed via querying `pg_default_acl`
+directly) — dev's schema does have one, so the identical migration "just worked" on dev via that
+implicit default and masked the gap. This isn't a regression this migration caused; it's a
+pre-existing environment divergence between dev and production that had never been exercised
+before (production's established convention has always been explicit per-table `service_role`
+grants, e.g. `naptan_stops`, precisely because it lacks the default dev has). Fixed by adding
+explicit `grant all on ... to service_role;` to both `announcement_clips` and
+`announcement_clip_jobs`, applied to both dev (for consistency/future-proofing, though dev didn't
+strictly need it) and production, and folded into `migration_announcement_clips.sql`/
+`schema.sql` for a correct fresh reset. **Also documented as a standing rule in `CLAUDE.md`'s
+"Supabase: table creation rules"**: any table an Edge Function touches needs an explicit
+`service_role` grant, on every environment, rather than assuming a project's default privileges
+cover it — worth keeping in mind for any *other* existing Edge Function/table pairing on
+production that hasn't been exercised yet and could be silently relying on the same missing
+default.
 
 **Then Phase 2 onward** (not started at all): get Driver/Solo actually reading from this pipeline
 instead of the bundled clips, then Phase 3 (the actual point of this whole plan — eliminate the
@@ -112,7 +178,7 @@ every migration goes to dev (`cgcbfgceputvdvhzrgio`) first, then production
   would also return zero rows under current RLS (no anon policy selects by `vehicle_id`) —
   flagging as a latent bug in that same unused file, not fixed here.
 
-### Phase 1 — server-side generation pipeline — DONE (dev only, verified end-to-end)
+### Phase 1 — server-side generation pipeline — DONE (dev AND production, verified end-to-end)
 - [x] Migration: `announcement_clips` table (GRANT select to anon/authenticated, RLS
       `public_read` policy, no client write policy). See `supabase/migration_announcement_clips.sql`.
 - [x] Migration: `announcement_clip_jobs` table, plus triggers on `stops` (approach/departure)
@@ -160,23 +226,41 @@ every migration goes to dev (`cgcbfgceputvdvhzrgio`) first, then production
       a corresponding `announcement_clips` row after a drain pass (needs the Edge Function first).
 - [ ] Verify parity: regenerate everything, diff output against the currently-committed
       `driver/audio/announcements/` clips before treating the pipeline as trustworthy.
-- [ ] **Apply all of the above to production** (`nwhayupsvcelyiwltdqo`): the three migrations,
-      redeploy the Edge Function, set its three secrets there
-      (`AZURE_SPEECH_KEY`/`AZURE_SPEECH_REGION`/`CALLER_AUTH_TOKEN`), and confirm production's own
-      `naptan_import_token` vault secret is a valid legacy JWT (219 chars, starts `eyJ`) before
-      trusting the cron there — don't assume it's fine just because dev's now is; dev's was wrong
-      for months before this session fixed it.
+- [x] **Apply all of the above to production** (`nwhayupsvcelyiwltdqo`) — **done, see
+      "Where things stand" at the top of this doc** for the full rollout record, including a
+      fourth production-only bug found and fixed (missing `service_role` grants).
 
-### Phase 2 — Driver + Solo read from the new source
-- [ ] Switch `shared/announcementAudio.js`'s clip lookup from bundled files to the
+### Phase 2 — Driver + Solo read from the new source — DONE (code + tests; parity/removal still pending)
+- [x] Switch `shared/announcementAudio.js`'s clip lookup from bundled files to the
       Storage/table-backed source, with the bundled files kept as a temporary fallback during
-      transition.
-- [ ] `busops/service-worker.js`: precache clips by querying `announcement_clips` live at
-      install/update time, replacing the static `manifest.json`-driven precache.
-- [ ] Vitest integration tests for both `driver/src` and `announce/src` covering the new lookup
-      path (cache hit, cache miss during transition, offline).
+      transition. `playClip()` now tries `${SUPABASE_URL}/storage/v1/object/public/announcement-audio/<key>.mp3`
+      first, falling through to the existing bundled `audioBase` path only on failure — same
+      order for both Driver/Lite (`driver/src/announcements.js`) and Solo
+      (`announce/src/announceSpeech.js`), unchanged callers, since the base-URL swap happens
+      entirely inside the shared module.
+- [x] `busops/service-worker.js`: precache clips by querying `announcement_clips` live at
+      install/update time (paginated, same `limit`/`offset` pattern as
+      `scripts/generate-schedule.mjs`'s own fix for silent truncation past 1000 rows), replacing
+      the static `manifest.json`-driven precache as the *primary* source — the bundled
+      manifest.json precache stays too, run in parallel, as the same temporary transition
+      fallback. Required converting the service worker to `{ type: 'module' }` (both
+      `driver/index.html` and `announce/onboard.html`) so it could `import` `driver/src/config.js`
+      directly instead of duplicating the dev/prod Supabase URL a second time — module service
+      workers are supported on every Chromium engine (this fleet's actual runtime) since 2021.
+- [x] Vitest integration tests for both `driver/src` and `announce/src` covering the new lookup
+      path (cache hit / Storage-backed succeeds, cache miss during transition / falls through to
+      bundled, offline / both fail then degrades to synthesis without throwing) — see
+      `announce/src/announceSpeech.test.js`'s three new `describe` blocks. Both this file and
+      `driver/src/announcements.test.js` now need `// @vitest-environment jsdom` (the Vitest
+      equivalent of `tests/supabaseApi.test.js`'s existing `@jest-environment jsdom`), since
+      `shared/announcementAudio.js` importing `config.js` means `window.location` is read at
+      module-import time — Vitest's suite-wide default is `environment: 'node'`. Also added
+      `tests/serviceWorkerAnnouncementClips.test.js` (Jest, jsdom) covering the new
+      `fetchAnnouncementClipStorageUrls()` export's pagination/error handling directly.
 - [ ] Once parity is proven on dev then production, remove the bundled-file fallback and the
-      committed `driver/audio/announcements/` directory.
+      committed `driver/audio/announcements/` directory. **Not done yet** — deliberately deferred;
+      needs a real-device verification pass first (confirm a live journey actually plays a
+      Storage-backed clip, not just unit tests), then dev, then production.
 
 ### Phase 3 — G1: never synthesize (the actual point of this plan)
 - [ ] Journey-start check: before/at start, verify every clip the resolved route needs is
@@ -470,10 +554,14 @@ scope — worth a second look regardless of whether the auto-detect UI above get
 
 ## Security
 
-- Azure key/region: Edge Function secret only, provisioned per-project (dev `cgcbfgceputvdvhzrgio`
-  and production `nwhayupsvcelyiwltdqo` separately, matching this repo's existing dev/prod
-  migration discipline) — never reachable from `busops/driver/src/config.js` or any other
-  client-shipped file.
+- Azure key/region: Edge Function secret only — never reachable from
+  `busops/driver/src/config.js` or any other client-shipped file. **Decided 2026-09-15,
+  reversing this doc's original "provisioned per-project separately" plan:** dev
+  (`cgcbfgceputvdvhzrgio`) and production (`nwhayupsvcelyiwltdqo`) deliberately share one Azure
+  Speech resource/key, to stay within Azure's free tier. This function only *reads* the resource
+  (TTS synthesis, no writes/state), so the two environments sharing a quota carries no
+  cross-environment data risk — just a shared rate/cost ceiling, accepted as the tradeoff for
+  free-tier usage.
 - Storage bucket: public **read**, service-role-only **write** — no anon/authenticated insert,
   update, or delete policy on the bucket or on `announcement_clips`.
 - `announcement_clip_jobs` has no client-facing RPC to insert into it directly — only the DB

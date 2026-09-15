@@ -1,12 +1,21 @@
-// tests/announcementAudio.test.js
-//
-// shared/announcementAudio.js's clipKeysFor() is the one place that must
-// stay in sync with scripts/generate-announcement-audio.mjs's own job keys
-// (see that script's buildJobs()) — both driver/src/announcements.js
-// (Driver/Lite) and announce/src/announceSpeech.js (Announce Solo) resolve
-// their pre-rendered clip lookups through this same shared function, so a
-// regression here silently breaks natural-voice audio on both tiers at
-// once.
+/**
+ * @jest-environment jsdom
+ *
+ * tests/announcementAudio.test.js
+ *
+ * shared/announcementAudio.js's clipKeysFor() is the one place that must
+ * stay in sync with scripts/generate-announcement-audio.mjs's own job keys
+ * (see that script's buildJobs()) — both driver/src/announcements.js
+ * (Driver/Lite) and announce/src/announceSpeech.js (Announce Solo) resolve
+ * their pre-rendered clip lookups through this same shared function, so a
+ * regression here silently breaks natural-voice audio on both tiers at
+ * once.
+ *
+ * jsdom is required as of Phase 2 of docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md:
+ * this file now transitively imports driver/src/config.js (via
+ * shared/announcementAudio.js's STORAGE_BASE), which reads window.location
+ * at module scope — same reason tests/supabaseApi.test.js needs this.
+ */
 
 import { clipKeysFor } from '../shared/announcementAudio.js';
 import { ANNOUNCE_STATES } from '../shared/announceStates.js';
