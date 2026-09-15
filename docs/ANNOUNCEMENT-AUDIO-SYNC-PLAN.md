@@ -1,8 +1,10 @@
 # Announcement audio: server-triggered generation + sync — plan
 
 **Status: design settled 2026-09-08. Phase 0 and Phase 1 both shipped and verified end-to-end on
-dev AND production. Phases 2-5 not started. See "Where things stand" immediately below for
-exactly what a fresh session needs to know.**
+dev AND production. Phase 2 (Driver/Solo reading from the new pipeline) is coded, unit-tested, and
+manually verified against real dev Supabase in a real browser — not yet deployed anywhere, and the
+full service-worker install lifecycle still wants a real-device pass. Phases 3-5 not started. See
+"Where things stand" immediately below for exactly what a fresh session needs to know.**
 Written 2026-09-08 following a design discussion flagged in `docs/DECISIONS.md`'s
 "Shared journey-tracking core" open item. Once implementation is complete, this doc's outcome
 should be folded back into `docs/DECISIONS.md` and `CLAUDE.md`'s "PSVAIR announcement audio"
@@ -15,6 +17,32 @@ section, same as every other architecture decision in this repo.
 - Phase 1 (server-side clip pipeline: tables, triggers, Storage bucket, Edge Function, cron) —
   **live on dev AND production, verified genuinely working end-to-end on both** (see below).
   **Phase 1 is fully done.**
+
+**In progress, not yet merged**: Phase 2 (`shared/announcementAudio.js` now tries the
+Storage-backed clip before the bundled fallback; `busops/service-worker.js` precaches from the
+live `announcement_clips` table) — code written, full Jest+Vitest suites pass (155+125 tests),
+**and manually verified for real in a live Chromium browser against dev Supabase** (Playwright,
+driven directly against `pcv-dashboard/busops/server.js` — not just unit tests):
+1. `fetchAnnouncementClipStorageUrls()` (the service worker's new precache source) called for
+   real in-browser: correctly returned `[]` against dev's empty `announcement_clips` table, then
+   correctly built `https://cgcbfgceputvdvhzrgio.supabase.co/storage/v1/object/public/announcement-audio/<storage_path>`
+   once a real test row was inserted.
+2. **Genuine Storage-backed audio playback confirmed**: pointed `createAnnouncementPlayer`'s
+   bundled-fallback base at a deliberately nonexistent path (so a pass could only mean the
+   Storage-backed attempt itself succeeded) and played
+   `approach/6753f879-f1ae-4fe2-9bdf-dc44157e9822.mp3` — one of the real Azure-rendered leftover
+   test clips already sitting in dev's bucket from Phase 1's own verification — the `<audio>`
+   element fired `ended`, i.e. it actually downloaded and played a real clip through the new code
+   path, no fallback needed. Test row cleaned up afterward (dev `announcement_clips` back to 0
+   rows).
+
+**Not yet done**: the full service-worker `install`/`activate` lifecycle (precaching everything,
+not just the one query) hasn't been observed end-to-end in a browser — a first attempt hung on
+this sandbox's restricted network access to the unrelated `TILE_CACHE` (OpenStreetMap tile)
+prefetch list, an environment limitation of this test run, not a code issue (confirmed by testing
+the actually-new logic directly instead, bypassing that unrelated blocker). Worth a real-device
+pass before wide rollout. Not yet deployed anywhere. See the Phase 2 section of the checklist
+below for exactly what's done vs. still open.
 
 **Verified for real on dev**, not just deployed: manually fired the exact `net.http_post()` call
 the cron uses, got a live `200` with `{"rendered":2,"skipped":0,"failed":0}`, confirmed the
@@ -202,16 +230,37 @@ every migration goes to dev (`cgcbfgceputvdvhzrgio`) first, then production
       "Where things stand" at the top of this doc** for the full rollout record, including a
       fourth production-only bug found and fixed (missing `service_role` grants).
 
-### Phase 2 — Driver + Solo read from the new source
-- [ ] Switch `shared/announcementAudio.js`'s clip lookup from bundled files to the
+### Phase 2 — Driver + Solo read from the new source — DONE (code + tests; parity/removal still pending)
+- [x] Switch `shared/announcementAudio.js`'s clip lookup from bundled files to the
       Storage/table-backed source, with the bundled files kept as a temporary fallback during
-      transition.
-- [ ] `busops/service-worker.js`: precache clips by querying `announcement_clips` live at
-      install/update time, replacing the static `manifest.json`-driven precache.
-- [ ] Vitest integration tests for both `driver/src` and `announce/src` covering the new lookup
-      path (cache hit, cache miss during transition, offline).
+      transition. `playClip()` now tries `${SUPABASE_URL}/storage/v1/object/public/announcement-audio/<key>.mp3`
+      first, falling through to the existing bundled `audioBase` path only on failure — same
+      order for both Driver/Lite (`driver/src/announcements.js`) and Solo
+      (`announce/src/announceSpeech.js`), unchanged callers, since the base-URL swap happens
+      entirely inside the shared module.
+- [x] `busops/service-worker.js`: precache clips by querying `announcement_clips` live at
+      install/update time (paginated, same `limit`/`offset` pattern as
+      `scripts/generate-schedule.mjs`'s own fix for silent truncation past 1000 rows), replacing
+      the static `manifest.json`-driven precache as the *primary* source — the bundled
+      manifest.json precache stays too, run in parallel, as the same temporary transition
+      fallback. Required converting the service worker to `{ type: 'module' }` (both
+      `driver/index.html` and `announce/onboard.html`) so it could `import` `driver/src/config.js`
+      directly instead of duplicating the dev/prod Supabase URL a second time — module service
+      workers are supported on every Chromium engine (this fleet's actual runtime) since 2021.
+- [x] Vitest integration tests for both `driver/src` and `announce/src` covering the new lookup
+      path (cache hit / Storage-backed succeeds, cache miss during transition / falls through to
+      bundled, offline / both fail then degrades to synthesis without throwing) — see
+      `announce/src/announceSpeech.test.js`'s three new `describe` blocks. Both this file and
+      `driver/src/announcements.test.js` now need `// @vitest-environment jsdom` (the Vitest
+      equivalent of `tests/supabaseApi.test.js`'s existing `@jest-environment jsdom`), since
+      `shared/announcementAudio.js` importing `config.js` means `window.location` is read at
+      module-import time — Vitest's suite-wide default is `environment: 'node'`. Also added
+      `tests/serviceWorkerAnnouncementClips.test.js` (Jest, jsdom) covering the new
+      `fetchAnnouncementClipStorageUrls()` export's pagination/error handling directly.
 - [ ] Once parity is proven on dev then production, remove the bundled-file fallback and the
-      committed `driver/audio/announcements/` directory.
+      committed `driver/audio/announcements/` directory. **Not done yet** — deliberately deferred;
+      needs a real-device verification pass first (confirm a live journey actually plays a
+      Storage-backed clip, not just unit tests), then dev, then production.
 
 ### Phase 3 — G1: never synthesize (the actual point of this plan)
 - [ ] Journey-start check: before/at start, verify every clip the resolved route needs is

@@ -1,3 +1,15 @@
+// Registered with { type: 'module' } (see driver/index.html/announce/onboard.html)
+// so this can import config.js directly instead of duplicating its
+// dev/prod Supabase URL — CLAUDE.md's rule that those values live only in
+// driver/src/config.js applies here too. Module service workers have been
+// supported in every Chromium-based engine (this fleet's actual runtime —
+// Android WebView kiosk tablets, Chrome/Edge desktop) since 2021; if a
+// browser without support ever loads this app, registration simply fails
+// (existing `.catch(console.error)` in both HTML files) and the app runs
+// without offline/precache, same graceful-degradation posture as any other
+// registration failure today.
+import { SUPABASE_URL, SUPABASE_KEY } from './driver/src/config.js';
+
 const CACHE_NAME = 'busops-driver-v2.1.0';
 
 const STATIC_ASSETS = [
@@ -98,13 +110,45 @@ const TILE_CACHE = [
   'https://tile.openstreetmap.org/13/4098/2676.png',
 ];
 
-// Pre-rendered PSVAIR announcement clips (scripts/generate-announcement-audio.mjs)
-// — the file list isn't static like STATIC_ASSETS since it grows/shrinks with
-// stops/routes, so it's read from the manifest the generator writes rather
-// than hardcoded here. Missing manifest (audio feature not set up yet) is a
-// silent no-op, not an install failure — announcements.js falls back to
-// speechSynthesis for anything not cached.
-function cacheAnnouncementAudio(cache) {
+// Pre-rendered PSVAIR announcement clips. Phase 2 of
+// docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md: the file list isn't static like
+// STATIC_ASSETS since it grows/shrinks with stops/routes, so it's read live
+// from the server-side announcement_clips table (kept current automatically
+// by Phase 1's trigger+cron pipeline) rather than a manifest.json baked into
+// the deploy. shared/announcementAudio.js's playClip() tries a Storage URL
+// built the same way (see PAGE_SIZE below for why this paginates).
+const CLIP_PAGE_SIZE = 1000; // PostgREST caps an unpaginated request at 1000 rows
+
+export async function fetchAnnouncementClipStorageUrls() {
+  const urls = [];
+  for (let offset = 0; ; offset += CLIP_PAGE_SIZE) {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/announcement_clips?select=storage_path&limit=${CLIP_PAGE_SIZE}&offset=${offset}`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    );
+    if (!res.ok) throw new Error(`announcement_clips fetch failed: ${res.status}`);
+    const rows = await res.json();
+    urls.push(...rows.map((r) => `${SUPABASE_URL}/storage/v1/object/public/announcement-audio/${r.storage_path}`));
+    if (rows.length < CLIP_PAGE_SIZE) break;
+  }
+  return urls;
+}
+
+function cacheStorageBackedAnnouncementClips(cache) {
+  return fetchAnnouncementClipStorageUrls()
+    .then((urls) => (urls.length ? cache.addAll(urls.map((url) => new Request(url, { mode: 'cors' }))) : undefined))
+    .catch(() => {}); // offline at install time, or pipeline not reachable — bundled fallback below still covers this install
+}
+
+// Bundled fallback (scripts/generate-announcement-audio.mjs's committed
+// output) — **temporary**, per the plan doc's Rollout step 2/4: kept
+// precached alongside the Storage-backed set above until parity is proven
+// on dev then production, at which point this and
+// driver/audio/announcements/ are removed together. Missing manifest (fresh
+// checkout predating the audio feature) is a silent no-op, not an install
+// failure — shared/announcementAudio.js falls back to speechSynthesis for
+// anything not cached by either source.
+function cacheBundledAnnouncementAudio(cache) {
   return fetch('./driver/audio/announcements/manifest.json')
     .then((res) => (res.ok ? res.json() : null))
     .then((manifest) => {
@@ -113,6 +157,13 @@ function cacheAnnouncementAudio(cache) {
       return cache.addAll(urls);
     })
     .catch(() => {});
+}
+
+function cacheAnnouncementAudio(cache) {
+  return Promise.all([
+    cacheStorageBackedAnnouncementClips(cache),
+    cacheBundledAnnouncementAudio(cache),
+  ]);
 }
 
 self.addEventListener('install', (event) => {
