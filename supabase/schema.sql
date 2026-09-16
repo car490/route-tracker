@@ -454,6 +454,10 @@ create table timetable_departures (
   valid_from           date,
   valid_to             date,
   vehicle_journey_code text        not null,
+  -- When true, "does this run today" also requires today to fall inside a
+  -- term_dates range, instead of relying on valid_from/valid_to to cover a
+  -- whole academic year (see migration_school_term_time.sql).
+  school_term_time     boolean     not null default false,
   created_at           timestamptz not null default now(),
   check (valid_to is null or valid_to >= valid_from)
 );
@@ -930,6 +934,13 @@ begin
     (
       (
         extract(isodow from p_journey_date)::int = any(td.days_of_week)
+        and (
+          not td.school_term_time
+          or exists (
+            select 1 from term_dates tdt
+            where p_journey_date between tdt.start_date and tdt.end_date
+          )
+        )
         and not exists (
           select 1 from service_exceptions se
           where se.timetable_departure_id = td.id
@@ -1295,6 +1306,218 @@ $$;
 grant execute on function public.is_diversion_active(uuid) to anon;
 
 
+-- ── Announcement clip pipeline ───────────────────────────────────────────────
+-- Server-side PSVAIR announcement clip generation (Phase 1 of
+-- docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md), replacing the manual
+-- generate-announcement-audio.mjs script as clip generation's source of
+-- truth. announcement_clips is the rendered-clip manifest (mirrors today's
+-- manifest.json); announcement_clip_jobs is the drain queue a scheduled
+-- Edge Function works through to actually call Azure and populate clips.
+-- No client changes ship with this table/trigger layer alone -- see the
+-- plan doc's Phase 2/3 for Driver/Solo reading from it.
+
+create table public.announcement_clips (
+  key          text primary key,      -- e.g. 'approach/<stopId>', 'service/<code>__<dest>'
+  storage_path text not null,
+  hash         text not null,         -- same '<voice>|<text>' hash as today's generator
+  text         text not null,
+  voice        text not null,
+  rendered_at  timestamptz not null default now()
+);
+
+grant select on public.announcement_clips to anon;
+grant select on public.announcement_clips to authenticated;
+grant all    on public.announcement_clips to service_role;
+
+alter table public.announcement_clips enable row level security;
+
+create policy "public_read" on public.announcement_clips
+  for select to anon, authenticated
+  using (true);
+
+-- Deliberately not exposed via PostgREST at all. Only the enqueue triggers
+-- below (which run as their table owner, not the caller) and the draining
+-- Edge Function (service_role, which bypasses RLS) ever touch this table.
+-- Two layers, both needed: this project's default privileges grant
+-- anon/authenticated blanket access to every new table automatically (RLS
+-- enabled with no policies is what actually blocks all row access -- a
+-- SELECT under RLS-deny silently returns zero rows, an INSERT/UPDATE raises
+-- a genuine RLS-violation error), plus an explicit REVOKE as defense in
+-- depth in case RLS is ever accidentally disabled.
+--
+-- Explicit `grant all ... to service_role` on both tables below is required,
+-- not redundant: found 2026-09-15 that production's public schema has no
+-- pg_default_acl entry for service_role at all (dev's does -- an environment
+-- divergence, not something this migration created), so a new table on
+-- production gets NO service_role access unless granted explicitly. Every
+-- table this pipeline's Edge Function touches needs this grant on every
+-- environment -- don't rely on a project's default privileges alone.
+create table public.announcement_clip_jobs (
+  id           uuid primary key default gen_random_uuid(),
+  key          text not null,
+  text         text not null,
+  voice        text not null,
+  requested_at timestamptz not null default now()
+);
+
+create index announcement_clip_jobs_key_idx on public.announcement_clip_jobs (key);
+
+revoke all on public.announcement_clip_jobs from anon, authenticated;
+grant all on public.announcement_clip_jobs to service_role;
+
+alter table public.announcement_clip_jobs enable row level security;
+
+-- SQL port of announceStates.js's articleFor() -- needed so the
+-- server-rendered ROUTE_START clip text ("This is a/an X to Y.") matches
+-- the grammar the client already computes for its own on-screen text (a
+-- leading letter is read as its letter name, a leading digit run as the
+-- number it spells). Faithful for the letter branch (every service code in
+-- this fleet is letter-led, e.g. S116S); the digit branch only builds the
+-- very first spoken word, which is all articleFor's own vowel-sound check
+-- ever looks at, so this stays exact for that branch too.
+create or replace function public.article_for(p_service_code text)
+returns text
+language plpgsql
+immutable
+as $$
+declare
+  v_first  text;
+  v_digits text;
+  v_num    int;
+  v_words  text;
+  v_ones   text[] := array['zero','one','two','three','four','five','six','seven','eight','nine','ten',
+                            'eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+  v_tens   text[] := array['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+begin
+  if p_service_code is null or trim(p_service_code) = '' then
+    return 'a';
+  end if;
+
+  v_first := substring(trim(p_service_code) from 1 for 1);
+
+  if v_first ~ '[a-zA-Z]' then
+    return case when upper(v_first) = any(array['A','E','F','H','I','L','M','N','O','R','S','X'])
+      then 'an' else 'a' end;
+  end if;
+
+  if v_first ~ '[0-9]' then
+    v_digits := substring((regexp_match(p_service_code, '^\d+'))[1] from 1 for 3);
+    v_num := v_digits::int;
+
+    if v_num < 20 then
+      v_words := v_ones[v_num + 1];
+    elsif v_num < 100 then
+      v_words := v_tens[v_num / 10 + 1]
+        || case when v_num % 10 <> 0 then '-' || v_ones[v_num % 10 + 1] else '' end;
+    else
+      v_words := v_ones[v_num / 100 + 1] || ' hundred';
+    end if;
+
+    -- Vowel-sound check only ever looks at the FIRST spoken word (JS splits
+    -- on space/hyphen and checks index 0) -- "one hundred" and
+    -- "twenty-one" must both be judged on "one"/"twenty", not the phrase.
+    declare
+      v_first_word text := (regexp_split_to_array(v_words, '[\s-]'))[1];
+    begin
+      if v_first_word = 'one' then
+        return 'a';
+      end if;
+      return case when v_first_word ~ '^[aeiou]' then 'an' else 'a' end;
+    end;
+  end if;
+
+  return 'a';
+end;
+$$;
+
+-- Enqueue trigger: stops (approach/<id>, departure/<id>). Fires on insert
+-- and on update of the three columns display_name() actually reads. Doesn't
+-- fire on a naptan_stops-only change (e.g. a bulk NaPTAN re-import) -- a
+-- known gap, not covered here.
+create or replace function public.fn_announcement_clip_enqueue_on_stop_change()
+returns trigger
+language plpgsql
+security definer
+as $$
+declare
+  v_name  text;
+  v_voice text;
+begin
+  v_name := regexp_replace(display_name(NEW), '\s*\([^)]*\)\s*$', '');
+  select coalesce((select value from public.app_config where key = 'announcement_voice'), 'en-GB-RyanNeural')
+    into v_voice;
+
+  insert into public.announcement_clip_jobs (key, text, voice)
+  values
+    ('approach/' || NEW.id,  'This is ' || v_name || '.', v_voice),
+    ('departure/' || NEW.id, 'The next stop is ' || v_name || '.', v_voice);
+
+  return NEW;
+end;
+$$;
+
+create trigger trg_announcement_clip_enqueue_on_stop_change
+  after insert or update of announcement_name, name, atco_code
+  on public.stops
+  for each row
+  execute function public.fn_announcement_clip_enqueue_on_stop_change();
+
+-- Trigger functions have no business being directly RPC-callable. Postgres
+-- grants EXECUTE to PUBLIC on every newly created function by default,
+-- which anon/authenticated inherit as members of PUBLIC regardless of any
+-- per-role grant -- confirmed via information_schema.role_routine_grants
+-- that PUBLIC held this grant until revoked explicitly here.
+revoke execute on function public.fn_announcement_clip_enqueue_on_stop_change() from public;
+
+-- Enqueue trigger: routes (service/<code>__<dest>). ROUTE_START's key/text
+-- depend only on routes.service_code + destination (both route-level, not
+-- per-departure). No-ops when destination isn't set yet (non-BODS routes
+-- never carry one).
+create or replace function public.fn_announcement_clip_enqueue_on_route_change()
+returns trigger
+language plpgsql
+security definer
+as $$
+declare
+  v_voice text;
+  v_dest  text;
+  v_key   text;
+begin
+  if NEW.destination is null or trim(NEW.destination) = '' or NEW.service_code is null then
+    return NEW;
+  end if;
+
+  v_dest := regexp_replace(NEW.destination, '\s*\([^)]*\)\s*$', '');
+
+  -- Same slug rule as scripts/generate-announcement-audio.mjs / clipKeysFor().
+  v_key := 'service/'
+    || trim(both '-' from regexp_replace(lower(NEW.service_code), '[^a-z0-9]+', '-', 'g'))
+    || '__'
+    || trim(both '-' from regexp_replace(lower(v_dest), '[^a-z0-9]+', '-', 'g'));
+
+  select coalesce((select value from public.app_config where key = 'announcement_voice'), 'en-GB-RyanNeural')
+    into v_voice;
+
+  insert into public.announcement_clip_jobs (key, text, voice)
+  values (
+    v_key,
+    'This is ' || public.article_for(NEW.service_code) || ' ' || NEW.service_code || ' to ' || v_dest || '.',
+    v_voice
+  );
+
+  return NEW;
+end;
+$$;
+
+create trigger trg_announcement_clip_enqueue_on_route_change
+  after insert or update of service_code, destination
+  on public.routes
+  for each row
+  execute function public.fn_announcement_clip_enqueue_on_route_change();
+
+revoke execute on function public.fn_announcement_clip_enqueue_on_route_change() from public;
+
+
 -- ── BusOps Announce Lite/Solo tiers ─────────────────────────────────────────
 -- One row per Lite/Solo passenger-sign tablet (Controller-less): either
 -- Solo/"internal" GPS mode or Lite's "driver-device"-linked mode. See
@@ -1339,7 +1562,13 @@ create table if not exists public.announce_devices (
   config_version int not null default 1,
 
   last_seen_at  timestamptz,
-  created_at    timestamptz not null default now()
+  created_at    timestamptz not null default now(),
+
+  -- Device-held bearer credential link_announce_device() requires from its
+  -- caller -- see migration_link_announce_device_caller_auth.sql. Not
+  -- exposed beyond this table's own RLS policies (device_self lets a device
+  -- read its own row, including this column).
+  pairing_secret uuid not null default gen_random_uuid()
 );
 
 create index if not exists announce_devices_company_id_idx on public.announce_devices (company_id);
@@ -1457,21 +1686,53 @@ grant execute on function public.end_announce_device_journey(uuid) to anon;
 -- the same vehicle. Validates ownership inside the function body (device and
 -- vehicle must share a company_id) rather than via RLS+JWT claim, since a
 -- manual-selection-flow driver device may carry no JWT claims at all.
+--
+-- p_pairing_secret must match the target device's own pairing_secret column
+-- -- see migration_link_announce_device_caller_auth.sql. Without this, the
+-- company_id check above was the *only* gate: since the anon key is shared
+-- across every company, anyone holding it could link any device to any
+-- vehicle as long as those two happened to already share a company_id.
+-- Checked before the Solo-guard/company checks below so a caller without
+-- the secret can't use this function's error messages to probe a device's
+-- state.
+--
+-- p_force guards against silently converting an already-commissioned Solo
+-- device (candidate_departure_ids populated) into Lite (driver-device) mode
+-- -- found live 2026-09-04: a Solo tablet got flipped with no driver device
+-- actually pushing to it, and sat waiting for a push that would never
+-- arrive. See docs/ANNOUNCE-PRODUCT-TIERS.md and announceDeviceFeed.js's
+-- self-heal watchdog (announceLiteMode.js's shouldSelfHeal) for the other
+-- half of this fix.
 create or replace function public.link_announce_device(
-  p_device_id  uuid,
-  p_vehicle_id uuid
+  p_device_id      uuid,
+  p_vehicle_id     uuid,
+  p_pairing_secret uuid,
+  p_force          boolean default false
 ) returns boolean
 language plpgsql security definer
 as $$
 declare
   v_device_company  uuid;
+  v_device_secret   uuid;
+  v_candidate_count int;
   v_vehicle_company uuid;
 begin
-  select company_id into v_device_company
+  select company_id, cardinality(candidate_departure_ids), pairing_secret
+    into v_device_company, v_candidate_count, v_device_secret
   from public.announce_devices where id = p_device_id;
 
   if v_device_company is null then
     raise exception 'announce device % not found', p_device_id;
+  end if;
+
+  if p_pairing_secret is null or p_pairing_secret <> v_device_secret then
+    raise exception 'announce device % pairing secret does not match', p_device_id;
+  end if;
+
+  if v_candidate_count > 0 and not p_force then
+    raise exception
+      'announce device % is commissioned as Solo (has candidate_departure_ids) -- pass p_force := true to link it anyway',
+      p_device_id;
   end if;
 
   select company_id into v_vehicle_company
@@ -1492,7 +1753,7 @@ begin
 end;
 $$;
 
-grant execute on function public.link_announce_device(uuid, uuid) to anon;
+grant execute on function public.link_announce_device(uuid, uuid, uuid, boolean) to anon;
 
 -- Called by the Driver PWA (anon) to unlink an Announce device — reversible
 -- at any time, drops the device back to internal (self-contained) GPS mode.
@@ -1562,51 +1823,67 @@ $$;
 
 grant execute on function public.get_linked_announce_device_id(uuid) to anon;
 
--- Solo-mode active windows: which days/times this device wakes to poll its
--- own GPS at all (schedule-autopilot's idle loop — see
--- announceSoloAutopilot.js's isWithinActiveWindow gate). Same shape as
--- employees' own employee_availability table (day_of_week 0=Mon..6=Sun,
--- window_start/window_end, window_end > window_start — a split day like a
--- morning run + afternoon run is two rows, not one midnight-wrapping
--- window). A device with zero rows here never wakes — same conservative
--- default an empty candidate_departure_ids list already gives it.
-create table if not exists public.announce_device_active_windows (
-  id                  uuid primary key default gen_random_uuid(),
-  announce_device_id  uuid not null references public.announce_devices(id) on delete cascade,
-  day_of_week         smallint not null check (day_of_week between 0 and 6),
-  window_start        time not null,
-  window_end          time not null,
-  check (window_end > window_start)
+-- announce_device_active_windows (Solo-mode admin-configured day/time
+-- wake bands) was dropped 2026-09-04 — it hand-duplicated day/time data
+-- that already lives on timetable_departures.days_of_week/scheduled_time,
+-- reachable via schedule_view. announceSoloAutopilot.js now derives its
+-- wake window straight from each candidate departure's own data
+-- (scheduleAutopilot.js's isWithinDepartureWakeWindow) instead of a
+-- separately admin-maintained table that could quietly drift out of sync
+-- with the real timetable. See
+-- supabase/migration_announce_devices_drop_active_windows.sql and
+-- docs/ANNOUNCE-PRODUCT-TIERS.md's simplification writeup.
+
+-- ── Announcement coverage gap alerts ────────────────────────────────────────────
+-- Phase 3 of docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md ("never synthesize"). Persists a
+-- loud ops-facing signal (queryable row, not a console.warn) whenever the
+-- journey-start preflight check or a live per-stop playback attempt finds a clip
+-- that isn't confirmed present -- see supabase/migration_announcement_coverage_gap.sql
+-- for the full rationale, including why vehicle_id/device_id are both nullable
+-- (an Announce Solo autopilot device has no vehicle_id at all -- references
+-- announce_devices, defined just above, which is why this table lives here
+-- rather than back with the rest of the announcement clip pipeline).
+-- anon-insertable: the driver PWA has no login session today (revisit once
+-- the planned PWA/driver-device login work lands).
+create table public.announcement_coverage_gap (
+  id           uuid primary key default gen_random_uuid(),
+  journey_id   uuid not null references public.journeys(id),
+  vehicle_id   uuid references public.vehicles(id),
+  device_id    uuid references public.announce_devices(id),
+  driver_id    uuid references public.employees(id), -- null on the cab-device bridge and on Solo
+  stage        text not null check (stage in ('journey_start', 'live_stop')),
+  missing_keys text[] not null,
+  detected_at  timestamptz not null default now(),
+
+  constraint announcement_coverage_gap_has_source
+    check (vehicle_id is not null or device_id is not null)
 );
 
-create index if not exists announce_device_active_windows_device_id_idx
-  on public.announce_device_active_windows (announce_device_id);
+create index on public.announcement_coverage_gap (journey_id);
+create index on public.announcement_coverage_gap (vehicle_id);
+create index on public.announcement_coverage_gap (device_id);
+create index on public.announcement_coverage_gap (detected_at);
 
-grant select on public.announce_device_active_windows to anon;
-grant all    on public.announce_device_active_windows to authenticated;
+grant insert on public.announcement_coverage_gap to anon;
+grant all    on public.announcement_coverage_gap to authenticated;
 
-alter table public.announce_device_active_windows enable row level security;
+alter table public.announcement_coverage_gap enable row level security;
 
--- Ops (dashboard login): full CRUD scoped to the parent device's company.
-create policy "company_all" on public.announce_device_active_windows
-  for all to authenticated
+create policy "announcement_coverage_gap_company_select"
+  on public.announcement_coverage_gap
+  for select
+  to authenticated
   using (
-    announce_device_id in (
-      select id from public.announce_devices where company_id = current_company_id()
-    )
-  )
-  with check (
-    announce_device_id in (
-      select id from public.announce_devices where company_id = current_company_id()
-    )
+    (vehicle_id is not null and vehicle_id in (select id from public.vehicles where company_id = current_company_id()))
+    or
+    (device_id is not null and device_id in (select id from public.announce_devices where company_id = current_company_id()))
   );
 
--- Announce device (anon): may read only its own windows, same device_id
--- JWT-claim scoping as announce_devices' own device_self policy.
-create policy "device_self" on public.announce_device_active_windows
-  for select to anon
-  using (announce_device_id = (auth.jwt() ->> 'device_id')::uuid);
-
+create policy "announcement_coverage_gap_anon_insert"
+  on public.announcement_coverage_gap
+  for insert
+  to anon
+  with check (true);
 
 -- ── Views ─────────────────────────────────────────────────────────────────────
 -- Returns one row per (departure × stop).
@@ -1652,7 +1929,8 @@ create or replace view schedule_view with (security_invoker = true) as
       select 1 from journey_types jt
       where jt.name = any(r.journey_type) and jt.requires_bods
     )                    as psvair_in_scope,
-    s.id                 as stop_id
+    s.id                 as stop_id,
+    td.school_term_time  as school_term_time
   from timetable_stops     ts
   join stops               s  on s.id  = ts.stop_id
   join timetables          t  on t.id  = ts.timetable_id

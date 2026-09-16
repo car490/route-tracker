@@ -10,7 +10,7 @@ Supabase backend:
 
 | Surface | Path | Stack | Deploys to |
 |---|---|---|---|
-| Driver PWA (BusOps Driver) | `pcv-dashboard/busops/driver/` (`index.html`, `src/`) | Vanilla JS, ES modules, no build step | GitHub Pages today (still the live production target); migrating to Cloudflare Workers at `driver.pcvtechnologies.co.uk` (`wrangler.jsonc` + `.assetsignore`, both at `pcv-dashboard/busops/`) — auto-deployed on every push to `develop` by the `deploy-driver-pwa` job in `.github/workflows/ci.yml` (added 2026-08-27, gated on tests passing), so that domain always reflects tested `develop` code; GitHub Pages is still what serves production until someone explicitly switches it |
+| Driver PWA (BusOps Driver) | `pcv-dashboard/busops/driver/` (`index.html`, `src/`) | Vanilla JS, ES modules, no build step | GitHub Pages today (still the live production target); migrating to Cloudflare Workers — `driver-dev.pcvtechnologies.co.uk` (dev Supabase, `deploy-driver-pwa-dev` job, every push to `develop`) and `driver.pcvtechnologies.co.uk` (production Supabase, `deploy-driver-pwa-production` job, every push to `master`) are separate CI jobs in `.github/workflows/ci.yml` (split from one combined `deploy-driver-pwa` job so `develop` pushes stop hitting production Supabase — see commit `7edb0d3`), both gated on tests passing; GitHub Pages is still what serves production until someone explicitly switches it |
 | Ops dashboard (PCV Dashboard) | `pcv-dashboard/` | React + Vite | Vercel, auto on push |
 | Onboard passenger sign (BusOps Announce) | `pcv-dashboard/busops/announce/` (`onboard.html`, `src/onboard.js`); Controller-side setup in `mele-server/` | Vanilla JS + Node (WebSocket relay, no GPS/DB access) | Bus Controller box (see `docs/HARDWARE.md`) + HDMI display, see `mele-server/DEPLOY.md` |
 
@@ -33,8 +33,7 @@ used by more than one surface. `pcv-dashboard/busops/shared/` holds what BusOps'
 `pcv-dashboard/busops/driver/`.
 
 **Important:** the driver PWA source is served from `pcv-dashboard/busops/driver/` — there is
-no `public/` folder (the root `README.md` still describes an old `public/`-based layout; it is
-stale — do not follow it). `pcv-dashboard/busops/server.js` serves `__dirname` (i.e. `busops/`)
+no `public/` folder. `pcv-dashboard/busops/server.js` serves `__dirname` (i.e. `busops/`)
 as-is, mapping a bare `/` request to `/driver/index.html`; `driver/index.html` loads
 `src/main.js` from its own `src/` folder. Do not create or reference a `public/` directory for
 the PWA.
@@ -156,10 +155,12 @@ npm run build   # vite build
 ```
 CI (`.github/workflows/ci.yml`) runs: `pcv-dashboard/busops` `npm test` + `npm run test:vitest`
 (PWA, both suites — see "Two independent test setups" above), `pcv-dashboard` lint,
-`pcv-dashboard` build — on every push and PR. On `develop` pushes specifically, once those three
-jobs pass, a fourth (`deploy-driver-pwa`) runs `wrangler deploy` from `pcv-dashboard/busops` to
-push the Driver PWA + Announce app to `driver.pcvtechnologies.co.uk` (Cloudflare Workers),
-requiring the `CLOUDFLARE_API_TOKEN` repo secret.
+`pcv-dashboard` build — on every push and PR. Once those three jobs pass, a deploy job runs
+`wrangler deploy` from `pcv-dashboard/busops` to push the Driver PWA + Announce app to Cloudflare
+Workers: `deploy-driver-pwa-dev` on `develop` pushes (dev Supabase, `driver-dev.pcvtechnologies.co.uk`)
+and `deploy-driver-pwa-production` on `master` pushes (production Supabase,
+`driver.pcvtechnologies.co.uk`) — kept as two separate jobs so a `develop` push can never deploy
+against production Supabase. Both require the `CLOUDFLARE_API_TOKEN` repo secret.
 
 ### Demo drives (simulate a run without GPS/hardware)
 Run from `pcv-dashboard/busops/` (they're npm scripts on that `package.json`):
@@ -173,13 +174,17 @@ testing timing, announcements, and the onboard display end-to-end without being 
 vehicle. `demo.html` is a separate, fully scripted/fake visual simulation (no real app code)
 used for quick client-facing demos.
 
-### PSVAIR announcement audio
+### PSVAIR announcement audio (legacy local generator)
 ```sh
 AZURE_SPEECH_KEY=... AZURE_SPEECH_REGION=... npm run generate:audio
 ```
-Run from `pcv-dashboard/busops/`. Regenerates pre-rendered Azure Neural TTS clips into
-`busops/driver/audio/announcements/`. See "PSVAIR announcement audio" under Architecture below
-before running this — order of operations matters (schedule regen must happen first).
+Run from `pcv-dashboard/busops/`. Predates the server-side clip pipeline (see "PSVAIR
+announcement audio" under Architecture below) — production clips now render automatically via a
+DB trigger + cron + Edge Function whenever a stop/route changes, no manual step required. This
+script still writes local files into `busops/driver/audio/announcements/`, which for now still
+ship as a temporary bundled fallback (slated for removal once the server-side pipeline's parity
+is proven — see `docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md` Phase 2/4). Useful today for auditioning a
+wording change locally before it ships; not part of CI or the deploy pipeline.
 
 ### Release (version bump across PWA + dashboard together)
 ```sh
@@ -220,6 +225,19 @@ grant all    on public.my_table to authenticated;
 ```
 
 Always follow GRANTs with the appropriate RLS policy.
+
+**If any Edge Function (service-role) code will read/write the table, grant `service_role`
+explicitly too** — don't rely on it having implicit access. Found 2026-09-15 while shipping the
+announcement-clip pipeline: production's `public` schema has no `pg_default_acl` entry for
+`service_role` at all (confirmed via `pg_default_acl`), while dev's does — so a brand-new table
+on production gets **zero** service_role access until explicitly granted, while the identical
+table on dev "just works" via dev's default privileges. A service-role client hitting this gets a
+genuine Postgres `permission denied for table` error, not an RLS deny (RLS/bypass is never even
+reached). Production's existing convention has always been per-table explicit `service_role`
+grants (e.g. `naptan_stops`) — this wasn't a regression, just a rule that hadn't been written
+down. Add `grant all on public.my_table to service_role;` alongside the anon/authenticated grants
+above whenever an Edge Function touches the table, on every environment, rather than assuming any
+project's default privileges cover it.
 
 ---
 
@@ -343,51 +361,81 @@ queues a failed `get_or_create_manual_journey`/`start_journey` call via
 
 `busops/driver/src/schedule.json` (regenerated by `scripts/generate-schedule.mjs`, still
 precached by the service worker) is **not** read by the PWA at runtime any more — nothing in
-`busops/driver/src/` fetches or parses it. Its one remaining live purpose is as input to
-`scripts/generate-announcement-audio.mjs`, which reads it to know which PSVAIR announcement
-clips to render.
+`busops/driver/src/` fetches or parses it. Its one remaining live purpose is as input to the
+legacy `scripts/generate-announcement-audio.mjs` script (see "PSVAIR announcement audio" below —
+the live server-side clip pipeline reads `stops`/`routes` directly and has no use for this file).
+`schedule_view` (and this file) carry `stop_id` for exactly that script's benefit — if you add a
+column to `schedule_view`, it must go at the **end** of the select list (`CREATE OR REPLACE VIEW`
+requires existing columns to keep their name/order/type).
 
 ### PSVAIR announcement audio
-Live `speechSynthesis` voice quality varies by device/OS and can sound digital. The primary
-announcement path is **pre-rendered Azure Neural TTS clips**, generated offline and played
-back as audio files; live `speechSynthesis` (`busops/driver/src/announcements.js`) is kept only as the
-fallback for a clip that isn't rendered/cached yet.
+Live `speechSynthesis` voice quality varies by device/OS and can sound digital — and per the
+PSVAIR requirement it's a hard "never" now, not a quality nice-to-have. Announcements are
+**pre-rendered Azure Neural TTS clips**, generated and distributed automatically by a server-side
+pipeline (design + full rollout/status ledger: `docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md` — read that
+doc for the phase-by-phase history; this section only summarizes the resulting architecture).
 
+**Generation is automatic, no manual step for a normal stop/route change:**
+- A DB trigger on `stops` (insert, or update of `announcement_name`/`name`/`atco_code`) and
+  another on `routes` (insert, or update of `service_code`/`destination`) enqueues a row into
+  `announcement_clip_jobs` the moment the text a clip needs would change — cheap and synchronous,
+  no Azure call inline.
+- A Supabase cron (`announcement-clip-drain`, every 5 minutes, capped at 20 jobs/cycle so a bulk
+  change like a NaPTAN import trickles out instead of bursting Azure's rate limit) drains the
+  queue via the `generate-announcement-clip` Edge Function (Deno, `supabase/functions/`), which
+  skips any clip whose `voice|text` hash is unchanged, renders the rest via Azure Neural TTS, and
+  writes each to the public-read `announcement-audio` Storage bucket plus a row in
+  `announcement_clips` (`key`, `storage_path`, `hash`, `text`, `voice`, `rendered_at`).
 - Every announcement sentence has exactly one variable slot (a stop name, or a
   service+destination pair) — so clips are rendered **per stop** and **per service/destination**,
-  not per route-leg. Keyed by `stops.id` (global, reused across every route/timetable that
-  visits that stop), never by `timetable_stop_id`.
-- `schedule_view` (and `busops/driver/src/schedule.json`) carry `stop_id` for exactly this reason — if you
-  add a column to `schedule_view`, it must go at the **end** of the select list
-  (`CREATE OR REPLACE VIEW` requires existing columns to keep their name/order/type).
-- Regenerate after any stop rename or route change, in this order:
-  1. Apply any pending `schedule_view` migration to Supabase — **to both dev and production**
-     if the change (e.g. a `stops.announcement_name` edit) needs to actually ship, not just be
-     previewed locally.
-  2. `node scripts/generate-schedule.mjs` (refreshes `busops/driver/src/schedule.json`, including `stop_id`).
-     `schedule.json` is one static file shipped to both environments (no per-environment build
-     step), so this defaults to reading production — pass `--dev` only to preview a change
-     that's on dev alone so far; re-run without it (against prod) once the same change is
-     applied there too and you're ready to ship.
-  3. `AZURE_SPEECH_KEY=... AZURE_SPEECH_REGION=... npm run generate:audio` (writes clips +
-     `busops/driver/audio/announcements/manifest.json`; skips any clip whose text **or voice**
-     hash hasn't changed — the manifest hashes `${AZURE_SPEECH_VOICE}|${text}`).
-- `stops.announcement_name` (nullable) overrides `display_name()`'s ATCO-composed name for a
-  stop whose real name is too long for the onboard sign's 22mm minimum or unclear when spoken.
-  No admin UI yet — set it directly via SQL, on both dev and production, then regenerate per above.
-- Requires an Azure AI Speech resource (key + region, e.g. `uksouth`). These are **build-time
-  secrets** for a script run locally — never commit them, never put them in
-  `busops/driver/src/config.js` (that file is public/client-only). `AZURE_SPEECH_VOICE`
-  overrides the script's default (`en-GB-SoniaNeural`); the currently-committed clips were
-  generated with `en-GB-RyanNeural`.
-- `speak()` in `announcements.js` **queues** a new announcement behind whatever's currently
-  playing rather than interrupting it. Only the single most recent queued announcement is kept.
-- `busops/service-worker.js` precaches every clip listed in
-  `busops/driver/audio/announcements/manifest.json` on install, so announcements still work
-  offline mid-route.
-- The clip-key slug logic in `busops/driver/src/announcements.js` (`slug()`) must stay identical
-  to the one in `scripts/generate-announcement-audio.mjs` — no shared import between a browser
-  module and a Node script here, so keep them in sync by hand.
+  not per route-leg. Keyed by `stops.id` (global, reused across every route/timetable that visits
+  that stop), never by `timetable_stop_id`.
+- `stops.announcement_name` (nullable) overrides `display_name()`'s ATCO-composed name for a stop
+  whose real name is too long for the onboard sign's 22mm minimum or unclear when spoken. No admin
+  UI yet — set it directly via SQL, on both dev and production (the trigger picks it up
+  automatically on either environment once set there).
+- `AZURE_SPEECH_KEY`/`AZURE_SPEECH_REGION`/`AZURE_SPEECH_VOICE` (default `en-GB-RyanNeural`) are
+  **Edge Function secrets** on `generate-announcement-clip` (Supabase Dashboard → Edge Functions
+  → generate-announcement-clip → Secrets) — never in `busops/driver/src/config.js` (public/
+  client-only). Dev and production deliberately share one Azure Speech resource/key to stay
+  within its free tier — this function only reads it (TTS synthesis), so sharing carries no
+  cross-environment data risk, just a shared rate/cost ceiling.
+
+**Distribution and playback — never synthesizes:**
+- Both surfaces read clips through the same shared code: `shared/announcementAudio.js`'s
+  `playClip()` tries `${SUPABASE_URL}/storage/v1/object/public/announcement-audio/<key>.mp3`
+  first. `busops/service-worker.js` precaches every row from `announcement_clips` live at
+  `install` time (paginated past PostgREST's 1000-row cap) so clips work offline mid-route.
+- Phase 3 removed the `speechSynthesis` fallback entirely — `shared/speech.js`'s old
+  `speakUtterance` is deleted dead code. A stop reached with no confirmed clip now plays **no
+  audio** (visual text only, which is already required regardless) and calls `onGap`, which
+  `shared/announcementCoverage.js` turns into a queryable row in `announcement_coverage_gap` — a
+  loud, ops-facing alert, not a silent `console.warn`. Separately,
+  `driver/src/journeyAnnouncementPreflight.js` checks the whole route's clip coverage at journey
+  start and shows a non-blocking driver-facing warning if anything's missing; journey start itself
+  is never blocked, matching this codebase's existing offline-resilience posture (see
+  `docs/DECISIONS.md`).
+- `speak()`/`playClip()` **queues** a new announcement behind whatever's currently playing rather
+  than interrupting it. Only the single most recent queued announcement is kept.
+- Both the client's Storage-backed lookup and the service worker's live-table precache still fall
+  through to the older bundled `busops/driver/audio/announcements/` files as a **temporary
+  transition fallback** — not the primary path, and slated for removal once parity is proven on
+  dev then production (see the plan doc's Phase 2 checklist). Those bundled files are produced by
+  the legacy local script — see "PSVAIR announcement audio (legacy local generator)" under
+  Commands above.
+- The clip-key slug logic must stay identical across four independent implementations with no
+  shared import between them (SQL, Deno, browser, Node): the DB trigger functions
+  (`fn_announcement_clip_enqueue_on_stop_change`/`_on_route_change`), the
+  `generate-announcement-clip` Edge Function, `shared/announcementAudio.js`'s `clipKeysFor()`, and
+  `scripts/generate-announcement-audio.mjs`'s own `slug()` — keep them in sync by hand.
+
+**Deployment status (check `docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md` for the current ledger before
+assuming this is still accurate — it moves fast):** as of 2026-09-16, generation (Phase 1) is
+live on **both** dev and production; distribution reading from the live pipeline (Phase 2) and
+the never-synthesize behavior (Phase 3) are live on **dev only**
+(`driver-dev.pcvtechnologies.co.uk`) — production (`driver.pcvtechnologies.co.uk`) still runs the
+older bundled-clips-plus-`speechSynthesis`-fallback behavior until Phases 2-3 ship there via a
+`develop` → `master` merge.
 
 ### Onboard passenger sign (BusOps Announce)
 A separate vanilla-JS app (`busops/announce/onboard.html` + `busops/announce/src/onboard.js`)
@@ -447,5 +495,5 @@ its own `WizardModal.jsx`) — see `docs/TODO.md` for a known refactor candidate
   implemented in code (the MeLE Quieter4C headless setup, the `/driver-push`
   schedule/state/announce protocol, Controller-side audio playback) — the one remaining open
   item is a real-hardware `hostapd` AP-mode bench test (§1), not a design gap. Root `README.md`
-  is stale (describes an old `public/`-based PWA layout) — prefer this file and
-  `docs/TESTING.md` over it.
+  was rewritten 2026-09-12 to match the current three-surface layout and is accurate again;
+  this file and `docs/TESTING.md` remain the more detailed references.

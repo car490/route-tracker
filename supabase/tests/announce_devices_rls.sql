@@ -98,6 +98,7 @@ declare
   v_company_a uuid;
   v_company_b uuid;
   v_device_id uuid;
+  v_secret uuid;
   v_other_vehicle_id uuid;
 begin
   select id into v_company_a from companies limit 1;
@@ -114,10 +115,10 @@ begin
     return;
   end if;
 
-  insert into announce_devices (company_id) values (v_company_a) returning id into v_device_id;
+  insert into announce_devices (company_id) values (v_company_a) returning id, pairing_secret into v_device_id, v_secret;
 
   begin
-    perform link_announce_device(v_device_id, v_other_vehicle_id);
+    perform link_announce_device(v_device_id, v_other_vehicle_id, v_secret);
     raise exception 'FAIL: link_announce_device allowed linking a vehicle from a different company';
   exception
     when others then
@@ -138,6 +139,72 @@ exception
     end if;
 end $$;
 
+-- 3b. link_announce_device() must reject a missing/incorrect pairing_secret,
+-- even when device and vehicle legitimately share a company -- found while
+-- reviewing docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md: the function previously
+-- checked only that device and vehicle shared a company_id with *each
+-- other*, never that the caller had any relationship to either. Since the
+-- anon key is shared across every company, that let anyone holding it link
+-- any device/vehicle pair, as long as those two happened to already share a
+-- company. See migration_link_announce_device_caller_auth.sql.
+do $$
+declare
+  v_company_id uuid;
+  v_vehicle_id uuid;
+  v_device_id uuid;
+  v_secret uuid;
+begin
+  select id into v_company_id from companies limit 1;
+  if v_company_id is null then
+    raise notice 'SKIP: no company row to attach a test device to';
+    return;
+  end if;
+
+  select id into v_vehicle_id from vehicles where company_id = v_company_id limit 1;
+  if v_vehicle_id is null then
+    raise notice 'SKIP: company has no vehicle to link against';
+    return;
+  end if;
+
+  insert into announce_devices (company_id) values (v_company_id) returning id, pairing_secret into v_device_id, v_secret;
+
+  begin
+    perform link_announce_device(v_device_id, v_vehicle_id, gen_random_uuid());
+    raise exception 'FAIL: link_announce_device allowed linking with a wrong pairing_secret';
+  exception
+    when others then
+      if sqlerrm like 'announce device % pairing secret does not match' then
+        raise notice 'PASS: link_announce_device correctly rejected a wrong pairing_secret';
+      else
+        raise;
+      end if;
+  end;
+
+  begin
+    perform link_announce_device(v_device_id, v_vehicle_id, null);
+    raise exception 'FAIL: link_announce_device allowed linking with a null pairing_secret';
+  exception
+    when others then
+      if sqlerrm like 'announce device % pairing secret does not match' then
+        raise notice 'PASS: link_announce_device correctly rejected a null pairing_secret';
+      else
+        raise;
+      end if;
+  end;
+
+  perform link_announce_device(v_device_id, v_vehicle_id, v_secret);
+  raise notice 'PASS: link_announce_device succeeds with the correct pairing_secret';
+
+  raise exception 'rollback';
+exception
+  when others then
+    if sqlerrm = 'rollback' then
+      raise notice 'Rolled back test rows cleanly';
+    else
+      raise;
+    end if;
+end $$;
+
 -- 4. link_announce_device() then unlink_announce_device() must flip
 -- link_state/gps_source as expected for a same-company vehicle.
 do $$
@@ -145,6 +212,7 @@ declare
   v_company_id uuid;
   v_vehicle_id uuid;
   v_device_id uuid;
+  v_secret uuid;
   v_link_state text;
   v_gps_source text;
 begin
@@ -160,9 +228,9 @@ begin
     return;
   end if;
 
-  insert into announce_devices (company_id) values (v_company_id) returning id into v_device_id;
+  insert into announce_devices (company_id) values (v_company_id) returning id, pairing_secret into v_device_id, v_secret;
 
-  perform link_announce_device(v_device_id, v_vehicle_id);
+  perform link_announce_device(v_device_id, v_vehicle_id, v_secret);
   select link_state, gps_source into v_link_state, v_gps_source
   from announce_devices where id = v_device_id;
 
@@ -179,6 +247,67 @@ begin
   end if;
 
   raise notice 'PASS: link_announce_device/unlink_announce_device round-trip correctly';
+  raise exception 'rollback';
+exception
+  when others then
+    if sqlerrm = 'rollback' then
+      raise notice 'Rolled back test rows cleanly';
+    else
+      raise;
+    end if;
+end $$;
+
+-- 5b. link_announce_device() must refuse to link a Solo-commissioned device
+-- (candidate_departure_ids populated) unless p_force := true is passed —
+-- found live 2026-09-04: an unguarded link silently converted a Solo device
+-- to Lite mode, where it then waited forever for a driver push that never
+-- came. See migration_announce_devices_solo_guard.sql.
+do $$
+declare
+  v_company_id uuid;
+  v_vehicle_id uuid;
+  v_device_id uuid;
+  v_secret uuid;
+  v_link_state text;
+  v_gps_source text;
+begin
+  select id into v_company_id from companies limit 1;
+  if v_company_id is null then
+    raise notice 'SKIP: no company row to attach a test device to';
+    return;
+  end if;
+
+  select id into v_vehicle_id from vehicles where company_id = v_company_id limit 1;
+  if v_vehicle_id is null then
+    raise notice 'SKIP: company has no vehicle to link against';
+    return;
+  end if;
+
+  insert into announce_devices (company_id, candidate_departure_ids)
+  values (v_company_id, array[gen_random_uuid()])
+  returning id, pairing_secret into v_device_id, v_secret;
+
+  begin
+    perform link_announce_device(v_device_id, v_vehicle_id, v_secret);
+    raise exception 'FAIL: link_announce_device allowed linking a Solo-commissioned device without p_force';
+  exception
+    when others then
+      if sqlerrm like 'announce device % is commissioned as Solo%' then
+        raise notice 'PASS: link_announce_device correctly refused an unforced Solo link';
+      else
+        raise;
+      end if;
+  end;
+
+  perform link_announce_device(v_device_id, v_vehicle_id, v_secret, p_force := true);
+  select link_state, gps_source into v_link_state, v_gps_source
+  from announce_devices where id = v_device_id;
+
+  if v_link_state <> 'linked' or v_gps_source <> 'driver-device' then
+    raise exception 'FAIL: link_announce_device with p_force did not link a Solo-commissioned device (got %/%)', v_link_state, v_gps_source;
+  end if;
+
+  raise notice 'PASS: link_announce_device with p_force := true still links a Solo-commissioned device deliberately';
   raise exception 'rollback';
 exception
   when others then

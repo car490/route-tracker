@@ -2,10 +2,16 @@
   "name": "busops-driver",
   "compatibility_date": "2026-07-01",
   // This top-level (unnamed) config is what a plain `wrangler deploy` uses —
-  // including Cloudflare Workers Builds' default deploy command
-  // (`npx wrangler deploy`, no `--env` flag) — and deploys to the Worker
-  // named above ("busops-driver"), the one routed to
-  // driver.pcvtechnologies.co.uk below.
+  // the `deploy-driver-pwa-production` CI job (.github/workflows/ci.yml) runs
+  // exactly this on every push to master — and deploys to the Worker named
+  // above ("busops-driver"), the one routed to driver.pcvtechnologies.co.uk
+  // below. A separate Cloudflare Workers Builds Git integration was also
+  // connected to this Worker at some point, silently duplicate-deploying
+  // (and failing, likely a stale pre-restructure Root directory setting) on
+  // every push in parallel with CI — disconnected 2026-09-15, see
+  // docs/DECISIONS.md. If a "Fail" reappears in the Cloudflare dashboard
+  // that CI itself doesn't show as failing, check Settings > Build for a
+  // reconnected Git integration before assuming it's a CI problem.
   "assets": {
     "directory": "./"
   },
@@ -20,9 +26,7 @@
   // inherited from the top-level config for a named environment, so each
   // one needs its own if it's meant to have a custom domain; env.production
   // previously had none, which would have silently deployed with no domain
-  // attached if that path is ever used (e.g. a Cloudflare dashboard
-  // "production" environment distinct from the top-level default one this
-  // repo's Git-connected build currently targets).
+  // attached if that path is ever used.
   "env": {
     "production": {
       "assets": {

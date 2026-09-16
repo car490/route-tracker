@@ -10,6 +10,17 @@
 -- Also set the OPENCAGE_API_KEY Edge Function secret:
 --   Supabase Dashboard → Edge Functions → naptan-import → Secrets
 --
+-- Fixed 2026-09-15: the trigger function's net.http_post() call cast body to
+-- ::text, but pg_net's actual signature takes body as jsonb -- a cast to text
+-- doesn't implicitly coerce back to jsonb, so this call was raising "function
+-- net.http_post(...) does not exist" (no matching overload) any time the
+-- trigger actually fired, breaking whatever UPDATE on companies.service_counties
+-- triggered it. Found while debugging an identical mistake copied into
+-- migration_announcement_clip_drain_cron.sql's own cron block. The weekly
+-- cron below was never affected by this specific bug -- its body is a bare
+-- string literal, which Postgres coerces to jsonb by contextual type
+-- inference since it has no explicit (wrong) cast.
+--
 -- ─────────────────────────────────────────────────────────────────────────────
 
 -- Project URL: read from public.app_config at runtime (see schema.sql).
@@ -75,7 +86,7 @@ begin
     body    => jsonb_build_object(
       'counties', _new_counties,
       'mode',     'add'
-    )::text
+    )
   );
 
   raise notice 'NAPTAN import triggered for counties: %', _new_counties;

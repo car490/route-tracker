@@ -96,19 +96,45 @@ function applyPanelSizing() {
 }
 
 // ── Wake lock — keep the mounted screen on ─────────────────────────────────
+// shouldStayAwake tracks *intent*, separate from wakeLock itself (whether
+// the API actually granted one). Needed because releaseWakeLock() below is
+// now a real, deliberate action (Solo's screen-power design — see
+// showSleepScreen()) rather than something that only ever happened as an
+// OS-driven side effect: without this flag, the sentinel's own 'release'
+// event listener would immediately re-acquire it (document is still
+// visible on a kiosk device that never backgrounds), fighting the
+// deliberate sleep. Base tier and Lite never call releaseWakeLock() at
+// all, so shouldStayAwake simply stays true forever for them, same as
+// today.
 let wakeLock = null;
+let shouldStayAwake = false;
 async function acquireWakeLock() {
+  shouldStayAwake = true;
   if (!('wakeLock' in navigator)) return;
   try {
     wakeLock = await navigator.wakeLock.request('screen');
     wakeLock.addEventListener('release', () => {
       wakeLock = null;
-      if (document.visibilityState === 'visible') acquireWakeLock();
+      if (shouldStayAwake && document.visibilityState === 'visible') acquireWakeLock();
     });
   } catch (_) { /* best-effort */ }
 }
+// Solo only (see showSleepScreen()) — lets the OS actually blank the panel
+// once released, rather than leaving it lit-but-blank. Provisioning must
+// cooperate for this to matter physically: the kiosk profile's own
+// keepScreenOn setting has to be off, and the OS screen-timeout short
+// enough to blank promptly — see announce/cab-device/fully-auto-settings.json
+// and setup-solo-device.sh.
+async function releaseWakeLock() {
+  shouldStayAwake = false;
+  if (!wakeLock) return;
+  try {
+    await wakeLock.release();
+  } catch (_) { /* best-effort */ }
+  wakeLock = null;
+}
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && wakeLock === null) acquireWakeLock();
+  if (document.visibilityState === 'visible' && shouldStayAwake && wakeLock === null) acquireWakeLock();
 });
 
 // ── Brand mark position — pinned to the actual bottom-left corner of the
@@ -131,28 +157,28 @@ function positionBrand() {
 }
 window.addEventListener('resize', positionBrand);
 
-// ── Topbar marquee — character height is a hard floor (PSVAIR's 22mm
-// minimum, --min-text), never traded down for a long service+destination
-// combination, so a line too wide for the panel scrolls instead of
-// truncating. Only ever active when the text genuinely doesn't fit —
-// #sign-route-track (see onboard.css) has no .marquee class, and no
-// animation, until this measures a real overflow. Re-run whenever
-// onSchedule() sets new text (below) and on resize, mirroring
-// positionBrand's own pattern above.
+// ── Marquee — character height is a hard floor (PSVAIR's 22mm minimum,
+// --min-text), never traded down for a long line of text, so a line too
+// wide for the panel scrolls instead of truncating or wrapping. Generic:
+// used by the topbar's service+destination line (#sign-route-line/-track,
+// the original use, 2026-09-04) and, since 2026-09-08, the three-line
+// headline's town/stop lines (a bold two-word stop name at full 22mm size
+// can be too wide for the Solo tablet's narrower panel — found live,
+// wrapping onto an unwanted extra line). Only ever active when the text
+// genuinely doesn't fit — a track has no .marquee class, and no animation,
+// until this measures a real overflow.
 const MARQUEE_SPEED_PX_PER_S = 220; // fast, deliberately brisk per user feedback 2026-09-04 — tune here if it reads too fast/slow live
 const MARQUEE_MIN_DURATION_S = 2.5; // floor so a barely-overflowing line doesn't scroll imperceptibly fast
 
-function applyTopbarMarquee() {
-  const viewport = el('sign-route-line');
-  const track = el('sign-route-track');
+function applyMarquee(viewport, track) {
   track.classList.remove('marquee');
-  track.style.removeProperty('--topbar-marquee-start');
-  track.style.removeProperty('--topbar-marquee-end');
-  track.style.removeProperty('--topbar-marquee-duration');
-  // scrollWidth reflects the text just set by onSchedule() only once the
-  // browser has laid it out — reading it straight after a class/text change
-  // in the same tick is reliable in practice here (no animation/transition
-  // on the track itself to race), so no extra rAF/reflow trick is needed.
+  track.style.removeProperty('--marquee-start');
+  track.style.removeProperty('--marquee-end');
+  track.style.removeProperty('--marquee-duration');
+  // scrollWidth reflects the text just set only once the browser has laid
+  // it out — reading it straight after a class/text change in the same
+  // tick is reliable in practice here (no animation/transition on the
+  // track itself to race), so no extra rAF/reflow trick is needed.
   const viewportWidthPx = viewport.clientWidth;
   const trackWidthPx = track.scrollWidth;
   if (trackWidthPx <= viewportWidthPx) return; // fits — stays static, the common case
@@ -171,12 +197,42 @@ function applyTopbarMarquee() {
   const startPx = viewportWidthPx; // fully off-screen right
   const endPx = -trackWidthPx; // fully off-screen left
   const durationS = Math.max((startPx - endPx) / MARQUEE_SPEED_PX_PER_S, MARQUEE_MIN_DURATION_S);
-  track.style.setProperty('--topbar-marquee-start', `${startPx}px`);
-  track.style.setProperty('--topbar-marquee-end', `${endPx}px`);
-  track.style.setProperty('--topbar-marquee-duration', `${durationS}s`);
+  track.style.setProperty('--marquee-start', `${startPx}px`);
+  track.style.setProperty('--marquee-end', `${endPx}px`);
+  track.style.setProperty('--marquee-duration', `${durationS}s`);
   track.classList.add('marquee');
 }
-window.addEventListener('resize', applyTopbarMarquee);
+
+function applyTopbarMarquee() {
+  applyMarquee(el('sign-route-line'), el('sign-route-track'));
+}
+
+// Terminus hides the topbar outright (onboard.css) — this actively stops
+// the animation underneath rather than leaving it scrolling behind a
+// display:none element, per user feedback 2026-09-08. Not just tidiness:
+// it's also what a later applyTopbarMarquee() re-measures from cleanly the
+// next time a schedule sets new route text (e.g. the return journey).
+function stopTopbarMarquee() {
+  const track = el('sign-route-track');
+  track.classList.remove('marquee');
+  track.style.removeProperty('--marquee-start');
+  track.style.removeProperty('--marquee-end');
+  track.style.removeProperty('--marquee-duration');
+}
+
+// Re-measures every currently-rendered headline town/stop line — plural
+// because a two-sentence sequence briefly holds none, and a resize can hit
+// while either line is showing.
+function applyHeadlineMarquees() {
+  el('sign-headline').querySelectorAll('.hl-marquee-viewport').forEach((viewport) => {
+    applyMarquee(viewport, viewport.querySelector('.hl-marquee-track'));
+  });
+}
+
+window.addEventListener('resize', () => {
+  applyTopbarMarquee();
+  applyHeadlineMarquees();
+});
 
 // ── Rendering — purely visual: no audio, no Supabase, no GPS — just DOM
 // updates off an already-resolved {stateKey, vars} pushed from whichever
@@ -211,6 +267,67 @@ function clearSequenceTimers() {
   sequenceTimers = [];
 }
 
+// APPROACHING ("This is X.") and STOP_DEPARTURE ("The next stop is X.") each
+// name a single stop (vars.stopName / vars.nextStopName) whose resolved text
+// (stops.announcement_name, see display_name() in schema.sql) is shaped
+// "Town,Specific stop" — split here so the sign can show it as three stacked
+// lines (verb phrase / town / stop) instead of one running sentence, per
+// user feedback 2026-09-07/08. Keyed off stateKey/vars, deliberately NOT by
+// pattern-matching the resolved sentence text: ROUTE_START's "This is a X to
+// Y." also starts with "This is" and can itself contain a comma (whenever Y
+// is Town,Stop-shaped), which a text-only regex mismatched into three
+// nonsense lines — found live 2026-09-08. Display-only — the spoken text
+// (speechSynthesis/pre-rendered clips) stays the one unchanged flowing
+// sentence; PSVAIR Reg 12(1) governs audio/visual content consistency, not
+// identical line-breaking.
+const HEADLINE_STOP_FIELD = {
+  [ANNOUNCE_STATES.APPROACHING]: { verb: 'This is', field: 'stopName' },
+  [ANNOUNCE_STATES.STOP_DEPARTURE]: { verb: 'The next stop is', field: 'nextStopName' },
+};
+
+function renderHeadlineText(stateKey, vars, text) {
+  const headline = el('sign-headline');
+  const spec = HEADLINE_STOP_FIELD[stateKey];
+  const stopName = spec ? vars[spec.field] : null;
+  const commaIndex = stopName ? stopName.indexOf(',') : -1;
+
+  headline.textContent = '';
+  headline.classList.toggle('hl-three-line', commaIndex !== -1);
+  if (commaIndex === -1) {
+    headline.textContent = text;
+    return;
+  }
+
+  const verbLine = document.createElement('div');
+  verbLine.className = 'hl-verb';
+  verbLine.textContent = spec.verb;
+  // Stashed so updateEarlyWaitDisplay() can restore the plain verb text
+  // after overlaying (and later clearing) the "wait here" box on it.
+  verbLine.dataset.verbText = spec.verb;
+  headline.appendChild(verbLine);
+
+  // Town/stop each get a marquee viewport+track (see applyMarquee) rather
+  // than a plain div — a bold two-word stop name at the full 22mm-minimum
+  // size can be too wide for the Solo tablet's panel, and PSVAIR's minimum
+  // character height is never traded down for length (same reasoning as
+  // the topbar's own marquee) — found live 2026-09-08 wrapping onto an
+  // unwanted extra line. Static (no scroll) whenever the text actually
+  // fits — applyMarquee only adds .marquee on a real overflow.
+  [
+    ['hl-town', stopName.slice(0, commaIndex).trim()],
+    ['hl-stop', stopName.slice(commaIndex + 1).trim()],
+  ].forEach(([className, lineText]) => {
+    const viewport = document.createElement('div');
+    viewport.className = `${className} hl-marquee-viewport`;
+    const track = document.createElement('div');
+    track.className = 'hl-marquee-track';
+    track.textContent = lineText;
+    viewport.appendChild(track);
+    headline.appendChild(viewport);
+  });
+  applyHeadlineMarquees();
+}
+
 function showHeadline(stateKey, vars) {
   const text = resolveAnnouncementText(stateKey, vars) ?? '';
   const sentences = text.split(/(?<=\.)\s+/);
@@ -218,17 +335,71 @@ function showHeadline(stateKey, vars) {
 
   clearSequenceTimers();
   if (sentences.length < 2) {
-    headline.textContent = text;
+    renderHeadlineText(stateKey, vars, text);
     return;
   }
 
-  headline.textContent = sentences[0];
+  renderHeadlineText(stateKey, vars, sentences[0]);
   sequenceTimers.push(setTimeout(() => {
     headline.textContent = '';
+    headline.classList.remove('hl-three-line');
     sequenceTimers.push(setTimeout(() => {
-      headline.textContent = sentences[1];
+      renderHeadlineText(stateKey, vars, sentences[1]);
     }, CLEAR_GAP_MS));
   }, FIRST_SENTENCE_MS));
+}
+
+function fmtEarlyWaitTime(earlyWait) {
+  return new Date(earlyWait.scheduledTime)
+    .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+// Renders the "wait here, running early" indicator as an amber box — same
+// treatment as the Driver PWA's own #early-wait-banner (busops/driver/
+// style.css) — directly over the three-line headline's verb line, instead
+// of a separate block below the headline. That separate block used to roll
+// off the bottom of the Solo tablet's squarer panel once the headline grew
+// to three lines; overlaying the verb line keeps the sign's total headline
+// height constant whether or not the bus is running early. Per user
+// feedback 2026-09-08: only ever shown during APPROACHING (i.e. while
+// dwelling at the stop the headline is currently naming — see
+// shared/gps.js's computeEarlyWait, only ever non-null mid-dwell) —
+// clears the instant STOP_DEPARTURE fires, since the bus is then moving and
+// "wait here" no longer applies.
+function updateEarlyWaitDisplay(stateKey, earlyWait) {
+  const headline = el('sign-headline');
+  const verbLine = headline.querySelector('.hl-verb');
+  const banner = el('early-wait-banner');
+
+  if (verbLine) {
+    banner.hidden = true;
+    const showEarly = !!earlyWait && stateKey === ANNOUNCE_STATES.APPROACHING;
+    verbLine.classList.toggle('hl-verb--early', showEarly);
+    if (showEarly) {
+      verbLine.replaceChildren(
+        Object.assign(document.createElement('div'), { className: 'ewb-title', textContent: 'WAIT HERE' }),
+        Object.assign(document.createElement('div'), {
+          className: 'ewb-msg',
+          textContent: `Running early — depart at ${fmtEarlyWaitTime(earlyWait)}`,
+        }),
+      );
+    } else {
+      verbLine.textContent = verbLine.dataset.verbText ?? verbLine.textContent;
+    }
+    return;
+  }
+
+  // Fallback for a single-line headline (resolved stop name has no comma) —
+  // the original below-headline banner, same terminus suppression as
+  // before this change: "running early, depart at X" doesn't mean anything
+  // once the bus has actually reached its final stop and passengers are
+  // being told to get off (found live 2026-09-02).
+  if (earlyWait && stateKey !== ANNOUNCE_STATES.AT_STOP) {
+    banner.hidden = false;
+    el('ewb-time').textContent = fmtEarlyWaitTime(earlyWait);
+  } else {
+    banner.hidden = true;
+  }
 }
 
 function render(stateKey, vars, earlyWait) {
@@ -249,23 +420,12 @@ function render(stateKey, vars, earlyWait) {
   // tiers with audio, the spoken announcement both already carry the
   // message — this full-page colour is a supplementary "notice me" cue on
   // top, per user feedback 2026-09-02, not the only signal.
-  el('onboard-sign').classList.toggle('terminus', stateKey === ANNOUNCE_STATES.AT_STOP);
+  const isTerminus = stateKey === ANNOUNCE_STATES.AT_STOP;
+  el('onboard-sign').classList.toggle('terminus', isTerminus);
+  if (isTerminus) stopTopbarMarquee();
 
-  // Suppressed at terminus — "running early, depart at X" doesn't mean
-  // anything once the bus has actually reached its final stop and
-  // passengers are being told to get off; found live, 2026-09-02, showing
-  // confusingly on top of the new terminus colour (pre-existing gap, not
-  // something this change introduced — earlyWait and stateKey were always
-  // independent — just made newly obvious by that background).
-  const banner = el('early-wait-banner');
-  if (earlyWait && stateKey !== ANNOUNCE_STATES.AT_STOP) {
-    banner.hidden = false;
-    el('ewb-time').textContent = new Date(earlyWait.scheduledTime)
-      .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-  } else {
-    banner.hidden = true;
-  }
-  positionBrand(); // banner toggling above can change the topbar's own height
+  updateEarlyWaitDisplay(stateKey, earlyWait);
+  positionBrand(); // banner/verb-line toggling above can change layout height
 }
 
 // ── Operator branding ─────────────────────────────────────────────────────
@@ -315,7 +475,12 @@ function wcagContrastRatio(hex1, hex2) {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-const EP_PAPER = '#FFFFFF'; // white paper the accent sits on/against — accent is tested against this
+// Read from the CSS token rather than duplicated as a literal here — this
+// used to be a hardcoded '#FFFFFF' and silently drifted out of sync when
+// --ep-paper changed to the approved-palette off-white (#F9FAF4), found
+// 2026-09-08.
+const EP_PAPER = getComputedStyle(document.documentElement)
+  .getPropertyValue('--ep-paper').trim();
 // companies.accent_color's DB default — see comment above. Read from brand-tokens.css
 // (imported via onboard.css) rather than duplicated as a literal here.
 const PLATFORM_DEFAULT_ACCENT = getComputedStyle(document.documentElement)
@@ -391,6 +556,7 @@ export function applyIdleBranding({ name, logoUrl, accentColor }) {
   }
 
   el('onboard-idle').hidden = false;
+  el('onboard-brand').hidden = false; // undo showSleepScreen()'s hide, if it ran before this branding fetch resolved
   positionBrand();
 }
 
@@ -400,31 +566,54 @@ export function applyIdleBranding({ name, logoUrl, accentColor }) {
 // registered with no candidate_departure_ids configured), so the kiosk
 // visibly confirms it booted into Solo mode rather than looking
 // identical to a broken/not-yet-connected device. Only the next-departure
-// caption itself is conditional. candidate is
-// { departureId, firstStopLat, firstStopLon, departureTime } (scheduleAutopilot.js's
-// shape) or null once nothing is cached yet / commissioned.
-export function showNextDeparture(candidate) {
+// caption itself is conditional. nextDepartures is one entry per distinct
+// service this device carries candidates for — [{ serviceCode, departureTime }]
+// (announceSoloAutopilot.js's reportNextDeparture) — or null once nothing is
+// cached yet / commissioned. One line per service, not a single merged
+// soonest-overall time (found live 2026-09-06: a device with two services'
+// worth of candidates showed one ambiguous time, telling a waiting
+// passenger/driver nothing concrete about either actual service).
+export function showNextDeparture(nextDepartures) {
   const box = el('idle-next-departure');
-  box.hidden = !candidate;
-  box.textContent = candidate ? `Next departure ${candidate.departureTime}` : '';
+  const hasEntries = Array.isArray(nextDepartures) && nextDepartures.length > 0;
+  box.hidden = !hasEntries;
+  box.replaceChildren();
+  if (hasEntries) {
+    for (const { serviceCode, departureTime } of nextDepartures) {
+      const line = document.createElement('div');
+      line.textContent = `${serviceCode} next departure ${departureTime}`;
+      box.appendChild(line);
+    }
+  }
   el('onboard-idle').hidden = false;
   el('onboard-brand').hidden = false; // undo showSleepScreen()'s hide, if it ran
+  // Solo's wake-window transition into "awake" reaches here (see
+  // announceSoloAutopilot.js's reportNextDeparture) — the screen must
+  // actually be on for any of this to be visible. Idempotent to call
+  // again while already awake (candidates refreshing, etc.) and a no-op
+  // for tiers that never sleep (base/Lite) beyond the one real acquire.
+  acquireWakeLock();
   positionBrand();
 }
 
 // Solo only — fully blank screen (no branding, no logo, no next-departure
-// caption, not even the small corner brand mark) outside this device's
-// configured active windows. Previously only GPS *polling* was gated by
-// the window (announceSoloAutopilot.js's idleTimer) — the idle screen
-// itself stayed lit and branded around the clock regardless, which made
-// no sense for a device that only runs a school-run twice a day. Never
-// called while a journey is actually active — announceSoloAutopilot.js's
-// applyWakeState() guards that, a window ending mid-route must not blank
-// the sign out from under real passengers.
+// caption, not even the small corner brand mark) outside the wake window
+// around this device's own candidate departures, AND releases the wake
+// lock so the OS can actually blank the physical panel (see
+// releaseWakeLock's own comment) — not just the on-screen content.
+// Previously only GPS *polling* was gated by the window
+// (announceSoloAutopilot.js's idleTimer) — the idle screen itself, and the
+// screen's actual power state, stayed lit around the clock regardless,
+// which made no sense for a device that only runs a school-run twice a
+// day. Never called while a journey is actually active —
+// announceSoloAutopilot.js's applyWakeState() guards that, a window ending
+// mid-route must not blank the sign (or the screen) out from under real
+// passengers.
 export function showSleepScreen() {
   el('onboard-idle').hidden = true;
   el('onboard-sign').hidden = true;
   el('onboard-brand').hidden = true;
+  releaseWakeLock();
 }
 
 // ── Pushed feed (Driver -> Controller -> this sign) — the only source of

@@ -29,12 +29,26 @@
   --ep-font:      var(--pcv-font-sans);
 
   --ep-bg:        #ECEAE2;
-  --ep-ink:       #1A1A18;
+  /* Pure black, not a near-black like #1A1A18 — the passenger-facing sign
+     text (headline, brand mark, PSVAIR-relevant copy) is held to the
+     approved accessible palette's own documented ratios (docs/BRAND.md),
+     which are all computed against literal #000, not an near-black. Kept
+     as its own token rather than inlining #000 at each call site so the
+     "this is the mandated ink colour" intent stays legible. */
+  --ep-ink:       #000000;
   --ep-ink-soft:  #5A5850;
 
   --ep-teal:      var(--pcv-color-primary-action);
   --ep-late:      #EF4444;
   --ep-diversion: #F59E0B; /* amber — caution, distinct from the brand accent/purple bars */
+  /* Same amber as --ep-diversion by value, but a distinct token: this is
+     the Driver PWA's own --early token (busops/driver/style.css) for its
+     "WAIT HERE / running early" banner, reused here so the onboard sign's
+     early-wait indicator matches that display exactly, per user feedback
+     2026-09-08 — coincidence that it's the same hex as diversion's amber,
+     not a shared meaning; keep them separate tokens in case either needs
+     to change independently later. */
+  --ep-early:     #F59E0B;
 
   /* Brand accent, used by the top bar — the only colour besides white and
      the diversion amber anywhere on the sign. Defaults to CoachMate's dark
@@ -49,7 +63,11 @@
      property). Leaving it undeclared until onboard.js's setProperty() call
      is what makes `var(--operator-accent, var(--ep-purple))` below
      actually fall back to purple when no override applies. */
-  --ep-paper:       #FFFFFF;
+  /* Off-white, not pure #FFFFFF — one of the 5 swatches in the company's
+     approved accessible palette (docs/BRAND.md), chosen for the sign's main
+     background specifically for its contrast ratio against pure black text
+     (20.01:1, see --ep-ink above) — per user feedback 2026-09-08. */
+  --ep-paper:       #F9FAF4;
   --ep-purple:      #2E1065;
   --ep-purple-soft: rgba(255, 255, 255, 0.72);
 
@@ -138,10 +156,18 @@ body {
    the page a notice me colour"). Distinct red (--ep-late, already the
    design system's own "urgent" token, reused rather than inventing a new
    one) rather than diversion's amber, since the two mean different things
-   and shouldn't look alike. Text flips to paper-white for contrast against
-   the new background — #sign-topbar's text was already white; only
-   #sign-headline needs overriding here. */
-#onboard-sign.terminus #sign-topbar,
+   and shouldn't look alike.
+   The topbar hides outright now rather than just recolouring (per user
+   feedback 2026-09-08: the route/destination line — and its marquee scroll,
+   see onboard.js's applyTopbarMarquee/stopTopbarMarquee — had no reason to
+   keep showing/scrolling once the journey has actually ended). The
+   "auto"-height topbar grid row collapses to 0 when its content is
+   display:none, so #sign-main's "1fr" row grows to fill the freed space —
+   no grid-template-areas change needed. */
+#onboard-sign.terminus #sign-topbar {
+  display: none;
+}
+
 #onboard-sign.terminus #sign-main {
   background: var(--ep-late);
 }
@@ -236,19 +262,29 @@ body {
     "main";
 }
 
+/* #idle-topbar's height is intentionally NOT --topbar-height any more
+   (that value is still shared byte-for-byte with #sign-topbar, the active
+   sign's single-line route/destination band — different content, different
+   shape). This band instead sizes to whatever #idle-next-departure actually
+   holds (min-height keeps it looking substantial with zero/one entry,
+   growing automatically for more) — moved here 2026-09-06 so a device
+   candidate-configured for several services (real + test-route clones)
+   shows all of them without fighting the logo for vertical space below. */
 #idle-topbar {
   grid-area: topbar;
-  height: var(--topbar-height); /* same shared value #sign-topbar uses — guaranteed identical, not just approximated */
+  min-height: var(--topbar-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1vh 2vw;
   background: var(--operator-accent, var(--ep-purple));
 }
 
 #idle-main {
   grid-area: main;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2vh;
   /* Matches #onboard-sign's own paper background (var(--ep-paper)) — the
      logo file itself sits on white, so leaving this on the page's cream
      --ep-bg made it read as a pasted-on rectangle instead of blending into
@@ -258,27 +294,37 @@ body {
 
 #idle-logo {
   /* ~3x the previous 50vw/35vh, still capped well inside the panel (never
-     the full viewport) so it can't crowd the topbar or the next-departure
-     caption below it (Solo tier) — object-fit: contain means the source
-     image's own aspect ratio picks whichever of these two caps actually
-     binds, not a forced square. User feedback 2026-09-02: make the
-     customer logo bigger, up to ~3x, while staying fully on the panel. */
+     the full viewport) — object-fit: contain means the source image's own
+     aspect ratio picks whichever of these two caps actually binds, not a
+     forced square. User feedback 2026-09-02: make the customer logo
+     bigger, up to ~3x, while staying fully on the panel. */
   max-width: 80vw;
   max-height: 65vh;
   object-fit: contain;
 }
 
-/* Solo (driverless) schedule-autopilot's next-departure caption —
-   see announceSoloAutopilot.js/onboard.js's showNextDeparture(). Not
-   held to the active sign's 22mm PSVAIR minimum (--min-text) — that
-   requirement is for in-service passenger information, not this
-   before-boarding idle caption. */
+/* Solo (driverless) schedule-autopilot's next-departure caption(s) — see
+   announceSoloAutopilot.js/onboard.js's showNextDeparture(). One entry per
+   service this device carries candidates for, laid out two-per-row (a
+   device with several services' worth of candidates reads as a compact
+   grid instead of either one cramped line or a tall stack competing with
+   the logo for room below — found live 2026-09-06). Not held to the active
+   sign's 22mm PSVAIR minimum (--min-text) — that requirement is for
+   in-service passenger information, not this before-boarding idle caption
+   (a real, separate bug found the same session: this rule used to read
+   `calc(var(--min-text) * 0.6)` despite its own comment already saying it
+   shouldn't follow --min-text at all). */
 #idle-next-departure {
   font-family: var(--ep-font);
   font-weight: 700;
-  font-size: calc(var(--min-text) * 0.6);
-  color: var(--ep-ink-soft);
+  font-size: 2.6vh;
+  line-height: 1.3;
+  color: var(--ep-paper); /* sits on the topbar's accent colour now, not the white paper band */
   text-align: center;
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  column-gap: 3vw;
+  row-gap: 0.4vh;
 }
 
 /* ── Top bar — brand accent, white lettering (logo keeps its own brand
@@ -325,26 +371,30 @@ body {
   white-space: nowrap;
 }
 
-/* Infinite, no pause, no rest gap — user feedback 2026-09-04, arrived at
-   after three other versions (see applyTopbarMarquee's own comment for the
-   full history). Both ends of the loop (--topbar-marquee-start/-end,
-   below) are off-screen, so the infinite reset is invisible and the whole
-   visible motion reads as one continuous, uninterrupted scroll. */
-#sign-route-track.marquee {
-  animation-name: topbar-marquee;
-  animation-duration: var(--topbar-marquee-duration, 4s);
+/* Generic marquee animation — shared by the topbar's #sign-route-track and
+   (since 2026-09-08) the headline's .hl-marquee-track lines, see
+   onboard.js's applyMarquee(). Not scoped to either element by id/class
+   beyond .marquee itself, so any scrolling track can reuse it. Infinite, no
+   pause, no rest gap — user feedback 2026-09-04, arrived at after three
+   other versions (see applyMarquee's own comment for the full history).
+   Both ends of the loop (--marquee-start/-end, below) are off-screen, so the
+   infinite reset is invisible and the whole visible motion reads as one
+   continuous, uninterrupted scroll. */
+.marquee {
+  animation-name: line-marquee;
+  animation-duration: var(--marquee-duration, 4s);
   animation-timing-function: linear;
   animation-iteration-count: infinite;
 }
 
-/* --topbar-marquee-start/-end (px, set alongside --topbar-marquee-duration
-   by applyTopbarMarquee()) are the viewport's own width (fully off-screen
-   right) and the negative of the track's own full width (fully off-screen
-   left) — the segment enters by sliding in from the right rather than
-   popping into view already readable. */
-@keyframes topbar-marquee {
-  from { transform: translateX(var(--topbar-marquee-start, 0px)); }
-  to   { transform: translateX(var(--topbar-marquee-end, 0px)); }
+/* --marquee-start/-end (px, set alongside --marquee-duration by
+   applyMarquee()) are the viewport's own width (fully off-screen right) and
+   the negative of the track's own full width (fully off-screen left) — the
+   track enters by sliding in from the right rather than popping into view
+   already readable. */
+@keyframes line-marquee {
+  from { transform: translateX(var(--marquee-start, 0px)); }
+  to   { transform: translateX(var(--marquee-end, 0px)); }
 }
 
 /* A class, not #sign-service-code/#sign-destination directly — those ids
@@ -388,6 +438,17 @@ body {
 }
 
 #sign-headline {
+  /* Explicit width, not left to shrink-to-fit — #sign-main uses
+     align-items: center (not stretch), so without this #sign-headline
+     sizes to its own widest child's natural (max-content) width. That's
+     harmless for plain centred text, but it broke the town/stop marquee
+     entirely: .hl-marquee-viewport's `width: 100%` had no definite
+     containing-block width to resolve against, so per the CSS spec it
+     computed as auto instead — the viewport just shrank to match its own
+     text, meaning it could never register as "overflowing" no matter how
+     long the actual text was. Found live 2026-09-08: marquee silently
+     never fired for any of 3 stops that needed it on the real device. */
+  width: 100%;
   font-family: var(--ep-font);
   /* Same size as the topbar (var(--min-text), the literal 22mm minimum) —
      not scaled up. An earlier version multiplied this by 1.3 to make the
@@ -410,9 +471,105 @@ body {
   white-space: normal;
 }
 
-/* ── Early-wait caption — not one of the 7 display states (see
-   onboard.html's comment), kept small and secondary rather than a
-   competing full-size headline. */
+/* Verb phrase / town / stop stacked as three lines — see onboard.js's
+   renderHeadlineText(). Each line keeps the parent's font-size
+   (var(--min-text), the 22mm PSVAIR floor) — this is an alternate layout of
+   the same text, not a smaller/secondary treatment of any of it. All three
+   lines share one weight and colour — an earlier version made the verb
+   line lighter/greyer to read as secondary, but user feedback live on the
+   real tablet 2026-09-08 was that the visible weight/colour split looked
+   wrong, not intentional; 700 (one step down from the original town/stop
+   800) is the "something between" the two original weights the user asked
+   for, in pure black (--ep-ink) throughout. */
+#sign-headline.hl-three-line {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5vh;
+  line-height: 1.15;
+  font-weight: 700;
+  color: var(--ep-ink);
+  /* Small upward nudge — #sign-main centers this block via flex
+     justify-content, but it still read visually low on the real tablet
+     (more empty space below the last line than above the first) — per
+     user feedback 2026-09-08, most likely font-metric half-leading
+     asymmetry (most fonts reserve more space above cap-height than below
+     the baseline) rather than a real centering bug. Proportional to
+     --min-text, not a flat vh, so it scales with panel size like
+     everything else here. Re-tune this one value against the real device
+     if it's not quite balanced yet. */
+  margin-top: calc(var(--min-text) * -0.15);
+}
+
+/* Marquee viewport/track for the town/stop lines — see onboard.js's
+   applyMarquee()/applyHeadlineMarquees(). width: 100% (not the flex
+   container's default content-fit sizing) so the viewport is the full
+   headline width to clip against, letting a two-word stop name that's
+   wider than that actually overflow and scroll rather than wrap — found
+   live 2026-09-08 at the full 22mm-minimum bold size. font/colour are
+   inherited from .hl-town/.hl-stop above, not repeated here. */
+.hl-marquee-viewport {
+  display: block;
+  width: 100%;
+  /* Horizontal clipping only — plain `overflow: hidden` clips both axes,
+     which at this tight line-height (1.15, inherited from .hl-three-line)
+     was cutting off the bottom of descenders (g, y, p...) on every
+     town/stop line, not just the ones actually scrolling — found live
+     2026-09-08. */
+  overflow-x: hidden;
+  overflow-y: visible;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.hl-marquee-track {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* "Wait here, running early" — same amber-box treatment as the Driver
+   PWA's own #early-wait-banner, rendered in place of the verb line's plain
+   text rather than as a separate block below the headline (see
+   onboard.js's updateEarlyWaitDisplay() for why: that separate block used
+   to roll off the bottom of the Solo tablet's squarer panel once the
+   headline grew to three lines). Sized to still clear a legible line
+   height at this position, not the full 22mm floor — this is a
+   supplementary status box, not the passenger-facing stop name itself
+   (which resumes here, same size as before, the moment this clears). */
+#sign-headline.hl-three-line .hl-verb.hl-verb--early {
+  background: var(--ep-early);
+  color: #000;
+  border-radius: 0.6vh;
+  padding: 0.4vh 2vw;
+  line-height: 1.2;
+  animation: ewb-flash 1s ease-in-out infinite;
+}
+
+#sign-headline.hl-three-line .hl-verb--early .ewb-title {
+  font-size: calc(var(--min-text) * 0.42);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #000;
+}
+
+#sign-headline.hl-three-line .hl-verb--early .ewb-msg {
+  font-size: calc(var(--min-text) * 0.3);
+  font-weight: 600;
+  margin-top: 0.2vh;
+  color: #000;
+}
+
+@keyframes ewb-flash {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+
+/* ── Early-wait caption fallback — only reached when the headline is
+   showing a single line (the resolved stop name had no comma to split
+   on), so the amber-box-on-the-verb-line treatment above has nothing to
+   attach to. Not one of the 7 display states (see onboard.html's
+   comment), kept small and secondary rather than a competing full-size
+   headline. */
 
 #early-wait-banner {
   text-align: center;

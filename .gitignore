@@ -43,3 +43,8 @@ branding-logo.png
 # wrangler dev's local Miniflare state (cache, tmp bundles) — regenerated
 # on every `wrangler dev` run, never source.
 .wrangler/
+
+# Azure Speech credentials for local PSVAIR audio regeneration — holds a
+# real AZURE_SPEECH_KEY once filled in, never commit it. Copy
+# .env.audio.example to this name (see CLAUDE.md "PSVAIR announcement audio").
+pcv-dashboard/busops/.env.audio

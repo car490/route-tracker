@@ -20,24 +20,40 @@ const SUPABASE_KEY = USE_DEV
 
 console.log(`Reading from ${USE_DEV ? 'DEV' : 'PRODUCTION'} Supabase (${SUPABASE_URL})`)
 
-const url =
-  `${SUPABASE_URL}/rest/v1/schedule_view` +
-  `?select=timetable_stop_id,stop_id,stop_type,scheduled_time,display_name,lat,lon,service_code,timetable_name,direction,departure_id,departure_time,sequence` +
-  `&order=service_code,departure_time,sequence`
+// Paginated — PostgREST caps an unpaginated request at 1000 rows by
+// default. schedule_view ordered alphabetically by service_code silently
+// dropped every service sorting after whichever one filled that cap
+// (found live 2026-09-08: S116T's dense all-day/every-30-min test-clone
+// departures alone are 1500+ rows, pushing S125S/S125T out entirely) —
+// loop until a page comes back under PAGE_SIZE rather than trusting one
+// fetch to return everything.
+const PAGE_SIZE = 1000
+const rows = []
+let offset = 0
+for (;;) {
+  const url =
+    `${SUPABASE_URL}/rest/v1/schedule_view` +
+    `?select=timetable_stop_id,stop_id,stop_type,scheduled_time,display_name,lat,lon,service_code,timetable_name,direction,departure_id,departure_time,sequence` +
+    `&order=service_code,departure_time,sequence` +
+    `&limit=${PAGE_SIZE}&offset=${offset}`
 
-const res = await fetch(url, {
-  headers: {
-    apikey: SUPABASE_KEY,
-    Authorization: `Bearer ${SUPABASE_KEY}`,
-  },
-})
+  const res = await fetch(url, {
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+    },
+  })
 
-if (!res.ok) {
-  console.error('Supabase error:', res.status, await res.text())
-  process.exit(1)
+  if (!res.ok) {
+    console.error('Supabase error:', res.status, await res.text())
+    process.exit(1)
+  }
+
+  const page = await res.json()
+  rows.push(...page)
+  if (page.length < PAGE_SIZE) break
+  offset += PAGE_SIZE
 }
-
-const rows = await res.json()
 console.log(`Fetched ${rows.length} rows from schedule_view`)
 
 const schedule = {}

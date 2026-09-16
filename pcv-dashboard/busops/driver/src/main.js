@@ -14,6 +14,7 @@ import { resolveBootAction, BOOT_ACTION } from './activeJourneyRecovery.js';
 import { announceApproachEvent, announceStopEvent } from './announceStopEvent.js';
 import { triggerDiversionAlert, clearDiversionAlert } from './diversionAlert.js';
 import { selectServiceManually } from './manualSelection.js';
+import { checkAnnouncementCoverage } from './journeyAnnouncementPreflight.js';
 import { getStoredVehicle, storeVehicle } from './vehicleSetup.js';
 import {
   captureAnnounceSetup, connectAnnounceLink, disconnectAnnounceLink,
@@ -212,6 +213,29 @@ function showInfoBanner({ title, body, durationMs, onDismiss }) {
 
 function showTripCompleteBanner(onDismiss) {
   showInfoBanner({ title: 'Trip Complete', body: 'Data saved', durationMs: TRIP_COMPLETE_AUTO_DISMISS_MS, onDismiss });
+}
+
+// Phase 3 of docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md ("never synthesize").
+// Fire-and-forget, called from all three journey-start paths just before
+// runTracker() — never blocks or delays journey start (the plan doc's
+// "hybrid" decision: a driver can always start their route, this is a
+// heads-up, not a gate). checkAnnouncementCoverage itself already records
+// the ops-facing alert (announcement_coverage_gap); this only decides
+// whether to show the driver-facing banner. A failed check (offline, etc.)
+// is swallowed the same way — "couldn't confirm" is not treated as "journey
+// can't start".
+function runAnnouncementPreflight({ allStops, serviceCode, destination, journeyId, vehicleId, driverId }) {
+  checkAnnouncementCoverage({ allStops, serviceCode, destination, journeyId, vehicleId, driverId })
+    .then(({ missingCount }) => {
+      if (!missingCount) return;
+      showInfoBanner({
+        title: 'Audio not fully ready',
+        body: `Audio not yet ready for ${missingCount} stop${missingCount === 1 ? '' : 's'} on this route. The screen will still show every stop.`,
+        durationMs: TRIP_COMPLETE_AUTO_DISMISS_MS,
+        onDismiss: () => {},
+      });
+    })
+    .catch((err) => console.warn('[journeyAnnouncementPreflight] coverage check failed', err));
 }
 
 // ── Tracker ───────────────────────────────────────────────────────────────────
@@ -486,7 +510,7 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
     diversionAlertState = result.alertState;
     setDiversionBtnLabel();
     pushSignState(ANNOUNCE_STATES.DIVERSION, {});
-    if (psvairEnabled) announceState(ANNOUNCE_STATES.DIVERSION, {}, {});
+    if (psvairEnabled) announceState(ANNOUNCE_STATES.DIVERSION, {}, { journeyId, vehicleId, driverId });
     log('info', 'Diversion alert triggered');
 
     if (journeyId) {
@@ -584,6 +608,7 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
           lastAnnouncedApproachIdx = approaching.stopIndex;
           announceApproachEvent(resolved.stateKey, resolved.vars, {
             stopId: allStops[approaching.stopIndex].stop_id,
+            journeyId, vehicleId, driverId,
           }, !!diversionAlertState);
         }
       }
@@ -616,6 +641,7 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
           if (psvairEnabled) {
             announceState(ANNOUNCE_STATES.ROUTE_START, routeStartVars, {
               serviceCode, destination: lastStop.name,
+              journeyId, vehicleId, driverId,
             });
           }
         } else if (isFinal) {
@@ -624,6 +650,7 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
           if (psvairEnabled) {
             announceStopEvent(arrival.stateKey, arrival.vars, {
               stopId: allStops[atStop.stopIndex].stop_id,
+              journeyId, vehicleId, driverId,
             }, !!diversionAlertState);
           }
         }
@@ -656,6 +683,7 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
           if (psvairEnabled && !diversionAlertState) {
             announceState(ANNOUNCE_STATES.STOP_DEPARTURE, departureVars, {
               serviceCode, destination: lastStop.name, nextStopId: allStops[departedStopIndex + 1].stop_id,
+              journeyId, vehicleId, driverId,
             });
           }
         }
@@ -975,6 +1003,17 @@ async function launchDutyRoute(duties, idx, journeyIds) {
       ? shiftStopTimes(allStops, minutesFromNow(allStops[0].time))
       : allStops;
 
+    if (journey.psvairInScope) {
+      runAnnouncementPreflight({
+        allStops: stopsForTracker,
+        serviceCode: journey.service_code,
+        destination: stopsForTracker[stopsForTracker.length - 1].name,
+        journeyId: journey.journey_id,
+        vehicleId: journey.vehicle_id,
+        driverId: journey.driver_id,
+      });
+    }
+
     runTracker({
       allStops: stopsForTracker,
       journeyId: journey.journey_id,
@@ -1044,6 +1083,17 @@ async function resumeActiveManualJourney(journey) {
     const initialStopIndex = parseInt(stopSelect.value, 10) || 0;
     document.getElementById('picker-back-btn').hidden = true;
     await acquireWakeLock();
+
+    if (psvairInScope) {
+      runAnnouncementPreflight({
+        allStops,
+        serviceCode: journey.service_code,
+        destination: allStops[allStops.length - 1].name,
+        journeyId: journey.journey_id,
+        vehicleId: journey.vehicle_id,
+        driverId: journey.driver_id,
+      });
+    }
 
     runTracker({
       allStops,
@@ -1230,6 +1280,17 @@ function initManualSelection() {
 
       document.getElementById('manual-picker').hidden = true;
       await acquireWakeLock();
+
+      if (result.psvairEnabled) {
+        runAnnouncementPreflight({
+          allStops: result.allStops,
+          serviceCode: result.serviceCode,
+          destination: result.allStops[result.allStops.length - 1].name,
+          journeyId: result.journeyId,
+          vehicleId: result.vehicleId,
+          driverId: result.driverId,
+        });
+      }
 
       runTracker(result);
     } catch (err) {
