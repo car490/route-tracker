@@ -150,3 +150,73 @@ describe('startGpsTracking — departure edge (Bug 2)', () => {
     expect(onUpdate.mock.calls.length).toBe(callsBefore);
   });
 });
+
+describe('startGpsTracking — dwelling lookahead for close/looped stops', () => {
+  // Two stops ~60m apart — inside each other's 75m exit hysteresis (so the
+  // plain distance-from-Academy exit check never fires) but still each
+  // outside the other's 50m arrival radius (so the overlap guard-rail below
+  // doesn't suppress the lookahead either). Reproduces a real on-vehicle
+  // miss where a loop kept the vehicle within 75m of the first stop long
+  // after it had actually reached the second.
+  const closeSchedule = [
+    { name: 'Academy', lat: LAT0, lon: LON0, time: '08:00', stop_type: 'timing_point' },
+    { name: 'Market Place', lat: LAT0 + 0.00054, lon: LON0, time: '08:05', stop_type: 'timing_point' }, // ~60m north
+    { name: 'Far Stop', lat: LAT0 + 5 * STEP, lon: LON0, time: '08:15', stop_type: 'timing_point' },
+  ];
+
+  function startCloseTracker() {
+    const { source, fix } = makePositionSource();
+    const onUpdate = jest.fn();
+    const onGpsFix = jest.fn();
+    const tracker = startGpsTracking({
+      schedule: closeSchedule,
+      initialStopIndex: 0,
+      onUpdate,
+      onGpsFix,
+      positionSource: source,
+    });
+    return { tracker, fix, onUpdate };
+  }
+
+  test('advances past a close/looped next stop once two fixes confirm it, without waiting for the 75m exit', () => {
+    const { fix, onUpdate } = startCloseTracker();
+
+    fix({ lat: closeSchedule[0].lat, lon: closeSchedule[0].lon }); // arrive at Academy
+    expect(onUpdate.mock.calls.at(-1)[0].nextStopIndex).toBe(0);
+
+    // Still <75m from Academy, but now inside Market Place's own 50m ring —
+    // two consecutive confirming fixes.
+    fix({ lat: closeSchedule[1].lat, lon: closeSchedule[1].lon });
+    fix({ lat: closeSchedule[1].lat, lon: closeSchedule[1].lon });
+
+    const lastCall = onUpdate.mock.calls.at(-1)[0];
+    expect(lastCall.nextStopIndex).toBe(1);
+    expect(lastCall.stopStates[0].status).toBe('departed');
+    expect(lastCall.stopStates[0].departedAt).not.toBeNull();
+    expect(lastCall.stopStates[1].status).toBe('arrived');
+    expect(lastCall.stopStates[1].arrivedAt).not.toBeNull();
+  });
+
+  test('a single jittery fix into the next stop does not false-advance', () => {
+    const { fix, onUpdate } = startCloseTracker();
+
+    fix({ lat: closeSchedule[0].lat, lon: closeSchedule[0].lon }); // arrive at Academy
+    fix({ lat: closeSchedule[1].lat, lon: closeSchedule[1].lon }); // one confirming fix only
+    fix({ lat: closeSchedule[0].lat, lon: closeSchedule[0].lon }); // back at Academy
+
+    const lastCall = onUpdate.mock.calls.at(-1)[0];
+    expect(lastCall.nextStopIndex).toBe(0);
+    expect(lastCall.stopStates[0].status).toBe('arrived');
+  });
+
+  test('does not false-advance while still within the current stop\'s own 50m radius', () => {
+    const { fix, onUpdate } = startCloseTracker();
+
+    fix({ lat: closeSchedule[0].lat, lon: closeSchedule[0].lon }); // arrive at Academy, distance ~0
+    fix({ lat: closeSchedule[0].lat, lon: closeSchedule[0].lon });
+
+    const lastCall = onUpdate.mock.calls.at(-1)[0];
+    expect(lastCall.nextStopIndex).toBe(0);
+    expect(lastCall.stopStates[1].status).not.toBe('arrived');
+  });
+});
