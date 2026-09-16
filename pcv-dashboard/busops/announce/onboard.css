@@ -86,6 +86,28 @@
      changes. */
   --min-text:     17vh;
 
+  /* Top bar (route/destination) + Line 1 (the verb line of the three-line
+     headline, .hl-verb) — deliberately NOT tied to --min-text. Until
+     2026-09-16 these shared --min-text with Line 2/3 (the actual CPI
+     text) on the theory that "all in-service text should read as one
+     consistent size" (2026-09-02/09-08 feedback, see #sign-headline's and
+     .hl-three-line's comments below); a later spec explicitly separated
+     them — only Line 2/3 (the town/stop name) carry PSVAIR's ≥22mm
+     requirement, top bar/Line 1 have no minimum, just a 28-36px
+     recommendation. Flat vh (like .bo-wordmark below), not
+     computeMinTextVh()-derived, since there's no physical floor to hit —
+     tuned live on the connected Lite/Solo tablet (real viewport
+     1442x901): 3.2vh = ~28.8px there, ~34.6px on Monitor (1920x1080) —
+     both inside the 28-36px target. Untested on Bar (2560x480, not yet
+     built) where this computes much smaller (~15.4px) — acceptable, no
+     minimum applies. */
+  --header-text:  3.2vh;
+
+  /* Logo (the #onboard-brand wordmark: "BusOps Announce" + "From PCV
+     Technologies" attribution). Same spec/tuning approach as --header-text
+     above — see .bo-wordmark below for how the sub-lines derive from it. */
+  --logo-text:    5vh;
+
   /* Single source of truth for the topbar's height, shared byte-for-byte by
      #sign-topbar and #idle-topbar (below) — previously #idle-topbar carried
      its own separate hand-guessed approximation ("calc(var(--min-text) *
@@ -207,9 +229,16 @@ body {
   pointer-events: none;
 }
 
+/* --logo-text is the "Logo" (branding) target from the same spec as
+   --header-text above: no minimum, recommended 40-60px, tuned live on the
+   connected Lite/Solo tablet the same way — 5vh = ~45px there, ~54px on
+   Monitor, both inside the target range. .bo-wordmark is the primary
+   (largest) line; .cm-wordmark/.cm-powered-by keep their pre-existing
+   ratios to it (0.6875 and 0.5, from the old flat 3.2vh/2.2vh/1.6vh) so
+   the whole brand mark still scales as one block. */
 .bo-wordmark {
   font-family: var(--ep-font);
-  font-size: 3.2vh;
+  font-size: var(--logo-text);
   font-weight: 800;
   letter-spacing: -0.01em;
   color: var(--ep-ink);
@@ -228,7 +257,7 @@ body {
 
 .cm-powered-by {
   font-family: var(--ep-font);
-  font-size: 1.6vh;
+  font-size: calc(var(--logo-text) * 0.5);
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -237,7 +266,7 @@ body {
 
 .cm-wordmark {
   font-family: var(--ep-font);
-  font-size: 2.2vh;
+  font-size: calc(var(--logo-text) * 0.6875);
   font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--ep-teal);
@@ -403,7 +432,7 @@ body {
 .route-code,
 .route-destination {
   font-family: var(--ep-font);
-  font-size: var(--min-text);
+  font-size: var(--header-text);
   font-weight: 800;
 }
 
@@ -450,13 +479,17 @@ body {
      never fired for any of 3 stops that needed it on the real device. */
   width: 100%;
   font-family: var(--ep-font);
-  /* Same size as the topbar (var(--min-text), the literal 22mm minimum) —
-     not scaled up. An earlier version multiplied this by 1.3 to make the
-     headline "the sign's one dominant element"; user feedback 2026-09-02
-     was that all in-service text should read as one consistent size, not
-     some letters visibly larger than others just because they're in the
-     headline vs. the topbar. Still derived from --min-text, never an
-     independent vw/vh number, so it stays panel-diagonal-calibrated. */
+  /* The literal 22mm PSVAIR minimum (var(--min-text)) — this is the base
+     size for Line 2/3 (.hl-town/.hl-stop, the actual CPI stop text, styled
+     below) and for the single-line/two-line headline states (no separate
+     verb line to split out). Line 1 (.hl-verb) is the one exception,
+     overridden to the smaller --header-text below — until 2026-09-16 it
+     inherited this same size (2026-09-02/09-08 feedback: "all in-service
+     text should read as one consistent size"), but a later spec gave the
+     top bar/Line 1 their own no-minimum 28-36px target distinct from Line
+     2/3's ≥22mm one — see --header-text's own comment in :root. Still
+     derived from --min-text here, never an independent vw/vh number, so
+     Line 2/3 and the non-three-line states stay panel-diagonal-calibrated. */
   font-size: var(--min-text);
   font-weight: 800;
   line-height: 1.25;
@@ -472,15 +505,15 @@ body {
 }
 
 /* Verb phrase / town / stop stacked as three lines — see onboard.js's
-   renderHeadlineText(). Each line keeps the parent's font-size
-   (var(--min-text), the 22mm PSVAIR floor) — this is an alternate layout of
-   the same text, not a smaller/secondary treatment of any of it. All three
-   lines share one weight and colour — an earlier version made the verb
-   line lighter/greyer to read as secondary, but user feedback live on the
-   real tablet 2026-09-08 was that the visible weight/colour split looked
-   wrong, not intentional; 700 (one step down from the original town/stop
-   800) is the "something between" the two original weights the user asked
-   for, in pure black (--ep-ink) throughout. */
+   renderHeadlineText(). Line 2/3 (.hl-town/.hl-stop) keep the parent's
+   font-size (var(--min-text), the 22mm PSVAIR floor) unchanged. Line 1
+   (.hl-verb, below) is deliberately smaller (var(--header-text)) as of
+   2026-09-16 — a real, spec-driven size split, not a leftover: an earlier
+   version (2026-09-08) made the verb line only lighter/greyer while
+   staying the same size as town/stop, which user feedback said looked
+   wrong/unintentional; weight stays at 700 (one step down from town/stop's
+   800) for all three lines, in pure black (--ep-ink) throughout — only the
+   size differs now, not the weight/colour. */
 #sign-headline.hl-three-line {
   display: flex;
   flex-direction: column;
@@ -499,6 +532,14 @@ body {
      everything else here. Re-tune this one value against the real device
      if it's not quite balanced yet. */
   margin-top: calc(var(--min-text) * -0.15);
+}
+
+/* Line 1 — see --header-text's own comment in :root. Only this line steps
+   down from the block's inherited var(--min-text); .hl-town/.hl-stop below
+   keep it. When .hl-verb--early's amber overlay is showing (below) this
+   size is superseded by the overlay's own .ewb-title/.ewb-msg sizing. */
+#sign-headline.hl-three-line .hl-verb {
+  font-size: var(--header-text);
 }
 
 /* Marquee viewport/track for the town/stop lines — see onboard.js's
