@@ -1,13 +1,14 @@
 // Announce Solo's audio path. Tries the same pre-rendered Azure Neural TTS
 // clips the Driver/Lite tier plays (driver/audio/announcements/, served
 // from the same origin as this app — see AUDIO_BASE below) via the shared
-// playback engine (shared/announcementAudio.js), falling back to live
-// speechSynthesis exactly like Driver/Lite does for a clip that isn't
-// rendered/cached yet. On this tier's real hardware (Android WebView via a
-// generic kiosk host) that fallback is currently still a graceful no-op —
-// speechSynthesis doesn't exist in that WebView at all, confirmed live —
-// but it's no regression, and becomes real coverage on any device that
-// does have it.
+// playback engine (shared/announcementAudio.js). Phase 3 of
+// docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md ("never synthesize") removed the live
+// speechSynthesis fallback entirely — on this tier's real hardware (Android
+// WebView via a generic kiosk host) that fallback was already a graceful
+// no-op in practice (speechSynthesis doesn't exist in that WebView at all,
+// confirmed live), so a clip that isn't rendered/cached yet now plays no
+// audio and reports a coverage gap instead (see onGap below), matching what
+// this tier's real devices already experienced.
 //
 // Never imported by onboard.js itself — onboard.js stays purely visual (see
 // its own header comment); only announceSoloAutopilot.js calls this, since
@@ -16,6 +17,7 @@
 
 import { resolveAnnouncementText } from '../../shared/announceStates.js';
 import { clipKeysFor, createAnnouncementPlayer } from '../../shared/announcementAudio.js';
+import { recordAnnouncementCoverageGap } from '../../shared/announcementCoverage.js';
 
 // Absolute path from site root, not a relative one — announce/ and driver/
 // deploy under the same origin (see CLAUDE.md's Wrangler setup at
@@ -23,15 +25,34 @@ import { clipKeysFor, createAnnouncementPlayer } from '../../shared/announcement
 // relative paths to what's really the same clip directory.
 const AUDIO_BASE = '/driver/audio/announcements/';
 
-const player = createAnnouncementPlayer(AUDIO_BASE);
+const player = createAnnouncementPlayer(AUDIO_BASE, {
+  onGap: (missingKeys, text, context) => {
+    recordAnnouncementCoverageGap({
+      journeyId: context && context.journeyId,
+      vehicleId: context && context.vehicleId,
+      deviceId: context && context.deviceId,
+      missingKeys,
+      stage: 'live_stop',
+    });
+  },
+});
 
 // ids carries whatever stop/service identifiers stateKey needs to look up
 // its pre-rendered clip — a subset of { stopId, nextStopId, serviceCode,
-// destination } depending on stateKey, all optional (missing ids just fall
-// back to live synthesis, same as a missing clip file does) — see
-// shared/announcementAudio.js's clipKeysFor.
+// destination } depending on stateKey, all optional (missing ids resolve to
+// no clip keys, same as a genuinely missing clip file does) — see
+// shared/announcementAudio.js's clipKeysFor. ids may also carry
+// journeyId/vehicleId/deviceId (Solo has no driverId — a Solo autopilot
+// device isn't linked to a vehicle at all, so announceSoloAutopilot.js
+// passes its own announce_devices.id as deviceId instead) — unused for
+// clip-key lookup, only forwarded to onGap so a coverage-gap alert can be
+// attributed.
 export function speakState(stateKey, vars, ids = {}) {
   const text = resolveAnnouncementText(stateKey, vars);
   if (!text) return;
-  player.speak(text, clipKeysFor(stateKey, vars, ids));
+  player.speak(text, clipKeysFor(stateKey, vars, ids), {
+    journeyId: ids.journeyId,
+    vehicleId: ids.vehicleId,
+    deviceId: ids.deviceId,
+  });
 }

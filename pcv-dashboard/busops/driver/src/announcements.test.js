@@ -122,3 +122,59 @@ describe('announce() Controller broadcast', () => {
     );
   });
 });
+
+// Phase 3 of docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md ("never synthesize"): no
+// speechSynthesis fallback is left in the live announcement path — a clip
+// that isn't confirmed plays no audio and records a coverage gap
+// (shared/announcementCoverage.js's recordAnnouncementCoverageGap, a plain
+// fetch POST) instead of a silent console.warn. Own describe block so the
+// speechSynthesis spy (absent from the describe block above's plain `{}`
+// window stub) doesn't leak into those broadcast-focused assertions.
+describe('announceState — Phase 3 (never synthesize)', () => {
+  let speakSpy;
+  let fetchMock;
+
+  beforeEach(async () => {
+    const { broadcastAnnounce } = await import('./announceLink.js');
+    broadcastAnnounce.mockClear();
+
+    vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {} });
+    speakSpy = vi.fn();
+    vi.stubGlobal('window', { speechSynthesis: { speak: speakSpy, cancel: vi.fn() } });
+    vi.stubGlobal('Audio', class {
+      play() { queueMicrotask(() => this.onerror?.(new Error('no audio in test env'))); return Promise.resolve(); }
+      pause() {}
+    });
+    fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+    vi.stubGlobal('fetch', fetchMock);
+
+    announcements.setAnnouncementsEnabled(true);
+  });
+
+  afterEach(() => {
+    announcements.setAnnouncementsEnabled(false);
+    vi.unstubAllGlobals();
+  });
+
+  it('never calls speechSynthesis, and records a live_stop coverage gap, when a stop has no confirmed clip', async () => {
+    announcements.announceState(ANNOUNCE_STATES.APPROACHING, { stopName: 'Example Road', isFinal: false }, {
+      stopId: 'stop-1', journeyId: 'journey-1', vehicleId: 'vehicle-1', driverId: 'driver-1',
+    });
+
+    await vi.waitFor(() => {
+      const gapCall = fetchMock.mock.calls.find(([url]) => url.includes('/rest/v1/announcement_coverage_gap'));
+      expect(gapCall).toBeTruthy();
+    });
+
+    expect(speakSpy).not.toHaveBeenCalled();
+
+    const [, options] = fetchMock.mock.calls.find(([u]) => u.includes('/rest/v1/announcement_coverage_gap'));
+    expect(JSON.parse(options.body)).toMatchObject({
+      journey_id: 'journey-1',
+      vehicle_id: 'vehicle-1',
+      driver_id: 'driver-1',
+      stage: 'live_stop',
+      missing_keys: ['approach/stop-1'],
+    });
+  });
+});

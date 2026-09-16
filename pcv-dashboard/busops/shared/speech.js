@@ -1,10 +1,12 @@
-// Shared browser speechSynthesis helpers — genuinely shared between
-// driver/src/announcements.js (used there as the fallback when a
-// pre-rendered Azure clip is missing/uncached) and
-// announce/src/announceSpeech.js (used there as the *only* audio path —
-// Announce Solo ships no pre-rendered clips at all, see that
-// file's header comment). Side-effecting (real Web Speech API calls), same
-// category as shared/gps.js's live-GPS layer — not a pure module.
+// Shared browser speechSynthesis helpers — voice selection only.
+// listVoices()/pickVoice() back driver/src/announcements.js's voice-picker
+// UI (previewVoice() there calls window.speechSynthesis directly, not this
+// file, but reuses listVoices()/pickVoice() to pick which installed voice to
+// preview). Phase 3 of docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md ("never
+// synthesize") removed this file's former speakUtterance() live-announcement
+// fallback entirely — a stop whose clip isn't confirmed now plays no audio
+// at all rather than a synthesized voice, see
+// shared/announcementAudio.js's createAnnouncementPlayer.
 
 // Known-good natural-sounding male English-GB voices, checked in order,
 // across the platforms these devices actually run (Android Chrome, iOS
@@ -55,19 +57,4 @@ export function pickVoice() {
     if (match) return match;
   }
   return voices.find((v) => v.lang === 'en-GB') || voices[0];
-}
-
-// Resolves once the utterance finishes (or immediately if speech synthesis
-// isn't available).
-export function speakUtterance(text) {
-  return new Promise((resolve) => {
-    if (!('speechSynthesis' in window)) { resolve(); return; }
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-GB';
-    const voice = pickVoice();
-    if (voice) utterance.voice = voice;
-    utterance.onend = () => resolve();
-    utterance.onerror = () => resolve();
-    window.speechSynthesis.speak(utterance);
-  });
 }

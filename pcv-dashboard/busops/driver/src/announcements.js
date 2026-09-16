@@ -5,13 +5,15 @@
 // Primary audio path: pre-rendered Azure Neural TTS clips (see
 // scripts/generate-announcement-audio.mjs), keyed by stop_id/service+
 // destination exactly as built there — natural recorded voice instead of
-// whatever Web Speech API voice happens to be installed on a given
-// tablet. Falls back to live Web Speech API synthesis (shared/speech.js)
-// whenever a clip is missing (new stop not yet regenerated, offline before
-// first cache, etc.) so announcements never silently stop working. The
-// clip-key scheme and playback engine live in shared/announcementAudio.js —
-// announce/src/announceSpeech.js (Announce Solo) uses the same one, since
-// that tier has no Driver device of its own to speak on its behalf.
+// whatever Web Speech API voice happens to be installed on a given tablet.
+// Phase 3 of docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md ("never synthesize"):
+// there is no live speechSynthesis fallback any more — a clip that's
+// missing (new stop not yet regenerated, offline before first cache, etc.)
+// plays no audio at all, and records a loud ops-facing alert instead (see
+// onGap below). The clip-key scheme and playback engine live in
+// shared/announcementAudio.js — announce/src/announceSpeech.js (Announce
+// Solo) uses the same one, since that tier has no Driver device of its own
+// to speak on its behalf.
 //
 // The spoken text for every state comes from shared/announceStates.js's
 // resolveAnnouncementText — the same function the onboard sign uses for its
@@ -22,13 +24,24 @@ import { broadcastAnnounce } from './announceLink.js';
 import { listVoices, pickVoice } from '../../shared/speech.js';
 import { resolveAnnouncementText } from '../../shared/announceStates.js';
 import { clipKeysFor, createAnnouncementPlayer } from '../../shared/announcementAudio.js';
+import { recordAnnouncementCoverageGap } from '../../shared/announcementCoverage.js';
 
 const MUTE_KEY = 'psvair-muted';
 const VOICE_KEY = 'psvair-voice-uri';
 const BANNER_SHOWN_KEY = 'psvair-banner-shown';
 const AUDIO_BASE = './audio/announcements/';
 
-const player = createAnnouncementPlayer(AUDIO_BASE);
+const player = createAnnouncementPlayer(AUDIO_BASE, {
+  onGap: (missingKeys, text, context) => {
+    recordAnnouncementCoverageGap({
+      journeyId: context && context.journeyId,
+      vehicleId: context && context.vehicleId,
+      driverId: context && context.driverId,
+      missingKeys,
+      stage: 'live_stop',
+    });
+  },
+});
 
 let enabled = false;
 let onAnnounce = null; // (text) => void, wired to the on-screen banner
@@ -78,9 +91,9 @@ export function onAnnouncementChange(fn) {
 // Queues rather than interrupts: cutting an announcement off mid-sentence
 // to start a new one is worse than a short delay (see createAnnouncementPlayer
 // in shared/announcementAudio.js).
-function speak(text, audioKeys) {
+function speak(text, audioKeys, context) {
   if (isMuted()) return;
-  player.speak(text, audioKeys);
+  player.speak(text, audioKeys, context);
 }
 
 // Lets the voice picker play a sample regardless of the mute toggle — the
@@ -96,7 +109,7 @@ export function previewVoice(voiceURI) {
   window.speechSynthesis.speak(utterance);
 }
 
-function announce(text, audioKeys) {
+function announce(text, audioKeys, context) {
   if (!enabled) return;
   // Broadcast to a commissioned Controller (docs/HARDWARE.md §4)
   // alongside local playback, not instead of it — most of the fleet
@@ -106,17 +119,25 @@ function announce(text, audioKeys) {
   // itself applies below, so muting this device also mutes what it sends
   // onward rather than leaving the Controller to announce independently.
   if (!isMuted()) broadcastAnnounce(text, audioKeys);
-  speak(text, audioKeys);
+  speak(text, audioKeys, context);
   if (onAnnounce) onAnnounce(text);
 }
 
 // The one PSVAIR announcement gateway — resolves the spoken text from the
 // same shared template the onboard sign renders on screen, then plays the
-// matching pre-rendered clip sequence (falling back to synthesis of that
-// exact text if a clip is missing). See announceStopEvent.js for the call
-// sites that decide which stateKey/vars apply and when.
+// matching pre-rendered clip sequence. A clip that isn't confirmed plays no
+// audio at all (Phase 3, "never synthesize") and reports a coverage gap
+// instead — see the player's onGap wiring above. ids may also carry
+// journeyId/vehicleId/driverId (unused for clip-key lookup itself, only
+// forwarded to onGap so a gap alert can be attributed) — see
+// announceStopEvent.js for the call sites that decide which stateKey/vars
+// apply and when.
 export function announceState(stateKey, vars, ids = {}) {
   const text = resolveAnnouncementText(stateKey, vars);
   if (!text) return;
-  announce(text, clipKeysFor(stateKey, vars, ids));
+  announce(text, clipKeysFor(stateKey, vars, ids), {
+    journeyId: ids.journeyId,
+    vehicleId: ids.vehicleId,
+    driverId: ids.driverId,
+  });
 }

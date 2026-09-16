@@ -1834,6 +1834,57 @@ grant execute on function public.get_linked_announce_device_id(uuid) to anon;
 -- supabase/migration_announce_devices_drop_active_windows.sql and
 -- docs/ANNOUNCE-PRODUCT-TIERS.md's simplification writeup.
 
+-- ── Announcement coverage gap alerts ────────────────────────────────────────────
+-- Phase 3 of docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md ("never synthesize"). Persists a
+-- loud ops-facing signal (queryable row, not a console.warn) whenever the
+-- journey-start preflight check or a live per-stop playback attempt finds a clip
+-- that isn't confirmed present -- see supabase/migration_announcement_coverage_gap.sql
+-- for the full rationale, including why vehicle_id/device_id are both nullable
+-- (an Announce Solo autopilot device has no vehicle_id at all -- references
+-- announce_devices, defined just above, which is why this table lives here
+-- rather than back with the rest of the announcement clip pipeline).
+-- anon-insertable: the driver PWA has no login session today (revisit once
+-- the planned PWA/driver-device login work lands).
+create table public.announcement_coverage_gap (
+  id           uuid primary key default gen_random_uuid(),
+  journey_id   uuid not null references public.journeys(id),
+  vehicle_id   uuid references public.vehicles(id),
+  device_id    uuid references public.announce_devices(id),
+  driver_id    uuid references public.employees(id), -- null on the cab-device bridge and on Solo
+  stage        text not null check (stage in ('journey_start', 'live_stop')),
+  missing_keys text[] not null,
+  detected_at  timestamptz not null default now(),
+
+  constraint announcement_coverage_gap_has_source
+    check (vehicle_id is not null or device_id is not null)
+);
+
+create index on public.announcement_coverage_gap (journey_id);
+create index on public.announcement_coverage_gap (vehicle_id);
+create index on public.announcement_coverage_gap (device_id);
+create index on public.announcement_coverage_gap (detected_at);
+
+grant insert on public.announcement_coverage_gap to anon;
+grant all    on public.announcement_coverage_gap to authenticated;
+
+alter table public.announcement_coverage_gap enable row level security;
+
+create policy "announcement_coverage_gap_company_select"
+  on public.announcement_coverage_gap
+  for select
+  to authenticated
+  using (
+    (vehicle_id is not null and vehicle_id in (select id from public.vehicles where company_id = current_company_id()))
+    or
+    (device_id is not null and device_id in (select id from public.announce_devices where company_id = current_company_id()))
+  );
+
+create policy "announcement_coverage_gap_anon_insert"
+  on public.announcement_coverage_gap
+  for insert
+  to anon
+  with check (true);
+
 -- ── Views ─────────────────────────────────────────────────────────────────────
 -- Returns one row per (departure × stop).
 -- scheduled_time is computed as departure_time + offset for the departure's timing_profile.

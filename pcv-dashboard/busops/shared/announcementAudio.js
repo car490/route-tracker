@@ -18,8 +18,13 @@
 // manual `npm run generate:audio` script produces — a **temporary** fallback
 // for the transition, per that doc's Rollout step 2, removed once parity is
 // proven on dev then production.
+//
+// Phase 3 ("never synthesize"): if neither source has a working clip, this
+// module no longer falls back to live speechSynthesis at all — see
+// createAnnouncementPlayer's onGap below. A stop with no confirmed clip
+// plays no audio, ever; the caller's onAnnounce/onGap callbacks are what let
+// it still show visual text and record a loud ops-facing alert instead.
 
-import { speakUtterance } from './speech.js';
 import { ANNOUNCE_STATES } from './announceStates.js';
 import { SUPABASE_URL } from '../driver/src/config.js';
 
@@ -48,7 +53,8 @@ function slug(text) {
 // ids carries whatever stop/service identifiers the current state needs to
 // look up its pre-rendered clip(s) — a subset of { stopId, nextStopId,
 // serviceCode, destination } depending on stateKey, all optional (missing
-// ids just fall back to live synthesis, same as a missing clip file does).
+// ids resolve to no clip keys, same as a genuinely missing clip file does —
+// see createAnnouncementPlayer's onGap for what happens then).
 //
 //   service/<code>__<dest>  ROUTE_START, once per journey
 //   approach/<stopId>       "This is X."               (APPROACHING, any stop)
@@ -108,14 +114,16 @@ function playClip(audioBase, key, setCurrentAudio) {
     .then((ok) => (ok ? true : playClipFromUrl(`${audioBase}${key}.mp3`, setCurrentAudio)));
 }
 
-// All-or-nothing: if any clip in the sequence is missing, fall back to a
-// single full-sentence speechSynthesis utterance rather than mixing a
-// natural clip with a robotic one mid-announcement.
+// All-or-nothing: if any clip in the sequence is missing, the whole
+// announcement plays no audio rather than mixing a natural clip with dead
+// air partway through (see Phase 3's removal of the old speechSynthesis
+// fallback below). Reports the first key that had no working source (neither
+// Storage nor bundled) so the caller can record a coverage-gap alert.
 async function playSequence(audioBase, keys, setCurrentAudio) {
   for (const key of keys) {
-    if (!(await playClip(audioBase, key, setCurrentAudio))) return false;
+    if (!(await playClip(audioBase, key, setCurrentAudio))) return { ok: false, missingKey: key };
   }
-  return true;
+  return { ok: true };
 }
 
 // Creates one playback engine with its own busy/queued/currentAudio state —
@@ -129,7 +137,18 @@ async function playSequence(audioBase, keys, setCurrentAudio) {
 // driver/ deploy under the same origin, see CLAUDE.md's Wrangler setup, so
 // this is simpler than maintaining two different relative paths to the same
 // clips).
-export function createAnnouncementPlayer(audioBase) {
+//
+// onGap(missingKeys, text, context), optional: called instead of ever
+// falling back to speechSynthesis (Phase 3, "never synthesize" — see docs/
+// ANNOUNCEMENT-AUDIO-SYNC-PLAN.md) whenever neither clip source has a
+// working file for this announcement. Callers (driver/src/announcements.js,
+// announce/src/announceSpeech.js) wire this to
+// shared/announcementCoverage.js's recordAnnouncementCoverageGap, using
+// `context` (see speak() below) for the journeyId/vehicleId/driverId that
+// call needs. Playback itself plays nothing in this case — the caller's own
+// onAnnounce-style callback is what still shows the visual text, unaffected
+// by this.
+export function createAnnouncementPlayer(audioBase, { onGap } = {}) {
   let currentAudio = null; // in-flight pre-rendered clip, cleared once its sequence finishes
   let isBusy = false; // true from the moment something starts playing until it fully finishes
   // Holds at most the single most recent announcement that arrived while
@@ -137,40 +156,47 @@ export function createAnnouncementPlayer(audioBase) {
   // supersedes it before its turn comes, it's simply overwritten and never
   // heard, which is correct: a stale "approaching X" isn't worth playing
   // once "stopped at X" has already superseded it.
-  let queued = null; // { text, audioKeys } | null
+  let queued = null; // { text, audioKeys, context } | null
 
-  async function playNow(text, audioKeys) {
+  async function playNow(text, audioKeys, context) {
     isBusy = true;
-    const ok = audioKeys && audioKeys.length
+    const result = audioKeys && audioKeys.length
       ? await playSequence(audioBase, audioKeys, (audio) => { currentAudio = audio; })
-      : false;
-    if (!ok) await speakUtterance(stripSpeechAnnotations(text));
+      : { ok: false };
+    if (!result.ok && onGap) onGap(result.missingKey ? [result.missingKey] : (audioKeys || []), text, context);
     currentAudio = null;
     isBusy = false;
 
     if (queued) {
       const next = queued;
       queued = null;
-      playNow(next.text, next.audioKeys); // fire-and-forget — same as the original call
+      playNow(next.text, next.audioKeys, next.context); // fire-and-forget — same as the original call
     }
   }
 
   return {
     // audioKeys: ordered list of pre-rendered clip keys (no .mp3/base path)
-    // to try first — omit/leave empty to go straight to live synthesis
-    // (used for previewVoice, and anywhere the caller has no stop/service
-    // id to key on).
+    // to try — omit/leave empty to play nothing and report a gap via onGap
+    // (any caller with no stop/service id to key on hits this; previewVoice
+    // in announcements.js bypasses this player entirely, calling
+    // window.speechSynthesis directly, since it's a settings/testing
+    // feature, not a live passenger announcement).
+    //
+    // context: opaque, passed straight through to onGap alongside the
+    // missing keys (e.g. { journeyId, vehicleId, driverId }) — this module
+    // has no opinion on its shape, it just carries whatever the caller needs
+    // to record a coverage-gap alert for *this* announcement.
     //
     // Queues rather than interrupts: cutting an announcement off
     // mid-sentence to start a new one is worse than a short delay, and only
     // the single most recent queued announcement is ever kept (see `queued`
     // above), so a burst of fast events can't build up a stale backlog.
-    speak(text, audioKeys) {
+    speak(text, audioKeys, context) {
       if (isBusy) {
-        queued = { text, audioKeys };
+        queued = { text, audioKeys, context };
         return;
       }
-      playNow(text, audioKeys);
+      playNow(text, audioKeys, context);
     },
     // Stops whatever is currently audible — a live clip, a synthesis
     // utterance, or both — and drops anything queued.

@@ -65,7 +65,10 @@ describe('announceStopEvent', () => {
     announceStopEvent(ANNOUNCE_STATES.AT_STOP, { stopName: 'Church Road', isFinal: false }, { stopId: 'stop-2' }, true);
 
     expect(announcements.announceState).toHaveBeenCalledOnce();
-    expect(announcements.announceState).toHaveBeenCalledWith(ANNOUNCE_STATES.DIVERSION, {}, {});
+    // ids still forwarded (Phase 3: a coverage-gap alert must stay
+    // attributable to the right journey/vehicle/driver even on the
+    // diversion-override branch) — only stateKey/vars are overridden.
+    expect(announcements.announceState).toHaveBeenCalledWith(ANNOUNCE_STATES.DIVERSION, {}, { stopId: 'stop-2' });
   });
 
   it('still announces the final stop correctly when diversion is not active', () => {
