@@ -86,8 +86,12 @@ fresh install** (a DB row alone doesn't retrigger `install` — only a byte-chan
 `service-worker.js` does, so this step was necessary to actually re-run the precache logic) and
 confirmed `service/s116t__donington.mp3` showed up in Cache Storage. **This is the first genuine
 proof the live-table precache path pulls real rows, not just that it degrades gracefully on an
-empty one.** `S116T`'s test `destination`/clip/job rows are still in place on dev as of this
-writing — not yet cleaned up (see below).
+empty one.** Cleaned up afterward: `S116T`'s `destination` reset to `null` (its no-`destination`
+resting state — the enqueue trigger correctly no-ops on a null destination, confirmed by the
+cleanup update itself not re-queuing a job) and the `announcement_clips` test row deleted.
+`service/s116t__donington.mp3` remains in the Storage bucket — same as every previous test clip
+in this doc's history, direct SQL `DELETE` on `storage.objects` is blocked by
+`storage.protect_delete()`, not worth chasing for one 29KB file.
 
 **Deployed to dev only** (`driver-dev.pcvtechnologies.co.uk`, via CI's `deploy-driver-pwa-dev` job
 on the PR #42/#44/#46/#47 merges to `develop`) — not yet on production, which only deploys from
