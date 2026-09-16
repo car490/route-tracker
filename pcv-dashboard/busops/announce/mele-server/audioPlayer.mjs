@@ -19,10 +19,17 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// Same audio/ tree the Driver PWA ships (audio/announcements/*.mp3),
+// Same audio/ tree the Driver PWA ships (busops/driver/audio/announcements/),
 // cloned onto the Controller as part of its own repo checkout — treated as
 // a build/deploy artifact, never fetched live (see mele-server/DEPLOY.md).
-export const DEFAULT_AUDIO_DIR = path.join(__dirname, '..', 'audio', 'announcements');
+// This module lives at busops/announce/mele-server/, two levels below
+// busops/ -- not one -- so it takes two '..' to reach busops/driver/.
+// Found 2026-09-16: the previous single-'..' version resolved to a
+// nonexistent busops/announce/audio/announcements/, meaning every
+// announcement on the real Controller was silently skipped (existsSync
+// always false) since it was first commissioned -- no test caught it
+// because every test injects its own audioDir override.
+export const DEFAULT_AUDIO_DIR = path.join(__dirname, '..', '..', 'driver', 'audio', 'announcements');
 
 // Real playback — spawns an external player process per clip, resolves
 // once it exits (true) or fails to (false). mpg123 chosen for being a tiny,

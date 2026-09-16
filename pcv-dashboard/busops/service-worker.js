@@ -134,36 +134,19 @@ export async function fetchAnnouncementClipStorageUrls() {
   return urls;
 }
 
-function cacheStorageBackedAnnouncementClips(cache) {
+// Storage-backed clips are the only source the browser precaches — see this
+// file's header comment. Removed 2026-09-16 (once parity was proven on dev
+// then production): a parallel precache of the bundled
+// driver/audio/announcements/ files, which used to serve as a transition
+// fallback for Driver/Solo. Those files themselves aren't gone — they
+// remain the Bus Controller's own audio source (mele-server/audioPlayer.mjs
+// reads them from local disk, no live fetch) — this service worker just has
+// no reason to fetch/cache them any more, since no browser code ever reads
+// them now.
+function cacheAnnouncementAudio(cache) {
   return fetchAnnouncementClipStorageUrls()
     .then((urls) => (urls.length ? cache.addAll(urls.map((url) => new Request(url, { mode: 'cors' }))) : undefined))
-    .catch(() => {}); // offline at install time, or pipeline not reachable — bundled fallback below still covers this install
-}
-
-// Bundled fallback (scripts/generate-announcement-audio.mjs's committed
-// output) — **temporary**, per the plan doc's Rollout step 2/4: kept
-// precached alongside the Storage-backed set above until parity is proven
-// on dev then production, at which point this and
-// driver/audio/announcements/ are removed together. Missing manifest (fresh
-// checkout predating the audio feature) is a silent no-op, not an install
-// failure — shared/announcementAudio.js falls back to speechSynthesis for
-// anything not cached by either source.
-function cacheBundledAnnouncementAudio(cache) {
-  return fetch('./driver/audio/announcements/manifest.json')
-    .then((res) => (res.ok ? res.json() : null))
-    .then((manifest) => {
-      if (!manifest) return;
-      const urls = Object.values(manifest).map((entry) => `./driver/audio/announcements/${entry.path}`);
-      return cache.addAll(urls);
-    })
-    .catch(() => {});
-}
-
-function cacheAnnouncementAudio(cache) {
-  return Promise.all([
-    cacheStorageBackedAnnouncementClips(cache),
-    cacheBundledAnnouncementAudio(cache),
-  ]);
+    .catch(() => {}); // offline at install time, or pipeline not reachable — journey-start preflight covers a real gap
 }
 
 self.addEventListener('install', (event) => {

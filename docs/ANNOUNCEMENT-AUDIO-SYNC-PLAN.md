@@ -1,25 +1,45 @@
 # Announcement audio: server-triggered generation + sync — plan
 
-**Status: design settled 2026-09-08. Phase 0 and Phase 1 both shipped and verified end-to-end on
-dev AND production. Phase 2 (Driver/Solo reading from the new pipeline) is coded, unit-tested,
-merged to `develop` (PR #42, 2026-09-15), and now also verified end-to-end on dev with genuine
-live data via a real-device pass (2026-09-16) — two real bugs found and fixed along the way
-(PRs #46/#47: a service worker registration failure, a stale manifest icon path) — live on
-`driver-dev.pcvtechnologies.co.uk`, not yet on production. Phase 3 (G1, "never synthesize") is
-coded + unit-tested and **merged to `develop`** (PR #44, 2026-09-16) — live on
-`driver-dev.pcvtechnologies.co.uk` (CI's `deploy-driver-pwa-dev` job ran and succeeded on the
-merge commit); the `announcement_coverage_gap` migration is applied to dev only, RLS-tested there,
-**not yet applied to production**, so Phase 3 is not yet live on `driver.pcvtechnologies.co.uk`.
-Phase 4 not started (blocked on Phase 2's production rollout + bundled-fallback removal, not on
-any code of its own — see Phase 4's checklist entry). **Phase 5 (docs) done, 2026-09-16.** See
-"Where things stand" immediately below for exactly what a fresh session needs to know.**
+**Status: design settled 2026-09-08. Phases 0, 1, 2, and 3 are all DONE and live on dev AND
+production, as of the `v2.2.0` release (2026-09-16) — this plan's core goals (G1/G2/G3, see
+"Goals" below) are fully shipped.** Two real bugs were found and fixed via genuine real-device
+verification along the way (PRs #46/#47: a service worker registration failure, a stale manifest
+icon path), plus a third found while preparing Phase 4 (`mele-server/audioPlayer.mjs` resolving
+the Controller's audio directory one level too shallow, silently skipping every announcement on
+the one physical Controller since it was commissioned — fixed same day). **Phase 4 is not a
+cleanup task any more** — it turned out to rest on a wrong premise (see its checklist entry): the
+committed `driver/audio/announcements/` clips and the local generator script that produces them
+are the Bus Controller's permanent, only audio source (no WAN path to fetch live), not a
+transition artifact to retire. What's left there is a process gap, not code. **Phase 5 (docs)
+done, 2026-09-16.** See "Where things stand" immediately below for exactly what a fresh session
+needs to know.**
 Written 2026-09-08 following a design discussion flagged in `docs/DECISIONS.md`'s
 "Shared journey-tracking core" open item — that item itself turned out not to be the right home
 for this plan's resolution (it's about a different question), so Phase 5 added a new decided row
 instead. This plan's outcome is now folded back into `docs/DECISIONS.md` and `CLAUDE.md`'s
 "PSVAIR announcement audio" section, same as every other architecture decision in this repo.
 
-## Where things stand (updated 2026-09-16)
+## Where things stand (updated 2026-09-16, end of session — production shipped)
+
+**Everything below this paragraph was written before the production release and is kept as the
+detailed trace of how each phase got there (per this doc's own convention of moving a resolved
+item rather than deleting the trail) — read this paragraph first for the actual current state.**
+Phases 0-3 all shipped to production in the `v2.2.0` release (`develop` → `master`, tag `v2.2.0`,
+2026-09-16): the `announcement_coverage_gap` migration (Phase 3) was applied to production ahead
+of the merge, `develop` was merged into `master`, `scripts/release.mjs minor` bumped the version,
+and CI's `deploy-driver-pwa-production` job deployed it live. **Verified end-to-end on production
+with the same rigor as dev** — real device confirmed no service worker error, no manifest icon
+error, and a genuinely triggered clip (via a temporary `S116T` test route on the real Phil Haines
+Coaches production account, cleaned up immediately after) appeared in Cache Storage after a fresh
+install. Two more real-code changes followed once production parity was proven: the browser-side
+bundled-clip fallback was removed from `shared/announcementAudio.js`/`service-worker.js` (per
+Phase 2's checklist below), and Phase 4 turned out to rest on a wrong premise, corrected in its
+own checklist entry — plus a seventh real bug found and fixed along the way (see Phase 2's
+checklist below), a wrong path in `mele-server/audioPlayer.mjs` that had silently broken all
+Controller audio playback since it was first commissioned. See each phase's checklist below for
+the authoritative per-item status; the
+narrative from here down stops just short of the production release and shouldn't be read as
+"still open" where a phase heading above says DONE.
 
 **Done and merged to `develop`** (PRs #36–#42, all merged):
 - Phase 0 (security fix) — **live on dev AND production.**
@@ -327,51 +347,60 @@ every migration goes to dev (`cgcbfgceputvdvhzrgio`) first, then production
       "Where things stand" at the top of this doc** for the full rollout record, including a
       fourth production-only bug found and fixed (missing `service_role` grants).
 
-### Phase 2 — Driver + Solo read from the new source — DONE (code, tests, and a genuine real-device precache pass with live data; parity/removal on production still pending)
+### Phase 2 — Driver + Solo read from the new source — DONE, dev AND production
 - [x] Switch `shared/announcementAudio.js`'s clip lookup from bundled files to the
       Storage/table-backed source, with the bundled files kept as a temporary fallback during
-      transition. `playClip()` now tries `${SUPABASE_URL}/storage/v1/object/public/announcement-audio/<key>.mp3`
-      first, falling through to the existing bundled `audioBase` path only on failure — same
-      order for both Driver/Lite (`driver/src/announcements.js`) and Solo
-      (`announce/src/announceSpeech.js`), unchanged callers, since the base-URL swap happens
-      entirely inside the shared module.
+      transition. `playClip()` initially tried `${SUPABASE_URL}/storage/v1/object/public/announcement-audio/<key>.mp3`
+      first, falling through to the bundled `audioBase` path only on failure — same order for both
+      Driver/Lite (`driver/src/announcements.js`) and Solo (`announce/src/announceSpeech.js`).
 - [x] `busops/service-worker.js`: precache clips by querying `announcement_clips` live at
       install/update time (paginated, same `limit`/`offset` pattern as
       `scripts/generate-schedule.mjs`'s own fix for silent truncation past 1000 rows), replacing
-      the static `manifest.json`-driven precache as the *primary* source — the bundled
-      manifest.json precache stays too, run in parallel, as the same temporary transition
-      fallback. Required converting the service worker to `{ type: 'module' }` (both
-      `driver/index.html` and `announce/onboard.html`) so it could `import` `driver/src/config.js`
-      directly instead of duplicating the dev/prod Supabase URL a second time — module service
-      workers are supported on every Chromium engine (this fleet's actual runtime) since 2021.
-- [x] Vitest integration tests for both `driver/src` and `announce/src` covering the new lookup
-      path (cache hit / Storage-backed succeeds, cache miss during transition / falls through to
-      bundled, offline / both fail then degrades to synthesis without throwing) — see
-      `announce/src/announceSpeech.test.js`'s three new `describe` blocks. Both this file and
-      `driver/src/announcements.test.js` now need `// @vitest-environment jsdom` (the Vitest
-      equivalent of `tests/supabaseApi.test.js`'s existing `@jest-environment jsdom`), since
-      `shared/announcementAudio.js` importing `config.js` means `window.location` is read at
-      module-import time — Vitest's suite-wide default is `environment: 'node'`. Also added
-      `tests/serviceWorkerAnnouncementClips.test.js` (Jest, jsdom) covering the new
-      `fetchAnnouncementClipStorageUrls()` export's pagination/error handling directly.
-- [x] Merged to `develop` (PR #42, 2026-09-15) and auto-deployed by CI to
-      `driver-dev.pcvtechnologies.co.uk` (dev Supabase). Not yet on production (only deploys from
-      `master`).
-- [x] **Real-device install/activate pass with genuine live data — done 2026-09-16.** Found and
-      fixed two real bugs along the way (PRs #46/#47 — service worker registration failure from
-      `config.js`'s `window`-in-a-worker-scope bug, and a stale `manifest.json` icon path from the
-      2026-08-21 restructure). Then proved the Storage-backed precache path actually works with
-      real data, not just an empty table: fired the real enqueue trigger via the dedicated test
-      route `S116T`, let the cron drain it into a genuine `announcement_clips` row + Storage
-      `.mp3` without any manual render step, unregistered the service worker to force a fresh
-      `install`, and confirmed the new clip appeared in Cache Storage. See "Where things stand"
-      above for the full trace.
-- [ ] Once parity is proven on production too, remove the bundled-file fallback and the committed
-      `driver/audio/announcements/` directory. **Not done yet** — dev-side real-device
-      verification is now done (above); still needs the same proof on production once Phase 2
-      ships there.
+      the static `manifest.json`-driven precache as the *primary* source. Required converting the
+      service worker to `{ type: 'module' }` (both `driver/index.html` and `announce/onboard.html`)
+      so it could `import` `driver/src/config.js` directly instead of duplicating the dev/prod
+      Supabase URL a second time — module service workers are supported on every Chromium engine
+      (this fleet's actual runtime) since 2021.
+- [x] Vitest/Jest tests for both `driver/src` and `announce/src` covering the new lookup path.
+      Both `announce/src/announceSpeech.test.js` and `driver/src/announcements.test.js` need
+      `// @vitest-environment jsdom` (the Vitest equivalent of `tests/supabaseApi.test.js`'s
+      existing `@jest-environment jsdom`), since `shared/announcementAudio.js` importing
+      `config.js` means `self.location` is read at module-import time — Vitest's suite-wide
+      default is `environment: 'node'`. Also added `tests/serviceWorkerAnnouncementClips.test.js`
+      (Jest, jsdom) covering `fetchAnnouncementClipStorageUrls()`'s pagination/error handling.
+- [x] Merged to `develop` (PR #42, 2026-09-15), then real-device-verified on dev (below), then
+      shipped to production in the `v2.2.0` release (2026-09-16, see "Where things stand").
+- [x] **Real-device install/activate pass with genuine live data — dev 2026-09-16, production
+      2026-09-16.** Found and fixed two real bugs along the way (PRs #46/#47 — service worker
+      registration failure from `config.js`'s `window`-in-a-worker-scope bug, and a stale
+      `manifest.json` icon path from the 2026-08-21 restructure). Proved the Storage-backed
+      precache path actually works with real data on **both** dev and production: fired the real
+      enqueue trigger via a dedicated `S116T` test route on each environment (on production this
+      briefly created a visible "(TEST)" route in the real Phil Haines Coaches account — cleaned
+      up immediately after verification, see below), let the cron drain it into a genuine
+      `announcement_clips` row + Storage `.mp3` with no manual render step, unregistered the
+      service worker to force a fresh `install`, and confirmed the new clip appeared in Cache
+      Storage. Test route/clip deleted from both dev and production afterward.
+- [x] **Corrected 2026-09-16 — the bundled-fallback removal below is narrower than originally
+      planned.** While preparing to remove `driver/audio/announcements/`, found a real architecture
+      gap this checklist item had never accounted for: that directory isn't just a *browser*
+      transition fallback — it's also the Bus Controller's only audio source
+      (`mele-server/audioPlayer.mjs` reads it from local disk; the Controller deliberately has no
+      WAN path, so it can never fetch from Storage live). Deleting the directory would have gone
+      silent on the one physical Controller currently in a live vehicle. Resolution: removed only
+      the *browser-side* fallback code path (`shared/announcementAudio.js`'s `playClip()` is now
+      Storage-only, `createAnnouncementPlayer()` no longer takes an `audioBase` argument,
+      `service-worker.js` no longer precaches the bundled files) — `driver/audio/announcements/`
+      and `scripts/generate-announcement-audio.mjs` both **stay, permanently**, as the Controller's
+      real and only audio pipeline. See Phase 4 below, which this same correction reshapes.
+- [x] **Seventh real bug found and fixed, while investigating the above**: `mele-server/audioPlayer.mjs`'s
+      `DEFAULT_AUDIO_DIR` resolved one directory level too shallow (`busops/announce/audio/`,
+      which doesn't exist, instead of `busops/driver/audio/`) — every announcement on the real
+      Controller had been silently skipped since it was first commissioned, with zero test
+      coverage catching it (every existing test injects its own `audioDir` override). Fixed, and a
+      new test now asserts the real default resolves to an existing directory.
 
-### Phase 3 — G1: never synthesize (the actual point of this plan) — DONE (coded + unit-tested, merged to develop, live on dev via CI; migration not yet applied to production)
+### Phase 3 — G1: never synthesize (the actual point of this plan) — DONE, dev AND production
 - [x] Journey-start check: `driver/src/journeyAnnouncementPreflight.js`'s `checkAnnouncementCoverage`,
       called (fire-and-forget) from all three of `main.js`'s journey-start paths via
       `runAnnouncementPreflight`, right before `runTracker`. Shows the existing `showInfoBanner`
@@ -382,8 +411,9 @@ every migration goes to dev (`cgcbfgceputvdvhzrgio`) first, then production
 - [x] Loud ops-facing alert: new table `announcement_coverage_gap`
       (`supabase/migration_announcement_coverage_gap.sql`), written by
       `shared/announcementCoverage.js`'s `recordAnnouncementCoverageGap` — a real queryable row,
-      not a `console.warn`. Applied + RLS-tested on dev only so far; no dashboard UI reads it yet
-      (deliberately out of scope this phase — see "Where things stand" above).
+      not a `console.warn`. Applied + RLS-tested on dev, then applied to production 2026-09-16
+      ahead of the `v2.2.0` release; no dashboard UI reads it yet (deliberately out of scope this
+      phase — see "Where things stand" above).
 - [x] Per-stop removal of the `speechSynthesis` fallback: `shared/announcementAudio.js`'s
       `createAnnouncementPlayer` calls `onGap` instead of ever synthesizing, on both
       `driver/src/announcements.js` (Driver/Lite) and `announce/src/announceSpeech.js` (Solo).
@@ -392,11 +422,26 @@ every migration goes to dev (`cgcbfgceputvdvhzrgio`) first, then production
       check/warning; new Phase 3 describe blocks in `announcements.test.js`/`announceSpeech.test.js`
       assert `speechSynthesis` is never called and a coverage-gap POST fires for both the
       `journey_start` and `live_stop` stages. Full suites green (155 Jest + 131 Vitest).
+- [x] Shipped to production in the `v2.2.0` release (2026-09-16), alongside Phase 2.
 
-### Phase 4 — repurpose the local generator script — NOT STARTED
-- [ ] `scripts/generate-announcement-audio.mjs`: narrow to a local dev/preview tool only (for
-      auditioning wording changes); stop it writing to the shared Storage bucket or
-      `announcement_clips` table once Phase 1–2 ship.
+### Phase 4 — repurpose the local generator script — NOT STARTED (checklist corrected 2026-09-16, was based on a wrong premise)
+- [x] **Superseded, 2026-09-16**: this phase originally read "narrow
+      `scripts/generate-announcement-audio.mjs` to a local dev/preview tool only... stop it writing
+      to the shared Storage bucket or `announcement_clips` table" — both halves were wrong. It
+      never wrote to Supabase at all (checked its full git history, `9164507` through `fab0959` —
+      it only ever wrote local files), so there was nothing to "stop." And per Phase 2's
+      2026-09-16 correction above, its committed output (`driver/audio/announcements/`) is the Bus
+      Controller's **permanent, only** audio source, not a transition artifact waiting to be
+      retired — the Controller has no live-fetch path to Storage by design (no WAN access), so
+      something has to keep producing committed `.mp3` files for it to `git pull`, indefinitely.
+- [ ] **What Phase 4 actually is now**: this script stays a real, permanent part of the production
+      pipeline for as long as Controller-based BusOps Announce hardware exists — not local-only,
+      not dev-preview-only. The genuinely open item is process, not code: nothing currently
+      reminds a developer to re-run `npm run generate:audio` and commit the result after a stop
+      rename or route change that affects Controller-served vehicles (the browser tiers self-heal
+      automatically via the live pipeline; the Controller does not). Worth a CI check or a
+      dashboard reminder once more than one Controller is deployed — not urgent while only one
+      exists (`docs/HARDWARE.md`).
 - **Checked 2026-09-16: the "stop it writing to Storage/`announcement_clips`" half of this is
   moot** — traced the script's full git history (`9164507` through `fab0959`) and it has never
   written to Supabase at all; it only reads local `schedule.json` and writes local
