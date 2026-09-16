@@ -2,7 +2,10 @@
 
 **Status: design settled 2026-09-08. Phases 0, 1, 2, and 3 are all DONE and live on dev AND
 production, as of the `v2.2.0` release (2026-09-16) — this plan's core goals (G1/G2/G3, see
-"Goals" below) are fully shipped.** Two real bugs were found and fixed via genuine real-device
+"Goals" below) are fully shipped.** The code path was correctly deployed, but `announcement_clips`
+sat completely empty on both environments until a same-day backfill for pre-existing stops/routes
+— see "Eighth real bug" in "Where things stand" below before assuming any given deployment
+actually has audio for real data. Two real bugs were found and fixed via genuine real-device
 verification along the way (PRs #46/#47: a service worker registration failure, a stale manifest
 icon path), plus a third found while preparing Phase 4 (`mele-server/audioPlayer.mjs` resolving
 the Controller's audio directory one level too shallow, silently skipping every announcement on
@@ -20,6 +23,38 @@ instead. This plan's outcome is now folded back into `docs/DECISIONS.md` and `CL
 "PSVAIR announcement audio" section, same as every other architecture decision in this repo.
 
 ## Where things stand (updated 2026-09-16, end of session — production shipped)
+
+**Eighth real bug found and fixed, 2026-09-16, found via a real on-vehicle test of Driver PWA +
+Announce Solo (Donington Cowley Academy route) reporting zero audio the entire drive:** the
+"DONE and live on dev AND production" status above was true of the *code path*, but
+`announcement_clips` had **zero rows, ever, on both dev and production** — every stop's
+approach/departure clip, every route's service clip, and the two fixed `terminus`/`diversion`
+clips were missing for every pre-existing stop and route. Root cause: the enqueue triggers
+(`trg_announcement_clip_enqueue_on_stop_change`/`_on_route_change`,
+`migration_announcement_clips.sql`) only fire on `INSERT` or `UPDATE OF` specific columns, and
+were added 2026-09-15 — **every stop and route in both databases predates that** (e.g. route
+`S116S` was created 2026-06-14). This session's Phase 1/2/3 verification only ever queued a
+couple of manual test jobs and cleaned them up afterward, so the "live on both environments"
+claim was never actually checked against real, pre-existing production data — a real gap in how
+this plan was verified, not just a gap in the pipeline itself. Separately, no trigger has ever
+enqueued the fixed `terminus`/`diversion` keys — those need a one-off manual insert regardless of
+backfill.
+
+**Fixed same day** by firing the existing triggers for all pre-existing data — `update stops set
+name = name;` / `update routes set service_code = service_code, destination = destination;`
+(column-list triggers fire on any `UPDATE OF` that column, whether or not the value actually
+changes) — reusing the already-tested trigger logic rather than duplicating key-generation code
+in a one-off script, plus a manual insert of the two fixed keys. Drained via repeated manual
+`generate-announcement-clip` invocations (the 5-minute cron alone would have taken ~2 hours for
+this volume). **Result, verified**: dev — 427/427 clips rendered, 0 failures; production —
+362/362 clips rendered, 0 failures; spot-checked public Storage URLs on both return real `.mp3`
+audio (`200`, `audio/mpeg`, ~30KB). Every route/stop going forward is covered automatically by
+the existing triggers — this was purely a one-time historical-data gap, not a design flaw needing
+further code changes. **Standing gap to remember**: a fresh DB reset from `schema.sql` +
+`seed.sql` recreates stops/routes via plain `INSERT`, which *does* fire the triggers — so a fresh
+reset is actually fine; only a *restore from a pre-2026-09-15 backup/dump* (which bypasses
+triggers, e.g. `pg_restore` of table data) would reintroduce this exact gap and need the same
+backfill repeated.
 
 **Everything below this paragraph was written before the production release and is kept as the
 detailed trace of how each phase got there (per this doc's own convention of moving a resolved
