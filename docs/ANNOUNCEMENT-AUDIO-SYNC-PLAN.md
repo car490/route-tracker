@@ -61,13 +61,41 @@ reads to `self.location` (resolves correctly in both a normal window context and
 context) — full Jest+Vitest suites re-run clean (155+131) after the fix. Not yet pushed/deployed
 to dev for re-verification as of this writing — see the Phase 2 checklist below.
 
-**Still not yet done**: with the above fixed, a fresh real-device install/activate pass against
-`driver-dev.pcvtechnologies.co.uk` needs to actually be re-run (registration should now succeed;
-still needs confirming it precaches every row from `announcement_clips`, not just that
-registration no longer throws). **Deployed to dev only** (`driver-dev.pcvtechnologies.co.uk`, via
-CI's `deploy-driver-pwa-dev` job on the PR #42 merge to `develop`) — not yet on production, which
-only deploys from `master`. See the Phase 2 section of the checklist below for exactly what's
-done vs. still open.
+**Sixth real bug found and fixed, same real-device pass, 2026-09-16:** `driver/manifest.json`'s
+icon `src` paths (`./icons/icon-192.png`/`icon-512.png`) still pointed at a `driver/icons/`
+folder that stopped existing at the 2026-08-21 restructure, which moved the actual files to
+`pcv-dashboard/busops/shared/icons/` and updated both HTML entry points' favicon links
+accordingly but missed `manifest.json`. 404'd silently (a manifest icon download error, no test
+coverage catches it) until this session's real-device pass surfaced it. Fixed in PR #47 to match
+the `../shared/icons/` path both HTML files already use.
+
+**Real-device install/activate pass — DONE, verified end-to-end with genuine live data,
+2026-09-16.** With both bugs above fixed and deployed
+(PRs #46/#47 merged to `develop`, live on `driver-dev.pcvtechnologies.co.uk`): confirmed the
+service worker now registers successfully (no more `ServiceWorker script evaluation failed`).
+Cache Storage showed 364 entries — but `announcement_clips` was still at 0 rows at that point (the
+Phase 1 test rows had been cleaned up), so that count only proved the static-assets/tiles/bundled-
+fallback precache path worked, not the new Storage-backed one. Closed that gap for real: updated
+the dedicated test route `S116T` ("Boston to Donington (TEST)")'s `destination` on dev, which fired
+the genuine `trg_announcement_clip_enqueue_on_route_change` trigger, queued a real job, and the
+`announcement-clip-drain` cron (left to fire on its own 5-minute schedule, not manually forced —
+the more honest test of Phase 1's "no manual step" goal) drained it into a real
+`announcement_clips` row + a genuine Azure-rendered `service/s116t__donington.mp3` in Storage
+(confirmed `200`, `audio/mpeg`, 29,376 bytes). Then **unregistered the service worker and did a
+fresh install** (a DB row alone doesn't retrigger `install` — only a byte-changed
+`service-worker.js` does, so this step was necessary to actually re-run the precache logic) and
+confirmed `service/s116t__donington.mp3` showed up in Cache Storage. **This is the first genuine
+proof the live-table precache path pulls real rows, not just that it degrades gracefully on an
+empty one.** Cleaned up afterward: `S116T`'s `destination` reset to `null` (its no-`destination`
+resting state — the enqueue trigger correctly no-ops on a null destination, confirmed by the
+cleanup update itself not re-queuing a job) and the `announcement_clips` test row deleted.
+`service/s116t__donington.mp3` remains in the Storage bucket — same as every previous test clip
+in this doc's history, direct SQL `DELETE` on `storage.objects` is blocked by
+`storage.protect_delete()`, not worth chasing for one 29KB file.
+
+**Deployed to dev only** (`driver-dev.pcvtechnologies.co.uk`, via CI's `deploy-driver-pwa-dev` job
+on the PR #42/#44/#46/#47 merges to `develop`) — not yet on production, which only deploys from
+`master`. See the Phase 2 section of the checklist below for exactly what's done vs. still open.
 
 **Phase 3 (G1, "never synthesize") — coded, unit-tested, and merged to `develop`** (PR #44,
 2026-09-16), **live on `driver-dev.pcvtechnologies.co.uk`** via CI (verified: the merge commit's
@@ -296,7 +324,7 @@ every migration goes to dev (`cgcbfgceputvdvhzrgio`) first, then production
       "Where things stand" at the top of this doc** for the full rollout record, including a
       fourth production-only bug found and fixed (missing `service_role` grants).
 
-### Phase 2 — Driver + Solo read from the new source — DONE (code + tests; parity/removal still pending)
+### Phase 2 — Driver + Solo read from the new source — DONE (code, tests, and a genuine real-device precache pass with live data; parity/removal on production still pending)
 - [x] Switch `shared/announcementAudio.js`'s clip lookup from bundled files to the
       Storage/table-backed source, with the bundled files kept as a temporary fallback during
       transition. `playClip()` now tries `${SUPABASE_URL}/storage/v1/object/public/announcement-audio/<key>.mp3`
@@ -326,10 +354,19 @@ every migration goes to dev (`cgcbfgceputvdvhzrgio`) first, then production
 - [x] Merged to `develop` (PR #42, 2026-09-15) and auto-deployed by CI to
       `driver-dev.pcvtechnologies.co.uk` (dev Supabase). Not yet on production (only deploys from
       `master`).
-- [ ] Once parity is proven on dev then production, remove the bundled-file fallback and the
-      committed `driver/audio/announcements/` directory. **Not done yet** — deliberately deferred;
-      needs a real-device verification pass first (confirm a live journey actually plays a
-      Storage-backed clip, not just unit tests), then dev, then production.
+- [x] **Real-device install/activate pass with genuine live data — done 2026-09-16.** Found and
+      fixed two real bugs along the way (PRs #46/#47 — service worker registration failure from
+      `config.js`'s `window`-in-a-worker-scope bug, and a stale `manifest.json` icon path from the
+      2026-08-21 restructure). Then proved the Storage-backed precache path actually works with
+      real data, not just an empty table: fired the real enqueue trigger via the dedicated test
+      route `S116T`, let the cron drain it into a genuine `announcement_clips` row + Storage
+      `.mp3` without any manual render step, unregistered the service worker to force a fresh
+      `install`, and confirmed the new clip appeared in Cache Storage. See "Where things stand"
+      above for the full trace.
+- [ ] Once parity is proven on production too, remove the bundled-file fallback and the committed
+      `driver/audio/announcements/` directory. **Not done yet** — dev-side real-device
+      verification is now done (above); still needs the same proof on production once Phase 2
+      ships there.
 
 ### Phase 3 — G1: never synthesize (the actual point of this plan) — DONE (coded + unit-tested, merged to develop, live on dev via CI; migration not yet applied to production)
 - [x] Journey-start check: `driver/src/journeyAnnouncementPreflight.js`'s `checkAnnouncementCoverage`,
