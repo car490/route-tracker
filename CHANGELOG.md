@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.2.2] - 2026-09-16
+
+Two fixes from a real on-vehicle test of Driver PWA + Announce Solo (Donington Cowley Academy
+route).
+
+- fix(geofence): detect arrival at a close/looped next stop while still dwelling — departure was
+  previously judged only by distance from the *current* stop, so on a loop where two stops sit
+  close together the vehicle could pass the next stop without it ever being detected. Adds a
+  two-fix-confirmed lookahead check.
+- fix(announcement-audio) — `announcement_clips` was empty on both dev and production despite the
+  pipeline being "live": the enqueue triggers only cover new/edited stops and routes, and every
+  stop/route predates them. Backfilled all pre-existing data on both environments (427 clips on
+  dev, 362 on production) — no code change needed, the trigger mechanism itself is correct going
+  forward. See `docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md`'s "Eighth real bug" entry.
+
 ## [2.2.1] - 2026-09-16
 
 - fix(announce-audio): corrected v2.2.0's plan to fully remove the bundled clip fallback —
