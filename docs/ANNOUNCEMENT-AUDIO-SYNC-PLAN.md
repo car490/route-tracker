@@ -2,19 +2,22 @@
 
 **Status: design settled 2026-09-08. Phase 0 and Phase 1 both shipped and verified end-to-end on
 dev AND production. Phase 2 (Driver/Solo reading from the new pipeline) is coded, unit-tested,
-manually verified against real dev Supabase in a real browser, and merged to `develop` (PR #42,
-2026-09-15) — live on `driver-dev.pcvtechnologies.co.uk` (dev Supabase), not yet on production,
-and the full service-worker install lifecycle still wants a real-device pass. Phase 3 (G1, "never
-synthesize") is coded + unit-tested and **merged to `develop`** (PR #44, 2026-09-16) — live on
+merged to `develop` (PR #42, 2026-09-15), and now also verified end-to-end on dev with genuine
+live data via a real-device pass (2026-09-16) — two real bugs found and fixed along the way
+(PRs #46/#47: a service worker registration failure, a stale manifest icon path) — live on
+`driver-dev.pcvtechnologies.co.uk`, not yet on production. Phase 3 (G1, "never synthesize") is
+coded + unit-tested and **merged to `develop`** (PR #44, 2026-09-16) — live on
 `driver-dev.pcvtechnologies.co.uk` (CI's `deploy-driver-pwa-dev` job ran and succeeded on the
 merge commit); the `announcement_coverage_gap` migration is applied to dev only, RLS-tested there,
 **not yet applied to production**, so Phase 3 is not yet live on `driver.pcvtechnologies.co.uk`.
-Phases 4-5 not started. See "Where things stand" immediately below for exactly what a fresh
-session needs to know.**
+Phase 4 not started (blocked on Phase 2's production rollout + bundled-fallback removal, not on
+any code of its own — see Phase 4's checklist entry). **Phase 5 (docs) done, 2026-09-16.** See
+"Where things stand" immediately below for exactly what a fresh session needs to know.**
 Written 2026-09-08 following a design discussion flagged in `docs/DECISIONS.md`'s
-"Shared journey-tracking core" open item. Once implementation is complete, this doc's outcome
-should be folded back into `docs/DECISIONS.md` and `CLAUDE.md`'s "PSVAIR announcement audio"
-section, same as every other architecture decision in this repo.
+"Shared journey-tracking core" open item — that item itself turned out not to be the right home
+for this plan's resolution (it's about a different question), so Phase 5 added a new decided row
+instead. This plan's outcome is now folded back into `docs/DECISIONS.md` and `CLAUDE.md`'s
+"PSVAIR announcement audio" section, same as every other architecture decision in this repo.
 
 ## Where things stand (updated 2026-09-16)
 
@@ -407,12 +410,20 @@ every migration goes to dev (`cgcbfgceputvdvhzrgio`) first, then production
   tool only" yet. Narrowing its header comment/role is cosmetic until Phase 2's fallback removal
   actually ships.
 
-### Phase 5 — docs
-- [ ] Update `CLAUDE.md`'s "PSVAIR announcement audio" section to describe the new pipeline.
-- [ ] Move the "Shared journey-tracking core" row in `docs/DECISIONS.md` to reflect this plan's
-      resolution, or add a new decided row referencing this doc.
-- [ ] File the Solo → Lite detect-and-confirm ops-dashboard UI as its own tracked fast-follow
-      (out of scope for this plan — see "Related" section below) — e.g. `docs/TODO.md`.
+### Phase 5 — docs — DONE, 2026-09-16
+- [x] Updated `CLAUDE.md`'s "PSVAIR announcement audio" section (Architecture) and its Commands
+      entry (retitled "PSVAIR announcement audio (legacy local generator)") to describe the
+      current server-side pipeline, the never-synthesize behavior, and the dev/production
+      deployment split.
+- [x] Added a new decided row to `docs/DECISIONS.md` (Onboard passenger sign — architecture table)
+      summarizing this plan's outcome, rather than repurposing the unrelated "Shared
+      journey-tracking core" row that this doc's header originally pointed at (that row is about a
+      different question — whether the tracking loop becomes its own package — and was left
+      alone).
+- [x] Filed the Solo → Lite detect-and-confirm ops-dashboard UI as its own tracked item in
+      `docs/TODO.md` ("Announce Solo → Lite detect-and-confirm ops-dashboard UI"), including the
+      latent `fetchAnnounceDevicesForVehicle` RLS gap found while re-reading `link_announce_device`
+      for this plan.
 
 ## Problem
 
