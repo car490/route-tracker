@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.2.4] - 2026-09-16
+
+- fix(announce): revert logo wordmark to its original size
+
 ## [2.2.3] - 2026-09-16
 
 - fix(announce): decouple top bar/Line 1/logo sizing from the 22mm floor
