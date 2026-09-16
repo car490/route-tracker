@@ -1,7 +1,7 @@
-// Announce Solo's audio path. Tries the same pre-rendered Azure Neural TTS
-// clips the Driver/Lite tier plays (driver/audio/announcements/, served
-// from the same origin as this app — see AUDIO_BASE below) via the shared
-// playback engine (shared/announcementAudio.js). Phase 3 of
+// Announce Solo's audio path. Plays the same pre-rendered Azure Neural TTS
+// clips the Driver/Lite tier plays, from the `announcement-audio` Supabase
+// Storage bucket, via the shared playback engine
+// (shared/announcementAudio.js). Phase 3 of
 // docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md ("never synthesize") removed the live
 // speechSynthesis fallback entirely — on this tier's real hardware (Android
 // WebView via a generic kiosk host) that fallback was already a graceful
@@ -19,13 +19,7 @@ import { resolveAnnouncementText } from '../../shared/announceStates.js';
 import { clipKeysFor, createAnnouncementPlayer } from '../../shared/announcementAudio.js';
 import { recordAnnouncementCoverageGap } from '../../shared/announcementCoverage.js';
 
-// Absolute path from site root, not a relative one — announce/ and driver/
-// deploy under the same origin (see CLAUDE.md's Wrangler setup at
-// pcv-dashboard/busops/), so this is simpler than maintaining two different
-// relative paths to what's really the same clip directory.
-const AUDIO_BASE = '/driver/audio/announcements/';
-
-const player = createAnnouncementPlayer(AUDIO_BASE, {
+const player = createAnnouncementPlayer({
   onGap: (missingKeys, text, context) => {
     recordAnnouncementCoverageGap({
       journeyId: context && context.journeyId,

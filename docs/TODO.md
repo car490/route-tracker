@@ -185,6 +185,21 @@ driver device ever actually pushing to it, leaving it blank indefinitely — see
   anon policy selects `announce_devices` by `vehicle_id`) — needs an RLS policy addition alongside
   whatever UI calls it.
 
+## Bus Controller audio clips — no reminder to regenerate after a stop/route change
+
+Found while closing out `docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md`'s Phase 4 (2026-09-16). The Driver
+PWA and Announce Solo get fresh clips automatically (a DB trigger + cron + Edge Function pipeline
+— see `CLAUDE.md` "PSVAIR announcement audio"), but the Bus Controller has no WAN path and can
+only ever play clips already committed to `busops/driver/audio/announcements/` via its own
+`git clone`. Nothing currently reminds a developer to re-run
+`node scripts/generate-announcement-audio.mjs` and commit the result after a stop rename or route
+change affecting a Controller-served vehicle — a silent staleness gap, same shape as (though
+distinct from) the `mele-server/audioPlayer.mjs` path bug found and fixed the same day.
+
+- [ ] Not urgent while only one physical Controller exists (`docs/HARDWARE.md`) — worth a CI check
+  or dashboard reminder (e.g. flag when `stops`/`routes` text has changed since
+  `audio/announcements/manifest.json`'s newest hash) once more Controllers are deployed.
+
 ## Tech debt / refactors
 
 - [ ] `dashboard/src/features/route-planner/RoutePlannerPage.jsx` (1,051 lines)

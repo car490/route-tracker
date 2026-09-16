@@ -11,15 +11,23 @@
 // between a browser module and that Node script, so keep them in sync by
 // hand.
 //
-// Phase 2 of docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md: playback now tries the
-// server-rendered clip in the `announcement-audio` Supabase Storage bucket
-// first (kept in sync automatically by Phase 1's trigger+cron pipeline),
-// falling back to the bundled `driver/audio/announcements/` copy the old
-// manual `npm run generate:audio` script produces — a **temporary** fallback
-// for the transition, per that doc's Rollout step 2, removed once parity is
-// proven on dev then production.
+// Phase 2 of docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md: Driver/Lite and Solo (both
+// browser-based) play the server-rendered clip in the `announcement-audio`
+// Supabase Storage bucket (kept in sync automatically by Phase 1's
+// trigger+cron pipeline) — the only source these two tiers use. The earlier
+// bundled-`driver/audio/announcements/`-as-browser-fallback code path was
+// removed 2026-09-16 once parity was proven on dev then production, per that
+// doc's Rollout step 2.
 //
-// Phase 3 ("never synthesize"): if neither source has a working clip, this
+// Note this is *not* the same as removing driver/audio/announcements/ itself
+// -- that directory stays, permanently: it's the Bus Controller's only audio
+// source (mele-server/audioPlayer.mjs reads it from local disk, deliberately
+// with no live network fetch at all, since the Controller has no WAN path —
+// see docs/HARDWARE.md). Only this browser module's fallback *attempt* was a
+// transition artifact; the files themselves have an ongoing, separate
+// consumer.
+//
+// Phase 3 ("never synthesize"): if the Storage-backed clip isn't there, this
 // module no longer falls back to live speechSynthesis at all — see
 // createAnnouncementPlayer's onGap below. A stop with no confirmed clip
 // plays no audio, ever; the caller's onAnnounce/onGap callbacks are what let
@@ -104,24 +112,20 @@ function playClipFromUrl(url, setCurrentAudio) {
   });
 }
 
-// Tries the Storage-backed clip first, then the bundled fallback copy — see
-// this file's header comment. Only the second attempt uses audioBase, so a
-// clip Phase 1's pipeline hasn't rendered yet (or a transient Storage
-// failure) still plays from whatever shipped with the last deploy, same
-// reliability as before Phase 2.
-function playClip(audioBase, key, setCurrentAudio) {
-  return playClipFromUrl(`${STORAGE_BASE}${key}.mp3`, setCurrentAudio)
-    .then((ok) => (ok ? true : playClipFromUrl(`${audioBase}${key}.mp3`, setCurrentAudio)));
+// Storage-backed clip only — see this file's header comment for why the
+// bundled-file fallback that used to sit here was removed.
+function playClip(key, setCurrentAudio) {
+  return playClipFromUrl(`${STORAGE_BASE}${key}.mp3`, setCurrentAudio);
 }
 
 // All-or-nothing: if any clip in the sequence is missing, the whole
 // announcement plays no audio rather than mixing a natural clip with dead
 // air partway through (see Phase 3's removal of the old speechSynthesis
-// fallback below). Reports the first key that had no working source (neither
-// Storage nor bundled) so the caller can record a coverage-gap alert.
-async function playSequence(audioBase, keys, setCurrentAudio) {
+// fallback below). Reports the first key that had no working source so the
+// caller can record a coverage-gap alert.
+async function playSequence(keys, setCurrentAudio) {
   for (const key of keys) {
-    if (!(await playClip(audioBase, key, setCurrentAudio))) return { ok: false, missingKey: key };
+    if (!(await playClip(key, setCurrentAudio))) return { ok: false, missingKey: key };
   }
   return { ok: true };
 }
@@ -130,25 +134,17 @@ async function playSequence(audioBase, keys, setCurrentAudio) {
 // call once per surface (Driver, Solo) rather than sharing a single
 // instance, so the two tiers' playback never contend over the same state.
 //
-// audioBase is the *bundled-fallback* clip directory, tried only after the
-// Storage-backed clip fails (see playClip above): a relative path from the
-// caller's own page (Driver, './audio/announcements/') or an absolute path
-// from site root (Solo, '/driver/audio/announcements/' — announce/ and
-// driver/ deploy under the same origin, see CLAUDE.md's Wrangler setup, so
-// this is simpler than maintaining two different relative paths to the same
-// clips).
-//
 // onGap(missingKeys, text, context), optional: called instead of ever
 // falling back to speechSynthesis (Phase 3, "never synthesize" — see docs/
-// ANNOUNCEMENT-AUDIO-SYNC-PLAN.md) whenever neither clip source has a
-// working file for this announcement. Callers (driver/src/announcements.js,
+// ANNOUNCEMENT-AUDIO-SYNC-PLAN.md) whenever the Storage-backed clip isn't
+// there for this announcement. Callers (driver/src/announcements.js,
 // announce/src/announceSpeech.js) wire this to
 // shared/announcementCoverage.js's recordAnnouncementCoverageGap, using
 // `context` (see speak() below) for the journeyId/vehicleId/driverId that
 // call needs. Playback itself plays nothing in this case — the caller's own
 // onAnnounce-style callback is what still shows the visual text, unaffected
 // by this.
-export function createAnnouncementPlayer(audioBase, { onGap } = {}) {
+export function createAnnouncementPlayer({ onGap } = {}) {
   let currentAudio = null; // in-flight pre-rendered clip, cleared once its sequence finishes
   let isBusy = false; // true from the moment something starts playing until it fully finishes
   // Holds at most the single most recent announcement that arrived while
@@ -161,7 +157,7 @@ export function createAnnouncementPlayer(audioBase, { onGap } = {}) {
   async function playNow(text, audioKeys, context) {
     isBusy = true;
     const result = audioKeys && audioKeys.length
-      ? await playSequence(audioBase, audioKeys, (audio) => { currentAudio = audio; })
+      ? await playSequence(audioKeys, (audio) => { currentAudio = audio; })
       : { ok: false };
     if (!result.ok && onGap) onGap(result.missingKey ? [result.missingKey] : (audioKeys || []), text, context);
     currentAudio = null;
