@@ -33,8 +33,7 @@ used by more than one surface. `pcv-dashboard/busops/shared/` holds what BusOps'
 `pcv-dashboard/busops/driver/`.
 
 **Important:** the driver PWA source is served from `pcv-dashboard/busops/driver/` — there is
-no `public/` folder (the root `README.md` still describes an old `public/`-based layout; it is
-stale — do not follow it). `pcv-dashboard/busops/server.js` serves `__dirname` (i.e. `busops/`)
+no `public/` folder. `pcv-dashboard/busops/server.js` serves `__dirname` (i.e. `busops/`)
 as-is, mapping a bare `/` request to `/driver/index.html`; `driver/index.html` loads
 `src/main.js` from its own `src/` folder. Do not create or reference a `public/` directory for
 the PWA.
@@ -462,5 +461,5 @@ its own `WizardModal.jsx`) — see `docs/TODO.md` for a known refactor candidate
   implemented in code (the MeLE Quieter4C headless setup, the `/driver-push`
   schedule/state/announce protocol, Controller-side audio playback) — the one remaining open
   item is a real-hardware `hostapd` AP-mode bench test (§1), not a design gap. Root `README.md`
-  is stale (describes an old `public/`-based PWA layout) — prefer this file and
-  `docs/TESTING.md` over it.
+  was rewritten 2026-09-12 to match the current three-surface layout and is accurate again;
+  this file and `docs/TESTING.md` remain the more detailed references.
