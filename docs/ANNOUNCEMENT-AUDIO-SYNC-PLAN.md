@@ -1,9 +1,11 @@
 # Announcement audio: server-triggered generation + sync — plan
 
 **Status: design settled 2026-09-08. Phase 0 and Phase 1 both shipped and verified end-to-end on
-dev AND production. Phase 2 (Driver/Solo reading from the new pipeline) is coded, unit-tested, and
-manually verified against real dev Supabase in a real browser — not yet deployed anywhere, and the
-full service-worker install lifecycle still wants a real-device pass. Phases 3-5 not started. See
+dev AND production. Phase 2 (Driver/Solo reading from the new pipeline) is coded, unit-tested,
+manually verified against real dev Supabase in a real browser, and merged to `develop` (PR #42,
+2026-09-15) — CI's `deploy-driver-pwa-dev` job has since auto-deployed it live to
+`driver-dev.pcvtechnologies.co.uk` (dev Supabase). Not yet on production, and the full
+service-worker install lifecycle still wants a real-device pass. Phases 3-5 not started. See
 "Where things stand" immediately below for exactly what a fresh session needs to know.**
 Written 2026-09-08 following a design discussion flagged in `docs/DECISIONS.md`'s
 "Shared journey-tracking core" open item. Once implementation is complete, this doc's outcome
@@ -41,8 +43,10 @@ not just the one query) hasn't been observed end-to-end in a browser — a first
 this sandbox's restricted network access to the unrelated `TILE_CACHE` (OpenStreetMap tile)
 prefetch list, an environment limitation of this test run, not a code issue (confirmed by testing
 the actually-new logic directly instead, bypassing that unrelated blocker). Worth a real-device
-pass before wide rollout. Not yet deployed anywhere. See the Phase 2 section of the checklist
-below for exactly what's done vs. still open.
+pass before wide rollout. **Deployed to dev only** (`driver-dev.pcvtechnologies.co.uk`, via CI's
+`deploy-driver-pwa-dev` job on the PR #42 merge to `develop`) — not yet on production, which only
+deploys from `master`. See the Phase 2 section of the checklist below for exactly what's done vs.
+still open.
 
 **Verified for real on dev**, not just deployed: manually fired the exact `net.http_post()` call
 the cron uses, got a live `200` with `{"rendered":2,"skipped":0,"failed":0}`, confirmed the
@@ -257,6 +261,9 @@ every migration goes to dev (`cgcbfgceputvdvhzrgio`) first, then production
       module-import time — Vitest's suite-wide default is `environment: 'node'`. Also added
       `tests/serviceWorkerAnnouncementClips.test.js` (Jest, jsdom) covering the new
       `fetchAnnouncementClipStorageUrls()` export's pagination/error handling directly.
+- [x] Merged to `develop` (PR #42, 2026-09-15) and auto-deployed by CI to
+      `driver-dev.pcvtechnologies.co.uk` (dev Supabase). Not yet on production (only deploys from
+      `master`).
 - [ ] Once parity is proven on dev then production, remove the bundled-file fallback and the
       committed `driver/audio/announcements/` directory. **Not done yet** — deliberately deferred;
       needs a real-device verification pass first (confirm a live journey actually plays a

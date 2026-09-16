@@ -10,7 +10,7 @@ Supabase backend:
 
 | Surface | Path | Stack | Deploys to |
 |---|---|---|---|
-| Driver PWA (BusOps Driver) | `pcv-dashboard/busops/driver/` (`index.html`, `src/`) | Vanilla JS, ES modules, no build step | GitHub Pages today (still the live production target); migrating to Cloudflare Workers at `driver.pcvtechnologies.co.uk` (`wrangler.jsonc` + `.assetsignore`, both at `pcv-dashboard/busops/`) — auto-deployed on every push to `develop` by the `deploy-driver-pwa` job in `.github/workflows/ci.yml` (added 2026-08-27, gated on tests passing), so that domain always reflects tested `develop` code; GitHub Pages is still what serves production until someone explicitly switches it |
+| Driver PWA (BusOps Driver) | `pcv-dashboard/busops/driver/` (`index.html`, `src/`) | Vanilla JS, ES modules, no build step | GitHub Pages today (still the live production target); migrating to Cloudflare Workers — `driver-dev.pcvtechnologies.co.uk` (dev Supabase, `deploy-driver-pwa-dev` job, every push to `develop`) and `driver.pcvtechnologies.co.uk` (production Supabase, `deploy-driver-pwa-production` job, every push to `master`) are separate CI jobs in `.github/workflows/ci.yml` (split from one combined `deploy-driver-pwa` job so `develop` pushes stop hitting production Supabase — see commit `7edb0d3`), both gated on tests passing; GitHub Pages is still what serves production until someone explicitly switches it |
 | Ops dashboard (PCV Dashboard) | `pcv-dashboard/` | React + Vite | Vercel, auto on push |
 | Onboard passenger sign (BusOps Announce) | `pcv-dashboard/busops/announce/` (`onboard.html`, `src/onboard.js`); Controller-side setup in `mele-server/` | Vanilla JS + Node (WebSocket relay, no GPS/DB access) | Bus Controller box (see `docs/HARDWARE.md`) + HDMI display, see `mele-server/DEPLOY.md` |
 
@@ -156,10 +156,12 @@ npm run build   # vite build
 ```
 CI (`.github/workflows/ci.yml`) runs: `pcv-dashboard/busops` `npm test` + `npm run test:vitest`
 (PWA, both suites — see "Two independent test setups" above), `pcv-dashboard` lint,
-`pcv-dashboard` build — on every push and PR. On `develop` pushes specifically, once those three
-jobs pass, a fourth (`deploy-driver-pwa`) runs `wrangler deploy` from `pcv-dashboard/busops` to
-push the Driver PWA + Announce app to `driver.pcvtechnologies.co.uk` (Cloudflare Workers),
-requiring the `CLOUDFLARE_API_TOKEN` repo secret.
+`pcv-dashboard` build — on every push and PR. Once those three jobs pass, a deploy job runs
+`wrangler deploy` from `pcv-dashboard/busops` to push the Driver PWA + Announce app to Cloudflare
+Workers: `deploy-driver-pwa-dev` on `develop` pushes (dev Supabase, `driver-dev.pcvtechnologies.co.uk`)
+and `deploy-driver-pwa-production` on `master` pushes (production Supabase,
+`driver.pcvtechnologies.co.uk`) — kept as two separate jobs so a `develop` push can never deploy
+against production Supabase. Both require the `CLOUDFLARE_API_TOKEN` repo secret.
 
 ### Demo drives (simulate a run without GPS/hardware)
 Run from `pcv-dashboard/busops/` (they're npm scripts on that `package.json`):
