@@ -21,9 +21,12 @@ export function announceApproachEvent(stateKey, vars, ids, diversionActive) {
 // active, every arrival re-announces the diversion instead of the normal
 // arrival text — a repeating reminder for passengers boarding at each stop
 // along the diverted section, same behaviour as before this rebuild.
+// Diversion has a fixed clip key (unaffected by ids' stopId/etc.), but
+// still passed ids as-is so a coverage-gap alert stays attributable to the
+// right journey/vehicle/driver, same as the normal-text branch below.
 export function announceStopEvent(stateKey, vars, ids, diversionActive) {
   if (diversionActive) {
-    announceState(ANNOUNCE_STATES.DIVERSION, {}, {});
+    announceState(ANNOUNCE_STATES.DIVERSION, {}, ids);
     return;
   }
   announceState(stateKey, vars, ids);

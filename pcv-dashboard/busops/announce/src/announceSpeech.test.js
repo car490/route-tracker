@@ -17,6 +17,13 @@
 // assertions focus on which clip URL(s) were actually attempted and in what
 // order (Storage-backed first, bundled fallback second — see
 // shared/announcementAudio.js's playClip).
+//
+// Phase 3 ("never synthesize"): there is no speechSynthesis fallback left to
+// fall through to — a clip that isn't confirmed now plays no audio and
+// reports a coverage gap instead (shared/announcementCoverage.js's
+// recordAnnouncementCoverageGap, a plain fetch POST). fetch is stubbed
+// throughout this file so that call resolves harmlessly rather than hitting
+// a real network from the test environment.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { speakState } from './announceSpeech.js';
@@ -27,10 +34,11 @@ const BUNDLED_BASE = '/driver/audio/announcements/';
 
 describe('speakState — clip resolution', () => {
   let attemptedUrls;
+  let fetchMock;
 
   beforeEach(() => {
     attemptedUrls = [];
-    vi.stubGlobal('window', {}); // no speechSynthesis — fallback resolves immediately
+    vi.stubGlobal('window', {}); // no speechSynthesis on this object at all — proves it's never touched
     // Every URL fails (both Storage-backed and bundled) — the tests below
     // only care which URL(s) were attempted and in what order, same as the
     // pre-Phase-2 version of this file.
@@ -39,6 +47,8 @@ describe('speakState — clip resolution', () => {
       play() { queueMicrotask(() => this.onerror?.(new Error('no audio in test env'))); return Promise.resolve(); }
       pause() {}
     });
+    fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+    vi.stubGlobal('fetch', fetchMock);
   });
 
   afterEach(() => {
@@ -66,7 +76,7 @@ describe('speakState — clip resolution', () => {
     await new Promise((r) => setTimeout(r, 0));
   });
 
-  it('with no ids at all, skips clip lookup and goes straight to the synthesis fallback', async () => {
+  it('with no ids at all, skips clip lookup entirely and plays no audio', async () => {
     speakState(ANNOUNCE_STATES.APPROACHING, { stopName: 'Example Road', isFinal: false });
     await new Promise((r) => setTimeout(r, 0));
     expect(attemptedUrls).toEqual([]);
@@ -80,6 +90,33 @@ describe('speakState — clip resolution', () => {
       `${BUNDLED_BASE}approach/stop-1.mp3`,
     ]);
     await new Promise((r) => setTimeout(r, 0));
+  });
+
+  // Phase 3: when neither clip source works, no speechSynthesis fallback is
+  // attempted (there is none left — see this file's header comment) and a
+  // coverage-gap alert is recorded instead of a silent console.warn.
+  it('never calls speechSynthesis, and records a live_stop coverage gap, when both clip sources fail', async () => {
+    const speakSpy = vi.fn();
+    vi.stubGlobal('window', { speechSynthesis: { speak: speakSpy, cancel: vi.fn() } });
+
+    speakState(ANNOUNCE_STATES.APPROACHING, { stopName: 'Example Road', isFinal: false }, {
+      stopId: 'stop-1', journeyId: 'journey-1', vehicleId: 'vehicle-1',
+    });
+    await vi.waitFor(() => {
+      const gapCall = fetchMock.mock.calls.find(([url]) => url.includes('/rest/v1/announcement_coverage_gap'));
+      expect(gapCall).toBeTruthy();
+    });
+
+    expect(speakSpy).not.toHaveBeenCalled();
+
+    const [url, options] = fetchMock.mock.calls.find(([u]) => u.includes('/rest/v1/announcement_coverage_gap'));
+    expect(options.method).toBe('POST');
+    expect(JSON.parse(options.body)).toMatchObject({
+      journey_id: 'journey-1',
+      vehicle_id: 'vehicle-1',
+      stage: 'live_stop',
+      missing_keys: ['approach/stop-1'],
+    });
   });
 });
 
@@ -123,26 +160,31 @@ describe('speakState — Storage-backed clip succeeds (cache hit, or a live fetc
 });
 
 // Offline: both the Storage-backed fetch and the bundled-fallback fetch fail
-// (nothing precached for this key yet) — must degrade to synthesis, never
-// throw and never leave the announcement silently dropped.
+// (nothing precached for this key yet) — Phase 3: must play no audio, never
+// throw, and record a coverage gap rather than degrading to speechSynthesis
+// (there is none left to degrade to).
 describe('speakState — offline, nothing cached for this key', () => {
   let attemptedUrls;
 
   beforeEach(() => {
     attemptedUrls = [];
-    vi.stubGlobal('window', {}); // no speechSynthesis — synthesis fallback still resolves without throwing
+    vi.stubGlobal('window', {});
     vi.stubGlobal('Audio', class {
       constructor(url) { attemptedUrls.push(url); }
       play() { queueMicrotask(() => this.onerror?.(new Error('offline, nothing cached'))); return Promise.resolve(); }
       pause() {}
     });
+    // recordAnnouncementCoverageGap's own fetch attempt — offline here too,
+    // so it must fail harmlessly (it catches its own errors) rather than
+    // throwing out of speakState.
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it('tries both sources, then falls through without throwing', async () => {
+  it('tries both sources, then plays nothing, without throwing', async () => {
     expect(() => speakState(ANNOUNCE_STATES.APPROACHING, { stopName: 'Example Road', isFinal: false }, { stopId: 'stop-1' })).not.toThrow();
     await vi.waitFor(() => expect(attemptedUrls.length).toBe(2));
     expect(attemptedUrls).toEqual([

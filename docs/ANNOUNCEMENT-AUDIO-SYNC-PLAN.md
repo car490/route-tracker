@@ -1,10 +1,13 @@
 # Announcement audio: server-triggered generation + sync — plan
 
 **Status: design settled 2026-09-08. Phase 0 and Phase 1 both shipped and verified end-to-end on
-dev AND production. Phase 2 (Driver/Solo reading from the new pipeline) is coded, unit-tested, and
-manually verified against real dev Supabase in a real browser — not yet deployed anywhere, and the
-full service-worker install lifecycle still wants a real-device pass. Phases 3-5 not started. See
-"Where things stand" immediately below for exactly what a fresh session needs to know.**
+dev AND production. Phase 2 (Driver/Solo reading from the new pipeline) is coded, unit-tested,
+manually verified against real dev Supabase in a real browser, and merged to `develop` (PR #42,
+2026-09-15) — live on `driver-dev.pcvtechnologies.co.uk` (dev Supabase), not yet on production.
+Phase 3 (G1, "never synthesize") is coded + unit-tested (this session, 2026-09-16) — the
+`announcement_coverage_gap` migration is applied to dev only, RLS-tested there, not yet merged.
+Phases 4-5 not started. See "Where things stand" immediately below for exactly what a fresh
+session needs to know.**
 Written 2026-09-08 following a design discussion flagged in `docs/DECISIONS.md`'s
 "Shared journey-tracking core" open item. Once implementation is complete, this doc's outcome
 should be folded back into `docs/DECISIONS.md` and `CLAUDE.md`'s "PSVAIR announcement audio"
@@ -41,8 +44,47 @@ not just the one query) hasn't been observed end-to-end in a browser — a first
 this sandbox's restricted network access to the unrelated `TILE_CACHE` (OpenStreetMap tile)
 prefetch list, an environment limitation of this test run, not a code issue (confirmed by testing
 the actually-new logic directly instead, bypassing that unrelated blocker). Worth a real-device
-pass before wide rollout. Not yet deployed anywhere. See the Phase 2 section of the checklist
-below for exactly what's done vs. still open.
+pass before wide rollout. **Deployed to dev only** (`driver-dev.pcvtechnologies.co.uk`, via CI's
+`deploy-driver-pwa-dev` job on the PR #42 merge to `develop`) — not yet on production, which only
+deploys from `master`. See the Phase 2 section of the checklist below for exactly what's done vs.
+still open.
+
+**Phase 3 (G1, "never synthesize") — coded + unit-tested this session (2026-09-16), not yet
+merged:**
+- `shared/announcementAudio.js`'s `createAnnouncementPlayer` no longer falls back to
+  `speechSynthesis` at all — a stop with no confirmed clip now plays no audio and calls an
+  `onGap` callback instead. `shared/speech.js`'s `speakUtterance` (its one remaining caller) was
+  deleted outright as genuinely dead code, not just unused — `listVoices`/`pickVoice` stay for
+  `previewVoice`'s settings-only voice picker.
+- New table `announcement_coverage_gap` (`supabase/migration_announcement_coverage_gap.sql`) is
+  the "loud" ops-facing alert this checklist item asked for — a queryable row instead of a
+  `console.warn`. `vehicle_id`/`device_id` are both nullable, exactly one populated depending on
+  surface (a Solo autopilot device has no `vehicle_id` at all — see the migration's own comment).
+  Applied to dev (`cgcbfgceputvdvhzrgio`) and RLS-tested there (`supabase/tests/
+  announcement_coverage_gap_rls.sql`, all cases pass, `get_advisors` clean) — **not yet applied to
+  production.**
+- New `driver/src/journeyAnnouncementPreflight.js`: `computeRequiredClipKeys` (every
+  approach/departure/service/fixed key a route needs, reusing `clipKeysFor` so it can't drift) +
+  `checkAnnouncementCoverage` (live `announcement_clips` lookup, records a `journey_start` gap and
+  returns the missing count). Wired into all three of `main.js`'s journey-start paths (duty card,
+  resume, manual selection) via a new `runAnnouncementPreflight` — fire-and-forget, never blocks
+  `runTracker`, shows the existing `showInfoBanner` non-blocking notice when clips are missing.
+  "Hash-confirmed locally" was implemented as a live row-exists check against `announcement_clips`
+  rather than a new client-side hash-tracking store — see this session's reasoning: the service
+  worker's `fetch` handler is already network-first, so a live check at (normally online)
+  journey-start time delivers the real guarantee without new machinery.
+- Both `driver/src/announcements.js` and `announce/src/announceSpeech.js` wire `onGap` to
+  `shared/announcementCoverage.js`'s `recordAnnouncementCoverageGap` with `stage: 'live_stop'`.
+  journeyId/vehicleId/driverId (Driver) or journeyId/vehicleId/deviceId (Solo) are threaded
+  through the existing `ids`/`context` bag already used for clip-key lookup — no new stateful
+  setter added.
+- Jest+Vitest: 155+131 passing (both suites green), including new
+  `journeyAnnouncementPreflight.test.js` and new Phase 3 describe blocks in `announcements.test.js`
+  / `announceSpeech.test.js` asserting `speechSynthesis` is never called and a coverage-gap POST
+  fires instead.
+- **Not done**: no dashboard UI reads `announcement_coverage_gap` yet (deliberately out of scope —
+  `pcv-dashboard/src/features/audio-config/` is currently just validation logic, no component,
+  building a list view is its own vertical slice); production migration; a real-device pass.
 
 **Verified for real on dev**, not just deployed: manually fired the exact `net.http_post()` call
 the cron uses, got a live `200` with `{"rendered":2,"skipped":0,"failed":0}`, confirmed the
@@ -262,16 +304,27 @@ every migration goes to dev (`cgcbfgceputvdvhzrgio`) first, then production
       needs a real-device verification pass first (confirm a live journey actually plays a
       Storage-backed clip, not just unit tests), then dev, then production.
 
-### Phase 3 — G1: never synthesize (the actual point of this plan)
-- [ ] Journey-start check: before/at start, verify every clip the resolved route needs is
-      present and hash-confirmed locally; if not, show a non-blocking driver-facing warning
-      ("audio not yet ready for N stops on this route") — journey start is never blocked.
-- [ ] Fire a loud ops-facing alert (not `console.warn`) when journey start finds missing clips.
-- [ ] Per-stop, when reached: if the clip isn't confirmed, play nothing (visual text only) —
-      remove the `speechSynthesis` fallback from the live announcement path entirely, on both
-      `announcements.js` (Driver/Lite) and `announceSpeech.js` (Solo).
-- [ ] Vitest tests: journey-start warning fires correctly; a reached stop with no confirmed clip
-      never calls `speechSynthesis`; ops alert fires in both scenarios.
+### Phase 3 — G1: never synthesize (the actual point of this plan) — DONE (coded + unit-tested, dev migration applied; not yet merged/production)
+- [x] Journey-start check: `driver/src/journeyAnnouncementPreflight.js`'s `checkAnnouncementCoverage`,
+      called (fire-and-forget) from all three of `main.js`'s journey-start paths via
+      `runAnnouncementPreflight`, right before `runTracker`. Shows the existing `showInfoBanner`
+      non-blocking notice ("Audio not yet ready for N stops on this route") when anything's
+      missing — `runTracker` itself is untouched, so journey start is never blocked. "Hash-confirmed
+      locally" implemented as a live `announcement_clips` row-exists check, not a new client-side
+      hash store — see "Where things stand" above for the reasoning.
+- [x] Loud ops-facing alert: new table `announcement_coverage_gap`
+      (`supabase/migration_announcement_coverage_gap.sql`), written by
+      `shared/announcementCoverage.js`'s `recordAnnouncementCoverageGap` — a real queryable row,
+      not a `console.warn`. Applied + RLS-tested on dev only so far; no dashboard UI reads it yet
+      (deliberately out of scope this phase — see "Where things stand" above).
+- [x] Per-stop removal of the `speechSynthesis` fallback: `shared/announcementAudio.js`'s
+      `createAnnouncementPlayer` calls `onGap` instead of ever synthesizing, on both
+      `driver/src/announcements.js` (Driver/Lite) and `announce/src/announceSpeech.js` (Solo).
+      `shared/speech.js`'s `speakUtterance` (its one caller) deleted as dead code.
+- [x] Vitest tests: `journeyAnnouncementPreflight.test.js` (new) covers the journey-start
+      check/warning; new Phase 3 describe blocks in `announcements.test.js`/`announceSpeech.test.js`
+      assert `speechSynthesis` is never called and a coverage-gap POST fires for both the
+      `journey_start` and `live_stop` stages. Full suites green (155 Jest + 131 Vitest).
 
 ### Phase 4 — repurpose the local generator script
 - [ ] `scripts/generate-announcement-audio.mjs`: narrow to a local dev/preview tool only (for

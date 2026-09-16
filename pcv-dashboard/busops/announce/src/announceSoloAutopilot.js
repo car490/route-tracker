@@ -346,6 +346,14 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     const resolvedId = created?.[0]?.journey_id ?? journeyId;
     await client.rpc('start_journey', { p_journey_id: resolvedId });
 
+    // Forwarded to speakState's ids everywhere below, purely so a coverage-
+    // gap alert (Phase 3, "never synthesize" -- shared/announcementCoverage.js)
+    // stays attributable. vehicleId is normally null here -- a Solo autopilot
+    // device (deviceRow.gps_source = 'internal') isn't linked to a vehicle at
+    // all, that's what makes it Solo rather than Lite -- deviceId is the one
+    // that's always populated for this tier.
+    const announceContext = { journeyId: resolvedId, vehicleId: deviceRow.vehicle_id, deviceId: deviceRow.id };
+
     const lastStop = details.allStops[details.allStops.length - 1];
     onSchedule({
       type: 'schedule',
@@ -364,7 +372,7 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     // the atStop edge below.
     const routeStartVars = { serviceCode: details.serviceCode, destination: stripIndicator(lastStop.name) };
     onState({ type: 'state', ts: Date.now(), journeyId: resolvedId, stateKey: ANNOUNCE_STATES.ROUTE_START, vars: routeStartVars, earlyWait: null });
-    speakState(ANNOUNCE_STATES.ROUTE_START, routeStartVars, { serviceCode: details.serviceCode, destination: lastStop.name });
+    speakState(ANNOUNCE_STATES.ROUTE_START, routeStartVars, { serviceCode: details.serviceCode, destination: lastStop.name, ...announceContext });
 
     let lastAnnouncedStopIdx = null;
     // Mirrors lastAnnouncedStopIdx for the approaching edge — without this,
@@ -402,14 +410,14 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
             if (s.status === DEVIATION_STOP_STATUS) announcedDetourStops.add(i);
           });
           lastState = { stateKey: ANNOUNCE_STATES.DIVERSION, vars: {} };
-          speakState(ANNOUNCE_STATES.DIVERSION, {}, {});
+          speakState(ANNOUNCE_STATES.DIVERSION, {}, announceContext);
           if (state.atStop) lastAnnouncedStopIdx = state.atStop.stopIndex; // still counts as "arrival announced" for this stop
         } else {
           if (state.approaching) {
             lastState = resolveApproachOrArrivalState({ approaching: state.approaching, atStop: null, allStops: details.allStops });
             if (state.approaching.stopIndex !== lastAnnouncedApproachIdx) {
               lastAnnouncedApproachIdx = state.approaching.stopIndex;
-              speakState(lastState.stateKey, lastState.vars, { stopId: details.allStops[state.approaching.stopIndex].stop_id });
+              speakState(lastState.stateKey, lastState.vars, { stopId: details.allStops[state.approaching.stopIndex].stop_id, ...announceContext });
             }
           }
 
@@ -424,7 +432,7 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
 
             if (isFinal) {
               lastState = resolveApproachOrArrivalState({ approaching: null, atStop: state.atStop, allStops: details.allStops });
-              speakState(lastState.stateKey, lastState.vars, { stopId: details.allStops[state.atStop.stopIndex].stop_id });
+              speakState(lastState.stateKey, lastState.vars, { stopId: details.allStops[state.atStop.stopIndex].stop_id, ...announceContext });
             } else {
               const departureVars = {
                 serviceCode: details.serviceCode,
@@ -435,6 +443,7 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
               speakState(ANNOUNCE_STATES.STOP_DEPARTURE, departureVars, {
                 serviceCode: details.serviceCode, destination: lastStop.name,
                 nextStopId: details.allStops[state.atStop.stopIndex + 1].stop_id,
+                ...announceContext,
               });
             }
           }
