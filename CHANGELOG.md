@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.2.1] - 2026-09-16
+
+- fix(announce-audio): corrected v2.2.0's plan to fully remove the bundled clip fallback —
+  `driver/audio/announcements/` isn't a browser transition artifact, it's the Bus Controller's
+  only audio source (no live-fetch path to Storage by design). Removed only the *browser-side*
+  fallback code (`shared/announcementAudio.js`, `service-worker.js`); the committed clips and
+  `scripts/generate-announcement-audio.mjs` stay, permanently, for the Controller.
+- fix(announce): `mele-server/audioPlayer.mjs`'s `DEFAULT_AUDIO_DIR` resolved one directory level
+  too shallow — every announcement on the real Controller had been silently skipped since it was
+  first commissioned. No test caught it; added one that asserts the real default resolves to an
+  existing directory.
+
 ## [2.2.0] - 2026-09-16
 
 **PSVAIR announcement audio: server-side pipeline, no more live speech synthesis**
