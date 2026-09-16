@@ -30,6 +30,7 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
   let gpsLostAt = null;
   let fixCount = 0;
   let pendingMatch = null; // { index, count } — forward geofence match awaiting a second confirming ping
+  let pendingLookaheadMatch = null; // { index, count } — dwelling-stop lookahead awaiting a second confirming ping (see the dwelling branch below)
   let lastGpsUploadMs = 0; // throttle GPS fix uploads to every 30 s
   // Stays false until the vehicle physically enters initialStopIndex's own
   // geofence for the first time. Until then, forward-match skip-ahead is
@@ -84,15 +85,55 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
       let departedIndex = null; // set only on the tick the vehicle exits a dwell — see onUpdate below
 
       if (dwelling) {
-        // Dwelling at a stop — wait for the vehicle to exit the geo-fence (75 m hysteresis)
-        if (distanceToNextM > 75) {
-          log('depart', `Departed: ${schedule[nextStopIndex].name}`);
-          departedIndex = nextStopIndex;
-          stopStates[nextStopIndex].status = 'departed';
-          stopStates[nextStopIndex].departedAt = now;
-          nextStopIndex++;
-          if (nextStopIndex < schedule.length) {
-            distanceToNextM = haversine(latitude, longitude, schedule[nextStopIndex].lat, schedule[nextStopIndex].lon);
+        // Lookahead: on a loop, two stops can sit close enough together that
+        // the vehicle re-enters the NEXT stop's own 50 m geofence while still
+        // within 75 m of THIS stop's coords — the plain >75m exit check below
+        // would then never fire, since it only ever measures distance from
+        // this stop's own fixed point. Checked before that exit check so it
+        // can pre-empt it. Requires two consecutive confirming fixes, same
+        // guard findForwardMatch uses below, so a single jittery GPS fix
+        // can't falsely advance while genuinely still here; also requires
+        // this stop's own distance to already exceed its 50 m radius, so a
+        // fix taken right at arrival (distance ~0) can never trigger it even
+        // if the next stop happens to be within 50 m too.
+        const lookaheadIndex = nextStopIndex + 1;
+        const canLookahead = lookaheadIndex < schedule.length && distanceToNextM > GEOFENCE_RADIUS_M;
+        const distanceToLookaheadM = canLookahead
+          ? haversine(latitude, longitude, schedule[lookaheadIndex].lat, schedule[lookaheadIndex].lon)
+          : null;
+
+        if (canLookahead && distanceToLookaheadM < GEOFENCE_RADIUS_M) {
+          const count = pendingLookaheadMatch && pendingLookaheadMatch.index === lookaheadIndex
+            ? pendingLookaheadMatch.count + 1
+            : 1;
+
+          if (count >= 2) {
+            log('depart', `Departed: ${schedule[nextStopIndex].name} (lookahead)`);
+            departedIndex = nextStopIndex;
+            stopStates[nextStopIndex].status = 'departed';
+            stopStates[nextStopIndex].departedAt = now;
+            nextStopIndex = lookaheadIndex;
+            stopStates[nextStopIndex].status = 'arrived';
+            stopStates[nextStopIndex].arrivedAt = now;
+            log('arrive', `Arrived: ${schedule[nextStopIndex].name} (lookahead, ${distanceToLookaheadM.toFixed(0)} m)`);
+            distanceToNextM = distanceToLookaheadM;
+            pendingLookaheadMatch = null;
+          } else {
+            pendingLookaheadMatch = { index: lookaheadIndex, count };
+          }
+        } else {
+          pendingLookaheadMatch = null;
+
+          // Dwelling at a stop — wait for the vehicle to exit the geo-fence (75 m hysteresis)
+          if (distanceToNextM > 75) {
+            log('depart', `Departed: ${schedule[nextStopIndex].name}`);
+            departedIndex = nextStopIndex;
+            stopStates[nextStopIndex].status = 'departed';
+            stopStates[nextStopIndex].departedAt = now;
+            nextStopIndex++;
+            if (nextStopIndex < schedule.length) {
+              distanceToNextM = haversine(latitude, longitude, schedule[nextStopIndex].lat, schedule[nextStopIndex].lon);
+            }
           }
         }
       } else if (distanceToNextM < GEOFENCE_RADIUS_M) {
@@ -206,6 +247,7 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
     jumpToStop: (idx) => {
       if (idx < 0 || idx >= schedule.length) return;
       pendingMatch = null;
+      pendingLookaheadMatch = null;
       log('info', `Jumped to: ${schedule[idx].name}`);
       nextStopIndex = idx;
       hasReachedStart = true; // manual override confirms actual position
