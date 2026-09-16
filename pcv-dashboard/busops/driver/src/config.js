@@ -15,9 +15,17 @@
 // same as localhost, so that testing develop's auto-deployed code never
 // touches production data. driver.pcvtechnologies.co.uk (no "-dev") is the
 // production migration target and must stay on the prod branch below.
-export const IS_DEV = window.location.hostname === 'localhost'
-  || window.location.hostname === '127.0.0.1'
-  || window.location.hostname === 'driver-dev.pcvtechnologies.co.uk';
+// self, not window: this module is also imported by service-worker.js
+// (Phase 2 of docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md), whose real
+// ServiceWorkerGlobalScope has `self` but no `window` at all -- window.
+// worked in every test because jsdom's `self` is just an alias for
+// `window`, which silently hid this from the whole test suite until a
+// real-device install actually threw "ServiceWorker script evaluation
+// failed". `self` resolves correctly in both a normal window context and
+// a worker context, so this one change covers both.
+export const IS_DEV = self.location.hostname === 'localhost'
+  || self.location.hostname === '127.0.0.1'
+  || self.location.hostname === 'driver-dev.pcvtechnologies.co.uk';
 
 export const SUPABASE_URL = IS_DEV
   ? 'https://cgcbfgceputvdvhzrgio.supabase.co'

@@ -5,15 +5,18 @@ dev AND production. Phase 2 (Driver/Solo reading from the new pipeline) is coded
 manually verified against real dev Supabase in a real browser, and merged to `develop` (PR #42,
 2026-09-15) — live on `driver-dev.pcvtechnologies.co.uk` (dev Supabase), not yet on production,
 and the full service-worker install lifecycle still wants a real-device pass. Phase 3 (G1, "never
-synthesize") is coded + unit-tested (this session, 2026-09-16) — the `announcement_coverage_gap`
-migration is applied to dev only, RLS-tested there, not yet merged. Phases 4-5 not started. See
-"Where things stand" immediately below for exactly what a fresh session needs to know.**
+synthesize") is coded + unit-tested and **merged to `develop`** (PR #44, 2026-09-16) — live on
+`driver-dev.pcvtechnologies.co.uk` (CI's `deploy-driver-pwa-dev` job ran and succeeded on the
+merge commit); the `announcement_coverage_gap` migration is applied to dev only, RLS-tested there,
+**not yet applied to production**, so Phase 3 is not yet live on `driver.pcvtechnologies.co.uk`.
+Phases 4-5 not started. See "Where things stand" immediately below for exactly what a fresh
+session needs to know.**
 Written 2026-09-08 following a design discussion flagged in `docs/DECISIONS.md`'s
 "Shared journey-tracking core" open item. Once implementation is complete, this doc's outcome
 should be folded back into `docs/DECISIONS.md` and `CLAUDE.md`'s "PSVAIR announcement audio"
 section, same as every other architecture decision in this repo.
 
-## Where things stand (updated 2026-09-15, end of session)
+## Where things stand (updated 2026-09-16)
 
 **Done and merged to `develop`** (PRs #36–#42, all merged):
 - Phase 0 (security fix) — **live on dev AND production.**
@@ -21,7 +24,8 @@ section, same as every other architecture decision in this repo.
   **live on dev AND production, verified genuinely working end-to-end on both** (see below).
   **Phase 1 is fully done.**
 
-**In progress, not yet merged**: Phase 2 (`shared/announcementAudio.js` now tries the
+**Merged to `develop`** (PR #42, 2026-09-15), live on dev, not yet on production: Phase 2
+(`shared/announcementAudio.js` now tries the
 Storage-backed clip before the bundled fallback; `busops/service-worker.js` precaches from the
 live `announcement_clips` table) — code written, full Jest+Vitest suites pass (155+125 tests),
 **and manually verified for real in a live Chromium browser against dev Supabase** (Playwright,
@@ -39,18 +43,36 @@ driven directly against `pcv-dashboard/busops/server.js` — not just unit tests
    path, no fallback needed. Test row cleaned up afterward (dev `announcement_clips` back to 0
    rows).
 
-**Not yet done**: the full service-worker `install`/`activate` lifecycle (precaching everything,
-not just the one query) hasn't been observed end-to-end in a browser — a first attempt hung on
-this sandbox's restricted network access to the unrelated `TILE_CACHE` (OpenStreetMap tile)
-prefetch list, an environment limitation of this test run, not a code issue (confirmed by testing
-the actually-new logic directly instead, bypassing that unrelated blocker). Worth a real-device
-pass before wide rollout. **Deployed to dev only** (`driver-dev.pcvtechnologies.co.uk`, via CI's
-`deploy-driver-pwa-dev` job on the PR #42 merge to `develop`) — not yet on production, which only
-deploys from `master`. See the Phase 2 section of the checklist below for exactly what's done vs.
-still open.
+**Fifth real bug found and fixed, 2026-09-16 — found only by an actual real-device install,
+exactly the gap flagged below:** the previous Playwright verification never actually let a real
+browser run the service worker's `install` event end-to-end — it hung on this sandbox's
+restricted network access to the unrelated `TILE_CACHE` (OpenStreetMap tile) prefetch list, so
+that session tested `fetchAnnouncementClipStorageUrls()` directly instead and never caught this.
+The first genuine real-device/private-browser load of `driver-dev.pcvtechnologies.co.uk` failed
+outright: `ServiceWorker script evaluation failed`. Root cause: `driver/src/config.js` reads
+`window.location.hostname` at module top level, and Phase 2 converted `service-worker.js` to
+`{ type: 'module' }` specifically so it could `import` `config.js` directly — but a real
+`ServiceWorkerGlobalScope` has `self`, never `window`, so the import threw a `ReferenceError`
+during module evaluation before the worker could register at all. Every test passed anyway
+because jsdom's `self` is just an alias for `window` (called out in
+`tests/serviceWorkerAnnouncementClips.test.js`'s own header comment), which silently hid the
+exact failure a real browser hits. **Fixed** by switching `config.js`'s three `window.location`
+reads to `self.location` (resolves correctly in both a normal window context and a worker
+context) — full Jest+Vitest suites re-run clean (155+131) after the fix. Not yet pushed/deployed
+to dev for re-verification as of this writing — see the Phase 2 checklist below.
 
-**Phase 3 (G1, "never synthesize") — coded + unit-tested this session (2026-09-16), not yet
-merged:**
+**Still not yet done**: with the above fixed, a fresh real-device install/activate pass against
+`driver-dev.pcvtechnologies.co.uk` needs to actually be re-run (registration should now succeed;
+still needs confirming it precaches every row from `announcement_clips`, not just that
+registration no longer throws). **Deployed to dev only** (`driver-dev.pcvtechnologies.co.uk`, via
+CI's `deploy-driver-pwa-dev` job on the PR #42 merge to `develop`) — not yet on production, which
+only deploys from `master`. See the Phase 2 section of the checklist below for exactly what's
+done vs. still open.
+
+**Phase 3 (G1, "never synthesize") — coded, unit-tested, and merged to `develop`** (PR #44,
+2026-09-16), **live on `driver-dev.pcvtechnologies.co.uk`** via CI (verified: the merge commit's
+CI run shows the `deploy-driver-pwa-dev` job succeeded); the production deploy job was a no-op on
+this run since it only fires on `master` pushes:
 - `shared/announcementAudio.js`'s `createAnnouncementPlayer` no longer falls back to
   `speechSynthesis` at all — a stop with no confirmed clip now plays no audio and calls an
   `onGap` callback instead. `shared/speech.js`'s `speakUtterance` (its one remaining caller) was
@@ -84,7 +106,9 @@ merged:**
   fires instead.
 - **Not done**: no dashboard UI reads `announcement_coverage_gap` yet (deliberately out of scope —
   `pcv-dashboard/src/features/audio-config/` is currently just validation logic, no component,
-  building a list view is its own vertical slice); production migration; a real-device pass.
+  building a list view is its own vertical slice); applying the `announcement_coverage_gap`
+  migration to production (code is merged and live on dev, the DB migration is the only piece
+  still dev-only); a real-device pass.
 
 **Verified for real on dev**, not just deployed: manually fired the exact `net.http_post()` call
 the cron uses, got a live `200` with `{"rendered":2,"skipped":0,"failed":0}`, confirmed the
@@ -307,7 +331,7 @@ every migration goes to dev (`cgcbfgceputvdvhzrgio`) first, then production
       needs a real-device verification pass first (confirm a live journey actually plays a
       Storage-backed clip, not just unit tests), then dev, then production.
 
-### Phase 3 — G1: never synthesize (the actual point of this plan) — DONE (coded + unit-tested, dev migration applied; not yet merged/production)
+### Phase 3 — G1: never synthesize (the actual point of this plan) — DONE (coded + unit-tested, merged to develop, live on dev via CI; migration not yet applied to production)
 - [x] Journey-start check: `driver/src/journeyAnnouncementPreflight.js`'s `checkAnnouncementCoverage`,
       called (fire-and-forget) from all three of `main.js`'s journey-start paths via
       `runAnnouncementPreflight`, right before `runTracker`. Shows the existing `showInfoBanner`
@@ -329,10 +353,22 @@ every migration goes to dev (`cgcbfgceputvdvhzrgio`) first, then production
       assert `speechSynthesis` is never called and a coverage-gap POST fires for both the
       `journey_start` and `live_stop` stages. Full suites green (155 Jest + 131 Vitest).
 
-### Phase 4 — repurpose the local generator script
+### Phase 4 — repurpose the local generator script — NOT STARTED
 - [ ] `scripts/generate-announcement-audio.mjs`: narrow to a local dev/preview tool only (for
       auditioning wording changes); stop it writing to the shared Storage bucket or
       `announcement_clips` table once Phase 1–2 ship.
+- **Checked 2026-09-16: the "stop it writing to Storage/`announcement_clips`" half of this is
+  moot** — traced the script's full git history (`9164507` through `fab0959`) and it has never
+  written to Supabase at all; it only reads local `schedule.json` and writes local
+  `driver/audio/announcements/*.mp3` + `manifest.json`. It's also not invoked anywhere in
+  `.github/workflows/ci.yml`. So there's no Supabase-write code to remove.
+- **What's actually blocking this phase**: this script's committed output
+  (`driver/audio/announcements/`) is still shipped in every deploy as Phase 2's bundled fallback
+  for a missing Storage-backed clip (see Phase 2's last unchecked item above). Until that fallback
+  is removed — which itself waits on a real-device parity pass — this script's output is still
+  genuinely part of what reaches production, so it can't be truthfully called "a local dev/preview
+  tool only" yet. Narrowing its header comment/role is cosmetic until Phase 2's fallback removal
+  actually ships.
 
 ### Phase 5 — docs
 - [ ] Update `CLAUDE.md`'s "PSVAIR announcement audio" section to describe the new pipeline.
