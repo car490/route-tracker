@@ -104,9 +104,15 @@
   --header-text:  3.2vh;
 
   /* Logo (the #onboard-brand wordmark: "BusOps Announce" + "From PCV
-     Technologies" attribution). Same spec/tuning approach as --header-text
-     above — see .bo-wordmark below for how the sub-lines derive from it. */
-  --logo-text:    5vh;
+     Technologies" attribution). Initially bumped to 5vh to target the same
+     spec's 40-60px logo recommendation, but reverted the same day per live
+     feedback on the connected Solo tablet: this mark sits over the live
+     video/passenger view, and the bigger size read as intrusive — kept at
+     its original 3.2vh (identical to the old hardcoded .bo-wordmark value
+     it replaces) instead. No minimum applies here, so there's no
+     compliance reason to force it larger — see .bo-wordmark below for how
+     the sub-lines derive from it. */
+  --logo-text:    3.2vh;
 
   /* Single source of truth for the topbar's height, shared byte-for-byte by
      #sign-topbar and #idle-topbar (below) — previously #idle-topbar carried
