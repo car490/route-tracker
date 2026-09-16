@@ -161,6 +161,30 @@ Phil Haines Coaches wordmark failing contrast) — the app icon was already repl
 neutral placeholder 2026-08-21, tracked separately in "Brand — placeholder app icon needs real
 design" above, so it isn't re-listed here as a colour-audit finding.
 
+## Announce Solo → Lite detect-and-confirm ops-dashboard UI
+
+Raised during `docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md`'s design discussion (2026-09-08), explicitly
+scoped out of that plan since it's separate product work, not part of the audio pipeline itself.
+
+Today, converting a Solo-commissioned Announce device (running its own GPS/autopilot, no linked
+driver device) to Lite (a pure renderer of a Driver device's pushed state) is manual-SQL-only —
+`select link_announce_device(p_device_id, p_vehicle_id, p_force := true)`, per
+`docs/TESTING.md` §17. The DB-side guard that requires `p_force` on a Solo-commissioned device
+exists precisely because a live incident (2026-09-04) saw a Solo tablet flipped to Lite with no
+driver device ever actually pushing to it, leaving it blank indefinitely — see
+`supabase/migration_announce_devices_solo_guard.sql`'s own comment.
+
+- [ ] Ops-dashboard prompt: when a Driver journey starts for a `vehicle_id` that already has an
+  `announce_devices` row with `candidate_departure_ids` populated and `gps_source <> 'driver-device'`,
+  surface "this vehicle has a Solo-commissioned Announce device — link it to this driver?" and call
+  `link_announce_device(..., p_force := true)` only on explicit confirmation. Natural home:
+  `pcv-dashboard/src/features/tracking/` or `vehicles/`.
+- [ ] Related latent bug, found while reading `link_announce_device` for the above (not fixed,
+  flagged for whoever picks this up): `announceDeviceLinkApi.js`'s
+  `fetchAnnounceDevicesForVehicle` raw REST select would return zero rows under current RLS (no
+  anon policy selects `announce_devices` by `vehicle_id`) — needs an RLS policy addition alongside
+  whatever UI calls it.
+
 ## Tech debt / refactors
 
 - [ ] `dashboard/src/features/route-planner/RoutePlannerPage.jsx` (1,051 lines)
