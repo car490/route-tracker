@@ -5,10 +5,22 @@
 // so clip "existence" is backed by real (empty, content doesn't matter —
 // only presence is checked) files in a temp dir per test.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { createAudioPlayer } from './audioPlayer.mjs';
+import { createAudioPlayer, DEFAULT_AUDIO_DIR } from './audioPlayer.mjs';
+
+// Every test below injects its own audioDir override, which is exactly how
+// a real path bug in DEFAULT_AUDIO_DIR (found 2026-09-16 -- it resolved one
+// directory level too shallow, silently skipping every announcement on the
+// real Controller) went uncaught. This asserts the real default resolves to
+// the actual committed clips directory, not an override.
+describe('DEFAULT_AUDIO_DIR', () => {
+  it('resolves to the real busops/driver/audio/announcements/ directory', () => {
+    expect(existsSync(DEFAULT_AUDIO_DIR)).toBe(true);
+    expect(DEFAULT_AUDIO_DIR.replace(/\\/g, '/')).toMatch(/busops\/driver\/audio\/announcements$/);
+  });
+});
 
 describe('audioPlayer', () => {
   let audioDir;

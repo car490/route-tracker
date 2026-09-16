@@ -2,10 +2,12 @@
 // Live audio + on-screen visual announcements of next stop / final destination
 // for in-scope local bus services.
 //
-// Primary audio path: pre-rendered Azure Neural TTS clips (see
-// scripts/generate-announcement-audio.mjs), keyed by stop_id/service+
-// destination exactly as built there — natural recorded voice instead of
-// whatever Web Speech API voice happens to be installed on a given tablet.
+// Primary audio path: pre-rendered Azure Neural TTS clips, generated and
+// distributed automatically by the server-side pipeline in
+// docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md (a DB trigger + cron + Edge Function,
+// keyed by stop_id/service+destination), served from the `announcement-audio`
+// Supabase Storage bucket — natural recorded voice instead of whatever Web
+// Speech API voice happens to be installed on a given tablet.
 // Phase 3 of docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md ("never synthesize"):
 // there is no live speechSynthesis fallback any more — a clip that's
 // missing (new stop not yet regenerated, offline before first cache, etc.)
@@ -29,9 +31,8 @@ import { recordAnnouncementCoverageGap } from '../../shared/announcementCoverage
 const MUTE_KEY = 'psvair-muted';
 const VOICE_KEY = 'psvair-voice-uri';
 const BANNER_SHOWN_KEY = 'psvair-banner-shown';
-const AUDIO_BASE = './audio/announcements/';
 
-const player = createAnnouncementPlayer(AUDIO_BASE, {
+const player = createAnnouncementPlayer({
   onGap: (missingKeys, text, context) => {
     recordAnnouncementCoverageGap({
       journeyId: context && context.journeyId,

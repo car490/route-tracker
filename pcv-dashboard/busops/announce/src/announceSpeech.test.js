@@ -7,16 +7,19 @@
 // uses (see that file's own test, driver/src/announcements.test.js). Real
 // jsdom (not the suite's default 'node' environment) is required as of
 // Phase 2 of docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md: shared/announcementAudio.js
-// now imports driver/src/config.js, which reads window.location at module
+// now imports driver/src/config.js, which reads self.location at module
 // scope to pick dev vs production Supabase URLs — the same reason
 // tests/supabaseApi.test.js (Jest) needs `@jest-environment jsdom`. jsdom's
 // default hostname is 'localhost', so config.js resolves to the dev project
 // throughout this file — STORAGE_BASE (imported below) reflects that.
 //
 // Audio is stubbed per-test to fail/succeed on specific URLs, letting the
-// assertions focus on which clip URL(s) were actually attempted and in what
-// order (Storage-backed first, bundled fallback second — see
-// shared/announcementAudio.js's playClip).
+// assertions focus on which clip URL was actually attempted. There's only
+// ever one attempt now — the bundled-fallback second attempt this file used
+// to also assert on was removed 2026-09-16 once parity was proven on dev
+// then production (shared/announcementAudio.js's playClip is Storage-only;
+// the bundled driver/audio/announcements/ files remain, but only as the Bus
+// Controller's own local audio source — see that file's header comment).
 //
 // Phase 3 ("never synthesize"): there is no speechSynthesis fallback left to
 // fall through to — a clip that isn't confirmed now plays no audio and
@@ -30,8 +33,6 @@ import { speakState } from './announceSpeech.js';
 import { ANNOUNCE_STATES } from '../../shared/announceStates.js';
 import { STORAGE_BASE } from '../../shared/announcementAudio.js';
 
-const BUNDLED_BASE = '/driver/audio/announcements/';
-
 describe('speakState — clip resolution', () => {
   let attemptedUrls;
   let fetchMock;
@@ -39,9 +40,8 @@ describe('speakState — clip resolution', () => {
   beforeEach(() => {
     attemptedUrls = [];
     vi.stubGlobal('window', {}); // no speechSynthesis on this object at all — proves it's never touched
-    // Every URL fails (both Storage-backed and bundled) — the tests below
-    // only care which URL(s) were attempted and in what order, same as the
-    // pre-Phase-2 version of this file.
+    // The Storage-backed clip fails — the tests below only care which URL
+    // was attempted.
     vi.stubGlobal('Audio', class {
       constructor(url) { attemptedUrls.push(url); }
       play() { queueMicrotask(() => this.onerror?.(new Error('no audio in test env'))); return Promise.resolve(); }
@@ -82,20 +82,10 @@ describe('speakState — clip resolution', () => {
     expect(attemptedUrls).toEqual([]);
   });
 
-  it('falls back to the bundled clip when the Storage-backed one fails — transition safety net', async () => {
-    speakState(ANNOUNCE_STATES.APPROACHING, { stopName: 'Example Road', isFinal: false }, { stopId: 'stop-1' });
-    await vi.waitFor(() => expect(attemptedUrls.length).toBe(2));
-    expect(attemptedUrls).toEqual([
-      `${STORAGE_BASE}approach/stop-1.mp3`,
-      `${BUNDLED_BASE}approach/stop-1.mp3`,
-    ]);
-    await new Promise((r) => setTimeout(r, 0));
-  });
-
-  // Phase 3: when neither clip source works, no speechSynthesis fallback is
-  // attempted (there is none left — see this file's header comment) and a
+  // Phase 3: when the clip source doesn't work, no speechSynthesis fallback
+  // is attempted (there is none left — see this file's header comment) and a
   // coverage-gap alert is recorded instead of a silent console.warn.
-  it('never calls speechSynthesis, and records a live_stop coverage gap, when both clip sources fail', async () => {
+  it('never calls speechSynthesis, and records a live_stop coverage gap, when the clip fails', async () => {
     const speakSpy = vi.fn();
     vi.stubGlobal('window', { speechSynthesis: { speak: speakSpy, cancel: vi.fn() } });
 
@@ -132,15 +122,9 @@ describe('speakState — Storage-backed clip succeeds (cache hit, or a live fetc
     vi.stubGlobal('Audio', class {
       constructor(url) { this.url = url; attemptedUrls.push(url); }
       play() {
-        // Only the Storage-backed URL succeeds — proves the engine never
-        // even tries the bundled fallback once the primary source works,
-        // same as a real Cache Storage hit from the service worker's live
+        // Matches a real Cache Storage hit from the service worker's live
         // precache (or a normal online fetch).
-        if (this.url.includes('/storage/v1/object/public/')) {
-          queueMicrotask(() => this.onended?.());
-        } else {
-          queueMicrotask(() => this.onerror?.(new Error('should not be reached')));
-        }
+        queueMicrotask(() => this.onended?.());
         return Promise.resolve();
       }
       pause() {}
@@ -151,7 +135,7 @@ describe('speakState — Storage-backed clip succeeds (cache hit, or a live fetc
     vi.unstubAllGlobals();
   });
 
-  it('never attempts the bundled fallback', async () => {
+  it('plays the Storage-backed clip', async () => {
     speakState(ANNOUNCE_STATES.APPROACHING, { stopName: 'Example Road', isFinal: false }, { stopId: 'stop-1' });
     await vi.waitFor(() => expect(attemptedUrls.length).toBeGreaterThan(0));
     await new Promise((r) => setTimeout(r, 0));
@@ -159,10 +143,9 @@ describe('speakState — Storage-backed clip succeeds (cache hit, or a live fetc
   });
 });
 
-// Offline: both the Storage-backed fetch and the bundled-fallback fetch fail
-// (nothing precached for this key yet) — Phase 3: must play no audio, never
-// throw, and record a coverage gap rather than degrading to speechSynthesis
-// (there is none left to degrade to).
+// Offline: the Storage-backed fetch fails (nothing precached for this key
+// yet) — Phase 3: must play no audio, never throw, and record a coverage gap
+// rather than degrading to speechSynthesis (there is none left to degrade to).
 describe('speakState — offline, nothing cached for this key', () => {
   let attemptedUrls;
 
@@ -184,12 +167,9 @@ describe('speakState — offline, nothing cached for this key', () => {
     vi.unstubAllGlobals();
   });
 
-  it('tries both sources, then plays nothing, without throwing', async () => {
+  it('tries the clip once, then plays nothing, without throwing', async () => {
     expect(() => speakState(ANNOUNCE_STATES.APPROACHING, { stopName: 'Example Road', isFinal: false }, { stopId: 'stop-1' })).not.toThrow();
-    await vi.waitFor(() => expect(attemptedUrls.length).toBe(2));
-    expect(attemptedUrls).toEqual([
-      `${STORAGE_BASE}approach/stop-1.mp3`,
-      `${BUNDLED_BASE}approach/stop-1.mp3`,
-    ]);
+    await vi.waitFor(() => expect(attemptedUrls.length).toBe(1));
+    expect(attemptedUrls).toEqual([`${STORAGE_BASE}approach/stop-1.mp3`]);
   });
 });
