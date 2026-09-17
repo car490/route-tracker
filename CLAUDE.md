@@ -28,9 +28,15 @@ brand hierarchy.
 
 Supabase schema lives at `supabase/schema.sql`. `graphhopper/` and `scripts/` are shared infra
 used by more than one surface. `pcv-dashboard/busops/shared/` holds what BusOps' two surfaces
-(Driver, Announce) genuinely share with each other — icons, `brand-tokens.css` — while
-`lib/` (Leaflet) and `audio/` (PSVAIR clips) are driver-only, living under
-`pcv-dashboard/busops/driver/`.
+(Driver, Announce) genuinely share with each other — **corrected 2026-09-17, this had drifted
+from icons/`brand-tokens.css` only**: it's now also the GPS/schedule-matching core
+(`gps.js`, `geofence.js`, `engine.js`, `scheduleTimeShift.js`, `geo.js`) and the announcement
+stack (`announceStates.js`, `announcementAudio.js`, `announcementCoverage.js`,
+`deviceStateSync.js`, `speech.js`, `logger.js`, `escapeHtml.js`) — real cross-surface use, not
+folder guesswork: Announce Solo's autopilot (`announceSoloAutopilot.js`) imports
+`gps.js`/`geofence.js`/`scheduleTimeShift.js` directly, and `onboard.js` reads announcement
+state through the same `announceStates.js` Driver uses. `lib/` (Leaflet) and `audio/` (PSVAIR
+clips) remain driver-only, living under `pcv-dashboard/busops/driver/`.
 
 **Important:** the driver PWA source is served from `pcv-dashboard/busops/driver/` — there is
 no `public/` folder. `pcv-dashboard/busops/server.js` serves `__dirname` (i.e. `busops/`)
@@ -56,9 +62,14 @@ pcv-dashboard/                  # PCV Dashboard — Vercel app root
     │                             # both driver/ and announce/, which only works if it's
     │                             # in their common parent directory
     ├── tests/                   # cross-cutting Jest suite (staticDeployPaths, brandTokens, ...)
-    ├── shared/                  # genuinely shared between driver/ and announce/
+    ├── shared/                  # genuinely shared between driver/ and announce/ -- GPS/
+    │   │                         # geofence/engine/schedule-matching core + the announcement
+    │   │                         # stack, not just icons/brand-tokens.css (see above)
     │   ├── icons/
-    │   └── brand-tokens.css
+    │   ├── brand-tokens.css
+    │   ├── gps.js, geofence.js, engine.js, scheduleTimeShift.js, geo.js
+    │   └── announceStates.js, announcementAudio.js, announcementCoverage.js,
+    │       deviceStateSync.js, speech.js, logger.js, escapeHtml.js
     ├── driver/                  # BusOps Driver (the PWA)
     │   ├── index.html, manifest.json, style.css, lib/, audio/, cab-device/
     │   └── src/                 # main.js's whole import closure
@@ -68,10 +79,13 @@ pcv-dashboard/                  # PCV Dashboard — Vercel app root
         └── mele-server/           # Bus Controller-side companion app
 ```
 
-`src/` was split along the actual import graph, not folder guesswork: `onboard.js` has no local
-imports at all, so it's the entirety of `announce/src/`; everything else `main.js` transitively
-imports (`gps.js`, `engine.js`, `supabaseApi.js`, `announcements.js`, etc.) moved to
-`driver/src/` unchanged.
+`src/` was split along the actual import graph at the time (2026-08-21), not folder guesswork:
+`onboard.js` had no local imports at all back then, so it was the entirety of `announce/src/`;
+everything else `main.js` transitively imported (`supabaseApi.js`, `announcements.js`, etc.)
+moved to `driver/src/` unchanged. **That's stale now** — Announce Lite/Solo (built after the
+split) gave `onboard.js` three imports (`announceDeviceFeed.js`/`announceDeviceSetup.js`,
+both `announce/src/`-only, plus `../../shared/announceStates.js`), and `gps.js`/`engine.js`
+never stayed driver-only either — see the corrected `shared/` description above.
 
 `wifi-direct-poc/` is a standalone, throwaway Android hardware bench-test app for a possible
 future WiFi-Direct-based redesign of how Driver and Announce talk to each other. It is **not**
@@ -241,6 +255,26 @@ grants (e.g. `naptan_stops`) — this wasn't a regression, just a rule that hadn
 down. Add `grant all on public.my_table to service_role;` alongside the anon/authenticated grants
 above whenever an Edge Function touches the table, on every environment, rather than assuming any
 project's default privileges cover it.
+
+**Any anon-callable `security definer` RPC that takes an id parameter must verify the caller is
+entitled to that specific id inside the function body — RLS alone doesn't gate an RPC call.**
+Found 2026-09-17 during a security review: `start_journey(p_journey_id)`,
+`complete_journey(p_journey_id)`, and three `announce_devices` RPCs were anon-granted and
+`security definer`, but trusted their id parameter outright — anyone holding the shared anon key
+could act on another company's journey/device just by supplying its UUID. Fixed by adding an
+ownership check as the first line of the function body, using the caller's JWT claims (not the
+parameter alone) as the source of truth: `is_jwt_journey_allowed(j_id)` checks a journey id
+against the signed duty token's `journey_ids` claim, and `is_jwt_device_allowed(p_device_id)`
+(same pattern, `schema.sql`) checks a device id against either the caller's own `device_id`
+claim (self only, mirrors `report_device_heartbeat()`) or the vehicle of one of the caller's
+`journey_ids`. Both fall through to `true` for a legacy claim-less anon key, an intentional
+compatibility tradeoff for the no-login manual-selection flow — don't remove that branch
+assuming it's dead code. Follow this same pattern (an `is_jwt_*_allowed()` check as the RPC
+body's first statement) for any new anon-callable RPC that mutates a row by id. Also added
+`announce_devices.revoked_at`, checked by the same helper and the `device_self` RLS policy, so
+a single leaked/compromised device token can be revoked without rotating the shared JWT secret
+for the whole fleet — set directly via SQL, no admin UI (same precedent as
+`stops.announcement_name`).
 
 ---
 
