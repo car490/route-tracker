@@ -867,12 +867,48 @@ $$;
 
 grant execute on function is_jwt_journey_allowed(uuid) to anon;
 
+-- True when the caller's token is entitled to act on p_device_id:
+--  - a device token (device_id claim) may only ever act on itself, same
+--    pattern as report_device_heartbeat().
+--  - a driver token (journey_ids claim, no device_id claim) may act on a
+--    device only if that device's vehicle is the vehicle of one of the
+--    caller's own journeys.
+--  - a token with neither claim (legacy anon key) is allowed, same
+--    legacy-compatibility tradeoff is_jwt_journey_allowed() already makes.
+create or replace function is_jwt_device_allowed(p_device_id uuid)
+returns boolean
+language sql stable security definer
+as $$
+  select
+    case
+      when auth.jwt()->>'device_id' is not null then
+        (auth.jwt()->>'device_id')::uuid = p_device_id
+      when auth.jwt()->>'journey_ids' is not null then
+        exists (
+          select 1
+          from public.announce_devices d
+          join public.journeys j on j.vehicle_id = d.vehicle_id
+          where d.id = p_device_id
+            and j.id = any(
+              array(select jsonb_array_elements_text(auth.jwt()->'journey_ids'))::uuid[]
+            )
+        )
+      else true
+    end
+$$;
+
+grant execute on function is_jwt_device_allowed(uuid) to anon;
+
 -- Called by the driver PWA (anon) to start a journey.
 create or replace function start_journey(p_journey_id uuid)
 returns boolean
 language plpgsql security definer
 as $$
 begin
+  if not is_jwt_journey_allowed(p_journey_id) then
+    raise exception 'journey % not permitted for this token', p_journey_id;
+  end if;
+
   update journeys set status = 'in_progress', started_at = now()
   where id = p_journey_id and status = 'scheduled';
   return found;
@@ -887,6 +923,10 @@ returns boolean
 language plpgsql security definer
 as $$
 begin
+  if not is_jwt_journey_allowed(p_journey_id) then
+    raise exception 'journey % not permitted for this token', p_journey_id;
+  end if;
+
   update journeys set status = 'completed', completed_at = now()
   where id = p_journey_id and status = 'in_progress';
   return found;
@@ -1644,6 +1684,10 @@ create or replace function public.update_announce_device_state(
 language plpgsql security definer
 as $$
 begin
+  if not is_jwt_device_allowed(p_device_id) then
+    raise exception 'device % not permitted for this token', p_device_id;
+  end if;
+
   update public.announce_devices
   set latest_schedule  = coalesce(p_schedule, latest_schedule),
       latest_state     = coalesce(p_state, latest_state),
@@ -1670,6 +1714,10 @@ create or replace function public.end_announce_device_journey(
 language plpgsql security definer
 as $$
 begin
+  if not is_jwt_device_allowed(p_device_id) then
+    raise exception 'device % not permitted for this token', p_device_id;
+  end if;
+
   update public.announce_devices
   set latest_schedule  = null,
       latest_state     = null,
@@ -1763,6 +1811,10 @@ create or replace function public.unlink_announce_device(
 language plpgsql security definer
 as $$
 begin
+  if not is_jwt_device_allowed(p_device_id) then
+    raise exception 'device % not permitted for this token', p_device_id;
+  end if;
+
   update public.announce_devices
   set link_state   = 'unlinked',
       gps_source   = 'internal',
