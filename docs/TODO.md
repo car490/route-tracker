@@ -209,3 +209,10 @@ distinct from) the `mele-server/audioPlayer.mjs` path bug found and fixed the sa
   deliberately (not opportunistically), with careful manual verification of
   the whole Route Planner flow afterward given how much shared mutable state
   (stops, routeResult, hqLocation, etc.) flows between those pieces.
+- [ ] CI (`.github/workflows/ci.yml`) prints a "Node.js 20 is deprecated" annotation on every run,
+  currently harmless (GitHub forces the affected actions onto Node 24 regardless and the run still
+  passes), but worth fixing before it becomes a hard failure. Three jobs pin `node-version: '20'`
+  (`pwa-test`/"Driver PWA — unit tests", `dashboard-lint`, `dashboard-build`, lines ~16/33/48); the
+  two deploy jobs already run `'22'` (bumped for wrangler 4.x — see git history). Bump the
+  remaining three to `'22'` (or newer) to match and stop chasing this warning on every run —
+  `pcv-dashboard`'s own Vite 8 already requires Node >=20.19, so 22 has headroom either way.
