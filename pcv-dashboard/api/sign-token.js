@@ -1,4 +1,5 @@
 import { createHmac } from 'crypto'
+import { authenticate } from './_auth.js'
 
 function base64url(str) {
   return Buffer.from(str, 'utf8').toString('base64')
@@ -27,12 +28,22 @@ function signJwt(journey_ids, driver_name, driver_id, secret) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const authHeader = req.headers['authorization']
-  if (!authHeader) return res.status(401).json({ error: 'Unauthorized' })
+  const auth = await authenticate(req)
+  if (!auth) return res.status(401).json({ error: 'Unauthorized' })
+  const { supabase } = auth
 
   const { journey_ids, driver_name, driver_id } = req.body ?? {}
   if (!Array.isArray(journey_ids) || journey_ids.length === 0)
     return res.status(400).json({ error: 'journey_ids required' })
+
+  const { data: rows } = await supabase.from('journeys').select('id').in('id', journey_ids)
+  if (!rows || rows.length !== journey_ids.length) {
+    return res.status(403).json({ error: 'One or more journeys are not accessible' })
+  }
+  if (driver_id) {
+    const { data: emp } = await supabase.from('employees').select('id').eq('id', driver_id).maybeSingle()
+    if (!emp) return res.status(403).json({ error: 'driver_id is not accessible' })
+  }
 
   const secret = process.env.SUPABASE_JWT_SECRET
   if (!secret) return res.status(500).json({ error: 'SUPABASE_JWT_SECRET not configured' })

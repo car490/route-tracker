@@ -10,7 +10,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    include: ['driver/src/**/*.test.js', 'announce/src/**/*.test.js', 'announce/mele-server/**/*.test.js'],
+    include: ['driver/src/**/*.test.js', 'announce/src/**/*.test.js', 'announce/mele-server/**/*.test.js', 'shared/**/*.test.js'],
     environment: 'node',
   },
 });
