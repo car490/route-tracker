@@ -562,8 +562,21 @@ body {
      which at this tight line-height (1.15, inherited from .hl-three-line)
      was cutting off the bottom of descenders (g, y, p...) on every
      town/stop line, not just the ones actually scrolling — found live
-     2026-09-08. */
-  overflow-x: hidden;
+     2026-09-08.
+     `clip`, not `hidden`, on the x-axis — found live 2026-09-17: per the
+     CSS Overflow spec, pairing a non-visible overflow-x with
+     overflow-y: visible silently promotes the visible axis to auto (the
+     UA "must" do this when the two values disagree and neither is
+     visible-visible). That turned each town/stop line into its own
+     scrollable box — visible on a real device as two stray scrollbar
+     tracks stacked over the headline — and, as a flex item, an
+     auto-overflow box is also allowed to shrink below its own text's
+     natural content height (min-height:auto's content-protection only
+     applies when overflow is visible), which was quietly clipping/
+     compressing the actual rendered line below the intended 22mm.
+     `clip` doesn't participate in that visible/non-visible promotion, so
+     overflow-y stays genuinely visible with no scroll container. */
+  overflow-x: clip;
   overflow-y: visible;
   white-space: nowrap;
   text-align: center;
