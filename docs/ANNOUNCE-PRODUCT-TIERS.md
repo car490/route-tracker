@@ -561,6 +561,25 @@ earlier draft.**
   `match_window_after_min`'s defaults (150m / 15 / 30) against Phil
   Haines Travel's real timetable and site geography once that data
   exists — currently starting defaults, not measured values. **Still open.**
+- **`journey_stop_times` race between an unlinked Solo device and a separate
+  Driver device tracking the same scheduled departure.** Since Solo started
+  writing `journey_stop_times` itself (2026-09-17, see `shared/journeyStopTimes.js`),
+  a vehicle running Solo (unlinked) alongside its own separate Driver device —
+  not paired into Lite, but both configured against the same
+  `timetable_departure_id`/day — resolves to the same `journeys` row
+  (`get_or_create_manual_journey`'s existing dedupe), and **both devices
+  independently attempt to write arrival times for the same stops**. The
+  table's `ignore-duplicates` upsert means whichever device's GPS detects a
+  given stop and uploads first silently wins that row; the other device's
+  timestamp for that stop is dropped, not merged or flagged — a per-stop
+  race, not a crash. Accepted as-is for the first real install (2026-09-22,
+  Solo + separate unlinked Driver, chosen specifically to avoid any
+  Controller-flip/linking work before that date) since both devices are
+  watching the same GPS reality and should usually agree within seconds.
+  **Real fix, not urgent:** have Solo skip its own `journey_stop_times`
+  upload when a Driver is known to be present on the same vehicle (e.g.
+  gated off `announce_devices.link_state`/`vehicle_id`), so the Driver stays
+  the single authoritative writer whenever one exists. **Still open.**
 
 **Done, not open any more** (kept here briefly so this list doesn't read
 as if these were never tracked): the `announce_devices` table/RPCs, the
