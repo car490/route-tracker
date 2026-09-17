@@ -1,13 +1,68 @@
 import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
 import { getCachedServices, setCachedServices, getCachedStops, setCachedStops } from './localStore.js';
 
+// sessionStorage keys for the one-time duty-link capture below — cleared
+// when the tab closes (unlike announceLink.js's localStorage-backed
+// STORAGE_URL_KEY/STORAGE_TOKEN_KEY, which are meant to survive across
+// sessions on a commissioned device) so a driver's per-shift token doesn't
+// linger on a shared/kiosk device. See captureDutyLinkParams() below.
+const DUTY_TOKEN_KEY = 'dutyLinkToken';
+const DUTY_IDS_KEY = 'dutyLinkIds';
+
 // Driver token is read lazily (not at module load) so this module has no
 // top-level `window` access — it can be imported from a non-browser
-// context (e.g. Jest, which runs in Node) without throwing.
+// context (e.g. Jest, which runs in Node) without throwing. Prefers the
+// sessionStorage copy captureDutyLinkParams() stashes on first load (see
+// below) — falls back to the raw URL for any caller that never went
+// through that capture step (e.g. tests calling sbFetch directly).
 function driverToken() {
-  return typeof window !== 'undefined'
-    ? new URLSearchParams(window.location.search).get('token')
-    : null;
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = sessionStorage.getItem(DUTY_TOKEN_KEY);
+    if (stored) return stored;
+  } catch (_) {}
+  return new URLSearchParams(window.location.search).get('token');
+}
+
+// One-time capture of the duty-card bearer token (`?token=`) and journey
+// id list (`?duties=`) out of the URL and into sessionStorage, then strips
+// both from the visible URL via history.replaceState — the token no longer
+// sits exposed in the address bar/browser history/shared-screen for the
+// rest of the session. Mirrors announceLink.js's captureAnnounceSetup()
+// one-time-capture-into-storage pattern, but sessionStorage rather than
+// localStorage: this credential is scoped to a single shift, not a
+// permanently-commissioned device.
+//
+// Must run before any network call goes through sbFetch()/driverToken()
+// above — main.js's init() calls this as its very first statement, ahead
+// of flushPendingTrips()/flushPendingJourneyStarts()/preloadAllRoutes(),
+// so none of those read a not-yet-captured URL.
+//
+// dutiesParam is persisted here too (not just the token) because it's
+// otherwise only ever read once, straight off the URL, in main.js — if the
+// URL has already been stripped by a previous capture, a same-tab reload
+// would lose it and strand the driver with no duty. Returns the duties
+// value (freshly captured, or the previously-captured one from
+// sessionStorage on a later call where the URL no longer carries it) so
+// main.js can use it exactly like the old inline URL read.
+export function captureDutyLinkParams(params = new URLSearchParams(window.location.search)) {
+  const token = params.get('token');
+  const duties = params.get('duties');
+  try {
+    if (token) sessionStorage.setItem(DUTY_TOKEN_KEY, token);
+    if (duties) sessionStorage.setItem(DUTY_IDS_KEY, duties);
+  } catch (_) {}
+  if (token || duties) {
+    params.delete('token');
+    params.delete('duties');
+    const qs = params.toString();
+    window.history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : '') + window.location.hash);
+  }
+  try {
+    return duties || sessionStorage.getItem(DUTY_IDS_KEY);
+  } catch (_) {
+    return duties;
+  }
 }
 
 export async function sbFetch(path, opts = {}) {

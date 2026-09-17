@@ -234,7 +234,7 @@ export default function DutyCardsPage() {
           'Content-Type':  'application/json',
           'Authorization': `Bearer ${session?.access_token ?? ''}`,
         },
-        body: JSON.stringify({ to: contact.value, driver_name: driver.name, date, url, company_name: await getCompanyName() }),
+        body: JSON.stringify({ driver_id: driver.id, date, url, company_name: await getCompanyName() }),
       })
       const data = await res.json()
       if (!res.ok) setEmailError(data.error ?? 'Send failed')

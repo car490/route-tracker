@@ -1,3 +1,5 @@
+import { escapeHtml } from '../../shared/escapeHtml.js';
+
 let _schedule = null;
 let _fromIndex = 0;
 let _prevNextStopIndex = -1;
@@ -114,12 +116,12 @@ async function fetchAndRender() {
   const steps = await fetchSteps(fromStop.lat, fromStop.lon, toStop.lat, toStop.lon);
   if (!steps) {
     setStepsHtml(
-      `<div class="dir-empty">Directions unavailable<br>Head to <strong>${toStop.name}</strong></div>`
+      `<div class="dir-empty">Directions unavailable<br>Head to <strong>${escapeHtml(toStop.name)}</strong></div>`
     );
     return;
   }
 
-  const header = `<div class="dir-destination">To: <strong>${toStop.name}</strong></div>`;
+  const header = `<div class="dir-destination">To: <strong>${escapeHtml(toStop.name)}</strong></div>`;
   const rows = steps.map(step => {
     const icon = maneuverIcon(step.maneuver.type, step.maneuver.modifier);
     const road = step.name || (step.maneuver.type === 'arrive' ? toStop.name : 'Continue');
@@ -128,7 +130,7 @@ async function fetchAndRender() {
       : '';
     return `<div class="dir-step">
       <span class="dir-icon">${icon}</span>
-      <span class="dir-road">${road}</span>
+      <span class="dir-road">${escapeHtml(road)}</span>
       ${dist}
     </div>`;
   }).join('');

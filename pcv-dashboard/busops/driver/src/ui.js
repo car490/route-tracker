@@ -1,3 +1,5 @@
+import { escapeHtml } from '../../shared/escapeHtml.js';
+
 const el = (id) => document.getElementById(id);
 
 const fmtTime = (d) =>
@@ -46,7 +48,7 @@ function updateStopList({ schedule, stopStates, nextStopIndex }) {
     const actualClass = arrivedAt ? arrivalStatusClass(stop, arrivedAt) : skipped ? 'sl-missed' : '';
 
     row.innerHTML =
-      `<span class="sl-name">${stop.name}</span>` +
+      `<span class="sl-name">${escapeHtml(stop.name)}</span>` +
       `<span class="sl-sched">${stop.time}</span>` +
       `<span class="sl-actual${actualClass ? ' ' + actualClass : ''}">${actualText}</span>` +
       (state === 'future' ? `<button class="sl-jump" data-idx="${i}" title="Start from here">⏭</button>` : '<span></span>');
@@ -81,7 +83,7 @@ export function renderLog(entries) {
   entries.forEach(({ t, category, message }) => {
     const row = document.createElement('div');
     row.className = `log-row log-${category}`;
-    row.innerHTML = `<span class="log-time">${t}</span><span class="log-msg">${message}</span>`;
+    row.innerHTML = `<span class="log-time">${t}</span><span class="log-msg">${escapeHtml(message)}</span>`;
     container.appendChild(row);
   });
 }

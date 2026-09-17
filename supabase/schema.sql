@@ -867,12 +867,58 @@ $$;
 
 grant execute on function is_jwt_journey_allowed(uuid) to anon;
 
+-- True when the caller's token is entitled to act on p_device_id:
+--  - a device token (device_id claim) may only ever act on itself, same
+--    pattern as report_device_heartbeat().
+--  - a driver token (journey_ids claim, no device_id claim) may act on a
+--    device only if that device's vehicle is the vehicle of one of the
+--    caller's own journeys.
+--  - a token with neither claim (legacy anon key) is allowed, same
+--    legacy-compatibility tradeoff is_jwt_journey_allowed() already makes.
+-- ANDed onto all three branches: a revoked device (announce_devices.revoked_at
+-- set) is never allowed, regardless of which branch would otherwise pass --
+-- see docs/SECURITY_FIXES_2026-09-17.md Item 4(b) and
+-- migration_announce_device_revocation.sql. This is the only per-device
+-- revocation mechanism; the Announce device token itself still carries a
+-- 100-year exp (Supabase Realtime requires one) by design, unchanged here.
+create or replace function is_jwt_device_allowed(p_device_id uuid)
+returns boolean
+language sql stable security definer
+as $$
+  select
+    not exists (
+      select 1 from public.announce_devices
+      where id = p_device_id and revoked_at is not null
+    )
+    and case
+      when auth.jwt()->>'device_id' is not null then
+        (auth.jwt()->>'device_id')::uuid = p_device_id
+      when auth.jwt()->>'journey_ids' is not null then
+        exists (
+          select 1
+          from public.announce_devices d
+          join public.journeys j on j.vehicle_id = d.vehicle_id
+          where d.id = p_device_id
+            and j.id = any(
+              array(select jsonb_array_elements_text(auth.jwt()->'journey_ids'))::uuid[]
+            )
+        )
+      else true
+    end
+$$;
+
+grant execute on function is_jwt_device_allowed(uuid) to anon;
+
 -- Called by the driver PWA (anon) to start a journey.
 create or replace function start_journey(p_journey_id uuid)
 returns boolean
 language plpgsql security definer
 as $$
 begin
+  if not is_jwt_journey_allowed(p_journey_id) then
+    raise exception 'journey % not permitted for this token', p_journey_id;
+  end if;
+
   update journeys set status = 'in_progress', started_at = now()
   where id = p_journey_id and status = 'scheduled';
   return found;
@@ -887,6 +933,10 @@ returns boolean
 language plpgsql security definer
 as $$
 begin
+  if not is_jwt_journey_allowed(p_journey_id) then
+    raise exception 'journey % not permitted for this token', p_journey_id;
+  end if;
+
   update journeys set status = 'completed', completed_at = now()
   where id = p_journey_id and status = 'in_progress';
   return found;
@@ -1568,7 +1618,16 @@ create table if not exists public.announce_devices (
   -- caller -- see migration_link_announce_device_caller_auth.sql. Not
   -- exposed beyond this table's own RLS policies (device_self lets a device
   -- read its own row, including this column).
-  pairing_secret uuid not null default gen_random_uuid()
+  pairing_secret uuid not null default gen_random_uuid(),
+
+  -- Per-device revocation for a leaked/compromised device token, without
+  -- rotating the shared JWT secret for the whole fleet -- see
+  -- docs/SECURITY_FIXES_2026-09-17.md Item 4(b) and
+  -- migration_announce_device_revocation.sql. Null (the default) means
+  -- "not revoked"; set directly via SQL, no admin UI yet (same precedent as
+  -- stops.announcement_name). Checked by is_jwt_device_allowed() and the
+  -- device_self policy below.
+  revoked_at timestamptz
 );
 
 create index if not exists announce_devices_company_id_idx on public.announce_devices (company_id);
@@ -1612,11 +1671,13 @@ create policy "company_all" on public.announce_devices
   with check (company_id = current_company_id());
 
 -- Announce device (anon): may read only its own row, scoped by the
--- device_id claim in its signed device token (see api/sign-announce-token.js).
--- Used by the Realtime postgres_changes subscription in linked mode.
+-- device_id claim in its signed device token (see api/sign-announce-token.js),
+-- and only while it hasn't been revoked (revoked_at is null) -- see
+-- docs/SECURITY_FIXES_2026-09-17.md Item 4(b). Used by the Realtime
+-- postgres_changes subscription in linked mode.
 create policy "device_self" on public.announce_devices
   for select to anon
-  using (id = (auth.jwt() ->> 'device_id')::uuid);
+  using (id = (auth.jwt() ->> 'device_id')::uuid and revoked_at is null);
 
 -- RLS alone doesn't make a table emit postgres_changes events -- Realtime
 -- only replicates changes for tables added to this publication. Without
@@ -1644,6 +1705,10 @@ create or replace function public.update_announce_device_state(
 language plpgsql security definer
 as $$
 begin
+  if not is_jwt_device_allowed(p_device_id) then
+    raise exception 'device % not permitted for this token', p_device_id;
+  end if;
+
   update public.announce_devices
   set latest_schedule  = coalesce(p_schedule, latest_schedule),
       latest_state     = coalesce(p_state, latest_state),
@@ -1670,6 +1735,10 @@ create or replace function public.end_announce_device_journey(
 language plpgsql security definer
 as $$
 begin
+  if not is_jwt_device_allowed(p_device_id) then
+    raise exception 'device % not permitted for this token', p_device_id;
+  end if;
+
   update public.announce_devices
   set latest_schedule  = null,
       latest_state     = null,
@@ -1763,6 +1832,10 @@ create or replace function public.unlink_announce_device(
 language plpgsql security definer
 as $$
 begin
+  if not is_jwt_device_allowed(p_device_id) then
+    raise exception 'device % not permitted for this token', p_device_id;
+  end if;
+
   update public.announce_devices
   set link_state   = 'unlinked',
       gps_source   = 'internal',
