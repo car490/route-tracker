@@ -125,6 +125,8 @@ mounting, cabling).
 | `staff.name` field | **Single field**, never split first/last (table renamed to `employees`) | `CLAUDE.md` Domain conventions |
 | Stop identifier column | **`atco_code`** (renamed from `naptan_code`) | `CLAUDE.md` Domain conventions |
 | `stops` company scoping | **Global, no `company_id`** | `CLAUDE.md` Domain conventions |
+| Anon-callable `security definer` RPC taking an id parameter | **Must verify ownership of that id inside the function body, from the caller's JWT claims — RLS alone doesn't gate an RPC call.** Fixed 2026-09-17 (`start_journey`/`complete_journey`/three `announce_devices` RPCs previously trusted the parameter outright); `is_jwt_journey_allowed()`/`is_jwt_device_allowed()` in `schema.sql` are the pattern to reuse for any new one. | `CLAUDE.md` "Supabase: table creation rules" |
+| Announce device token revocation | **Per-device `announce_devices.revoked_at`, set directly via SQL (no admin UI)** — added 2026-09-17 so one leaked/compromised device can be cut off without rotating the shared JWT secret for the whole fleet. The device token's 100-year `exp` itself is unchanged and intentional (Supabase Realtime requires a token to carry one). | `CLAUDE.md` "Supabase: table creation rules" |
 
 ## Git / release workflow
 
