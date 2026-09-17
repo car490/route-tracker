@@ -247,44 +247,49 @@ a previously-valid device token fail the `device_self` RLS check; a PWA test tha
 
 ---
 
-## Item 5 — MEDIUM: broad anon reads + unconstrained anon insert
+## Item 5 — MEDIUM → CORRECTED, no action needed: broad anon reads + anon insert
 
 **File:** `supabase/schema.sql`
 
-**Issue:** `companies`, `routes`, `timetables`, `timetable_departures`, `timetable_stops`,
-`stops`, and `schedule_view` are all anon-readable with `using (true)` / a blanket
-`grant select ... to anon` — deliberate, since the driver PWA has no login (see CLAUDE.md).
-Separately, `announcement_coverage_gap` accepts anon inserts with `with check (true)` — no
-constraint tying the inserted row to a real vehicle/device.
+**Issue as originally reported:** `companies`, `routes`, `timetables`,
+`timetable_departures`, `timetable_stops`, `stops`, and `schedule_view` are all
+anon-readable with `using (true)` / a blanket `grant select ... to anon` — deliberate,
+since the driver PWA has no login (see CLAUDE.md). Separately, `announcement_coverage_gap`
+accepts anon inserts with `with check (true)`, which the original report (and this doc's
+first draft) claimed had "no constraint tying the inserted row to a real vehicle/device" —
+i.e. that anon could insert rows with fabricated `vehicle_id`/`device_id` values.
 
-**Impact:** the broad reads are an accepted, documented tradeoff (no-login PWA) and are
-**not** being asked to change here — re-litigating that would contradict CLAUDE.md's
-"anon: read-only access to schedule data" design. The one concrete gap is the
-`announcement_coverage_gap` anon insert: any anon-key holder can flood that table with
-arbitrary rows (any `vehicle_id`/`device_id`, real or not), since nothing checks the ids
-exist or belong to anything.
+**Correction (verified 2026-09-17 against `supabase/schema.sql` and the live dev
+project):** that claim is wrong. `announcement_coverage_gap.journey_id`, `.vehicle_id`,
+`.device_id`, and `.driver_id` are all real foreign keys (`references
+public.journeys(id)`, `public.vehicles(id)`, `public.announce_devices(id)`,
+`public.employees(id)` respectively — confirmed both in `schema.sql` and via
+`pg_constraint` on the dev database). Postgres already rejects any insert referencing an
+id that doesn't exist, regardless of the RLS policy's `with check (true)` — the
+RLS-based existence check originally proposed here (`vehicle_id in (select id from
+vehicles)` etc.) would have been redundant with an FK constraint that already does the
+same job. **No RLS change is needed or was made.**
 
-**Fix:** narrow the anon insert policy to require the referenced id actually exists:
-```sql
-create policy "announcement_coverage_gap_anon_insert"
-  on public.announcement_coverage_gap
-  for insert
-  to anon
-  with check (
-    (vehicle_id is not null and vehicle_id in (select id from public.vehicles))
-    or
-    (device_id is not null and device_id in (select id from public.announce_devices))
-  );
-```
-This still allows any anon caller to log a gap (needed — that's the whole point of the
-table, an unauthenticated PWA reporting a missing clip), but stops it accepting rows for
-ids that don't exist, which is the cheap part of the abuse surface. Add a periodic cleanup
-job (or a `created_at` retention query in the existing ops tooling) if unbounded row growth
-from a misbehaving-but-real device becomes a problem — out of scope for this pass, just
-flagging it per the original report's suggestion.
+The broad anon reads remain an accepted, documented tradeoff (no-login PWA) and were never
+in scope to change — re-litigating that would contradict CLAUDE.md's "anon: read-only
+access to schedule data" design.
 
-**Tests to add first:** `supabase/tests/announcement_coverage_gap_rls.sql` — anon insert
-with a real `vehicle_id` succeeds; anon insert with a random UUID `vehicle_id` is rejected.
+**Genuine residual (not fixed here, deliberately out of scope):** the FK constraints stop
+*nonexistent* ids, but not *volume* — any holder of the public anon key can still insert
+unlimited rows referencing any real vehicle/device/journey id they know or guess (no rate
+limiting exists on this table, or anywhere else in this codebase, today). This is a
+low-severity nuisance/alert-fatigue concern (this table feeds an "ops-facing alert," so
+enough spam could bury real coverage-gap signals), not a data-exposure or authZ bypass.
+Building rate-limiting infrastructure for it is a materially bigger task than "harden an
+insert policy" with no existing precedent to follow in this codebase, and was declined as
+a follow-up for now (see conversation this doc originated from, 2026-09-17) — a periodic
+`created_at` retention query in the existing ops tooling remains the cheapest mitigation if
+row growth ever becomes a real operational problem.
+
+**No test changes needed** — the existing `supabase/tests/announcement_coverage_gap_rls.sql`
+already correctly documents/tests unrestricted anon insert as the *intended* design (its
+own test 1 comment: "no login session to scope by"); it never claimed to test
+nonexistent-id rejection, so nothing there was based on the incorrect premise either.
 
 ---
 
@@ -322,5 +327,17 @@ asserting a 403/404 rather than file contents.
 ## Suggested pick-up order
 
 Matches the original report's remediation order, since the risk ranking still holds after
-verification: **1 → 2 → 3 → 4 → 5 → 6**. Items 1-3 are the ones with a real, demonstrated
-exploit path today; 4-6 are hardening.
+verification, with one change: **1 → 2 → 3 → 4 → 6**. Items 1-3 are the ones with a real,
+demonstrated exploit path today; 4 and 6 are hardening. Item 5 is closed with no code
+change — see its corrected write-up above; the FK constraints it was worried about already
+existed.
+
+## Status (updated as items are implemented)
+
+- **Item 1** — done, applied. Verified via tests, no live DB change needed (Vercel API
+  routes only).
+- **Item 2** — done, applied to dev (`route-tracker-dev`). Not yet promoted to production.
+- **Item 3** — done, applied (no DB change, driver PWA + dashboard code only).
+- **Item 4** — done, applied to dev. Not yet promoted to production.
+- **Item 5** — closed, no code/schema change (see corrected write-up above).
+- **Item 6** — not yet started.
