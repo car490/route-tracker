@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.2.8] - 2026-09-17
+
+- fix(announce): comma-spacing in stop names, headline scrollbar/shrink bug, wrong panel diagonal
+- docs: correct stale busops/shared/ description, log security decisions
+- docs: track CI's Node.js 20 deprecation warning as tech debt
+
 ## [2.2.7] - 2026-09-17
 
 - fix(announce-solo): Announce Solo created, started and completed journeys on its own
