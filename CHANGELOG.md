@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.2.6] - 2026-09-17
+
+- chore: remove security review docs now that all items are resolved
+
 ## [2.2.5] - 2026-09-17
 
 Security hardening pass, from a focused review (`docs/SECURITY_REVIEW_2026-09-17.md`)
