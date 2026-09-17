@@ -1,3 +1,4 @@
+import { escapeHtml } from '../../shared/escapeHtml.js';
 import { startGpsTracking } from '../../shared/gps.js';
 import { shiftStopTimes, minutesFromNow } from '../../shared/scheduleTimeShift.js';
 import { updateUi, renderLog, setOnStopJump } from './ui.js';
@@ -886,7 +887,7 @@ async function initDutyCard(journeyIds) {
   renderDutyCard(duties, journeyIds);
 }
 
-function renderDutyCard(duties, journeyIds) {
+export function renderDutyCard(duties, journeyIds) {
   document.getElementById('duty-card').hidden = false;
   document.getElementById('picker').hidden    = true;
   document.getElementById('tracker').hidden   = true;
@@ -918,17 +919,17 @@ function renderDutyCard(duties, journeyIds) {
     }
 
     const notesHtml = j.notes
-      ? `<div class="dc-route-notes">${j.notes.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`
+      ? `<div class="dc-route-notes">${escapeHtml(j.notes)}</div>`
       : '';
 
     card.innerHTML = `
       <div class="dc-route-top">
-        <span class="dc-service-badge">${j.service_code}</span>
-        <span class="dc-route-label">${j.timetable_name} ${j.direction}</span>
+        <span class="dc-service-badge">${escapeHtml(j.service_code)}</span>
+        <span class="dc-route-label">${escapeHtml(j.timetable_name)} ${escapeHtml(j.direction)}</span>
       </div>
-      <div class="dc-route-stops">${firstStopName} &#8594; ${lastStopName}</div>
+      <div class="dc-route-stops">${escapeHtml(firstStopName)} &#8594; ${escapeHtml(lastStopName)}</div>
       <div class="dc-route-meta">
-        <span class="dc-vehicle">${j.vehicle_registration}</span>
+        <span class="dc-vehicle">${escapeHtml(j.vehicle_registration)}</span>
         <span class="dc-depart">Departs ${deptTime}</span>
       </div>
       ${notesHtml}
