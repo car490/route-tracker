@@ -5,7 +5,7 @@
  * so anything importing supabaseApi.js transitively needs a DOM global —
  * plain Node (this project's default test environment) doesn't have one.
  */
-import { fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyName, preloadAllRoutes } from '../driver/src/supabaseApi.js';
+import { fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyName, preloadAllRoutes, captureDutyLinkParams, sbFetch } from '../driver/src/supabaseApi.js';
 import { getCachedStops } from '../driver/src/localStore.js';
 
 // schedule_view is one row per stop, not per departure — a two-stop
@@ -27,9 +27,12 @@ describe('fetchAvailableServices', () => {
   // The cache fallback (src/localStore.js) writes to the real localStorage
   // this jsdom environment provides, which otherwise persists across every
   // test in this file — clear it so "no cache yet" tests below aren't
-  // seeing a previous test's successfully-cached result.
+  // seeing a previous test's successfully-cached result. sessionStorage is
+  // cleared too, for the same reason, now that captureDutyLinkParams below
+  // also writes to it within this same jsdom instance.
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
   });
 
   afterEach(() => {
@@ -93,6 +96,7 @@ describe('preloadAllRoutes', () => {
 
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
   });
 
   afterEach(() => {
@@ -191,5 +195,75 @@ describe('fetchCompanyName', () => {
   test('throws on a non-ok response rather than returning a stale/empty name silently', async () => {
     global.fetch = jest.fn(async () => ({ ok: false, status: 500 }));
     await expect(fetchCompanyName()).rejects.toThrow(/500/);
+  });
+});
+
+// See docs/SECURITY_FIXES_2026-09-17.md Item 4(a): the duty-card bearer
+// token used to live in the URL query string for the whole session, re-read
+// from window.location.search on every request. captureDutyLinkParams()
+// moves it into sessionStorage (per-tab, cleared on tab close — unlike
+// announceLink.js's localStorage-backed captureAnnounceSetup, which is
+// deliberately durable across sessions for a commissioned device) and
+// strips it from the visible URL.
+describe('captureDutyLinkParams', () => {
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  test('captures token and duties into sessionStorage and returns the duties value', () => {
+    window.history.pushState(null, '', '/?token=abc123&duties=j1,j2');
+    const result = captureDutyLinkParams();
+    expect(sessionStorage.getItem('dutyLinkToken')).toBe('abc123');
+    expect(sessionStorage.getItem('dutyLinkIds')).toBe('j1,j2');
+    expect(result).toBe('j1,j2');
+  });
+
+  test('strips token and duties from the visible URL after capture', () => {
+    window.history.pushState(null, '', '/?token=abc123&duties=j1,j2');
+    captureDutyLinkParams();
+    expect(window.location.search).not.toContain('token=');
+    expect(window.location.search).not.toContain('duties=');
+  });
+
+  test('leaves an unrelated query param in place, only stripping token/duties', () => {
+    window.history.pushState(null, '', '/?debug=1&token=abc&duties=j1');
+    captureDutyLinkParams();
+    expect(window.location.search).toContain('debug=1');
+    expect(window.location.search).not.toContain('token=');
+    expect(window.location.search).not.toContain('duties=');
+  });
+
+  test('a later call with no token/duties in the URL (e.g. a same-tab reload after stripping) still returns the previously-captured duties', () => {
+    window.history.pushState(null, '', '/?token=abc123&duties=j1,j2');
+    captureDutyLinkParams();
+
+    // Simulate the reload: URL no longer carries token/duties (already
+    // stripped), sessionStorage from the first call above is left intact
+    // (no sessionStorage.clear() between these two calls, deliberately).
+    window.history.pushState(null, '', '/');
+    const result = captureDutyLinkParams();
+    expect(result).toBe('j1,j2');
+  });
+
+  test('sbFetch sends the sessionStorage-backed token even once the URL no longer carries it', async () => {
+    window.history.pushState(null, '', '/?token=captured-token&duties=j1');
+    captureDutyLinkParams();
+
+    // URL changes again with no token — a real same-tab reload, or simply
+    // main.js's own history.replaceState call, would look like this.
+    window.history.pushState(null, '', '/');
+
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => [] }));
+    await sbFetch('/rest/v1/some_table');
+
+    const [, opts] = global.fetch.mock.calls[0];
+    expect(opts.headers.Authorization).toContain('captured-token');
   });
 });

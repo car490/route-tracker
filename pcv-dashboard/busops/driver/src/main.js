@@ -10,7 +10,7 @@ import {
   isMuted, setMuted, isBannerShown, setBannerShown,
   listVoices, getSelectedVoiceURI, setSelectedVoiceURI, previewVoice,
 } from './announcements.js';
-import { sbFetch, rpc, fetchStopsForDeparture, fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyName, preloadAllRoutes, fetchActiveManualJourney } from './supabaseApi.js';
+import { sbFetch, rpc, fetchStopsForDeparture, fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyName, preloadAllRoutes, fetchActiveManualJourney, captureDutyLinkParams } from './supabaseApi.js';
 import { resolveBootAction, BOOT_ACTION } from './activeJourneyRecovery.js';
 import { announceApproachEvent, announceStopEvent } from './announceStopEvent.js';
 import { triggerDiversionAlert, clearDiversionAlert } from './diversionAlert.js';
@@ -1306,6 +1306,16 @@ function initManualSelection() {
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 async function init() {
+  // One-time capture of the duty-card bearer token (`?token=`) and journey
+  // ids (`?duties=`) out of the URL into sessionStorage, then strips both
+  // from the visible URL — see supabaseApi.js's captureDutyLinkParams() for
+  // why. MUST run before anything below that can trigger a network call
+  // (flushPendingTrips/flushPendingJourneyStarts/preloadAllRoutes all go
+  // through sbFetch()'s driverToken(), which needs the token already
+  // captured) — this is why it's the very first statement in init(), not
+  // inlined further down where the old `dutiesParam` read used to live.
+  const dutiesParam = captureDutyLinkParams();
+
   // Retries any trip(s) that failed to reach Supabase at completion time on
   // a previous visit (src/localStore.js's queue) — covers the app being
   // reopened after sitting offline overnight. Also re-attempted on every
@@ -1353,7 +1363,6 @@ async function init() {
   // announceLink.js) — harmless no-op on every visit that isn't it.
   captureAnnounceSetup(new URLSearchParams(window.location.search));
 
-  const dutiesParam = new URLSearchParams(window.location.search).get('duties');
   const storedVehicle = getStoredVehicle();
 
   // Manual-selection/cab-device active-journey recovery — see
