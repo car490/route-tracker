@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.2.7] - 2026-09-17
+
+- fix(announce-solo): Announce Solo created, started and completed journeys on its own
+  but never wrote a single row to `journey_stop_times` — every Solo-tracked journey was
+  invisible to PSVAIR arrival/lateness compliance reporting, unlike Driver-tracked ones.
+  Extracted the row-building logic into `shared/journeyStopTimes.js` so Driver and Solo
+  share one implementation, and wired Solo's journey completion to upload via the same
+  idempotent upsert pattern the Driver PWA already uses.
+- docs(announce): noted a follow-up in `docs/ANNOUNCE-PRODUCT-TIERS.md` — an unlinked
+  Solo device and a separate Driver device tracking the same scheduled departure will
+  race on writing the same stops' arrival times; whichever uploads first silently wins.
+  Accepted as-is for the first install (Solo + separate unlinked Driver); a real fix
+  (Solo skips its own upload when a Driver is known to be present) is scoped but not
+  built yet.
+
 ## [2.2.6] - 2026-09-17
 
 - chore: remove security review docs now that all items are resolved
