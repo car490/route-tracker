@@ -16,7 +16,7 @@ const MIME = {
   '.mp3':  'audio/mpeg',
 };
 
-http.createServer((req, res) => {
+function handleRequest(req, res) {
   const [reqPath, queryString] = req.url.split('?');
 
   // A same-URL rewrite (serving driver/index.html's bytes while the browser
@@ -32,8 +32,24 @@ http.createServer((req, res) => {
     return;
   }
 
-  const urlPath = reqPath.endsWith('/') ? `${reqPath}index.html` : reqPath;
+  let decodedPath;
+  try {
+    decodedPath = decodeURIComponent(reqPath);
+  } catch (_) {
+    res.writeHead(400); res.end('Bad request'); return;
+  }
+
+  const urlPath = decodedPath.endsWith('/') ? `${decodedPath}index.html` : decodedPath;
   const filePath = path.join(__dirname, urlPath);
+
+  // Guard against path traversal escaping this directory. The `+ path.sep`
+  // matters: a plain `filePath.startsWith(root)` would also wrongly allow
+  // escaping into a sibling directory whose name happens to start with the
+  // root's own name (e.g. root /app vs /app-secret).
+  const root = path.resolve(__dirname);
+  if (!path.resolve(filePath).startsWith(root + path.sep)) {
+    res.writeHead(403); res.end('Forbidden'); return;
+  }
 
   fs.readFile(filePath, (err, data) => {
     if (err) { res.writeHead(404); res.end('Not found'); return; }
@@ -41,7 +57,12 @@ http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': mime });
     res.end(data);
   });
+}
 
-}).listen(PORT, () =>
-  console.log(`Route Tracker running → http://localhost:${PORT}/`)
-);
+if (require.main === module) {
+  http.createServer(handleRequest).listen(PORT, () =>
+    console.log(`Route Tracker running → http://localhost:${PORT}/`)
+  );
+}
+
+module.exports = { handleRequest };
