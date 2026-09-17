@@ -131,8 +131,21 @@ export function resolveAnnouncementText(stateKey, vars) {
 // stripIndicator()'s existing per-file convention elsewhere in this codebase
 // (main.js, announceSoloAutopilot.js), just centralised for this one
 // shared entry point.
+//
+// Also normalises comma spacing — found live 2026-09-17: every
+// stops.announcement_name override (198 rows across dev+prod) is stored as
+// "Locality,Description" with no space, a deliberate convention for
+// onboard.js's renderHeadlineText(), which splits on that exact comma and
+// .trim()s each half, so the missing space never mattered there. But
+// resolveAnnouncementText() below interpolates a raw stopName/destination
+// straight into a flowing sentence (ROUTE_START's "This is a X to Y.") with
+// no split — that rendered as a squished "Boston,College" both on-screen
+// and (untested, out of scope for this fix) however the Azure clip
+// generator ends up reading the same column. Inserting the space here fixes
+// every consumer of this value at once; the 3-line split above is
+// unaffected since it already .trim()s regardless of spacing.
 function stripIndicator(name) {
-  return name.replace(/\s*\([^)]*\)\s*$/, '');
+  return name.replace(/\s*\([^)]*\)\s*$/, '').replace(/,(?=\S)/g, ', ');
 }
 
 // Resolves gps.js's approaching/atStop signals (see shared/gps.js) into one

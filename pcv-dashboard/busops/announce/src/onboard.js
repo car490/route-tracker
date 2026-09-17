@@ -45,15 +45,20 @@ import { ANNOUNCE_STATES, resolveAnnouncementText } from '../../shared/announceS
 // once at commissioning time. Bar is the original ultra-wide
 // destination-board plan (not yet built, kept for later); monitor is the
 // Dell Pro P2426H, the confirmed demo/validation unit in use today
-// (mele-server/DEPLOY.md §5); lite is the Announce Lite/Solo tablet
-// candidate, DOOGEE Tab E3 Max, 14.6", 2160x1440 — 3:2, not 16:9, a deliberate
-// compromise (see docs/HARDWARE.md §14) — the layout itself doesn't care
-// about aspect ratio (no wide/narrow branching any more, see the file
-// header), only this diagonal figure for --min-text sizing.
+// (mele-server/DEPLOY.md §5); lite is the Announce Lite/Solo tablet — a
+// LEVIRTU 14" Android tablet (OEM identity: PIXGOOD M328-EEA), 1200x1920
+// native panel — 3:2-ish, not 16:9, a deliberate compromise (see
+// docs/HARDWARE.md §14) — the layout itself doesn't care about aspect
+// ratio (no wide/narrow branching any more, see the file header), only
+// this diagonal figure for --min-text sizing. Corrected 2026-09-17 from
+// 14.6" — that figure was the DOOGEE Tab E3 Max, an earlier hardware
+// candidate never actually purchased (superseded per project memory,
+// 2026-09-01); the ~4% diagonal error was quietly undersizing Line 2/3
+// below the real 22mm PSVAIR target on the actual device.
 const PANEL_PROFILES = {
   bar:     { diagonalInches: 28 },
   monitor: { diagonalInches: 23.8 },
-  lite:    { diagonalInches: 14.6 },
+  lite:    { diagonalInches: 14 },
 };
 const panelProfile = PANEL_PROFILES[new URLSearchParams(window.location.search).get('panel-profile')] ?? null;
 
@@ -93,6 +98,34 @@ function applyPanelSizing() {
   const diagonalInches = explicitDiagonal || panelProfile?.diagonalInches;
   const minTextVh = computeMinTextVh(diagonalInches, window.innerWidth, window.innerHeight);
   if (minTextVh) document.documentElement.style.setProperty('--min-text', `${minTextVh}vh`);
+}
+
+// TEMPORARY — 2026-09-17 sizing investigation. ?debug-size=1 overlays the
+// same window-size/--min-text/rendered-font-px numbers this session's
+// laptop demo relied on (getComputedStyle can't be eyeballed on a live
+// device otherwise), so the real Solo tablet's actual numbers can be read
+// directly off its own screen without chrome://inspect / WebView
+// debugging having to be enabled. Remove this whole function and its one
+// call site in init() once the real-device sizing question is settled —
+// not meant to ship long-term.
+function applyDebugSizeOverlay() {
+  if (new URLSearchParams(window.location.search).get('debug-size') !== '1') return;
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;top:0;left:0;z-index:99999;background:#000;color:#0f0;'
+    + 'font:12px/1.4 monospace;padding:6px 10px;white-space:pre;pointer-events:none;';
+  document.body.appendChild(box);
+  setInterval(() => {
+    const root = getComputedStyle(document.documentElement);
+    const town = document.querySelector('.hl-town');
+    const verb = document.querySelector('.hl-verb');
+    box.textContent = [
+      `window: ${window.innerWidth}x${window.innerHeight}`,
+      `--min-text: ${root.getPropertyValue('--min-text')}`,
+      `--header-text: ${root.getPropertyValue('--header-text')}`,
+      `.hl-town font-size: ${town ? getComputedStyle(town).fontSize : '(not shown)'}`,
+      `.hl-verb font-size: ${verb ? getComputedStyle(verb).fontSize : '(not shown)'}`,
+    ].join('\n');
+  }, 1000);
 }
 
 // ── Wake lock — keep the mounted screen on ─────────────────────────────────
@@ -716,6 +749,7 @@ function connectSignFeed() {
 
 function init() {
   applyPanelSizing();
+  applyDebugSizeOverlay();
   initIdleScreen();
 
   // Mutually exclusive per device: ?announce-device-token= (Lite/Solo,

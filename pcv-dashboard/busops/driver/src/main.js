@@ -53,9 +53,17 @@ let activeTrackerId = 0;
 // NaPTAN indicator suffixes like "(adj)"/"(opp)" give the precise pole/bay/
 // side of the road — useful in the stop list and on the map where the driver
 // is actually locating a stop, but just clutter in the route-header summary
-// line. Stripped there only; every other use of a stop's name keeps it.
+// line and in the Announce destination text this feeds (see its other call
+// sites below).
+//
+// Also inserts a space after a bare comma — every stops.announcement_name
+// override is stored "Locality,Description" with no space (fine for
+// onboard.js's renderHeadlineText(), which splits+trims on that comma, but
+// rendered squished — "Boston,College" — wherever this value is used
+// directly in a flowing sentence instead, e.g. destination below). See
+// shared/announceStates.js's own copy of this function for the full writeup.
 function stripIndicator(name) {
-  return name.replace(/\s*\([^)]*\)\s*$/, '');
+  return name.replace(/\s*\([^)]*\)\s*$/, '').replace(/,(?=\S)/g, ', ');
 }
 
 // ── Stop time upload ──────────────────────────────────────────────────────────
