@@ -94,11 +94,16 @@ function thenableOnly(value) {
 }
 
 function makeClient() {
+  // journeyStopTimesUpsert is a stable spy across every client.from('journey_stop_times')
+  // call on this client instance, exposed on the returned object so tests
+  // can assert on it directly without reaching into client.from.mock.results.
+  const journeyStopTimesUpsert = vi.fn(() => thenableOnly({ data: null, error: null }));
   return {
     from: vi.fn((table) => {
       if (table === 'schedule_view') return chainable(SCHEDULE_ROWS);
       if (table === 'service_exceptions') return chainable([]);
       if (table === 'term_dates') return chainable([]);
+      if (table === 'journey_stop_times') return { upsert: journeyStopTimesUpsert };
       throw new Error(`unexpected table in test stub: ${table}`);
     }),
     rpc: vi.fn((name) => {
@@ -107,6 +112,7 @@ function makeClient() {
       }
       return thenableOnly({ data: null, error: null });
     }),
+    journeyStopTimesUpsert,
   };
 }
 
@@ -188,6 +194,50 @@ describe('startSoloAutopilot', () => {
 
     expect(onJourneyEnd).toHaveBeenCalledTimes(1); // the fix under test: previously never called for Solo
     expect(onIdleNextDeparture).toHaveBeenCalled(); // still reports the next departure afterwards
+  });
+
+  it('writes journey_stop_times on completion -- previously Solo never wrote this table at all, so a Solo-tracked journey had no arrival/lateness record for ops to review', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0));
+    const getCurrentPosition = vi.fn((success) => success({ coords: { latitude: DEPOT.lat, longitude: DEPOT.lon } }));
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } });
+    vi.stubGlobal('crypto', { randomUUID: () => 'client-generated-id' });
+
+    let onUpdate;
+    startAnnounceGpsTracking.mockImplementation((opts) => {
+      onUpdate = opts.onUpdate;
+      return { stop: vi.fn(), jumpToStop: vi.fn() };
+    });
+
+    const client = makeClient();
+    startSoloAutopilot(client, BASE_DEVICE_ROW, {
+      onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture: vi.fn(), onJourneyEnd: vi.fn(),
+    });
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000);
+    await flush();
+
+    const arrivedAt = new Date(2026, 7, 24, 8, 31, 0);
+    // Final-stop arrival with real per-stop state this time (the other
+    // completion test above uses stopStates: [] since it only cares about
+    // onJourneyEnd timing) -- this is what completeActiveJourney reads to
+    // build the upload.
+    onUpdate({
+      atStop: { stopIndex: 1 },
+      approaching: null,
+      stopStates: [
+        { status: 'departed', arrivedAt: new Date(2026, 7, 24, 8, 0, 30) },
+        { status: 'arrived', arrivedAt },
+      ],
+    });
+    await flush();
+
+    expect(client.journeyStopTimesUpsert).toHaveBeenCalledTimes(1);
+    const [rows, options] = client.journeyStopTimesUpsert.mock.calls[0];
+    expect(rows).toEqual([
+      { journey_id: 'jrn-1', timetable_stop_id: 'ts-1', arrived_at: new Date(2026, 7, 24, 8, 0, 30).toISOString(), visit_status: 'visited' },
+      { journey_id: 'jrn-1', timetable_stop_id: 'ts-2', arrived_at: arrivedAt.toISOString(), visit_status: 'visited' },
+    ]);
+    expect(options).toEqual({ onConflict: 'journey_id,timetable_stop_id', ignoreDuplicates: true });
   });
 
   it('confirms the vehicle at stop 0 immediately on match, so tracking never freezes waiting for the tighter 50m street-stop geofence', async () => {

@@ -42,6 +42,7 @@ import {
   describeConfigUpdate,
 } from './scheduleAutopilot.js';
 import { shiftStopTimes } from '../../shared/scheduleTimeShift.js';
+import { buildStopTimeRows } from '../../shared/journeyStopTimes.js';
 import {
   ANNOUNCE_STATES, DEVIATION_STOP_STATUS, resolveApproachOrArrivalState,
 } from '../../shared/announceStates.js';
@@ -174,7 +175,14 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
   let deviceRow = initialDeviceRow;
   let candidates = [];
   let termDateRanges = [];
-  let activeJourney = null; // { journeyId, startedAt, tracker }
+  let activeJourney = null; // { journeyId, startedAt, tracker, allStops }
+  // Latest per-stop tracker state for the active journey only -- read once,
+  // at completion, to build journey_stop_times rows (see completeActiveJourney).
+  // Previously nothing captured this at all: Solo created, started and
+  // completed journeys on its own but never wrote a single arrival/lateness
+  // record, so every Solo-tracked journey was invisible to the same PSVAIR
+  // compliance reporting the Driver PWA's equivalent journeys feed.
+  let latestStopStates = [];
   // Starts undetermined (not false!) — applyWakeState()'s transition check
   // is `awake === isAwake`, and false is a real, reachable outcome (asleep
   // outside any window), so starting there would make the very first
@@ -260,8 +268,22 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
 
   function completeActiveJourney() {
     if (!activeJourney) return;
-    const { journeyId, tracker } = activeJourney;
+    const { journeyId, tracker, allStops } = activeJourney;
     tracker.stop();
+    // Same table/shape/idempotency the Driver PWA's completeTrip() already
+    // uses (see shared/journeyStopTimes.js) -- upsert with ignoreDuplicates
+    // is the supabase-js equivalent of that call's Prefer:
+    // resolution=ignore-duplicates, safe against journey_stop_times'
+    // (journey_id, timetable_stop_id) unique index if this ever fires twice.
+    // Unlike the Driver PWA, there's no offline retry queue for this yet --
+    // a failed upload here is only logged, not queued -- Solo has no
+    // equivalent of localStore.js's enqueuePendingTrip today.
+    const stopRows = buildStopTimeRows(journeyId, latestStopStates, allStops);
+    if (stopRows.length) {
+      Promise.resolve(
+        client.from('journey_stop_times').upsert(stopRows, { onConflict: 'journey_id,timetable_stop_id', ignoreDuplicates: true })
+      ).catch((err) => console.error('announceSoloAutopilot: journey_stop_times upload failed', err));
+    }
     // Promise.resolve(...) adopts the vendored supabase-js query builder into
     // a real native Promise before calling .catch() -- the builder itself is
     // thenable (awaiting it elsewhere in this file works fine) but is not an
@@ -385,9 +407,11 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     let lastState = { stateKey: ANNOUNCE_STATES.ROUTE_START, vars: routeStartVars };
 
     const startedAt = new Date();
+    latestStopStates = []; // fresh per journey -- see completeActiveJourney's use of this
     const tracker = startAnnounceGpsTracking({
       schedule: details.allStops,
       onUpdate: (state) => {
+        latestStopStates = state.stopStates ?? latestStopStates;
         const isFinal = !!(state.atStop && state.atStop.stopIndex === details.allStops.length - 1);
 
         // Auto-detected diversion (PSVAIR Regulation 10) — the only trigger
@@ -477,7 +501,7 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     // live 2026-09-04: this is why a whole multi-hour Solo journey produced
     // no announcements past the initial ROUTE_START.
     tracker.jumpToStop(0);
-    activeJourney = { journeyId: resolvedId, startedAt, tracker };
+    activeJourney = { journeyId: resolvedId, startedAt, tracker, allStops: details.allStops };
   }
 
   refreshCandidates();

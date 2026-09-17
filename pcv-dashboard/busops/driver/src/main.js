@@ -1,5 +1,6 @@
 import { escapeHtml } from '../../shared/escapeHtml.js';
 import { startGpsTracking } from '../../shared/gps.js';
+import { buildStopTimeRows } from '../../shared/journeyStopTimes.js';
 import { shiftStopTimes, minutesFromNow } from '../../shared/scheduleTimeShift.js';
 import { updateUi, renderLog, setOnStopJump } from './ui.js';
 import { initMap, updateMapPosition, invalidateSize } from './map.js';
@@ -58,24 +59,6 @@ function stripIndicator(name) {
 }
 
 // ── Stop time upload ──────────────────────────────────────────────────────────
-
-const UPLOADABLE_STOP_STATUSES = new Set(['arrived', 'departed', 'skipped_signal', 'skipped_detour']);
-
-function buildStopTimeRows(jId, stopStates, stops) {
-  const rows = [];
-  for (let i = 0; i < stops.length; i++) {
-    const stop = stops[i];
-    const s = stopStates[i];
-    if (!stop.timetable_stop_id || !s || !UPLOADABLE_STOP_STATUSES.has(s.status)) continue;
-    rows.push({
-      journey_id: jId,
-      timetable_stop_id: stop.timetable_stop_id,
-      arrived_at: s.arrivedAt ? s.arrivedAt.toISOString() : null,
-      visit_status: s.status === 'skipped_signal' || s.status === 'skipped_detour' ? s.status : 'visited',
-    });
-  }
-  return rows;
-}
 
 // resolution=ignore-duplicates makes this safe to call more than once for
 // the same rows: journey_stop_times has a unique index on
