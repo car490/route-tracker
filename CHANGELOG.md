@@ -5,6 +5,130 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.2.6] - 2026-09-17
+
+- chore: remove security review docs now that all items are resolved
+
+## [2.2.5] - 2026-09-17
+
+Security hardening pass, from a focused review (`docs/SECURITY_REVIEW_2026-09-17.md`)
+verified item-by-item against the real source before each fix
+(`docs/SECURITY_FIXES_2026-09-17.md`).
+
+- fix(api): `sign-token`, `sign-announce-token`, and `send-duty-email` (the Vercel API
+  routes) only checked that an `Authorization` header was present, never that it was a
+  real Supabase session — any caller could mint a duty/device JWT for journeys/devices
+  they don't own, or send email via the project's Resend account to an arbitrary address.
+  Added a shared `authenticate()` helper plus RLS-scoped ownership checks; also fixed an
+  HTML-injection bug found in `send-duty-email`'s email body along the way.
+- fix(db): `start_journey`, `complete_journey`, and the three `announce_devices` RPCs were
+  `SECURITY DEFINER`, anon-callable, and trusted their id parameter with no ownership
+  check. Added `is_jwt_device_allowed()` alongside the existing `is_jwt_journey_allowed()`.
+- fix(xss): stop/route/driver/vehicle names and incident free-text were interpolated into
+  `innerHTML`/`document.write` with no escaping in the driver PWA and the dashboard's
+  printable journey report — a stored-XSS path via any of those DB-sourced fields. Added a
+  shared `escapeHtml()` used at every affected call site.
+- fix(auth): the driver duty-card token lived in the URL for the whole session with
+  nothing ever stripping it; the Announce device token (100-year expiry, required by
+  Supabase Realtime) had no revocation path short of rotating the shared secret for every
+  device at once. Moved the duty token into `sessionStorage` with the URL stripped after
+  capture, and added a per-device `revoked_at` column/check.
+- fix(dev-server): the local-only driver PWA dev server had no path-traversal guard.
+  Added one, plus URL-decoding so it also catches encoded traversal attempts.
+- The report's claim about `announcement_coverage_gap`'s anon insert (Item 5) turned out
+  to be based on a stale premise — the referenced columns are already real foreign keys,
+  so Postgres already rejects nonexistent ids. Corrected the write-up, no code change.
+
+## [2.2.4] - 2026-09-16
+
+- fix(announce): revert logo wordmark to its original size
+
+## [2.2.3] - 2026-09-16
+
+- fix(announce): decouple top bar/Line 1/logo sizing from the 22mm floor
+
+## [2.2.2] - 2026-09-16
+
+Two fixes from a real on-vehicle test of Driver PWA + Announce Solo (Donington Cowley Academy
+route).
+
+- fix(geofence): detect arrival at a close/looped next stop while still dwelling — departure was
+  previously judged only by distance from the *current* stop, so on a loop where two stops sit
+  close together the vehicle could pass the next stop without it ever being detected. Adds a
+  two-fix-confirmed lookahead check.
+- fix(announcement-audio) — `announcement_clips` was empty on both dev and production despite the
+  pipeline being "live": the enqueue triggers only cover new/edited stops and routes, and every
+  stop/route predates them. Backfilled all pre-existing data on both environments (427 clips on
+  dev, 362 on production) — no code change needed, the trigger mechanism itself is correct going
+  forward. See `docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md`'s "Eighth real bug" entry.
+
+## [2.2.1] - 2026-09-16
+
+- fix(announce-audio): corrected v2.2.0's plan to fully remove the bundled clip fallback —
+  `driver/audio/announcements/` isn't a browser transition artifact, it's the Bus Controller's
+  only audio source (no live-fetch path to Storage by design). Removed only the *browser-side*
+  fallback code (`shared/announcementAudio.js`, `service-worker.js`); the committed clips and
+  `scripts/generate-announcement-audio.mjs` stay, permanently, for the Controller.
+- fix(announce): `mele-server/audioPlayer.mjs`'s `DEFAULT_AUDIO_DIR` resolved one directory level
+  too shallow — every announcement on the real Controller had been silently skipped since it was
+  first commissioned. No test caught it; added one that asserts the real default resolves to an
+  existing directory.
+
+## [2.2.0] - 2026-09-16
+
+**PSVAIR announcement audio: server-side pipeline, no more live speech synthesis**
+(`docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md`)
+
+- feat(supabase): announcement clip pipeline — `stops`/`routes` triggers enqueue jobs, a capped
+  cron drains them through a new `generate-announcement-clip` Edge Function into a public Storage
+  bucket + `announcement_clips` table, replacing the old manual "run a script, commit clips"
+  workflow. Live on dev and production.
+- feat(announce-audio): Driver and Announce Solo now read clips from that live pipeline
+  (`shared/announcementAudio.js`), with the service worker precaching every row from
+  `announcement_clips` at install time. Live on dev; production still on the prior bundled-clips
+  path pending its own rollout.
+- feat(announce-audio): eliminated the live `speechSynthesis` fallback entirely — a stop with no
+  confirmed clip now plays no audio and raises a queryable `announcement_coverage_gap` ops alert
+  instead, with a non-blocking driver-facing warning at journey start. Live on dev.
+- fix(supabase): require `pairing_secret` to authorize `link_announce_device` (closed a live
+  cross-tenant exposure — anyone with the anon key could link any device to any vehicle sharing a
+  company); `pg_net` body param needed `jsonb`, not a `::text` cast (was silently failing the
+  drain cron every run); Edge Function caller auth needed a dedicated `CALLER_AUTH_TOKEN` secret.
+- fix(busops): two bugs found only by a genuine real-device install pass — the service worker
+  failed to register entirely (`config.js` read `window` in a scope that only has `self`), and
+  `manifest.json`'s icon paths still pointed at a folder removed in the 2026-08-21 restructure.
+- docs: `CLAUDE.md`, `docs/DECISIONS.md`, and `docs/TODO.md` updated to describe the shipped
+  pipeline in place of the old manual workflow.
+
+**Announce Solo / Lite — onboard sign polish and reliability**
+
+- feat(announce): Announce Solo gets the same pre-rendered clip audio as Driver/Lite; approved
+  off-white/black colour scheme; three-line headline layout with an amber early-wait box; topbar
+  marquee for overflowing route/destination and headline text (several follow-up fixes to its
+  entry direction, loop/rest behaviour, and cloned-segment styling).
+- fix(announce): stop Solo stalling on driver pokes, frozen tracking, and a lit-forever idle
+  screen; auto-dismiss the lock screen on boot; ignore a stale pushed schedule/state on Lite
+  devices; restore the BusOps corner mark on idle branding load; wrap the
+  `report_device_heartbeat` RPC to avoid an uncaught throw.
+- fix(announce): idle screen shows next departure per service instead of one merged time, moved
+  into the topbar; gate tracking/announcements/sign reveal on real stop arrival, not just a timer.
+- feat: real-tablet AV review tooling for S116S/S125S (`scripts/review-announce-solo.mjs`),
+  resolving `adb` from known install paths instead of relying on `PATH`.
+
+**Other**
+
+- feat(route-planner): `school_term_time` flag for schoolday-only departures.
+- fix(scripts): paginate the `schedule_view` fetch in `generate-schedule.mjs` (was silently
+  truncating past 1000 rows).
+- docs: rewrote `README.md` for the current three-surface architecture; expanded the induction
+  hearing loop compliance gap note; added a lightweight PR template.
+- chore: removed stale/orphaned root files and empty pre-restructure directory shells.
+- fix(announce): simplify topbar marquee to a single-copy exit-and-restart loop
+- fix(announce): fix cloned-segment styling, bound the marquee to 2 loops + rest
+- fix(announce): make the topbar marquee loop continuously, not pause-and-snap
+- feat(announce): scroll the topbar route/destination line when it overflows
+- fix(driver): gate tracking, announcements, and sign reveal on real stop arrival
+
 ## [2.1.0] - 2026-09-03
 
 - chore: complete changelog for v2.0.0, add production PWA deploy job
