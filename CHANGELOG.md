@@ -5,6 +5,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.2.5] - 2026-09-17
+
+Security hardening pass, from a focused review (`docs/SECURITY_REVIEW_2026-09-17.md`)
+verified item-by-item against the real source before each fix
+(`docs/SECURITY_FIXES_2026-09-17.md`).
+
+- fix(api): `sign-token`, `sign-announce-token`, and `send-duty-email` (the Vercel API
+  routes) only checked that an `Authorization` header was present, never that it was a
+  real Supabase session — any caller could mint a duty/device JWT for journeys/devices
+  they don't own, or send email via the project's Resend account to an arbitrary address.
+  Added a shared `authenticate()` helper plus RLS-scoped ownership checks; also fixed an
+  HTML-injection bug found in `send-duty-email`'s email body along the way.
+- fix(db): `start_journey`, `complete_journey`, and the three `announce_devices` RPCs were
+  `SECURITY DEFINER`, anon-callable, and trusted their id parameter with no ownership
+  check. Added `is_jwt_device_allowed()` alongside the existing `is_jwt_journey_allowed()`.
+- fix(xss): stop/route/driver/vehicle names and incident free-text were interpolated into
+  `innerHTML`/`document.write` with no escaping in the driver PWA and the dashboard's
+  printable journey report — a stored-XSS path via any of those DB-sourced fields. Added a
+  shared `escapeHtml()` used at every affected call site.
+- fix(auth): the driver duty-card token lived in the URL for the whole session with
+  nothing ever stripping it; the Announce device token (100-year expiry, required by
+  Supabase Realtime) had no revocation path short of rotating the shared secret for every
+  device at once. Moved the duty token into `sessionStorage` with the URL stripped after
+  capture, and added a per-device `revoked_at` column/check.
+- fix(dev-server): the local-only driver PWA dev server had no path-traversal guard.
+  Added one, plus URL-decoding so it also catches encoded traversal attempts.
+- The report's claim about `announcement_coverage_gap`'s anon insert (Item 5) turned out
+  to be based on a stale premise — the referenced columns are already real foreign keys,
+  so Postgres already rejects nonexistent ids. Corrected the write-up, no code change.
+
 ## [2.2.4] - 2026-09-16
 
 - fix(announce): revert logo wordmark to its original size
