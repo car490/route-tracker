@@ -493,7 +493,7 @@ Sourced from PSV(AI)R Appendix A and the fleet-wiring finding:
   sizing"). A named panel profile that carries its **measured lit height**
   (`litHeightMm` — the Solo tablet: 289 × 180 mm) is sized physically by
   `announce/src/panelSizing.js`: `onboard.js` measures the loaded font's
-  x-height and sets `--min-text` so Lines 2/3 are exactly 22 mm. A panel with
+  x-height and sets `--min-text` so Lines 2/3 are 22.1 mm (the 22 mm rule plus a 0.1 mm margin: sized to exactly 22.0 mm by canvas, the real tablet's shortest drawn letter measured 21.92 mm on 2026-09-19). A panel with
   no measured height (Bar) still uses the older diagonal-based
   `computeMinTextVh()` (`?panel-diagonal=<inches>`, see
   `mele-server/DEPLOY.md` "Panel physical size"), which sizes the *font* to
@@ -862,7 +862,7 @@ original proposal rather than assumed either way.
   (`(22 / panelHeightMm) * 100`) sized the *font* to 22mm from a nominal
   diagonal, which is only about 11mm of lowercase x-height — half of the owner's
   strict reading. Since 2026-09-19 a panel with a measured lit height (the Solo
-  tablet) is sized so Lines 2/3 are exactly 22mm x-height
+  tablet) is sized so Lines 2/3 are 22.1mm x-height (22mm rule + 0.1mm margin)
   (`announce/src/panelSizing.js`, `docs/DECISIONS.md` "Announce sign text
   sizing"). A smaller screen still just spends more of its own vertical space
   on mandatory-size text, leaving less room for stop content before scrolling

@@ -21,6 +21,9 @@ import {
   DEFAULT_X_HEIGHT_RATIO,
   computeMinTextVh,
   computeMinTextVhFromLitHeight,
+  LINE_2_3_RULE_MM,
+  LINE_2_3_MARGIN_MM,
+  LINE_2_3_TARGET_MM,
   computeHeaderTextVh,
   computeSentenceTextVh,
   computeBrandTextVh,
@@ -56,13 +59,34 @@ describe('computeMinTextVh (legacy diagonal maths, moved unchanged)', () => {
 });
 
 describe('computeMinTextVhFromLitHeight', () => {
-  it('22 mm x-height on a 180 mm lit height with ratio 0.52 needs 23.504vh', () => {
-    expect(computeMinTextVhFromLitHeight({ litHeightMm: 180, xHeightRatio: 0.52 })).toBeCloseTo(23.5043, 3);
+  it('aims at 22.1 mm x-height (the 22 mm rule plus a 0.1 mm margin): 23.611vh on 180 mm at ratio 0.52', () => {
+    expect(computeMinTextVhFromLitHeight({ litHeightMm: 180, xHeightRatio: 0.52 })).toBeCloseTo(23.6111, 3);
   });
 
-  it.each([0.48, 0.5, 0.52, 0.55])('renders exactly 22 mm x-height for font ratio %s', (ratio) => {
+  it('the rule is 22 mm, the margin 0.1 mm, and the aim is their sum', () => {
+    expect(LINE_2_3_RULE_MM).toBe(22);
+    expect(LINE_2_3_MARGIN_MM).toBe(0.1);
+    expect(LINE_2_3_TARGET_MM).toBeCloseTo(22.1, 12);
+  });
+
+  it.each([0.48, 0.5, 0.52, 0.55])('renders exactly the 22.1 mm aim for font ratio %s', (ratio) => {
     const vh = computeMinTextVhFromLitHeight({ litHeightMm: LITE_LIT_HEIGHT_MM, xHeightRatio: ratio });
-    expect(xHeightMm(vh, LITE_LIT_HEIGHT_MM, ratio)).toBeCloseTo(22, 9);
+    expect(xHeightMm(vh, LITE_LIT_HEIGHT_MM, ratio)).toBeCloseTo(22.1, 9);
+  });
+
+  // Measured on the real Solo tablet, 2026-09-19: at exactly 22.0 mm by canvas measureText the drawn
+  // glyph was 21.92 mm (a ratio of 0.5433 drawn against 0.545 measured, 0.3% short), so the shortest
+  // lowercase letter failed the 22 mm rule by 0.08 mm. The margin is what makes that pass.
+  it('the shortest DRAWN lowercase letter is still at least 22 mm when the drawn glyph is 0.4% shorter than the canvas measurement', () => {
+    const measuredRatio = 0.545;
+    const drawnRatio = 0.5433; // what the tablet actually drew
+    const vh = computeMinTextVhFromLitHeight({ litHeightMm: LITE_LIT_HEIGHT_MM, xHeightRatio: measuredRatio });
+    expect(xHeightMm(vh, LITE_LIT_HEIGHT_MM, drawnRatio)).toBeGreaterThanOrEqual(LINE_2_3_RULE_MM);
+  });
+
+  it('without the margin that same shortfall fails: the case the margin exists for', () => {
+    const vh = computeMinTextVhFromLitHeight({ litHeightMm: LITE_LIT_HEIGHT_MM, xHeightRatio: 0.545, targetMm: 22 });
+    expect(xHeightMm(vh, LITE_LIT_HEIGHT_MM, 0.5433)).toBeLessThan(LINE_2_3_RULE_MM);
   });
 
   it('a panel twice as tall needs half the vh for the same physical size', () => {
@@ -71,10 +95,10 @@ describe('computeMinTextVhFromLitHeight', () => {
     expect(tall).toBeCloseTo(small / 2, 9);
   });
 
-  it('defaults the target to 22 mm and honours an explicit one', () => {
+  it('defaults the target to the 22.1 mm aim and honours an explicit one', () => {
     const base = computeMinTextVhFromLitHeight({ litHeightMm: 180, xHeightRatio: 0.52 });
-    expect(computeMinTextVhFromLitHeight({ litHeightMm: 180, xHeightRatio: 0.52, targetMm: 22 })).toBe(base);
-    expect(computeMinTextVhFromLitHeight({ litHeightMm: 180, xHeightRatio: 0.52, targetMm: 11 })).toBeCloseTo(base / 2, 9);
+    expect(computeMinTextVhFromLitHeight({ litHeightMm: 180, xHeightRatio: 0.52, targetMm: LINE_2_3_TARGET_MM })).toBe(base);
+    expect(computeMinTextVhFromLitHeight({ litHeightMm: 180, xHeightRatio: 0.52, targetMm: 11.05 })).toBeCloseTo(base / 2, 9);
   });
 
   it.each([
@@ -135,18 +159,18 @@ describe('PANEL_PROFILES', () => {
 describe('resolveMinTextVh — which sizing path applies', () => {
   const measure = (ratio) => jest.fn(() => ratio);
 
-  it('a profile with a lit height uses the physical path: 22 mm x-height on the tablet', () => {
+  it('a profile with a lit height uses the physical path: the 22.1 mm aim on the tablet', () => {
     const measureRatio = measure(0.52);
     const out = resolveMinTextVh({ profile: PANEL_PROFILES.lite, ...TABLET, measureXHeightRatio: measureRatio });
     expect(out.source).toBe('lit-height');
-    expect(out.vh).toBeCloseTo(23.5043, 3);
+    expect(out.vh).toBeCloseTo(23.6111, 3);
     expect(out.ratioFellBack).toBe(false);
     expect(measureRatio).toHaveBeenCalledTimes(1);
   });
 
-  it.each([0.48, 0.5, 0.52, 0.55])('the physical path lands on 22 mm for a measured ratio of %s', (ratio) => {
+  it.each([0.48, 0.5, 0.52, 0.55])('the physical path lands on the 22.1 mm aim for a measured ratio of %s', (ratio) => {
     const out = resolveMinTextVh({ profile: PANEL_PROFILES.lite, ...TABLET, measureXHeightRatio: measure(ratio) });
-    expect(xHeightMm(out.vh, LITE_LIT_HEIGHT_MM, ratio)).toBeCloseTo(22, 9);
+    expect(xHeightMm(out.vh, LITE_LIT_HEIGHT_MM, ratio)).toBeCloseTo(22.1, 9);
   });
 
   it('an explicit ?panel-diagonal= still wins over the profile, and never measures a font', () => {
@@ -184,7 +208,7 @@ describe('resolveMinTextVh — which sizing path applies', () => {
   it.each([NaN, 0, 5, undefined])('an unusable measured ratio (%s) falls back to 0.52 and says so', (bad) => {
     const out = resolveMinTextVh({ profile: PANEL_PROFILES.lite, ...TABLET, measureXHeightRatio: measure(bad) });
     expect(out.source).toBe('lit-height');
-    expect(out.vh).toBeCloseTo(23.5043, 3);
+    expect(out.vh).toBeCloseTo(23.6111, 3);
     expect(out.ratioFellBack).toBe(true);
   });
 
@@ -192,13 +216,13 @@ describe('resolveMinTextVh — which sizing path applies', () => {
     const throwing = jest.fn(() => { throw new Error('canvas unavailable'); });
     const out = resolveMinTextVh({ profile: PANEL_PROFILES.lite, ...TABLET, measureXHeightRatio: throwing });
     expect(out.source).toBe('lit-height');
-    expect(out.vh).toBeCloseTo(23.5043, 3);
+    expect(out.vh).toBeCloseTo(23.6111, 3);
     expect(out.ratioFellBack).toBe(true);
   });
 
   it('a lit-height profile with no measuring function at all also falls back safely', () => {
     const out = resolveMinTextVh({ profile: PANEL_PROFILES.lite, ...TABLET });
-    expect(out.vh).toBeCloseTo(23.5043, 3);
+    expect(out.vh).toBeCloseTo(23.6111, 3);
     expect(out.ratioFellBack).toBe(true);
   });
 

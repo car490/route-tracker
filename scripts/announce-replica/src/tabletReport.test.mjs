@@ -8,13 +8,15 @@
 //
 // Ground truth (owner, 2026-09-19): Solo tablet lit area 289 x 180 mm, viewport 1442 x 901.
 // Only Lines 2 and 3 carry the 22 mm rule, read as lowercase x-height (the stricter reading).
+// The sign AIMS at 22.1 mm (the rule plus a 0.1 mm margin): drawn at exactly 22.0 by the canvas method
+// the real tablet's shortest letter measured 21.92 mm (2026-09-19), so the floor below has no slack.
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { evaluateTabletReport, TARGETS, TOLERANCES, SOLO_LIT_HEIGHT_MM, SOLO_LIT_WIDTH_MM } from './tabletReport.mjs';
+import { evaluateTabletReport, TARGETS, TOLERANCES, RULE_LINES23_MIN_MM, SOLO_LIT_HEIGHT_MM, SOLO_LIT_WIDTH_MM } from './tabletReport.mjs';
 
 const LIT_HEIGHT_MM = 180;
 const VIEWPORT = { w: 1442, h: 901 };
@@ -60,7 +62,7 @@ describe('a tablet showing the designed three-line layout', () => {
 
   test('states the measured millimetres in each detail so a person can read them', () => {
     const r = eval180(threeLineReport());
-    assert.match(by(r, 'canvas').detail, /22\.0/);
+    assert.match(by(r, 'canvas').detail, /22\.10/);
     assert.match(by(r, 'top bar').detail, /22\.9|23\.0/);
   });
 });
@@ -87,15 +89,28 @@ describe('Lines 2 and 3: 22 mm lowercase x-height', () => {
     assert.equal(by(r, 'agree').status, 'fail');
   });
 
-  test('within 0.1 mm of 22.0 passes; 0.2 mm out fails', () => {
+  test('the aim is 22.1 mm and the rule floor is 22 mm', () => {
+    assert.equal(TARGETS.lines23Mm, 22.1);
+    assert.equal(RULE_LINES23_MIN_MM, 22);
+  });
+
+  test('within 0.1 mm of the 22.1 aim passes; 0.2 mm out fails', () => {
     const at = (mm) => eval180(threeLineReport({
       rows: threeLineReport().rows.map((x) => (x.name.startsWith('Line 2') || x.name.startsWith('Line 3') ? { ...x, fontPx: px(mm / X_RATIO) } : x)),
     }));
     // literal numbers on purpose: a test that reads TOLERANCES back would pass for any tolerance
-    assert.equal(by(at(22.09), 'canvas').status, 'pass');
-    assert.equal(by(at(21.91), 'canvas').status, 'pass');
-    assert.equal(by(at(22.2), 'canvas').status, 'fail');
-    assert.equal(by(at(21.8), 'canvas').status, 'fail');
+    assert.equal(by(at(22.19), 'canvas').status, 'pass');
+    assert.equal(by(at(22.01), 'canvas').status, 'pass');
+    assert.equal(by(at(22.3), 'canvas').status, 'fail');
+    assert.equal(by(at(21.9), 'canvas').status, 'fail');
+  });
+
+  test('the shortest lowercase letter has NO slack: 21.97 mm fails (it passed under the old 0.05 mm allowance), 22.0 passes', () => {
+    const shortest = (mm) => eval180(threeLineReport({ glyphs: { ...threeLineReport().glyphs, shortestLowerRatio: (mm / (TARGETS.lines23Mm / X_RATIO)) } }));
+    assert.equal(by(shortest(21.97), 'shortest lowercase').status, 'fail');
+    assert.equal(by(shortest(21.92), 'shortest lowercase').status, 'fail'); // what the tablet measured at the old exact-22 sizing
+    assert.equal(by(shortest(22.0), 'shortest lowercase').status, 'pass');
+    assert.equal(by(shortest(22.03), 'shortest lowercase').status, 'pass'); // what the margin gives on the tablet
   });
 
   test('a weight other than the 700 the sizing assumes fails', () => {

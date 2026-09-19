@@ -86,11 +86,11 @@ try {
   // profile's measured 180 mm lit height and the rendered font's x-height.
   // Before slice A these two checks pinned the old nominal-diagonal result
   // (11.675vh, 105.2 px, about 11 mm of lowercase x-height).
-  check('deployed sign sizes Lines 2/3 to 22 mm lowercase x-height by itself, in every three-line state', () => {
+  check('deployed sign sizes Lines 2/3 to its 22.1 mm lowercase x-height aim (22 mm rule + 0.1 mm margin) by itself, in every three-line state', () => {
     for (const id of REAL_THREE_LINE) {
       const rows = report.deployed[id].rows.filter((r) => r.verdict);
       assert.equal(rows.length, 2, `${id} should expose Line 2 and 3`);
-      for (const r of rows) { near(r.xHeightMm, 22, 0.1); assert.equal(r.verdict.pass, true); }
+      for (const r of rows) { near(r.xHeightMm, 22.1, 0.1); assert.equal(r.verdict.pass, true); }
     }
   });
   check('deployed --min-text is no longer the legacy 11.675vh', () => {
@@ -185,9 +185,9 @@ try {
       near(row.fontMm, 24, 0.1);
     }
   });
-  check('deployed: Lines 2/3 are still 22 mm x-height (the sentence size never reaches them)', () => {
+  check('deployed: Lines 2/3 are still at the 22.1 mm aim (the sentence size never reaches them)', () => {
     for (const id of REAL_THREE_LINE) {
-      for (const r of report.deployed[id].rows.filter((r) => r.verdict)) { near(r.xHeightMm, 22, 0.1); assert.equal(r.verdict.pass, true); }
+      for (const r of report.deployed[id].rows.filter((r) => r.verdict)) { near(r.xHeightMm, 22.1, 0.1); assert.equal(r.verdict.pass, true); }
     }
   });
   check('deployed: brand main line is 5.5 mm in every state, its smaller lines about 3 to 4 mm', () => {

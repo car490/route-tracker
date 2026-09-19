@@ -519,7 +519,7 @@ Android tablet, lit area measured 289 × 180 mm — the display in use). The Del
 removed 2026-09-19 (owner: not using it).
 
 Sign text sizes are physical (2026-09-19, PRs #65–#68): a profile with a measured `litHeightMm` gets Lines 2/3 at
-exactly 22 mm lowercase x-height (the owner's strict reading of PSV(AI)R Reg 14(4); not yet confirmed against DfT
+22.1 mm lowercase x-height, a 0.1 mm margin over the 22 mm rule (sized to exactly 22.0 the real tablet's shortest drawn letter measured 21.92 mm; the owner's strict reading of PSV(AI)R Reg 14(4); not yet confirmed against DfT
 guidance) and every other size defined in mm — the pure logic is `busops/announce/src/panelSizing.js` (sizes) and
 `headlineLines.js` (three-line split, `data-state`); `onboard.css` hangs the rest off `--header-text`,
 `--sentence-text` and `--logo-text`. See `docs/DECISIONS.md` "Announce sign text sizing". Prove a change against the
