@@ -81,6 +81,11 @@ try {
     });
   }
 
+  console.log('  (information) Line 1 centring, mm on the letters, per three-line state:');
+  for (const [id, { result }] of Object.entries(reports)) {
+    const c = result.checks.find((x) => x.name.includes('centred'));
+    if (c) console.log(`    ${id.padEnd(20)} ${c.detail}`);
+  }
   console.log('What the probe measured');
   const three = reports['next-three-line'];
   check('three-line: the drawn "x" is at least 22.0 mm by pixels, near the 22.1 aim', () => {

@@ -42,6 +42,8 @@ function threeLineReport(over = {}) {
       row('Brand wordmark', 'BusOps Announce', TARGETS.brandMm, '800'),
     ],
     glyphs: { weight: '700', canvasRatio: X_RATIO, rasterRatio: X_RATIO, shortestLowerRatio: X_RATIO, shortestLowerChar: 'u' },
+    // ink positions, CSS px from the top of the page: Line 1's letters sit 15 mm below the bar and 15 mm above Line 2's
+    spacing: { barBottomPx: px(23), line1InkTopPx: px(38), line1BaselinePx: px(48), line2InkTopPx: px(63) },
     ...over,
   };
 }
@@ -258,5 +260,57 @@ describe('the Solo tablet defaults', () => {
     const lite = /lite:\s*\{[^}]*litHeightMm:\s*(\d+(?:\.\d+)?)/.exec(src);
     assert.ok(lite, 'could not find the lite profile in panelSizing.js');
     assert.equal(Number(lite[1]), SOLO_LIT_HEIGHT_MM);
+  });
+});
+
+describe('Line 1 sits centred between the top bar and the top of Line 2 (owner, 2026-09-19)', () => {
+  // gap above = the bar's bottom edge to the top of Line 1's letters; gap below = Line 1's baseline to the
+  // top of Line 2's letters. The measured layout before this fix (tablet screenshot): about 205 px above and
+  // 85 px below at 6.667 px/mm, i.e. 30.7 mm above and 12.8 mm below, so the wording sat far too low.
+  const at = (above, below) => eval180(threeLineReport({
+    spacing: { barBottomPx: px(23), line1InkTopPx: px(23 + above), line1BaselinePx: px(23 + above + 10), line2InkTopPx: px(23 + above + 10 + below) },
+  }));
+
+  test('equal gaps above and below pass, and the detail reports both in mm', () => {
+    const c = by(at(15, 15), 'centred');
+    assert.equal(c.status, 'pass');
+    assert.match(c.detail, /15\.0/);
+  });
+
+  test('the layout the owner complained about (30.7 mm above, 12.8 mm below) fails', () => {
+    const c = by(at(30.7, 12.8), 'centred');
+    assert.equal(c.status, 'fail');
+    assert.match(c.detail, /30\.7/);
+    assert.match(c.detail, /12\.8/);
+  });
+
+  test('within 0.5 mm passes, over 0.5 mm fails (either way round)', () => {
+    // literal numbers on purpose: a test that reads TOLERANCES back would pass for any tolerance
+    assert.equal(by(at(15.2, 14.8), 'centred').status, 'pass'); // 0.4 mm apart
+    assert.equal(by(at(14.8, 15.2), 'centred').status, 'pass');
+    assert.equal(by(at(15.4, 14.6), 'centred').status, 'fail'); // 0.8 mm apart
+    assert.equal(by(at(14.6, 15.4), 'centred').status, 'fail');
+  });
+
+  test('a gap of zero or less (letters touching or overlapping) fails even if the two are "equal"', () => {
+    assert.equal(by(at(0, 0), 'centred').status, 'fail');
+    assert.equal(by(at(-2, -2), 'centred').status, 'fail');
+  });
+
+  test('is not checked when the "wait here" box is showing (there is no plain Line 1 text to centre)', () => {
+    const r = eval180(threeLineReport({ spacing: null }));
+    assert.equal(by(r, 'centred'), undefined);
+    assert.equal(r.ok, true);
+  });
+
+  test('is not checked on the idle screen or a sentence state', () => {
+    assert.equal(by(eval180(threeLineReport({ sign: { shown: false, dataState: 'idle', threeLine: false } })), 'centred'), undefined);
+    assert.equal(by(eval180(threeLineReport({ sign: { shown: true, dataState: 'at_stop', threeLine: false } })), 'centred'), undefined);
+  });
+
+  test('a report from before this measurement existed (no spacing field at all) is not failed for it', () => {
+    const report = threeLineReport();
+    delete report.spacing;
+    assert.equal(by(eval180(report), 'centred'), undefined);
   });
 });

@@ -138,6 +138,23 @@
   --line1-slot:      calc(var(--header-text) * 1.6);
   --wait-title-text: calc(var(--header-text) * 0.6);
   --wait-msg-text:   calc(var(--header-text) * 0.42);
+
+  /* Line 1 sits centred between the bottom of the top bar and the top of Line 2's letters (owner,
+     2026-09-19; before this it sat 30.4mm below the bar and only 13.4mm above Line 2).
+     The three-line stack (Line 1 slot + the two Line 2/3 boxes) is centred in the band under the bar, so
+     the free space above the stack is known from tokens this file already has. Line 1 is lifted by half of
+     (that free space + the band padding - the gap to Line 2), less --min-text * 0.087: an optical
+     constant measured on the real font (Line 2's letters start a little below the top of its box, and
+     Line 1's text is not centred on its box). Applied as `top` on a relatively-positioned .hl-verb, so
+     the layout, the fixed slot depth and Lines 2/3 are all untouched. The tablet probe
+     (scripts/announce-replica, npm run verify:tablet) proves the two gaps are equal, in millimetres,
+     on the letters. --band-padding-y, --stack-gap and --three-line-leading are the values #sign-main and
+     the three-line stack really use, so the maths cannot drift from the layout. */
+  --band-padding-y:     1.5vh;
+  --stack-gap:          0.3vh;
+  --three-line-leading: 1.05;
+  --line1-free-above:   calc((100vh - var(--topbar-height) - 2 * var(--band-padding-y) - var(--line1-slot) - 2 * var(--stack-gap) - 2 * var(--three-line-leading) * var(--min-text)) / 2);
+  --line1-raise:        calc((var(--band-padding-y) + var(--line1-free-above) - var(--stack-gap)) / 2 - var(--min-text) * 0.0845);
 }
 
 *,
@@ -484,7 +501,7 @@ body {
      under a 23mm bar. 2.5vw each side also leaves a stop name 1370px of the
      1442px width, the figure the stop-name review tooling measures against. */
   gap: 1.5vh;
-  padding: 1.5vh 2.5vw;
+  padding: var(--band-padding-y) 2.5vw;
   min-height: 0;
   overflow: hidden;
 }
@@ -539,8 +556,8 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.3vh;
-  line-height: 1.05;
+  gap: var(--stack-gap);
+  line-height: var(--three-line-leading);
   font-weight: 700;
   color: var(--ep-ink);
   /* No upward nudge any more (was calc(var(--min-text) * -0.15), added
@@ -566,6 +583,10 @@ body {
   align-items: center;
   justify-content: center;
   line-height: 1.1;
+  /* Lifted (not moved in the layout) so the wording sits midway between the top bar and Line 2:
+     see --line1-raise in :root. The wait box lifts with it. */
+  position: relative;
+  top: calc(-1 * var(--line1-raise));
 }
 
 /* Marquee viewport/track for the town/stop lines — see onboard.js's

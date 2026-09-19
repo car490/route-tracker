@@ -114,6 +114,44 @@ export async function probeSign() {
     glyphs = { weight, family: primaryFamily, canvasRatio, rasterRatio, shortestLowerRatio, shortestLowerChar };
   }
 
+  // Line 1 centred between the top bar and Line 2: where the LETTERS are (owner, 2026-09-19). Uses
+  // the text's own rectangle plus the font's ascent for the baseline, and measureText's ink ascent for
+  // the top of the letters; nothing is drawn or added to the page. Absent while the "wait here" box is
+  // showing (no plain Line 1 text).
+  let spacing = null;
+  try {
+    const plainVerb = firstVisible('#sign-headline .hl-verb:not(.hl-verb--early)');
+    const townEl = firstVisible('.hl-town');
+    const barEl = firstVisible('#sign-topbar');
+    if (signShown && plainVerb && townEl && barEl) {
+      const measureCtx = document.createElement('canvas').getContext('2d');
+      const inkOf = (el) => {
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        let node = walker.nextNode();
+        while (node && !node.textContent.trim()) node = walker.nextNode();
+        if (!node) return null;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const rect = range.getBoundingClientRect();
+        const style = getComputedStyle(el);
+        measureCtx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+        const m = measureCtx.measureText(node.textContent.trim());
+        const baseline = rect.top + m.fontBoundingBoxAscent;
+        return { baseline, inkTop: baseline - m.actualBoundingBoxAscent };
+      };
+      const l1 = inkOf(plainVerb);
+      const l2 = inkOf(townEl);
+      if (l1 && l2) {
+        spacing = {
+          barBottomPx: barEl.getBoundingClientRect().bottom,
+          line1InkTopPx: l1.inkTop,
+          line1BaselinePx: l1.baseline,
+          line2InkTopPx: l2.inkTop,
+        };
+      }
+    }
+  } catch (_) { spacing = null; }
+
   return {
     // origin + path only: the query string can carry the device token and is never recorded
     url: location.origin + location.pathname,
@@ -135,5 +173,6 @@ export async function probeSign() {
     },
     rows,
     glyphs,
+    spacing,
   };
 }

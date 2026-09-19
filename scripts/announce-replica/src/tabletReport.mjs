@@ -33,6 +33,7 @@ export const TOLERANCES = Object.freeze({
   canvasVsRasterMm: 0.15, // canvas measureText vs drawn pixels
   aspectPct: 1.5, // viewport aspect vs lit-area aspect
   topbarShareMax: 0.2, // the bar stays under 20% of the panel
+  spacingMm: 0.5, // Line 1's gap above (from the bar) and below (to Line 2) may differ by this much
 });
 
 // The rule itself (PSV(AI)R Reg 14(4), the owner's strict reading): no lowercase letter on Lines 2 and 3
@@ -115,6 +116,19 @@ export function evaluateTabletReport(report, { litHeightMm, litWidthMm = SOLO_LI
     if (report.line1 && isPositive(report.line1.heightPx)) {
       const slot = mm(report.line1.heightPx);
       add(`Line 1 slot depth ${TARGETS.line1SlotMm} mm`, within(slot, TARGETS.line1SlotMm, TOLERANCES.line1SlotMm), `${fmt(slot)} mm`);
+    }
+
+    // Line 1 centred between the top bar and the top of Line 2 (owner, 2026-09-19). Measured on the
+    // letters, not the boxes: from the bar's bottom edge to the top of Line 1's letters, and from Line 1's
+    // baseline (a descender in "stop" does not count) to the top of Line 2's letters. Absent when the
+    // "wait here" box is showing, because there is no plain Line 1 text to centre.
+    const sp = report.spacing;
+    if (sp && [sp.barBottomPx, sp.line1InkTopPx, sp.line1BaselinePx, sp.line2InkTopPx].every(Number.isFinite)) {
+      const above = mm(sp.line1InkTopPx - sp.barBottomPx);
+      const below = mm(sp.line2InkTopPx - sp.line1BaselinePx);
+      add('Line 1 sits centred between the top bar and Line 2',
+        above > 0 && below > 0 && Math.abs(above - below) <= TOLERANCES.spacingMm,
+        `${fmt(above)} mm above, ${fmt(below)} mm below (differ by ${fmt(Math.abs(above - below))} mm)`);
     }
 
     const waitTitle = row('Wait box title');
