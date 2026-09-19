@@ -188,6 +188,21 @@ testing timing, announcements, and the onboard display end-to-end without being 
 vehicle. `demo.html` is a separate, fully scripted/fake visual simulation (no real app code)
 used for quick client-facing demos.
 
+### Measure the real sign on the real tablet (read-only)
+```sh
+npm run measure:announce-solo      # from pcv-dashboard/busops/ — needs the tablet on USB (adb)
+```
+Takes one measurement of whatever the Solo tablet is showing and judges it against the approved sizes (22 mm
+lowercase x-height on Lines 2/3, measured two independent ways; 13.5 mm top bar/Line 1; 23 mm bar; 21.6 mm Line 1
+slot; 24 mm sentence states; 5.5 mm brand mark). Attaches over a temporary DevTools session through `adb forward`,
+evaluates one read-only function, takes a screenshot, detaches: it never navigates, never changes a Fully Kiosk or
+Android setting, and never records the URL query (it carries the device token). **Needs Fully Kiosk's web-contents
+debugging ON** (`webviewDebugging`; Import Settings resets it to off) — the tool says so and stops if it is off, it
+does not switch it on. Run it while the sign is showing a stop for the Lines 2/3 checks; on the idle screen it still
+checks the bar and the brand mark. Output goes to `scripts/tablet-captures/` (gitignored). Exit 0 pass, 1 a check
+failed, 2 could not measure. `--cdp-port <port>` attaches to an existing DevTools port with no adb (how it is
+tested: `npm run verify:tablet` in `scripts/announce-replica`).
+
 ### PSVAIR announcement audio (Bus Controller's clip generator)
 ```sh
 AZURE_SPEECH_KEY=... AZURE_SPEECH_REGION=... npm run generate:audio

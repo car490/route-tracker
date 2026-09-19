@@ -6,6 +6,7 @@
     "test": "node --test src/*.test.mjs",
     "serve": "node src/serveReplica.mjs",
     "review-stops": "node src/reviewStops.mjs --in data/stops-prod.pipe",
-    "verify": "node e2e/verifyReplica.mjs"
+    "verify": "node e2e/verifyReplica.mjs",
+    "verify:tablet": "node e2e/verifyTabletProbe.mjs"
   }
 }
