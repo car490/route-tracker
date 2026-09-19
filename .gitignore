@@ -52,3 +52,7 @@ pcv-dashboard/busops/.env.audio
 # Screenshots and report.json written by scripts/announce-replica's `npm run verify`
 # (about 3.5 MB per run, regenerated every time) — output, not source
 scripts/announce-replica/replica-captures/
+
+# Screenshots and report.json written by scripts/measure-announce-solo.mjs (one folder per
+# measurement of the real tablet) — output, not source
+scripts/tablet-captures/
