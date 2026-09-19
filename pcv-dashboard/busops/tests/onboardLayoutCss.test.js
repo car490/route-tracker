@@ -114,8 +114,10 @@ describe('vertical budget on the 180 mm tablet', () => {
   });
 
   it('the middle band pads 1.5vh / 2.5vw, so a stop name has 1370 px of the 1442 px width', () => {
-    // the stop-name review tooling (scripts/announce-replica) measures against exactly this width
-    expect(declared(ruleBody('#sign-main'), 'padding')).toBe('1.5vh 2.5vw');
+    // the stop-name review tooling (scripts/announce-replica) measures against exactly this width;
+    // the vertical padding is a token because the Line 1 centring maths reads it
+    expect(declared(ROOT(), '--band-padding-y')).toBe('1.5vh');
+    expect(declared(ruleBody('#sign-main'), 'padding')).toBe('var(--band-padding-y) 2.5vw');
   });
 });
 
@@ -156,5 +158,45 @@ describe('slice D: brand mark', () => {
     const value = declared(ruleBody(selector), 'font-size');
     const m = /^calc\(\s*var\(--logo-text\)\s*\*\s*([\d.]+)\s*\)$/.exec(value ?? '');
     expect(m && Number(m[1])).toBe(multiple);
+  });
+});
+
+// Line 1 centred between the top bar and the top of Line 2's letters (owner, 2026-09-19).
+// The three-line stack (Line 1 slot + two Line 2/3 boxes) is centred in the band under the bar, so the
+// free space above the stack is known from tokens the CSS already has; Line 1 is then lifted by
+// half of (that space + the band padding - the gap to Line 2), less a small optical constant measured on
+// the real font (the letters of Line 2 start a little below the top of its box). The REAL geometry (gaps
+// of equal size in millimetres, on the letters) is proved by the tablet probe against the real sign.
+describe('Line 1 centring maths hangs off tokens, not off numbers', () => {
+  it('Line 1 is lifted by --line1-raise without changing the layout (position: relative)', () => {
+    const body = ruleBody(LINE_1);
+    expect(declared(body, 'position')).toBe('relative');
+    expect(declared(body, 'top')).toBe('calc(-1 * var(--line1-raise))');
+  });
+
+  it('--line1-raise is built from the band padding, the free space above the stack and the stack gap', () => {
+    const v = declared(ROOT(), '--line1-raise');
+    for (const token of ['--band-padding-y', '--line1-free-above', '--stack-gap', '--min-text']) expect(v).toContain(token);
+  });
+
+  it('--line1-free-above is the space above the centred stack: band height less padding, slot, gaps and the two Line 2/3 boxes', () => {
+    const v = declared(ROOT(), '--line1-free-above');
+    for (const token of ['100vh', '--topbar-height', '--band-padding-y', '--line1-slot', '--stack-gap', '--three-line-leading', '--min-text']) {
+      expect(v).toContain(token);
+    }
+  });
+
+  it('the stack gap and line-height the maths assumes are the ones the stack actually uses (one source)', () => {
+    expect(declared(ROOT(), '--stack-gap')).toBe('0.3vh');
+    expect(declared(ROOT(), '--three-line-leading')).toBe('1.05');
+    const stack = ruleBody('#sign-headline.hl-three-line');
+    expect(declared(stack, 'gap')).toBe('var(--stack-gap)');
+    expect(declared(stack, 'line-height')).toBe('var(--three-line-leading)');
+  });
+
+  it('the raise never depends on the sentence size or the wait box', () => {
+    const v = declared(ROOT(), '--line1-raise') + declared(ROOT(), '--line1-free-above');
+    expect(v).not.toContain('--sentence-text');
+    expect(v).not.toContain('--wait-');
   });
 });
