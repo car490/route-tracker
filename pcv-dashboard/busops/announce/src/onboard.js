@@ -37,6 +37,7 @@ import { connectAnnounceDeviceFeed } from './announceDeviceFeed.js';
 import { captureAnnounceDeviceSetup, getAnnounceDeviceToken } from './announceDeviceSetup.js';
 import { ANNOUNCE_STATES, resolveAnnouncementText } from '../../shared/announceStates.js';
 import { PANEL_PROFILES, resolveMinTextVh } from './panelSizing.js';
+import { headlineLines, signStateAttribute } from './headlineLines.js';
 
 // Named display profiles (PANEL_PROFILES, panelSizing.js) — commissioned via
 // ?panel-profile=<key>, the same URL-param pattern as ?panel-diagonal= below.
@@ -327,43 +328,31 @@ function clearSequenceTimers() {
   sequenceTimers = [];
 }
 
-// APPROACHING ("This is X.") and STOP_DEPARTURE ("The next stop is X.") each
-// name a single stop (vars.stopName / vars.nextStopName) whose resolved text
-// (stops.announcement_name, see display_name() in schema.sql) is shaped
-// "Town,Specific stop" — split here so the sign can show it as three stacked
-// lines (verb phrase / town / stop) instead of one running sentence, per
-// user feedback 2026-09-07/08. Keyed off stateKey/vars, deliberately NOT by
-// pattern-matching the resolved sentence text: ROUTE_START's "This is a X to
-// Y." also starts with "This is" and can itself contain a comma (whenever Y
-// is Town,Stop-shaped), which a text-only regex mismatched into three
-// nonsense lines — found live 2026-09-08. Display-only — the spoken text
-// (speechSynthesis/pre-rendered clips) stays the one unchanged flowing
-// sentence; PSVAIR Reg 12(1) governs audio/visual content consistency, not
-// identical line-breaking.
-const HEADLINE_STOP_FIELD = {
-  [ANNOUNCE_STATES.APPROACHING]: { verb: 'This is', field: 'stopName' },
-  [ANNOUNCE_STATES.STOP_DEPARTURE]: { verb: 'The next stop is', field: 'nextStopName' },
-};
-
+// APPROACHING ("This is X."), STOP_DEPARTURE ("The next stop is X.") and
+// ROUTE_START ("This is an S116T to X.") each name a place whose text is shaped
+// "Town,Specific stop" — shown as three stacked lines (verb phrase / town /
+// stop) instead of one running sentence, per user feedback 2026-09-07/08, and
+// for route start since 2026-09-19. headlineLines() (headlineLines.js, pure and
+// unit-tested) decides the split from stateKey/vars; null means no comma to
+// split on, so the sentence is shown as before. Display-only — the spoken text
+// is unchanged.
 function renderHeadlineText(stateKey, vars, text) {
   const headline = el('sign-headline');
-  const spec = HEADLINE_STOP_FIELD[stateKey];
-  const stopName = spec ? vars[spec.field] : null;
-  const commaIndex = stopName ? stopName.indexOf(',') : -1;
+  const lines = headlineLines(stateKey, vars);
 
   headline.textContent = '';
-  headline.classList.toggle('hl-three-line', commaIndex !== -1);
-  if (commaIndex === -1) {
+  headline.classList.toggle('hl-three-line', lines !== null);
+  if (!lines) {
     headline.textContent = text;
     return;
   }
 
   const verbLine = document.createElement('div');
   verbLine.className = 'hl-verb';
-  verbLine.textContent = spec.verb;
+  verbLine.textContent = lines.verb;
   // Stashed so updateEarlyWaitDisplay() can restore the plain verb text
   // after overlaying (and later clearing) the "wait here" box on it.
-  verbLine.dataset.verbText = spec.verb;
+  verbLine.dataset.verbText = lines.verb;
   headline.appendChild(verbLine);
 
   // Town/stop each get a marquee viewport+track (see applyMarquee) rather
@@ -374,8 +363,8 @@ function renderHeadlineText(stateKey, vars, text) {
   // unwanted extra line. Static (no scroll) whenever the text actually
   // fits — applyMarquee only adds .marquee on a real overflow.
   [
-    ['hl-town', stopName.slice(0, commaIndex).trim()],
-    ['hl-stop', stopName.slice(commaIndex + 1).trim()],
+    ['hl-town', lines.town],
+    ['hl-stop', lines.stop],
   ].forEach(([className, lineText]) => {
     const viewport = document.createElement('div');
     viewport.className = `${className} hl-marquee-viewport`;
@@ -394,6 +383,13 @@ function showHeadline(stateKey, vars) {
   const headline = el('sign-headline');
 
   clearSequenceTimers();
+  // Three lines are built from vars, not the sentence text, so they never go
+  // through the sentence reveal below (which splits on ". " and would cut a
+  // name like "St. Mary's" in two).
+  if (headlineLines(stateKey, vars)) {
+    renderHeadlineText(stateKey, vars, text);
+    return;
+  }
   if (sentences.length < 2) {
     renderHeadlineText(stateKey, vars, text);
     return;
@@ -472,6 +468,9 @@ function render(stateKey, vars, earlyWait) {
   // headline text and, on tiers with audio, the spoken announcement both
   // also change for a diversion; this is a supplementary visual emphasis,
   // not the only signal.
+  // Recorded for every state so CSS can key off the state itself, never off the
+  // wording (headlineLines.js signStateAttribute).
+  el('onboard-sign').dataset.state = signStateAttribute(stateKey);
   el('onboard-sign').classList.toggle('diversion', stateKey === ANNOUNCE_STATES.DIVERSION);
   // Terminus — AT_STOP only ever fires for the final stop now (see
   // shared/announceStates.js), so no extra isFinal check needed here.
@@ -732,6 +731,7 @@ export function onState(msg) {
 export function onJourneyEnd() {
   clearSequenceTimers();
   el('onboard-sign').hidden = true;
+  el('onboard-sign').dataset.state = signStateAttribute(ANNOUNCE_STATES.IDLE);
   showNextDeparture(null);
 }
 
@@ -775,6 +775,7 @@ function connectSignFeed() {
 // ── Entry point ──────────────────────────────────────────────────────────
 
 function init() {
+  el('onboard-sign').dataset.state = signStateAttribute(ANNOUNCE_STATES.IDLE); // nothing shown yet
   applyPanelSizing();
   resizeWhenFontsLoad();
   applyDebugSizeOverlay();
