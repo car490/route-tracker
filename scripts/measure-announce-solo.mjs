@@ -30,6 +30,7 @@ import { parseAdbDevices, chooseDevice, findWebviewSocketNames, pickSignTarget }
 import { evaluateTabletReport, SOLO_LIT_WIDTH_MM, SOLO_LIT_HEIGHT_MM } from './announce-replica/src/tabletReport.mjs';
 import { probeSign } from './announce-replica/src/tabletProbe.mjs';
 import { withTimeout, DevToolsTimeout } from './announce-replica/src/tabletCdp.mjs';
+import { redactSecrets } from './announce-replica/src/redact.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -226,9 +227,9 @@ try {
   process.exit(result.ok ? 0 : 1);
 } catch (err) {
   console.error(err instanceof DevToolsTimeout
-    ? `Could not measure: ${err.message}. Is the sign on screen (not Fully Kiosk's settings)? Is the tablet awake?`
+    ? `Could not measure: ${redactSecrets(err.message)}. Is the sign on screen (not Fully Kiosk's settings)? Is the tablet awake?`
     : err?.message
-      ? `Could not measure: ${err.message}`
+      ? `Could not measure: ${redactSecrets(err.message)}`
       : 'Could not measure.');
   process.exit(2);
 }
