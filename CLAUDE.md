@@ -181,7 +181,7 @@ Run from `pcv-dashboard/busops/` (they're npm scripts on that `package.json`):
 ```sh
 npm run demo:2up:duty              # two windows: driver PWA + BusOps Announce, duty-card start
 npm run demo:2up:manual            # same, but via the manual-selection fallback flow
-npm run demo:announce-push         # driver PWA + all three Announce display profiles, push-feed proof
+npm run demo:announce-push         # driver PWA + both Announce display profiles (Bar and Lite), push-feed proof
 ```
 All drive the real app code with mocked Geolocation (not a fake simulation) — useful for
 testing timing, announcements, and the onboard display end-to-end without being in a moving
@@ -499,8 +499,9 @@ service code, branding), then `{type:'state', ...}` messages as the journey prog
 blank until an authenticated push connection delivers a schedule — there's no `?journey=` URL
 param or depot-WiFi sync step anymore. Two named display profiles exist (`PANEL_PROFILES` in
 `busops/announce/src/panelSizing.js`, commissioned via `?panel-profile=`): **Bar** (28" ultra-wide
-destination-board panel, not yet built — see `docs/onboard-widescreen-layout.md`) and **Monitor**
-(Dell Pro P2426H — **not being used as of 2026-09-19**, owner; profile kept dormant on the legacy sizing). The display in use is the **LEVIRTU 14" tablet** (`lite` profile, lit area measured 289 × 180 mm).
+destination-board panel, not yet built — see `docs/onboard-widescreen-layout.md`) and **Lite** (the LEVIRTU 14"
+Android tablet, lit area measured 289 × 180 mm — the display in use). The Dell Pro P2426H `monitor` profile was
+removed 2026-09-19 (owner: not using it).
 
 Sign text sizes are physical (2026-09-19, PRs #65–#68): a profile with a measured `litHeightMm` gets Lines 2/3 at
 exactly 22 mm lowercase x-height (the owner's strict reading of PSV(AI)R Reg 14(4); not yet confirmed against DfT

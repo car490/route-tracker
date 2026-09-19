@@ -7,17 +7,17 @@
 // /driver-push and /sign-feed WebSocket endpoints), and commissions both
 // windows for the push feed before they load.
 //
-// What to look for once all four windows have started:
-//   - All three RIGHT-side (Announce) windows — Bar, Monitor, and Lite, see
+// What to look for once all three windows have started:
+//   - Both RIGHT-side (Announce) windows — Bar and Lite, see
 //     PANEL_PROFILES in src/panelSizing.js — should update in lockstep with the
 //     LEFT one WITHOUT ever requesting their own GPS permission — they're
 //     pure pushed-state renderers now (see docs/HARDWARE.md "Read this
 //     first"), with no GPS or Supabase access of their own at all, not a
-//     fallback path. All three subscribe to the same /sign-feed token, so
-//     one Driver push drives all three previews at once.
+//     fallback path. Both subscribe to the same /sign-feed token, so
+//     one Driver push drives both previews at once.
 //   - This terminal (piped from the spawned mele-server) should print
 //     "[announceRelay] driver connected" once you hit Start, and
-//     "[announceRelay] sign display connected" three times shortly after
+//     "[announceRelay] sign display connected" twice shortly after
 //     (once per Announce window).
 //
 // Usage:
@@ -161,12 +161,12 @@ async function openWindow({ url, windowPosition, windowSize, setup }) {
   return { context, page };
 }
 
-// Three Announce previews to the right of the driver PWA — Bar (28"
+// Two Announce previews to the right of the driver PWA — Bar (28"
 // ultra-wide destination-board panel, not yet built, kept for later — see
-// docs/HARDWARE.md §6) full-width on top, Monitor (Dell Pro P2426H, the
-// confirmed demo/validation display) and Lite (the Announce Lite tablet
-// candidate, DOOGEE Tab E3 Max, 14.6", 2160x1440 — 3:2, see docs/
-// HARDWARE.md §14) side by side below it. Every window uses its real
+// docs/HARDWARE.md §6) full-width on top, and Lite (the Announce Lite/Solo
+// LEVIRTU 14" tablet, 1442x901 CSS px — 3:2-ish, see docs/HARDWARE.md §14)
+// below it. (A Monitor preview for the Dell Pro P2426H was removed 2026-09-19:
+// the owner is not using that monitor.) Every window uses its real
 // target aspect ratio at a scaled-down size — only the aspect ratio needs
 // to match for correct rendering: onboard.js derives --min-text as a
 // fraction of viewport height (from the diagonal, or from a profile's
@@ -182,11 +182,8 @@ const PWA_Y = Math.round((SCREEN_H - PWA_H) / 2);
 const NS_X = PWA_X + PWA_W + MARGIN;
 const BAR_W = 780, BAR_H = Math.round(BAR_W * 480 / 2560);
 const BAR_X = NS_X, BAR_Y = MARGIN;
-const MON_W = 380, MON_H = Math.round(MON_W * 1080 / 1920);
-const MON_ROW_Y = BAR_Y + BAR_H + MARGIN;
-const MONITOR_X = NS_X, MONITOR_Y = MON_ROW_Y;
-const LITE_W = 280, LITE_H = Math.round(LITE_W * 1440 / 2160);
-const LITE_X = MONITOR_X + MON_W + MARGIN, LITE_Y = MON_ROW_Y;
+const LITE_W = 380, LITE_H = Math.round(LITE_W * 901 / 1442);
+const LITE_X = NS_X, LITE_Y = BAR_Y + BAR_H + MARGIN;
 
 let serverChild = null;
 function shutdown() { stopServer(serverChild); process.exit(0); }
@@ -211,7 +208,7 @@ process.on('SIGTERM', shutdown);
     return u.toString();
   };
 
-  const [driver, announceBar, announceMonitor, announceLite] = await Promise.all([
+  const [driver, announceBar, announceLite] = await Promise.all([
     openWindow({
       url: driverUrl,
       windowPosition: `${PWA_X},${PWA_Y}`, windowSize: `${PWA_W},${PWA_H}`,
@@ -226,32 +223,27 @@ process.on('SIGTERM', shutdown);
       windowPosition: `${BAR_X},${BAR_Y}`, windowSize: `${BAR_W},${BAR_H}`,
     }),
     openWindow({
-      url: onboardUrl('monitor'),
-      windowPosition: `${MONITOR_X},${MONITOR_Y}`, windowSize: `${MON_W},${MON_H}`,
-    }),
-    openWindow({
       url: onboardUrl('lite'),
       windowPosition: `${LITE_X},${LITE_Y}`, windowSize: `${LITE_W},${LITE_H}`,
     }),
   ]);
 
-  console.log('\nFour windows are open.');
+  console.log('\nThree windows are open.');
   console.log('LEFT        (driver PWA):    click "Select a service manually", choose');
   console.log(`                             Service: ${MANUAL_SERVICE}, Period: ${MANUAL_PERIOD}, then hit Start.`);
-  console.log('TOP RIGHT   (Announce, Bar):      nothing to click — all three connect to the pushed');
-  console.log('BOTTOM LEFT (Announce, Monitor):  feed on their own and wake once the driver hits Start.');
-  console.log('BOTTOM RIGHT(Announce, Lite):     No fallback exists — pure pushed-state renderers, all');
-  console.log('                                   subscribed to the same feed (see docs/HARDWARE.md');
-  console.log('                                   "Read this first").');
-  console.log('\nWaiting for all four to start…');
+  console.log('TOP RIGHT    (Announce, Bar):   nothing to click — both connect to the pushed');
+  console.log('BOTTOM RIGHT (Announce, Lite):  feed on their own and wake once the driver hits Start.');
+  console.log('                                No fallback exists — pure pushed-state renderers, both');
+  console.log('                                subscribed to the same feed (see docs/HARDWARE.md');
+  console.log('                                "Read this first").');
+  console.log('\nWaiting for all three to start…');
 
   await Promise.all([
     driver.page.waitForSelector('#tracker:not([hidden])', { timeout: 10 * 60 * 1000 }),
     announceBar.page.waitForSelector('#onboard-sign:not([hidden])', { timeout: 10 * 60 * 1000 }),
-    announceMonitor.page.waitForSelector('#onboard-sign:not([hidden])', { timeout: 10 * 60 * 1000 }),
     announceLite.page.waitForSelector('#onboard-sign:not([hidden])', { timeout: 10 * 60 * 1000 }),
   ]);
-  console.log('All four started — driving the route now.\n');
+  console.log('All three started — driving the route now.\n');
 
   for (let i = 1; i < STOPS.length; i++) {
     const from = STOPS[i - 1];
@@ -262,7 +254,6 @@ process.on('SIGTERM', shutdown);
       await Promise.all([
         driver.context.setGeolocation(pos),
         announceBar.context.setGeolocation(pos),
-        announceMonitor.context.setGeolocation(pos),
         announceLite.context.setGeolocation(pos),
       ]);
       await sleep((SECONDS_PER_STOP * 1000) / SUB_STEPS);

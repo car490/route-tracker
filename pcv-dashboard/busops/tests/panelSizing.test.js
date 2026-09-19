@@ -50,7 +50,7 @@ describe('computeMinTextVh (legacy diagonal maths, moved unchanged)', () => {
     expect(computeMinTextVh(undefined, 1442, 901)).toBeNull();
   });
 
-  it('monitor profile (23.8" at 1920x1080) is unchanged at 7.42vh', () => {
+  it('a 23.8" panel at 1920x1080 gives 7.42vh (the legacy maths, pinned)', () => {
     expect(computeMinTextVh(23.8, 1920, 1080)).toBeCloseTo(7.42, 2);
   });
 });
@@ -121,11 +121,14 @@ describe('PANEL_PROFILES', () => {
     expect(PANEL_PROFILES.lite.diagonalInches).toBe(14);
   });
 
-  it('bar and monitor have no measured lit height, so they keep today\'s calculation', () => {
+  it('bar has no measured lit height, so it keeps today\'s calculation', () => {
     expect(PANEL_PROFILES.bar.litHeightMm).toBeUndefined();
-    expect(PANEL_PROFILES.monitor.litHeightMm).toBeUndefined();
     expect(PANEL_PROFILES.bar.diagonalInches).toBe(28);
-    expect(PANEL_PROFILES.monitor.diagonalInches).toBe(23.8);
+  });
+
+  it('has exactly two profiles: bar and lite (the Dell-based monitor profile was removed 2026-09-19, not in use)', () => {
+    expect(Object.keys(PANEL_PROFILES).sort()).toEqual(['bar', 'lite']);
+    expect(PANEL_PROFILES.monitor).toBeUndefined();
   });
 });
 
@@ -163,7 +166,6 @@ describe('resolveMinTextVh — which sizing path applies', () => {
   });
 
   it.each([
-    ['monitor', PANEL_PROFILES.monitor, 1920, 1080],
     ['bar', PANEL_PROFILES.bar, 2560, 720],
   ])('%s has no lit height, so it gets exactly today\'s number and never measures a font', (_n, profile, w, h) => {
     const measureRatio = measure(0.52);
@@ -258,7 +260,6 @@ describe('resolveMinTextVh — headerTextVh follows the sizing source', () => {
   });
 
   it.each([
-    ['monitor', PANEL_PROFILES.monitor, 1920, 1080],
     ['bar', PANEL_PROFILES.bar, 2560, 720],
   ])('%s has no measured lit height, so the CSS default header size stands (null)', (_n, profile, w, h) => {
     const out = resolveMinTextVh({ profile, viewportWidthPx: w, viewportHeightPx: h });
@@ -319,7 +320,6 @@ describe('slice D — sentence states (terminus, diversion) and the brand mark',
   });
 
   it.each([
-    ['monitor', PANEL_PROFILES.monitor, 1920, 1080],
     ['bar', PANEL_PROFILES.bar, 2560, 720],
   ])('%s has no measured lit height, so both stay null and the CSS defaults stand', (_n, profile, w, h) => {
     const out = resolveMinTextVh({ profile, viewportWidthPx: w, viewportHeightPx: h });

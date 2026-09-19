@@ -16,15 +16,15 @@
 //   Lines 2/3 physically. Absent = the profile keeps the legacy calculation
 //   until someone measures the panel.
 //
-// bar is the original ultra-wide destination-board plan (not yet built);
-// monitor is the Dell Pro P2426H, the demo/validation display (mele-server/
-// DEPLOY.md §5); lite is the Announce Lite/Solo tablet, a LEVIRTU 14" Android
-// tablet (OEM identity PIXGOOD M328-EEA), 1200x1920 native — lit area
-// measured 289 x 180 mm on 2026-09-19. Its nominal 14" is kept only as the
-// ?panel-diagonal= style fallback.
+// bar is the original ultra-wide destination-board plan (not yet built, no
+// measured height); lite is the Announce Lite/Solo tablet, a LEVIRTU 14" Android
+// tablet (OEM identity PIXGOOD M328-EEA), 1200x1920 native — lit area measured
+// 289 x 180 mm on 2026-09-19. Its nominal 14" is kept only as the
+// ?panel-diagonal= style fallback. A `monitor` profile (the Dell Pro P2426H demo
+// display) existed until 2026-09-19 and was removed: the owner is not using it.
+// A panel with no profile is commissioned with ?panel-diagonal=<inches>.
 export const PANEL_PROFILES = {
   bar:     { diagonalInches: 28 },
-  monitor: { diagonalInches: 23.8 },
   lite:    { diagonalInches: 14, litHeightMm: 180 },
 };
 
