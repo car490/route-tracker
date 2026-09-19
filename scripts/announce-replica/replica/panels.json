@@ -1,5 +1,5 @@
 {
-  "note": "Measured by the owner on 2026-09-18 with a ruler. These are facts, not nominal specs.",
+  "note": "Measured by the owner on 2026-09-18 with a ruler. These are facts, not nominal specs. Corrected 2026-09-19: the laptop lit width is 344 mm, not 334 (the 334 was a typo: it made the width and height pixel densities disagree by 3.2%, and pixels are square).",
   "panel": {
     "name": "BusOps Announce Solo tablet (lit area)",
     "litWidthMm": 289,
@@ -9,7 +9,7 @@
   },
   "screen": {
     "name": "Review laptop (lit area)",
-    "litWidthMm": 334,
+    "litWidthMm": 344,
     "litHeightMm": 194,
     "resWidthPx": 1920,
     "resHeightPx": 1080

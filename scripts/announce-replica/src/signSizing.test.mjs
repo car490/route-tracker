@@ -3,13 +3,15 @@
 // Ground truth (all measured by the owner, not derived from nominal specs):
 //   Tablet (BusOps Announce Solo): lit area 289 x 180 mm, sign viewport
 //     1442 x 901 CSS px (= 1920x1200 native at DPR ~1.33).
-//   Laptop (review machine):       lit area 334 x 194 mm, 1920 x 1080 px,
+//   Laptop (review machine):       lit area 344 x 194 mm, 1920 x 1080 px,
 //     Windows display scaling 150%.
 //   Rule: in Lines 2 and 3 no lowercase character may be less than 22 mm
 //     (interpreted as x-height, the stricter reading).
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 import {
   pxPerMm,
@@ -29,7 +31,7 @@ const approx = (actual, expected, tol, msg) =>
   );
 
 const TABLET = { litWidthMm: 289, litHeightMm: 180, cssWidthPx: 1442, cssHeightPx: 901 };
-const LAPTOP = { litWidthMm: 334, litHeightMm: 194, resWidthPx: 1920, resHeightPx: 1080, osScale: 1.5 };
+const LAPTOP = { litWidthMm: 344, litHeightMm: 194, resWidthPx: 1920, resHeightPx: 1080, osScale: 1.5 };
 const X_HEIGHT_RATIO = 0.52; // typical sans-serif; the real font's ratio is measured in slice 2
 
 describe('pxPerMm — pixel density from measured lit area', () => {
@@ -140,21 +142,21 @@ describe('fontSizeForXHeightPx / xHeightMm round trip', () => {
 });
 
 describe('replicaFrame — showing the tablet at true physical size on the laptop', () => {
-  test('fits fully: about 1661 x 1035 device px on a 1920 x 1080 screen', () => {
+  test('fits fully: about 1613 x 1005 device px on a 1920 x 1080 screen', () => {
     const f = replicaFrame({ panel: TABLET, screen: LAPTOP });
-    approx(f.frameDeviceWidthPx, 1661.3, 0.5, 'frame width');
-    approx(f.frameDeviceHeightPx, 1034.7, 0.5, 'frame height');
+    approx(f.frameDeviceWidthPx, 1613.0, 0.5, 'frame width');
+    approx(f.frameDeviceHeightPx, 1004.7, 0.5, 'frame height');
     assert.equal(f.fits, true);
-    approx(f.spareWidthPx, 258.7, 0.5, 'spare width');
-    approx(f.spareHeightPx, 45.3, 0.5, 'spare height');
+    approx(f.spareWidthPx, 307.0, 0.5, 'spare width');
+    approx(f.spareHeightPx, 75.3, 0.5, 'spare height');
     assert.equal(f.cropWidthFraction, 0);
     assert.equal(f.cropHeightFraction, 0);
   });
 
-  test('at 150% OS scaling the 1442 CSS px frame needs a CSS scale of about 0.768 (77%)', () => {
+  test('at 150% OS scaling the 1442 CSS px frame needs a CSS scale of about 0.746 (75%)', () => {
     const f = replicaFrame({ panel: TABLET, screen: LAPTOP });
-    approx(f.deviceScale, 1.1521, 0.001, 'device px per panel CSS px');
-    approx(f.cssScale, 0.768, 0.001, 'css scale at 150% OS scaling');
+    approx(f.deviceScale, 1.1186, 0.001, 'device px per panel CSS px');
+    approx(f.cssScale, 0.7457, 0.001, 'css scale at 150% OS scaling');
   });
 
   test('at 100% OS scaling cssScale equals deviceScale', () => {
@@ -173,12 +175,13 @@ describe('replicaFrame — showing the tablet at true physical size on the lapto
     assert.equal(f.cropWidthFraction, 0);
   });
 
-  test('reports the laptop width/height measurement mismatch (about 3%) without hiding it', () => {
-    // 334 mm across 1920 px = 5.749 px/mm; 194 mm down 1080 px = 5.567 px/mm.
-    // Pixels are square, so one of the two measurements is slightly off; the
-    // frame scale uses the WIDTH and the mismatch is surfaced for the ruler check.
+  test('the laptop width and height measurements agree to about 0.3% (square pixels)', () => {
+    // 344 mm across 1920 px = 5.581 px/mm; 194 mm down 1080 px = 5.567 px/mm.
+    // Pixels are square, so the two must agree; the frame scale uses the WIDTH and any
+    // disagreement is surfaced (screenDensityMismatchPct) for the ruler check. An earlier
+    // 334 mm typo showed up here as a 3.2% mismatch.
     const f = replicaFrame({ panel: TABLET, screen: LAPTOP });
-    approx(f.screenDensityMismatchPct, 3.2, 0.1, 'screen density mismatch %');
+    approx(f.screenDensityMismatchPct, 0.26, 0.05, 'screen density mismatch %');
   });
 
   test('rejects invalid input', () => {
@@ -188,3 +191,30 @@ describe('replicaFrame — showing the tablet at true physical size on the lapto
     assert.throws(() => replicaFrame({}));
   });
 });
+
+describe('the committed panel measurements (replica/panels.json) are self-consistent', () => {
+  // Pixels are square, so a screen's width and height densities must agree. A typo in one
+  // measured figure (334 mm instead of 344 mm for the laptop's width) once made the true-size
+  // replica about 3% too large and went unnoticed because nothing checked the figures against
+  // each other. Fails if either the tablet or the laptop is more than 1% out.
+  const CONFIG = JSON.parse(readFileSync(fileURLToPath(new URL('../replica/panels.json', import.meta.url)), 'utf8'));
+
+  test('the tablet: 289 x 180 mm against 1442 x 901 CSS px', () => {
+    const d = pxPerMm({ ...pick(CONFIG.panel, 'litWidthMm', 'litHeightMm'), widthPx: CONFIG.panel.cssWidthPx, heightPx: CONFIG.panel.cssHeightPx });
+    assert.ok(d.mismatchPct < 1, `tablet width/height density disagree by ${d.mismatchPct.toFixed(2)}%`);
+  });
+
+  test('the laptop: 344 x 194 mm against 1920 x 1080 px', () => {
+    const d = pxPerMm({ ...pick(CONFIG.screen, 'litWidthMm', 'litHeightMm'), widthPx: CONFIG.screen.resWidthPx, heightPx: CONFIG.screen.resHeightPx });
+    assert.ok(d.mismatchPct < 1, `laptop width/height density disagree by ${d.mismatchPct.toFixed(2)}%`);
+  });
+
+  test('the laptop width is the owner\'s ruler figure, 344 mm', () => {
+    assert.equal(CONFIG.screen.litWidthMm, 344);
+    assert.equal(CONFIG.screen.litHeightMm, 194);
+  });
+});
+
+function pick(obj, ...keys) {
+  return Object.fromEntries(keys.map((k) => [k, obj[k]]));
+}
