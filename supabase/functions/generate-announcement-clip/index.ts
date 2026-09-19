@@ -45,15 +45,22 @@
  * duplicate that logic here too.
  *
  * Hash algorithm must stay identical to scripts/generate-announcement-audio.mjs's
- * hashText() -- sha256(`${voice}|${text}`), first 16 hex chars -- so a clip
- * this function skips as "unchanged" and one that script would also skip
- * agree, and so clips rendered by either path are comparable.
+ * hashText() -- sha256(`${voice}|${AUDIO_FORMAT}|${text}`), first 16 hex chars --
+ * so a clip this function skips as "unchanged" and one that script would also
+ * skip agree, and so clips rendered by either path are comparable. The audio
+ * format is in the hash so a quality change re-renders every clip.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const DEFAULT_BATCH_SIZE = 20
-const AUDIO_FORMAT = 'audio-16khz-64kbitrate-mono-mp3' // matches generate-announcement-audio.mjs exactly
+// Highest quality at the neural voices' native 24 kHz. It was audio-16khz-64kbitrate-mono-mp3, Azure's
+// lowest MP3 tier (8 kHz of bandwidth), which made the voice sound thin and synthetic on a tablet
+// speaker. Azure bills per character, not per format, so this costs nothing at the API; each clip is
+// about 2.5x larger. Must equal AUDIO_FORMAT in scripts/generate-announcement-audio.mjs (a Jest test,
+// tests/announcementAudioFormat.test.js, fails if they differ). It is part of every clip's hash (see
+// hashText), so changing it re-renders every clip instead of every clip being skipped as "unchanged".
+const AUDIO_FORMAT = 'audio-24khz-160kbitrate-mono-mp3'
 
 interface ClipJob {
   id: string
@@ -152,7 +159,7 @@ async function drain(batchSize: number) {
 
       const { error: uploadError } = await supabase.storage
         .from('announcement-audio')
-        .upload(storagePath, mp3, { contentType: 'audio/mpeg', upsert: true })
+        .upload(storagePath, mp3, { contentType: 'audio/mpeg', upsert: true, cacheControl: '300' })
       if (uploadError) throw new Error(`Storage upload failed: ${uploadError.message}`)
 
       const { error: upsertError } = await supabase
@@ -214,9 +221,9 @@ function escapeXml(text: string): string {
 }
 
 // Same algorithm as generate-announcement-audio.mjs's hashText(): sha256 of
-// `${voice}|${text}`, first 16 hex chars. Exported for the colocated test.
+// `${voice}|${AUDIO_FORMAT}|${text}`, first 16 hex chars.
 export async function hashText(voice: string, text: string): Promise<string> {
-  const data = new TextEncoder().encode(`${voice}|${text}`)
+  const data = new TextEncoder().encode(`${voice}|${AUDIO_FORMAT}|${text}`)
   const digest = await crypto.subtle.digest('SHA-256', data)
   return [...new Uint8Array(digest)]
     .map((b) => b.toString(16).padStart(2, '0'))
