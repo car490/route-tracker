@@ -500,7 +500,14 @@ blank until an authenticated push connection delivers a schedule — there's no 
 param or depot-WiFi sync step anymore. Two named display profiles exist (`PANEL_PROFILES` in
 `busops/announce/src/panelSizing.js`, commissioned via `?panel-profile=`): **Bar** (28" ultra-wide
 destination-board panel, not yet built — see `docs/onboard-widescreen-layout.md`) and **Monitor**
-(Dell Pro P2426H, the confirmed demo/validation display).
+(Dell Pro P2426H — **not being used as of 2026-09-19**, owner; profile kept dormant on the legacy sizing). The display in use is the **LEVIRTU 14" tablet** (`lite` profile, lit area measured 289 × 180 mm).
+
+Sign text sizes are physical (2026-09-19, PRs #65–#68): a profile with a measured `litHeightMm` gets Lines 2/3 at
+exactly 22 mm lowercase x-height (the owner's strict reading of PSV(AI)R Reg 14(4); not yet confirmed against DfT
+guidance) and every other size defined in mm — the pure logic is `busops/announce/src/panelSizing.js` (sizes) and
+`headlineLines.js` (three-line split, `data-state`); `onboard.css` hangs the rest off `--header-text`,
+`--sentence-text` and `--logo-text`. See `docs/DECISIONS.md` "Announce sign text sizing". Prove a change against the
+real sign at true size with `npm run verify` in `scripts/announce-replica` (headless Chromium) before the tablet.
 
 ### Dashboard (Vertical Slice Architecture)
 `pcv-dashboard/src/features/<slice>/` — each slice owns its own pages/components; shared code

@@ -465,6 +465,12 @@ isn't legible/recognisable at typical viewing distance), nothing more.
 
 ## 6. Passenger / interior display
 
+> **Status, 2026-09-19 (owner): the Dell Pro P2426H described below is not being used.**
+> The display in use is the **LEVIRTU 14" Android tablet** (the Announce Lite/Solo
+> tablet, §14), lit area measured 289 × 180 mm. The Dell material stays as the
+> record of the 2026-08 decision and purchase; nothing below should be read as
+> the current display.
+
 ### MUST-have (regulatory or physical-constraint driven — not negotiable)
 Sourced from PSV(AI)R Appendix A and the fleet-wiring finding:
 
@@ -481,13 +487,20 @@ Sourced from PSV(AI)R Appendix A and the fleet-wiring finding:
   seat** (§1.2), and from rearward-facing wheelchair spaces on buses
   first used from 1/10/24 (§1.3).
 - **Text ≥22mm in height on a contrasting background** (§1.4).
-  **Resolved**: `onboard.js` computes the correct `--min-text` vh value at
-  runtime from a per-panel physical diagonal supplied once via
-  `?panel-diagonal=<inches>` (`computeMinTextVh()`, see
-  `mele-server/DEPLOY.md` "Panel physical size"), rather than a fixed
-  constant that only happened to be correct for two specific panels. Any
-  future panel just needs its diagonal added to the kiosk URL — no code
-  change required.
+  **Resolved 2026-09-19, on the owner's strict reading — 22 mm lowercase
+  x-height on Lines 2 and 3 (the locale and the actual stop)**; everything else
+  on the sign is smaller and fixed (see `docs/DECISIONS.md` "Announce sign text
+  sizing"). A named panel profile that carries its **measured lit height**
+  (`litHeightMm` — the Solo tablet: 289 × 180 mm) is sized physically by
+  `announce/src/panelSizing.js`: `onboard.js` measures the loaded font's
+  x-height and sets `--min-text` so Lines 2/3 are exactly 22 mm. A panel with
+  no measured height (Bar) still uses the older diagonal-based
+  `computeMinTextVh()` (`?panel-diagonal=<inches>`, see
+  `mele-server/DEPLOY.md` "Panel physical size"), which sizes the *font* to
+  22 mm — roughly 11 mm of lowercase x-height — so it does **not** meet the
+  strict reading until that panel's lit height is measured and added to its
+  profile. The reading itself is the owner's and is not yet confirmed
+  against DfT guidance.
 - **Small/light enough for the ceiling-void install** without structural
   changes to the vehicle.
 
@@ -512,7 +525,7 @@ end, not a pending-order gap. The demo build uses the **same mounts, Bus
 Controller, power chain (§9), and install locations** as production — a
 real physical validation, not a bench mockup. The only two differences
 are the panel itself and one added component:
-- **Demo/validation path (real, in use today)**: the Dell Pro P2426H
+- **Demo/validation path (was real; superseded 2026-09-19 — the Dell is not being used, see the note at the top of §6)**: the Dell Pro P2426H
   (below) stands in for the not-yet-sourced production panel, and
   because it needs mains **240V AC** while the rest of the system is the
   real 24V vehicle supply, a **24V-input pure sine wave inverter (~150W)**
@@ -532,7 +545,7 @@ are the panel itself and one added component:
 |---|---|---|
 | Fire HD 10 tablet | **Dropped** — `DEPLOY.md` "Option A" no longer names a specific device; the Bar/Monitor display profiles are both HDMI-wired (Option B) | `mele-server/DEPLOY.md` §5 |
 | Allsee WS28HD8-B / "VSDISPLAY 28" 1920×360" stretch-bar | **Dropped** — hard to source in time, and the target fleet's wiring can't take a large-format retrofit without a major rewire | Proposal §7.3 |
-| **Dell Pro P2426H, without stand** (210-BVTG, service tag FZG4ZD4) | **Confirmed BETA unit, purchased 2026-08-14.** Mains 240V, see two-path note above. 24" FHD IPS, 100×100mm VESA fixing, full-size HDMI + DisplayPort in. Chosen over an industrial-spec panel because those run ~6 weeks average lead time. Consumer-grade, not the final production pick, but its physical footprint is expected to match the eventual production panel. Ships without an enclosure (§10). | This session, 2026-08-13/14 |
+| **Dell Pro P2426H, without stand** (210-BVTG, service tag FZG4ZD4) | **Purchased 2026-08-14 as the BETA unit; NOT being used as of 2026-09-19 (owner) — kept for the record.** Mains 240V, see two-path note above. 24" FHD IPS, 100×100mm VESA fixing, full-size HDMI + DisplayPort in. Chosen over an industrial-spec panel because those run ~6 weeks average lead time. Consumer-grade, not the final production pick, but its physical footprint is expected to match the eventual production panel. Ships without an enclosure (§10). | This session, 2026-08-13/14 |
 | Production panel | **TBD, unresolved sourcing gap** | Proposal §7.3 |
 | ~~Beta pick — iiyama ProLite XUB2492HSN-B1~~ | **Removed 2026-08-13** — dropped in favor of the Dell Pro P2426H. Do not reintroduce without checking with the user first. | Superseded, kept for audit trail only |
 
@@ -763,10 +776,11 @@ Blackview Active 5 — only the Announce-side device in a Lite/Solo install.
   practical way to guarantee this — GNSS is bundled into essentially every
   LTE modem, while WiFi-only tablets routinely omit a GPS chip entirely.
 - **Screen large enough to pass §6's MUST-haves** — ≥51% per-deck seat
-  visibility, ≥22mm text height (computed at runtime by `onboard.js`'s
-  `computeMinTextVh()` from `?panel-diagonal=`). Target: 14.6", in line with
-  the panel diagonals already validated in §6 — not a phone-tablet
-  diagonal. **In tension with the mount decision below** — see "Mount"
+  visibility, ≥22mm text height (computed at runtime by `announce/src/panelSizing.js` from the
+  profile's measured lit height and the font's x-height — see §6). Target:
+  14.6", in line with the panel diagonals already validated in §6 — not a
+  phone-tablet diagonal. **Actual unit (2026-09-19): the LEVIRTU 14" tablet, lit
+  area measured 289 × 180 mm.** **In tension with the mount decision below** — see "Mount"
   and "Compliance risk" subsections.
 - **3.5mm AUX audio out.** Closes a gap `ANNOUNCE-PRODUCT-TIERS.md`'s tier
   comparison only answered for the *Lite (paired)* scenario ("falls back to
@@ -843,15 +857,19 @@ vehicle-telematics row above), not yet resolved.
 Flagged as open, not invented — checked against both the code and the
 original proposal rather than assumed either way.
 
-- **§1.4 (≥22mm text) is not actually broken by a smaller screen.**
-  `computeMinTextVh()` (`(22 / panelHeightMm) * 100`) sizes text as a
-  fraction of viewport height computed from the panel's own physical
-  diagonal — it already scales to a genuine 22mm on any screen size, once
-  that screen's diagonal is correctly supplied via `?panel-diagonal=`. A
-  smaller screen doesn't fail this requirement; it just spends more of its
-  own vertical space on mandatory-size text, leaving less room for stop
-  content before cycling/scrolling is needed. That's a usability cost, not
-  a §1.4 compliance failure.
+- **§1.4 (≥22mm text) is not broken by a smaller screen — but the old
+  calculation under-delivered on every panel.** `computeMinTextVh()`
+  (`(22 / panelHeightMm) * 100`) sized the *font* to 22mm from a nominal
+  diagonal, which is only about 11mm of lowercase x-height — half of the owner's
+  strict reading. Since 2026-09-19 a panel with a measured lit height (the Solo
+  tablet) is sized so Lines 2/3 are exactly 22mm x-height
+  (`announce/src/panelSizing.js`, `docs/DECISIONS.md` "Announce sign text
+  sizing"). A smaller screen still just spends more of its own vertical space
+  on mandatory-size text, leaving less room for stop content before scrolling
+  is needed — a usability cost, not a §1.4 compliance failure. Scrolling is
+  allowed but not preferred (owner, 2026-09-19: DfT would rather text did not
+  scroll; it is not prohibited), so shorten stop names where an honest shorter
+  name exists.
 - **§1.1–§1.3 (≥51% seat visibility, wheelchair/priority seat visibility)
   is the real risk, and it's a geometry problem, not a size problem.**
   `docs/BusOpsDriver_Proposal.source.html` Appendix A names *"central-aisle
