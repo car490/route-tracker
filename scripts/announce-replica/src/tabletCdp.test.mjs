@@ -12,12 +12,14 @@ import { withTimeout, DevToolsTimeout } from './tabletCdp.mjs';
 const never = () => new Promise(() => {});
 const later = (value, ms) => new Promise((resolve) => setTimeout(() => resolve(value), ms));
 
+// Each test that waits on a never-answering call has its own 2 s limit, so if withTimeout ever stops
+// enforcing its limit the suite FAILS cleanly instead of hanging.
 describe('withTimeout', () => {
   test('passes the value through when the call answers in time', async () => {
     assert.equal(await withTimeout(later('ok', 5), 500, 'Runtime.evaluate'), 'ok');
   });
 
-  test('rejects with a DevToolsTimeout naming the call and the limit when it never answers', async () => {
+  test('rejects with a DevToolsTimeout naming the call and the limit when it never answers', { timeout: 2000 }, async () => {
     await assert.rejects(
       withTimeout(never(), 30, 'Page.captureScreenshot'),
       (err) => err instanceof DevToolsTimeout && /Page\.captureScreenshot/.test(err.message) && /30/.test(err.message),
@@ -29,7 +31,7 @@ describe('withTimeout', () => {
     await assert.rejects(withTimeout(Promise.reject(boom), 500, 'x'), (err) => err === boom);
   });
 
-  test('a slow answer that arrives after the limit is a timeout, and does not resolve later', async () => {
+  test('a slow answer that arrives after the limit is a timeout, and does not resolve later', { timeout: 2000 }, async () => {
     await assert.rejects(withTimeout(later('late', 60), 20, 'slow'), DevToolsTimeout);
   });
 
