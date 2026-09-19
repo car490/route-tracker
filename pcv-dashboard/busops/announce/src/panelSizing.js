@@ -59,6 +59,20 @@ export function computeMinTextVhFromLitHeight({ litHeightMm, xHeightRatio, targe
   return (100 * targetMm) / (xHeightRatio * litHeightMm);
 }
 
+// The one size shared by the top bar text and Line 1 (owner, 2026-09-19).
+// Neither carries the 22 mm rule — only Lines 2/3 do — so this is a comfortable
+// reading size, defined in mm and converted from the measured lit height so it
+// stays physical: 13.5 mm is 7.5vh on the 180 mm Solo tablet. onboard.css hangs
+// the bar depth (1.7x, 23 mm), the Line 1 slot (1.6x, 21.6 mm) and the wait
+// box text (0.6x / 0.42x) off --header-text, so this is the only number needed.
+export const HEADER_TEXT_MM = 13.5;
+
+export function computeHeaderTextVh({ litHeightMm, targetMm = HEADER_TEXT_MM } = {}) {
+  if (!isPositiveNumber(litHeightMm)) throw new RangeError(`litHeightMm must be a positive number, got ${litHeightMm}`);
+  if (!isPositiveNumber(targetMm)) throw new RangeError(`targetMm must be a positive number, got ${targetMm}`);
+  return (100 * targetMm) / litHeightMm;
+}
+
 // A canvas measurement can fail (no canvas, font not loaded, 0 back from a
 // blank glyph). A wrong ratio would silently mis-size the sign, so anything
 // outside a plausible range is replaced by the default and flagged.
@@ -76,6 +90,8 @@ export function usableXHeightRatio(measured) {
 //   2. profile with litHeightMm (physical maths; measures the font)
 //   3. profile with only a diagonal (legacy maths)
 //   4. nothing: vh is null, so CSS's own --min-text default stands
+// headerTextVh (the top bar / Line 1 size) is physical only on path 2, where the
+// lit height is trusted; otherwise null and onboard.css's own default stands.
 // measureXHeightRatio is only ever called on path 2, and may throw or return
 // junk — either falls back to the default ratio rather than breaking the sign.
 export function resolveMinTextVh({
@@ -86,6 +102,7 @@ export function resolveMinTextVh({
       vh: computeMinTextVh(explicitDiagonalInches, viewportWidthPx, viewportHeightPx),
       source: 'explicit-diagonal',
       ratioFellBack: false,
+      headerTextVh: null,
     };
   }
   if (profile?.litHeightMm) {
@@ -100,6 +117,7 @@ export function resolveMinTextVh({
       vh: computeMinTextVhFromLitHeight({ litHeightMm: profile.litHeightMm, xHeightRatio: ratio }),
       source: 'lit-height',
       ratioFellBack: fellBack,
+      headerTextVh: computeHeaderTextVh({ litHeightMm: profile.litHeightMm }),
     };
   }
   if (profile?.diagonalInches) {
@@ -107,7 +125,8 @@ export function resolveMinTextVh({
       vh: computeMinTextVh(profile.diagonalInches, viewportWidthPx, viewportHeightPx),
       source: 'profile-diagonal',
       ratioFellBack: false,
+      headerTextVh: null,
     };
   }
-  return { vh: null, source: null, ratioFellBack: false };
+  return { vh: null, source: null, ratioFellBack: false, headerTextVh: null };
 }

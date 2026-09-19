@@ -74,13 +74,17 @@ function measureXHeightRatio() {
 }
 
 let appliedMinTextVh = null;
+let appliedHeaderTextVh = null;
 let warnedRatioFallback = false;
 
-// Returns true if --min-text changed, so the caller knows to re-measure
-// anything laid out against the old size (marquees, brand position).
+// Sets --min-text (Lines 2/3, the 22mm rule) and, on a panel with a measured
+// lit height, --header-text (the top bar and Line 1, 13.5mm — onboard.css hangs
+// the bar depth, the Line 1 slot and the wait box text off it). Returns true if
+// either changed, so the caller knows to re-measure anything laid out against
+// the old sizes (marquees, brand position).
 function applyPanelSizing() {
   const explicitDiagonal = Number(new URLSearchParams(window.location.search).get('panel-diagonal'));
-  const { vh, ratioFellBack } = resolveMinTextVh({
+  const { vh, headerTextVh, ratioFellBack } = resolveMinTextVh({
     explicitDiagonalInches: explicitDiagonal,
     profile: panelProfile,
     viewportWidthPx: window.innerWidth,
@@ -91,10 +95,18 @@ function applyPanelSizing() {
     warnedRatioFallback = true;
     console.warn('[onboard] could not measure the font x-height; sizing Lines 2/3 with the default ratio');
   }
-  if (!vh || vh === appliedMinTextVh) return false;
-  appliedMinTextVh = vh;
-  document.documentElement.style.setProperty('--min-text', `${vh}vh`);
-  return true;
+  let changed = false;
+  if (vh && vh !== appliedMinTextVh) {
+    appliedMinTextVh = vh;
+    document.documentElement.style.setProperty('--min-text', `${vh}vh`);
+    changed = true;
+  }
+  if (headerTextVh && headerTextVh !== appliedHeaderTextVh) {
+    appliedHeaderTextVh = headerTextVh;
+    document.documentElement.style.setProperty('--header-text', `${headerTextVh}vh`);
+    changed = true;
+  }
+  return changed;
 }
 
 // The x-height ratio is only right once the real font has loaded; until then
