@@ -1,0 +1,31 @@
+{
+  "source": "stops-prod.pipe",
+  "measured": {
+    "availablePx": 1370,
+    "fontPx": 207.778,
+    "xHeightMm": 22,
+    "fontLoaded": false,
+    "family": "\"Plus Jakarta Sans\", -apple-system, BlinkMacSystemFont, sans-serif"
+  },
+  "total": 199,
+  "bySeverity": {
+    "ok": 57,
+    "info": 0,
+    "warn": 140,
+    "error": 2
+  },
+  "byFlag": {
+    "unreviewed-copy": 68,
+    "address-not-a-name": 1,
+    "comma-space": 76,
+    "town-scrolls": 51,
+    "stop-scrolls": 110,
+    "no-announcement-name": 1,
+    "no-comma": 1,
+    "abbreviation": 7,
+    "indicator": 3,
+    "stray-space": 4,
+    "multiple-commas": 36,
+    "odd-capitals": 1
+  }
+}

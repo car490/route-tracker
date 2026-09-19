@@ -1,0 +1,21 @@
+{
+  "note": "Measured by the owner on 2026-09-18 with a ruler. These are facts, not nominal specs.",
+  "panel": {
+    "name": "BusOps Announce Solo tablet (lit area)",
+    "litWidthMm": 289,
+    "litHeightMm": 180,
+    "cssWidthPx": 1442,
+    "cssHeightPx": 901
+  },
+  "screen": {
+    "name": "Review laptop (lit area)",
+    "litWidthMm": 334,
+    "litHeightMm": 194,
+    "resWidthPx": 1920,
+    "resHeightPx": 1080
+  },
+  "rule": {
+    "lowercaseMm": 22,
+    "note": "Lines 2 and 3 only: no lowercase character under 22 mm (treated as x-height, the stricter reading)."
+  }
+}
