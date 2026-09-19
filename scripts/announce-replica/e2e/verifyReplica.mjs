@@ -174,6 +174,40 @@ try {
     }
   });
 
+  // Slice D (2026-09-19): terminus and diversion (and the no-comma sentence) at 24 mm, the brand
+  // mark's main line at 5.5 mm with its two smaller lines in their existing proportions.
+  console.log('Slice D: the real sign - sentence states and brand mark');
+  const SENTENCE_STATES = ['next-single-line', 'terminus', 'diversion'];
+  check('deployed: terminus, diversion and the no-comma sentence are 24 mm', () => {
+    for (const id of SENTENCE_STATES) {
+      const row = report.deployed[id].rows.find((r) => r.name === 'Sentence headline');
+      assert.ok(row, `${id}: no sentence headline measured`);
+      near(row.fontMm, 24, 0.1);
+    }
+  });
+  check('deployed: Lines 2/3 are still 22 mm x-height (the sentence size never reaches them)', () => {
+    for (const id of REAL_THREE_LINE) {
+      for (const r of report.deployed[id].rows.filter((r) => r.verdict)) { near(r.xHeightMm, 22, 0.1); assert.equal(r.verdict.pass, true); }
+    }
+  });
+  check('deployed: brand main line is 5.5 mm in every state, its smaller lines about 3 to 4 mm', () => {
+    for (const [id, m] of Object.entries(report.deployed)) {
+      const main = m.rows.find((r) => r.name === 'Brand wordmark');
+      if (!main) continue; // idle shows no brand row in the sign; only sign states are measured here
+      near(main.fontMm, 5.5, 0.1);
+      near(m.rows.find((r) => r.name === 'Brand: from').fontMm, 2.75, 0.15);
+      near(m.rows.find((r) => r.name === 'Brand: company').fontMm, 3.8, 0.15);
+    }
+    assert.ok(Object.values(report.deployed).some((m) => m.rows.some((r) => r.name === 'Brand wordmark')), 'brand never measured');
+  });
+  check('deployed: every one of the 10 states is free of collisions and clipping', () => {
+    assert.equal(Object.keys(report.deployed).length, SCENARIOS.length);
+    for (const [id, m] of Object.entries(report.deployed)) {
+      const bad = m.flags.filter((f) => f.type !== 'scrolling');
+      assert.deepEqual(bad, [], `${id}: ${JSON.stringify(bad)}`);
+    }
+  });
+
   console.log('Candidate layouts (compact / proposed / large)');
   const THREE = ['route-start', 'next-three-line', 'this-is-three-line', 'this-is-early-wait', 'long-stop-line', 'long-town-line'];
   for (const tier of ['compact', 'proposed', 'large']) {

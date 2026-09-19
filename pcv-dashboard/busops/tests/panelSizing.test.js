@@ -1,7 +1,8 @@
 // tests/panelSizing.test.js
 //
-// BusOps Announce sign sizing. Slice A (physical sizing) and slice B (the
-// top bar and Line 1 share one physical size). Written BEFORE the code (TDD).
+// BusOps Announce sign sizing. Slice A (physical sizing), slice B (the top bar
+// and Line 1 share one physical size) and slice D (terminus/diversion sentences
+// and the brand mark). Written BEFORE the code (TDD).
 //
 // PSV(AI)R Reg 14(4): Lines 2 and 3 (the locale and the actual stop) must
 // have no lowercase letter smaller than 22 mm, read as lowercase x-height —
@@ -21,7 +22,11 @@ import {
   computeMinTextVh,
   computeMinTextVhFromLitHeight,
   computeHeaderTextVh,
+  computeSentenceTextVh,
+  computeBrandTextVh,
   HEADER_TEXT_MM,
+  SENTENCE_TEXT_MM,
+  BRAND_TEXT_MM,
   usableXHeightRatio,
   resolveMinTextVh,
 } from '../announce/src/panelSizing.js';
@@ -169,7 +174,9 @@ describe('resolveMinTextVh — which sizing path applies', () => {
   });
 
   it('no profile and no explicit diagonal gives null, so the CSS default (17vh) stands', () => {
-    expect(resolveMinTextVh({ ...TABLET })).toEqual({ vh: null, source: null, ratioFellBack: false, headerTextVh: null });
+    expect(resolveMinTextVh({ ...TABLET })).toEqual({
+      vh: null, source: null, ratioFellBack: false, headerTextVh: null, sentenceTextVh: null, brandTextVh: null,
+    });
   });
 
   it.each([NaN, 0, 5, undefined])('an unusable measured ratio (%s) falls back to 0.52 and says so', (bad) => {
@@ -264,6 +271,66 @@ describe('resolveMinTextVh — headerTextVh follows the sizing source', () => {
     });
     expect(out.source).toBe('explicit-diagonal');
     expect(out.headerTextVh).toBeNull();
+  });
+});
+
+describe('slice D — sentence states (terminus, diversion) and the brand mark', () => {
+  it('the sentence size is 24 mm and the brand main line 5.5 mm', () => {
+    expect(SENTENCE_TEXT_MM).toBe(24);
+    expect(BRAND_TEXT_MM).toBe(5.5);
+  });
+
+  it('24 mm on a 180 mm lit height is 13.333vh; 5.5 mm is 3.0556vh', () => {
+    expect(computeSentenceTextVh({ litHeightMm: 180 })).toBeCloseTo(13.3333, 4);
+    expect(computeBrandTextVh({ litHeightMm: 180 })).toBeCloseTo(3.0556, 4);
+  });
+
+  it('a taller panel needs fewer vh for the same physical size', () => {
+    expect(computeSentenceTextVh({ litHeightMm: 360 })).toBeCloseTo(computeSentenceTextVh({ litHeightMm: 180 }) / 2, 9);
+    expect(computeBrandTextVh({ litHeightMm: 360 })).toBeCloseTo(computeBrandTextVh({ litHeightMm: 180 }) / 2, 9);
+  });
+
+  it('honours an explicit target', () => {
+    expect(computeSentenceTextVh({ litHeightMm: 180, targetMm: 18 })).toBeCloseTo(10, 9);
+    expect(computeBrandTextVh({ litHeightMm: 180, targetMm: 9 })).toBeCloseTo(5, 9);
+  });
+
+  it.each([
+    ['sentence', computeSentenceTextVh],
+    ['brand', computeBrandTextVh],
+  ])('%s size rejects bad input', (_n, fn) => {
+    for (const args of [undefined, {}, { litHeightMm: 0 }, { litHeightMm: -1 }, { litHeightMm: '180' }, { litHeightMm: NaN }, { litHeightMm: 180, targetMm: -1 }]) {
+      expect(() => fn(args)).toThrow(RangeError);
+    }
+  });
+
+  it('a lit-height profile (the Solo tablet) gets physical sentence and brand sizes', () => {
+    const out = resolveMinTextVh({ profile: PANEL_PROFILES.lite, ...TABLET, measureXHeightRatio: () => 0.52 });
+    expect(out.sentenceTextVh).toBeCloseTo(13.3333, 4);
+    expect(out.brandTextVh).toBeCloseTo(3.0556, 4);
+  });
+
+  it('they do not depend on the measured font ratio, and survive a failed measurement', () => {
+    const a = resolveMinTextVh({ profile: PANEL_PROFILES.lite, ...TABLET, measureXHeightRatio: () => 0.48 });
+    const b = resolveMinTextVh({ profile: PANEL_PROFILES.lite, ...TABLET, measureXHeightRatio: () => NaN });
+    expect(b.ratioFellBack).toBe(true);
+    expect(a.sentenceTextVh).toBe(b.sentenceTextVh);
+    expect(a.brandTextVh).toBe(b.brandTextVh);
+  });
+
+  it.each([
+    ['monitor', PANEL_PROFILES.monitor, 1920, 1080],
+    ['bar', PANEL_PROFILES.bar, 2560, 720],
+  ])('%s has no measured lit height, so both stay null and the CSS defaults stand', (_n, profile, w, h) => {
+    const out = resolveMinTextVh({ profile, viewportWidthPx: w, viewportHeightPx: h });
+    expect(out.sentenceTextVh).toBeNull();
+    expect(out.brandTextVh).toBeNull();
+  });
+
+  it('an explicit ?panel-diagonal= keeps them null too', () => {
+    const out = resolveMinTextVh({ explicitDiagonalInches: 14, profile: PANEL_PROFILES.lite, ...TABLET, measureXHeightRatio: () => 0.52 });
+    expect(out.sentenceTextVh).toBeNull();
+    expect(out.brandTextVh).toBeNull();
   });
 });
 

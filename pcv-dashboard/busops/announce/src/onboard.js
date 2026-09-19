@@ -75,17 +75,20 @@ function measureXHeightRatio() {
 }
 
 let appliedMinTextVh = null;
-let appliedHeaderTextVh = null;
+const appliedSizeVh = {}; // token -> last vh written, for the physical sizes besides --min-text
 let warnedRatioFallback = false;
 
 // Sets --min-text (Lines 2/3, the 22mm rule) and, on a panel with a measured
-// lit height, --header-text (the top bar and Line 1, 13.5mm — onboard.css hangs
-// the bar depth, the Line 1 slot and the wait box text off it). Returns true if
-// either changed, so the caller knows to re-measure anything laid out against
-// the old sizes (marquees, brand position).
+// lit height, the other physical sizes: --header-text (top bar and Line 1,
+// 13.5mm — onboard.css hangs the bar depth, the Line 1 slot and the wait box
+// text off it), --sentence-text (24mm) and --logo-text (5.5mm). Returns true if
+// any changed, so the caller knows to re-measure anything laid out against the
+// old sizes (marquees, brand position).
 function applyPanelSizing() {
   const explicitDiagonal = Number(new URLSearchParams(window.location.search).get('panel-diagonal'));
-  const { vh, headerTextVh, ratioFellBack } = resolveMinTextVh({
+  const {
+    vh, headerTextVh, sentenceTextVh, brandTextVh, ratioFellBack,
+  } = resolveMinTextVh({
     explicitDiagonalInches: explicitDiagonal,
     profile: panelProfile,
     viewportWidthPx: window.innerWidth,
@@ -102,10 +105,18 @@ function applyPanelSizing() {
     document.documentElement.style.setProperty('--min-text', `${vh}vh`);
     changed = true;
   }
-  if (headerTextVh && headerTextVh !== appliedHeaderTextVh) {
-    appliedHeaderTextVh = headerTextVh;
-    document.documentElement.style.setProperty('--header-text', `${headerTextVh}vh`);
-    changed = true;
+  // The physical sizes onboard.css hangs everything else off (null = no measured
+  // lit height, so the CSS default for that token stands).
+  for (const [token, sizeVh] of [
+    ['--header-text', headerTextVh], // top bar + Line 1, 13.5mm
+    ['--sentence-text', sentenceTextVh], // terminus, diversion, no-comma sentence, 24mm
+    ['--logo-text', brandTextVh], // brand mark main line, 5.5mm
+  ]) {
+    if (sizeVh && sizeVh !== appliedSizeVh[token]) {
+      appliedSizeVh[token] = sizeVh;
+      document.documentElement.style.setProperty(token, `${sizeVh}vh`);
+      changed = true;
+    }
   }
   return changed;
 }
