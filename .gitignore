@@ -48,3 +48,7 @@ branding-logo.png
 # real AZURE_SPEECH_KEY once filled in, never commit it. Copy
 # .env.audio.example to this name (see CLAUDE.md "PSVAIR announcement audio").
 pcv-dashboard/busops/.env.audio
+
+# Screenshots and report.json written by scripts/announce-replica's `npm run verify`
+# (about 3.5 MB per run, regenerated every time) — output, not source
+scripts/announce-replica/replica-captures/
