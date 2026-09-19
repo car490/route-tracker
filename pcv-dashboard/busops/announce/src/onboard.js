@@ -139,34 +139,6 @@ function resizeWhenFontsLoad() {
   document.fonts.load(`${LINE_2_3_FONT_WEIGHT} 200px ${family}`, 'x').then(reapply, () => {});
 }
 
-// TEMPORARY — 2026-09-17 sizing investigation. ?debug-size=1 overlays the
-// same window-size/--min-text/rendered-font-px numbers this session's
-// laptop demo relied on (getComputedStyle can't be eyeballed on a live
-// device otherwise), so the real Solo tablet's actual numbers can be read
-// directly off its own screen without chrome://inspect / WebView
-// debugging having to be enabled. Remove this whole function and its one
-// call site in init() once the real-device sizing question is settled —
-// not meant to ship long-term.
-function applyDebugSizeOverlay() {
-  if (new URLSearchParams(window.location.search).get('debug-size') !== '1') return;
-  const box = document.createElement('div');
-  box.style.cssText = 'position:fixed;top:0;left:0;z-index:99999;background:#000;color:#0f0;'
-    + 'font:12px/1.4 monospace;padding:6px 10px;white-space:pre;pointer-events:none;';
-  document.body.appendChild(box);
-  setInterval(() => {
-    const root = getComputedStyle(document.documentElement);
-    const town = document.querySelector('.hl-town');
-    const verb = document.querySelector('.hl-verb');
-    box.textContent = [
-      `window: ${window.innerWidth}x${window.innerHeight}`,
-      `--min-text: ${root.getPropertyValue('--min-text')}`,
-      `--header-text: ${root.getPropertyValue('--header-text')}`,
-      `.hl-town font-size: ${town ? getComputedStyle(town).fontSize : '(not shown)'}`,
-      `.hl-verb font-size: ${verb ? getComputedStyle(verb).fontSize : '(not shown)'}`,
-    ].join('\n');
-  }, 1000);
-}
-
 // ── Wake lock — keep the mounted screen on ─────────────────────────────────
 // shouldStayAwake tracks *intent*, separate from wakeLock itself (whether
 // the API actually granted one). Needed because releaseWakeLock() below is
@@ -789,7 +761,6 @@ function init() {
   el('onboard-sign').dataset.state = signStateAttribute(ANNOUNCE_STATES.IDLE); // nothing shown yet
   applyPanelSizing();
   resizeWhenFontsLoad();
-  applyDebugSizeOverlay();
   initIdleScreen();
 
   // Mutually exclusive per device: ?announce-device-token= (Lite/Solo,
