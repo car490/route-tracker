@@ -7,7 +7,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { parseAdbDevices, chooseDevice, findWebviewSocketNames } from './tabletAdb.mjs';
+import { parseAdbDevices, chooseDevice, findWebviewSocketNames, pickSignTarget } from './tabletAdb.mjs';
 
 const DEVICES_ONE = 'List of devices attached\n202546NMM32800870\tdevice product:M328-EEA model:M328_EEA device:M328-EEA transport_id:5\n\n';
 
@@ -98,5 +98,49 @@ describe('findWebviewSocketNames — is the WebView exposing DevTools?', () => {
   test('a socket name is only ever the plain identifier: nothing that could reach a shell', () => {
     const text = `${HEADER}0: 2 0 10000 1 1 1 @webview_devtools_remote_1;reboot\n`;
     assert.deepEqual(findWebviewSocketNames(text), []);
+  });
+});
+
+describe('pickSignTarget — which open page is the sign?', () => {
+  const page = (url, extra = {}) => ({ type: 'page', url, webSocketDebuggerUrl: 'ws://x/1', ...extra });
+
+  test('a plain onboard.html page (local server, GitHub Pages)', () => {
+    assert.equal(pickSignTarget([page('http://127.0.0.1:8080/announce/onboard.html')]).url, 'http://127.0.0.1:8080/announce/onboard.html');
+  });
+
+  test('the extension-less path Cloudflare Workers serves: /announce/onboard (what the tablet showed on 2026-09-19)', () => {
+    const t = pickSignTarget([page('https://driver-dev.pcvtechnologies.co.uk/announce/onboard')]);
+    assert.equal(t.url, 'https://driver-dev.pcvtechnologies.co.uk/announce/onboard');
+  });
+
+  test('a query string (device token) and a hash do not stop the match', () => {
+    assert.ok(pickSignTarget([page('https://h/announce/onboard?announce-device-token=abc&panel-profile=lite')]));
+    assert.ok(pickSignTarget([page('https://h/announce/onboard.html?x=1#top')]));
+  });
+
+  test('a trailing slash is still the sign', () => {
+    assert.ok(pickSignTarget([page('https://h/announce/onboard/')]));
+  });
+
+  test('picks the sign among other pages, and ignores non-page targets', () => {
+    const targets = [
+      { type: 'service_worker', url: 'https://h/announce/onboard.js' },
+      page('https://h/driver/index.html'),
+      page('https://h/announce/onboard'),
+    ];
+    assert.equal(pickSignTarget(targets).url, 'https://h/announce/onboard');
+  });
+
+  test('the driver PWA and lookalike paths are NOT the sign', () => {
+    assert.equal(pickSignTarget([page('https://h/driver/index.html')]), null);
+    assert.equal(pickSignTarget([page('https://h/announce/onboarding')]), null);
+    assert.equal(pickSignTarget([page('https://h/other/announce/onboard-notes.html')]), null);
+    assert.equal(pickSignTarget([page('https://h/?next=/announce/onboard')]), null);
+  });
+
+  test('nothing open, or junk input, gives null and never throws', () => {
+    assert.equal(pickSignTarget([]), null);
+    assert.equal(pickSignTarget(undefined), null);
+    assert.equal(pickSignTarget([null, {}, { type: 'page' }, { type: 'page', url: 42 }]), null);
   });
 });

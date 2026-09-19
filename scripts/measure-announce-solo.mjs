@@ -26,10 +26,10 @@ import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
 
-import { PANEL_PROFILES } from '../pcv-dashboard/busops/announce/src/panelSizing.js';
-import { parseAdbDevices, chooseDevice, findWebviewSocketNames } from './announce-replica/src/tabletAdb.mjs';
-import { evaluateTabletReport, SOLO_LIT_WIDTH_MM } from './announce-replica/src/tabletReport.mjs';
+import { parseAdbDevices, chooseDevice, findWebviewSocketNames, pickSignTarget } from './announce-replica/src/tabletAdb.mjs';
+import { evaluateTabletReport, SOLO_LIT_WIDTH_MM, SOLO_LIT_HEIGHT_MM } from './announce-replica/src/tabletReport.mjs';
 import { probeSign } from './announce-replica/src/tabletProbe.mjs';
+import { withTimeout, DevToolsTimeout } from './announce-replica/src/tabletCdp.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -44,7 +44,7 @@ if (argv.includes('--help') || argv.includes('-h')) {
 const serialArg = flag('serial');
 const cdpPortArg = flag('cdp-port');
 const outRoot = resolve(flag('out') ?? join(ROOT, 'scripts', 'tablet-captures'));
-const litHeightMm = Number(flag('lit-height-mm') ?? PANEL_PROFILES.lite.litHeightMm);
+const litHeightMm = Number(flag('lit-height-mm') ?? SOLO_LIT_HEIGHT_MM);
 const litWidthMm = Number(flag('lit-width-mm') ?? SOLO_LIT_WIDTH_MM);
 const FORWARD_PORT = Number(flag('port') ?? 9224); // differs from review-announce-solo.mjs's 9223 so both can be used
 
@@ -98,11 +98,17 @@ class CDPClient {
       }
     });
   }
-  send(method, params = {}) {
-    return new Promise((ok, reject) => {
-      const id = this.nextId++;
+  // Every call has a time limit: the Android WebView never answers Page.captureScreenshot, and an
+  // unbounded wait turned that into a hang (found live 2026-09-19).
+  send(method, params = {}, limitMs = 20000) {
+    const id = this.nextId++;
+    const call = new Promise((ok, reject) => {
       this.pending.set(id, { resolve: ok, reject });
       this.ws.send(JSON.stringify({ id, method, params }));
+    });
+    return withTimeout(call, limitMs, method).catch((err) => {
+      this.pending.delete(id);
+      throw err;
     });
   }
 }
@@ -110,7 +116,7 @@ class CDPClient {
 async function listTargets(port) {
   let res;
   try {
-    res = await fetch(`http://127.0.0.1:${port}/json`);
+    res = await withTimeout(fetch(`http://127.0.0.1:${port}/json`), 10000, 'GET /json');
   } catch (err) {
     throw new CouldNotMeasure(`Nothing is listening for DevTools on 127.0.0.1:${port} (${err.cause?.code ?? err.message}).`);
   }
@@ -119,17 +125,18 @@ async function listTargets(port) {
 
 async function connect(port) {
   const targets = await listTargets(port);
-  const page = targets.find((t) => t.type === 'page' && /onboard\.html/.test(t.url)) ?? null;
+  const page = pickSignTarget(targets);
   if (!page) {
-    const seen = targets.filter((t) => t.type === 'page').map((t) => t.url.split('?')[0]).join(', ') || 'no pages';
-    throw new CouldNotMeasure(`No onboard.html page is open in that WebView (pages: ${seen}). Open the sign first.`);
+    // never print the query string: it can carry the device token
+    const seen = targets.filter((t) => t.type === 'page' && typeof t.url === 'string').map((t) => t.url.split(/[?#]/)[0]).join(', ') || 'no pages';
+    throw new CouldNotMeasure(`The sign (/announce/onboard) is not open in that WebView (pages: ${seen}). Open the sign first.`);
   }
   // some WebView builds echo a hostname/port that is not our tunnel: force the one we control
   const wsUrl = new URL(page.webSocketDebuggerUrl);
   wsUrl.hostname = '127.0.0.1';
   wsUrl.port = String(port);
   const ws = new WebSocket(wsUrl.toString());
-  await new Promise((ok, reject) => { ws.once('open', ok); ws.once('error', reject); });
+  await withTimeout(new Promise((ok, reject) => { ws.once('open', ok); ws.once('error', reject); }), 10000, 'WebSocket open');
   return { ws, client: new CDPClient(ws) };
 }
 
@@ -167,25 +174,39 @@ async function measure() {
       expression: `(${probeSign.toString()})()`,
       awaitPromise: true,
       returnByValue: true,
-    });
+    }, 30000);
     if (evaluated.exceptionDetails) throw new CouldNotMeasure(`The probe failed inside the page: ${evaluated.exceptionDetails.text ?? 'exception'}`);
     const report = evaluated.result.value;
-    const shot = await conn.client.send('Page.captureScreenshot', { format: 'png' });
-    return { report, screenshotBase64: shot.data, device };
+
+    // The screenshot is a nice-to-have and must never block the measurement. On the tablet the
+    // WebView does not answer Page.captureScreenshot, so take it with `adb screencap` (native panel
+    // pixels); with a plain DevTools port (the tests) use DevTools and carry on without it.
+    let screenshot = null;
+    let screenshotNote = null;
+    try {
+      if (device) {
+        screenshot = execFileSync(resolveAdb(), ['-s', device.serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], timeout: 20000 });
+      } else {
+        screenshot = Buffer.from((await conn.client.send('Page.captureScreenshot', { format: 'png' }, 15000)).data, 'base64');
+      }
+    } catch (err) {
+      screenshotNote = `Screenshot not saved (${String(err.message).split('\n')[0]}); the measurements do not need it.`;
+    }
+    return { report, screenshot, screenshotNote, device };
   } finally {
     try { conn?.ws.close(); } catch { /* already closed */ }
     if (forwarded) { try { adb(['forward', '--remove', `tcp:${port}`], forwarded); } catch { /* best effort */ } }
   }
 }
 
-function save({ report, result, screenshotBase64, device }) {
+function save({ report, result, screenshot, device }) {
   const t = new Date();
   const stamp = `${t.getFullYear()}${String(t.getMonth() + 1).padStart(2, '0')}${String(t.getDate()).padStart(2, '0')}-${String(t.getHours()).padStart(2, '0')}${String(t.getMinutes()).padStart(2, '0')}${String(t.getSeconds()).padStart(2, '0')}`;
   let dir = join(outRoot, `${stamp}-${result.state}`);
   for (let n = 2; existsSync(dir); n++) dir = join(outRoot, `${stamp}-${result.state}-${n}`);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'report.json'), JSON.stringify({ device: device ? { model: device.model ?? null } : null, litHeightMm, litWidthMm, report, result }, null, 2));
-  writeFileSync(join(dir, 'screenshot.png'), Buffer.from(screenshotBase64, 'base64'));
+  if (screenshot) writeFileSync(join(dir, 'screenshot.png'), screenshot);
   return dir;
 }
 
@@ -198,14 +219,16 @@ try {
   console.log(`Page: ${r.url} | viewport ${r.viewport.w} x ${r.viewport.h} CSS px, DPR ${Number(r.dpr).toFixed(2)} | ${result.pxPerMm.toFixed(4)} px/mm at ${litHeightMm} mm lit height`);
   console.log(`State on screen: ${result.state}${r.sign.threeLine ? ' (three-line)' : ''}\n`);
   for (const c of result.checks) console.log(`  ${c.status === 'pass' ? 'PASS' : 'FAIL'}  ${c.name}: ${c.detail}`);
-  for (const note of result.notes) console.log(`\nNote: ${note}`);
+  for (const note of [...result.notes, measured.screenshotNote].filter(Boolean)) console.log(`\nNote: ${note}`);
   const failed = result.checks.filter((c) => c.status === 'fail').length;
   console.log(`\nRESULT: ${result.ok ? 'PASS' : 'FAIL'} (${result.checks.length - failed} of ${result.checks.length} checks pass)`);
   console.log(`Saved: ${dir}`);
   process.exit(result.ok ? 0 : 1);
 } catch (err) {
-  console.error(err instanceof CouldNotMeasure || err instanceof RangeError || err instanceof TypeError || err?.message
-    ? `Could not measure: ${err.message}`
-    : 'Could not measure.');
+  console.error(err instanceof DevToolsTimeout
+    ? `Could not measure: ${err.message}. Is the sign on screen (not Fully Kiosk's settings)? Is the tablet awake?`
+    : err?.message
+      ? `Could not measure: ${err.message}`
+      : 'Could not measure.');
   process.exit(2);
 }

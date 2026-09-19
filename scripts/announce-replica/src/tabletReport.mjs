@@ -40,8 +40,11 @@ export const TOLERANCES = Object.freeze({
 // ratio is measured at this weight, so Lines 2/3 must actually render at it.
 export const SIGN_LINE_2_3_WEIGHT = '700';
 
-// The Solo tablet's lit width, for the viewport-aspect check. Override for another panel.
+// The Solo tablet's lit area (owner's ruler figures, 2026-09-19), the default for the CLI. Kept
+// here rather than imported from panelSizing.js, which sits in a package without "type": "module"
+// (importing it printed a Node warning on every run); a test checks the two agree.
 export const SOLO_LIT_WIDTH_MM = 289;
+export const SOLO_LIT_HEIGHT_MM = 180;
 
 const isPositive = (n) => typeof n === 'number' && Number.isFinite(n) && n > 0;
 const fmt = (n) => (Number.isFinite(n) ? n.toFixed(2) : 'n/a');

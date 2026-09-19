@@ -75,3 +75,21 @@ export function findWebviewSocketNames(procNetUnix) {
   }
   return names;
 }
+
+// The sign's own path, with or without .html and an optional folder prefix: Cloudflare Workers
+// serves it as /announce/onboard (the tablet showed exactly that on 2026-09-19), the local server
+// and older hosting as /announce/onboard.html. Matched on the URL PATH only, so a query string
+// (the device token) or a look-alike elsewhere in the URL can never make another page the sign.
+const SIGN_PATH = /(^|\/)announce\/onboard(\.html)?\/?$/;
+
+/** The open page that is the sign, from DevTools' /json target list; null if there is none. */
+export function pickSignTarget(targets) {
+  if (!Array.isArray(targets)) return null;
+  for (const t of targets) {
+    if (!t || t.type !== 'page' || typeof t.url !== 'string') continue;
+    let path;
+    try { path = new URL(t.url).pathname; } catch { continue; }
+    if (SIGN_PATH.test(path)) return t;
+  }
+  return null;
+}

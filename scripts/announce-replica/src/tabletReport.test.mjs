@@ -12,7 +12,9 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { evaluateTabletReport, TARGETS, TOLERANCES } from './tabletReport.mjs';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { evaluateTabletReport, TARGETS, TOLERANCES, SOLO_LIT_HEIGHT_MM, SOLO_LIT_WIDTH_MM } from './tabletReport.mjs';
 
 const LIT_HEIGHT_MM = 180;
 const VIEWPORT = { w: 1442, h: 901 };
@@ -225,5 +227,21 @@ describe('robustness', () => {
   test('a three-line state with no glyph measurements fails rather than passing by omission', () => {
     const r = eval180(threeLineReport({ glyphs: null }));
     assert.equal(r.ok, false);
+  });
+});
+
+describe('the Solo tablet defaults', () => {
+  test('are the ruler figures the owner measured: 289 x 180 mm', () => {
+    assert.equal(SOLO_LIT_WIDTH_MM, 289);
+    assert.equal(SOLO_LIT_HEIGHT_MM, 180);
+  });
+
+  test('agree with the lite profile the sign itself uses (panelSizing.js), so the two cannot drift apart', () => {
+    // read as text, not imported: panelSizing.js sits in a package without "type": "module",
+    // and importing it made the CLI print a Node warning on every run
+    const src = readFileSync(fileURLToPath(new URL('../../../pcv-dashboard/busops/announce/src/panelSizing.js', import.meta.url)), 'utf8');
+    const lite = /lite:\s*\{[^}]*litHeightMm:\s*(\d+(?:\.\d+)?)/.exec(src);
+    assert.ok(lite, 'could not find the lite profile in panelSizing.js');
+    assert.equal(Number(lite[1]), SOLO_LIT_HEIGHT_MM);
   });
 });
