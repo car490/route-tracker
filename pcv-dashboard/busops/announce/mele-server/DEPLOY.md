@@ -251,12 +251,12 @@ already part of the same repo checkout above.
 Two named display profiles exist — **Bar** (the original ultra-wide
 destination-board panel, 28", not yet sourced/built — kept for later, see
 `docs/HARDWARE.md` §6) and **Monitor** (Dell Pro P2426H, 24"/23.8"
-diagonal, the confirmed unit in use for demo/validation builds today). Both
+diagonal — **not being used as of 2026-09-19**, owner; the profile is kept, dormant, on the legacy sizing). Both
 are commissioned the same way, via `&panel-profile=bar` or
 `&panel-profile=monitor` appended to the fixed kiosk URL (same pattern as
 `&announce-token=`, see §6) — this sets the correct layout (wide/narrow, see
 `PANEL_PROFILES` in `src/panelSizing.js`) and PSVAIR text sizing together, so no
-other display param is normally needed. Example for the Dell Pro P2426H:
+other display param is normally needed. Example (historical — the Dell Pro P2426H is not in use):
 `...announce/onboard.html?announce-token=<token>&panel-profile=monitor`.
 
 ### Option A — WiFi-client display

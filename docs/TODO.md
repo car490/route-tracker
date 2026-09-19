@@ -53,6 +53,9 @@ Journeys display is now fixed.
 
 ## Onboard display — BETA enclosure gap
 
+> **2026-09-19 (owner): the Dell Pro P2426H is not being used** — the display in use is the LEVIRTU 14" tablet.
+> This section is kept as the record of the 2026-08 mount/enclosure analysis for that monitor; it is not a live task list.
+
 As of 2026-08-14 the Dell Pro P2426H (VESA 100×100mm, no stand) is
 confirmed as the BETA monitor — see `docs/HARDWARE.md` §3/§8. Bought as a
 consumer-grade stand-in because industrial-spec panels run ~6 weeks
