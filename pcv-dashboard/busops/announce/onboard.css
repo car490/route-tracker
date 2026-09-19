@@ -73,16 +73,14 @@
 
   /* ~22mm minimum text size for the Bar profile only (16:3 wide panel,
      2560x480 @ 28", ~3.66px/mm, ~16.8vh) — this is NOT a shared value
-     across profiles. The Monitor profile (Dell P2426H, 1920x1080 @
-     23.8") needs 7.42vh for the same physical 22mm — nearly a third of
-     this default — because vh scales with total pixel height, and a
-     1080px-tall panel needs a much smaller fraction than a 480px-tall one
-     for the same real-world text size. onboard.js's applyPanelSizing()
-     overrides this per-panel via ?panel-diagonal=/?panel-profile=; this
-     default only applies when neither is supplied, so it must stay
-     correct for whichever profile is more likely to be missing the
-     param — Bar, since Monitor already always sends panel-diagonal (see
-     mele-server/DEPLOY.md §5). Bump this value if Bar's real physical size
+     across panels. vh scales with total pixel height, so a taller-in-pixels
+     panel needs a much smaller fraction for the same physical 22mm (a
+     23.8" 1920x1080 panel needs 7.42vh, nearly a third of this default).
+     onboard.js's applyPanelSizing() overrides this per panel via
+     ?panel-profile= (a profile with a measured lit height is sized
+     physically) or ?panel-diagonal=; this default only applies when neither
+     is supplied, so it must stay correct for the panel most likely to be
+     missing the param — Bar. Bump this value if Bar's real physical size
      changes. */
   --min-text:     17vh;
 
