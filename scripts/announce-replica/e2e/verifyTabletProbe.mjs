@@ -83,13 +83,13 @@ try {
 
   console.log('What the probe measured');
   const three = reports['next-three-line'];
-  check('three-line: the drawn "x" is 22 mm by pixels, within 0.1 mm', () => {
+  check('three-line: the drawn "x" is at least 22.0 mm by pixels, near the 22.1 aim', () => {
     const c = three.result.checks.find((x) => x.name.includes('by pixels'));
     assert.ok(c, 'no pixel check made');
     const mmValue = parseFloat(c.detail);
-    assert.ok(Math.abs(mmValue - 22) <= 0.1, c.detail);
+    assert.ok(mmValue >= 22.0 && Math.abs(mmValue - 22.1) <= 0.15, c.detail);
   });
-  check('three-line: the shortest lowercase letter is at least 21.95 mm', () => {
+  check('three-line: the shortest lowercase letter is at least 22.0 mm (no slack)', () => {
     const c = three.result.checks.find((x) => x.name.includes('shortest lowercase'));
     assert.ok(c && c.status === 'pass', c?.detail);
   });

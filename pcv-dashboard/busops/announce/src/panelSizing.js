@@ -34,7 +34,15 @@ export const DEFAULT_X_HEIGHT_RATIO = 0.52;
 const MIN_PLAUSIBLE_X_HEIGHT_RATIO = 0.4;
 const MAX_PLAUSIBLE_X_HEIGHT_RATIO = 0.7;
 
-const LINE_2_3_TARGET_MM = 22;
+// The rule is 22 mm of lowercase x-height on Lines 2 and 3 (PSV(AI)R Reg 14(4), the owner's strict
+// reading). The sign AIMS 0.1 mm higher. Measured on the real Solo tablet on 2026-09-19: sized to
+// exactly 22.0 mm by canvas measureText, the drawn glyphs were 21.92 mm (0.3% short: measureText and the
+// rasterised glyph disagree by up to a pixel at the 200 px it measures at), so the shortest lowercase
+// letter failed the rule by 0.08 mm. 0.1 mm (0.45%) clears that shortfall with room to spare and costs
+// a fraction of a millimetre of layout.
+export const LINE_2_3_RULE_MM = 22;
+export const LINE_2_3_MARGIN_MM = 0.1;
+export const LINE_2_3_TARGET_MM = LINE_2_3_RULE_MM + LINE_2_3_MARGIN_MM;
 
 const isPositiveNumber = (n) => typeof n === 'number' && Number.isFinite(n) && n > 0;
 

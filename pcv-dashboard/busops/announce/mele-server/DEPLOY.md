@@ -284,7 +284,7 @@ pixel height (a 23.8" 1920x1080 panel needs ~7.42vh, well under half the 17vh
 default). See
 `src/panelSizing.js` for the underlying math if a different panel is ever
 used. A profile with a measured `litHeightMm` (Announce Lite/Solo today) is
-sized physically: exactly 22mm lowercase x-height, from the lit height and the
+sized physically: 22.1mm lowercase x-height (the 22mm rule plus a 0.1mm margin), from the lit height and the
 rendered font's measured x-height. A profile with only a diagonal keeps the
 older `computeMinTextVh()` calculation, which needs just the diagonal size —
 resolution and aspect ratio are already known automatically at runtime.

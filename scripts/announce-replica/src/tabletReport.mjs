@@ -12,7 +12,7 @@
 // fixed size from the approved plan (onboard.css / panelSizing.js).
 
 export const TARGETS = Object.freeze({
-  lines23Mm: 22, // lowercase x-height, Lines 2 and 3
+  lines23Mm: 22.1, // lowercase x-height the sign AIMS at, Lines 2 and 3 (22 mm rule + 0.1 mm margin)
   headerMm: 13.5, // top bar text and Line 1 (font size)
   topbarMm: 22.95, // top bar depth (1.7 x 13.5)
   line1SlotMm: 21.6, // Line 1 slot depth (1.6 x 13.5)
@@ -24,7 +24,6 @@ export const TARGETS = Object.freeze({
 
 export const TOLERANCES = Object.freeze({
   lines23Mm: 0.1, // the x-height itself, either measurement
-  lowerFloorMm: 0.05, // the shortest lowercase letter must not be under 22 mm by more than this
   headerMm: 0.15,
   topbarMm: 0.3,
   line1SlotMm: 0.3,
@@ -35,6 +34,11 @@ export const TOLERANCES = Object.freeze({
   aspectPct: 1.5, // viewport aspect vs lit-area aspect
   topbarShareMax: 0.2, // the bar stays under 20% of the panel
 });
+
+// The rule itself (PSV(AI)R Reg 14(4), the owner's strict reading): no lowercase letter on Lines 2 and 3
+// under 22 mm. No slack: at exactly 22.0 mm by canvas the real tablet's shortest DRAWN letter measured
+// 21.92 mm (2026-09-19), which is why the sign aims at 22.1 mm (TARGETS.lines23Mm).
+export const RULE_LINES23_MIN_MM = 22;
 
 // The Line 2/3 weight the sizing assumes (onboard.js LINE_2_3_FONT_WEIGHT): the x-height
 // ratio is measured at this weight, so Lines 2/3 must actually render at it.
@@ -134,13 +138,13 @@ export function evaluateTabletReport(report, { litHeightMm, litWidthMm = SOLO_LI
 
       const canvasMm = worst(g.canvasRatio, TARGETS.lines23Mm);
       const rasterMm = worst(g.rasterRatio, TARGETS.lines23Mm);
-      add('Lines 2/3 lowercase x-height by canvas is 22 mm', within(canvasMm, TARGETS.lines23Mm, TOLERANCES.lines23Mm), `${fmt(canvasMm)} mm (the sign's own method)`);
-      add('Lines 2/3 lowercase x-height by pixels is 22 mm', within(rasterMm, TARGETS.lines23Mm, TOLERANCES.lines23Mm), `${fmt(rasterMm)} mm (drawn glyph, independent of measureText)`);
+      add(`Lines 2/3 lowercase x-height by canvas is the ${TARGETS.lines23Mm} mm aim`, within(canvasMm, TARGETS.lines23Mm, TOLERANCES.lines23Mm), `${fmt(canvasMm)} mm (the sign's own method)`);
+      add(`Lines 2/3 lowercase x-height by pixels is the ${TARGETS.lines23Mm} mm aim`, within(rasterMm, TARGETS.lines23Mm, TOLERANCES.lines23Mm), `${fmt(rasterMm)} mm (drawn glyph, independent of measureText)`);
       add('canvas and pixel measurements agree', Math.abs(canvasMm - rasterMm) <= TOLERANCES.canvasVsRasterMm,
         `differ by ${fmt(Math.abs(canvasMm - rasterMm))} mm`);
 
       const shortestMm = Math.min(...lines.map((l) => mm(l.fontPx * g.shortestLowerRatio)));
-      add('shortest lowercase letter is at least 22 mm', shortestMm >= TARGETS.lines23Mm - TOLERANCES.lowerFloorMm,
+      add(`shortest lowercase letter is at least ${RULE_LINES23_MIN_MM} mm (the rule, no slack)`, shortestMm >= RULE_LINES23_MIN_MM,
         `${fmt(shortestMm)} mm (letter "${g.shortestLowerChar ?? '?'}")`);
 
       const weights = [town.weight, stop.weight, g.weight];
