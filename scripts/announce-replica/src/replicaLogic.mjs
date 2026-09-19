@@ -110,19 +110,3 @@ export function layoutFlags({ viewport, rects, overlapPairs = null, noBounds = [
   }
   return flags;
 }
-
-/**
- * The proposed three-line route-start (owner, 2026-09-19):
- *   Line 1  "This is a/an <service> to"
- *   Line 2/3  the destination, split at its first comma exactly like every other stop.
- * `article` comes from the sign's own articleFor() so it is judged by how it is spoken.
- * Returns null when the destination has no comma (the sign then keeps the sentence).
- */
-export function routeStartLines({ serviceCode, destination, article } = {}) {
-  for (const [k, v] of Object.entries({ serviceCode, destination, article })) {
-    if (typeof v !== 'string' || v.trim() === '') throw new TypeError(`${k} is required`);
-  }
-  const split = splitLikeSign(destination);
-  if (!split.threeLine) return null;
-  return { verb: `This is ${article} ${serviceCode} to`, town: split.town, stop: split.stop };
-}

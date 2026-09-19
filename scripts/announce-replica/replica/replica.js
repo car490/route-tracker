@@ -9,9 +9,8 @@
 
 import { pxPerMm, replicaFrame, minTextVh, mmToPx, pxToMm } from '/__lib/signSizing.mjs';
 import {
-  SCENARIOS, buildScenarioMessages, rulerTicks, verdictForLowercase, layoutFlags, routeStartLines,
+  SCENARIOS, buildScenarioMessages, rulerTicks, verdictForLowercase, layoutFlags,
 } from '/__lib/replicaLogic.mjs';
-import { articleFor } from '/shared/announceStates.js'; // the sign's own a/an rule
 import { candidateLayout } from '/__lib/candidates.mjs';
 
 // deployed = the sign exactly as shipped; x22 = diagnostic (only --min-text changed);
@@ -115,45 +114,12 @@ function loadSign() {
   });
 }
 
-// PREVIEW of a proposed sign change (owner, 2026-09-19): the route-start panel laid out
-// like every other stop: Line 1 "This is a <service> to", Lines 2/3 the destination.
-// The real sign still renders a sentence; this rebuilds the same DOM shape onboard.js's
-// renderHeadlineText() would produce, inside the harness's own iframe only.
-const CANDIDATES = ['compact', 'proposed', 'large'];
-function previewRouteStartThreeLine(vars) {
-  const lines = routeStartLines({ serviceCode: vars.serviceCode, destination: vars.destination, article: articleFor(vars.serviceCode) });
-  if (!lines) return; // no comma in the destination: the sign keeps the sentence
-  const d = doc();
-  const headline = d.getElementById('sign-headline');
-  headline.textContent = '';
-  headline.classList.add('hl-three-line');
-  const verb = d.createElement('div');
-  verb.className = 'hl-verb';
-  verb.dataset.verbText = lines.verb;
-  verb.textContent = lines.verb;
-  headline.appendChild(verb);
-  for (const [cls, text] of [['hl-town', lines.town], ['hl-stop', lines.stop]]) {
-    const viewport = d.createElement('div');
-    viewport.className = `${cls} hl-marquee-viewport`;
-    const track = d.createElement('div');
-    track.className = 'hl-marquee-track';
-    track.textContent = text; // textContent only; never innerHTML
-    viewport.appendChild(track);
-    headline.appendChild(viewport);
-  }
-}
-
 async function applyScenario(i) {
   state.scenario = ((i % SCENARIOS.length) + SCENARIOS.length) % SCENARIOS.length;
   const api = win().__signApi;
   const m = buildScenarioMessages(SCENARIOS[state.scenario], Date.now());
   if (m.journeyEnd) api.onJourneyEnd();
   else { api.onSchedule(m.schedule); api.onState(m.state); }
-  if (m.state?.stateKey === 'route_start' && CANDIDATES.includes(state.sizing)) previewRouteStartThreeLine(m.state.vars);
-  // Harness stand-in for the one-line onboard.js change the real fix would make:
-  // the sign records which state it is showing so CSS can key off it (never off
-  // the sentence text). Written only into the harness's own iframe copy.
-  doc().getElementById('onboard-sign')?.setAttribute('data-state', m.state?.stateKey ?? 'idle');
   applySizing();
   await nextFrame();
   win().dispatchEvent(new Event('resize')); // re-run the sign's own marquee/brand layout
@@ -309,9 +275,11 @@ function measure() {
   const topbar = barRect && barRect.height > 0
     ? { heightPx: +barRect.height.toFixed(2), heightMm: +pxToMm(barRect.height, panelDensity.y).toFixed(2), shareOfPanel: +(barRect.height / w.innerHeight).toFixed(4) }
     : null;
+  const dataState = d.getElementById('onboard-sign')?.dataset.state ?? null;
   return {
     line1,
     topbar,
+    dataState,
     scenario: SCENARIOS[state.scenario].id,
     sizing: state.sizing,
     minText: w.getComputedStyle(d.documentElement).getPropertyValue('--min-text').trim(),
@@ -400,7 +368,6 @@ function renderHud() {
   const out = [];
   out.push(`STATE ${state.scenario + 1}/${SCENARIOS.length}: ${SCENARIOS[state.scenario].label}`);
   out.push(`SIZING ${MODE_LABEL[state.sizing]}   --min-text ${m.minText.replace(/(\d+\.\d{3})\d*/, '$1')}`);
-  if (SCENARIOS[state.scenario].id === 'route-start' && CANDIDATES.includes(state.sizing)) out.push('NOTE route start is a PREVIEW of the proposed three-line layout; the deployed sign still shows one sentence');
   out.push(`FRAME ${CONFIG.panel.cssWidthPx}x${CONFIG.panel.cssHeightPx} css px, scale ${f.cssScale.toFixed(4)} @ dpr ${window.devicePixelRatio}`);
   out.push(`TRUE SIZE ${f.fits ? 'YES' : `NO - cropped ${(f.cropHeightFraction * 100).toFixed(1)}% tall / ${(f.cropWidthFraction * 100).toFixed(1)}% wide`}  (spare ${Math.round(f.spareWidthPx)} x ${Math.round(f.spareHeightPx)} device px)  k ${state.k.toFixed(4)}`);
   if (detected !== `${CONFIG.screen.resWidthPx}x${CONFIG.screen.resHeightPx}`) {

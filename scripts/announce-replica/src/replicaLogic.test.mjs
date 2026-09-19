@@ -9,7 +9,6 @@ import {
   rulerTicks,
   verdictForLowercase,
   layoutFlags,
-  routeStartLines,
 } from './replicaLogic.mjs';
 
 const NOW = Date.parse('2026-09-18T20:00:00Z');
@@ -176,36 +175,5 @@ describe('layoutFlags — collisions and clipping the harness must surface', () 
   test('ignores elements that are not shown (null rect)', () => {
     const f = layoutFlags({ viewport, rects: { headline: null, brand: box(830, 890, 10, 300) } });
     assert.deepEqual(f, []);
-  });
-});
-
-describe('routeStartLines — proposed three-line route-start (owner, 2026-09-19)', () => {
-  test('Line 1 is "This is a/an <service> to"; Lines 2 and 3 are the destination split at its first comma', () => {
-    assert.deepEqual(
-      routeStartLines({ serviceCode: 'S116T', destination: 'Boston, Bus Station', article: 'an' }),
-      { verb: 'This is an S116T to', town: 'Boston', stop: 'Bus Station' },
-    );
-    assert.deepEqual(
-      routeStartLines({ serviceCode: '44', destination: 'Boston,College', article: 'a' }),
-      { verb: 'This is a 44 to', town: 'Boston', stop: 'College' },
-    );
-  });
-
-  test('no trailing full stop on the stop line (the spoken sentence keeps its own)', () => {
-    assert.ok(!routeStartLines({ serviceCode: 'S1', destination: 'A,B', article: 'an' }).stop.endsWith('.'));
-  });
-
-  test('a trailing indicator on the destination is dropped, like the sign does', () => {
-    assert.equal(routeStartLines({ serviceCode: 'S1', destination: 'Boston,Bus Station (Bay 8)', article: 'an' }).stop, 'Bus Station');
-  });
-
-  test('a destination with no comma cannot be split: returns null so the sentence path is kept', () => {
-    assert.equal(routeStartLines({ serviceCode: 'S1', destination: 'Peterborough', article: 'an' }), null);
-  });
-
-  test('rejects missing inputs instead of showing "This is undefined"', () => {
-    assert.throws(() => routeStartLines({ destination: 'A,B', article: 'a' }));
-    assert.throws(() => routeStartLines({ serviceCode: 'S1', article: 'a' }));
-    assert.throws(() => routeStartLines({ serviceCode: 'S1', destination: 'A,B' }));
   });
 });

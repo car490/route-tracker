@@ -15,6 +15,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startReplicaServer } from '../src/replicaServer.mjs';
+import { SCENARIOS } from '../src/replicaLogic.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const arg = (n) => { const i = process.argv.indexOf(`--${n}`); return i !== -1 ? process.argv[i + 1] : undefined; };
@@ -78,13 +79,15 @@ try {
   check('sign viewport is exactly 1442x901 in every state', () => {
     for (const mode of Object.values(report)) for (const m of Object.values(mode)) assert.deepEqual(m.viewport, { w: 1442, h: 901 });
   });
+  // Every state the real sign shows as three lines (Line 1 / Line 2 / Line 3). Route start joined
+  // them in slice C: it used to be a sentence.
+  const REAL_THREE_LINE = ['route-start', 'next-three-line', 'this-is-three-line', 'this-is-early-wait', 'long-stop-line', 'long-town-line'];
   // Slice A (2026-09-19): the sign sizes Lines 2/3 itself from the lite
   // profile's measured 180 mm lit height and the rendered font's x-height.
   // Before slice A these two checks pinned the old nominal-diagonal result
   // (11.675vh, 105.2 px, about 11 mm of lowercase x-height).
   check('deployed sign sizes Lines 2/3 to 22 mm lowercase x-height by itself, in every three-line state', () => {
-    // route-start is left out: it is a sentence state until slice C makes it three lines.
-    for (const id of ['next-three-line', 'this-is-three-line', 'this-is-early-wait', 'long-stop-line', 'long-town-line']) {
+    for (const id of REAL_THREE_LINE) {
       const rows = report.deployed[id].rows.filter((r) => r.verdict);
       assert.equal(rows.length, 2, `${id} should expose Line 2 and 3`);
       for (const r of rows) { near(r.xHeightMm, 22, 0.1); assert.equal(r.verdict.pass, true); }
@@ -109,9 +112,8 @@ try {
   // Slice B (2026-09-19): the top bar and Line 1 share one physical size (13.5 mm),
   // the bar has a fixed 23 mm depth, and Line 1 has a fixed 21.6 mm slot that also
   // holds the wait box. Asserted against the REAL sign, not an injected candidate.
-  // route-start is left out until slice C: it is still a sentence state.
   console.log('Slice B: the real sign - top bar and Line 1');
-  const B_STATES = ['next-three-line', 'this-is-three-line', 'this-is-early-wait', 'long-stop-line', 'long-town-line'];
+  const B_STATES = REAL_THREE_LINE;
   check('deployed: top bar text and Line 1 are both 13.5 mm', () => {
     for (const id of B_STATES) {
       const rows = report.deployed[id].rows;
@@ -147,6 +149,28 @@ try {
     for (const id of B_STATES) {
       const bad = report.deployed[id].flags.filter((f) => f.type !== 'scrolling');
       assert.deepEqual(bad, [], `${id}: ${JSON.stringify(bad)}`);
+    }
+  });
+
+  // Slice C (2026-09-19): route start is three lines like every other stop, and the sign records
+  // which state it is showing. Asserted against the REAL sign; the harness no longer fakes either.
+  console.log('Slice C: the real sign - route start and data-state');
+  check('deployed: route start is three lines "This is an S116T to" / Boston / Bus Station', () => {
+    const rows = report.deployed['route-start'].rows;
+    assert.equal(rows.find((r) => r.name.startsWith('Line 1'))?.text, 'This is an S116T to');
+    assert.equal(rows.find((r) => r.name === 'Line 2 (town)')?.text, 'Boston');
+    assert.equal(rows.find((r) => r.name === 'Line 3 (stop)')?.text, 'Bus Station');
+    assert.ok(!rows.some((r) => r.name === 'Sentence headline'), 'still a sentence');
+  });
+  check('deployed: route start Line 1 is the same size as the top bar text', () => {
+    const rows = report.deployed['route-start'].rows;
+    near(rows.find((r) => r.name.startsWith('Line 1')).fontMm, 13.5, 0.1);
+    near(rows.find((r) => r.name === 'Top bar: destination').fontMm, 13.5, 0.1);
+  });
+  check('deployed: the sign records its state as data-state in every scenario, including idle', () => {
+    for (const s of SCENARIOS) {
+      const want = s.stateKey ?? 'idle';
+      assert.equal(report.deployed[s.id].dataState, want, `${s.id}: data-state should be ${want}`);
     }
   });
 
