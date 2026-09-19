@@ -78,11 +78,20 @@ try {
   check('sign viewport is exactly 1442x901 in every state', () => {
     for (const mode of Object.values(report)) for (const m of Object.values(mode)) assert.deepEqual(m.viewport, { w: 1442, h: 901 });
   });
-  check('deployed --min-text is 11.675vh (the live tablet capture)', () => {
-    near(parseFloat(report.deployed['next-three-line'].minText), 11.675, 0.005);
+  // Slice A (2026-09-19): the sign sizes Lines 2/3 itself from the lite
+  // profile's measured 180 mm lit height and the rendered font's x-height.
+  // Before slice A these two checks pinned the old nominal-diagonal result
+  // (11.675vh, 105.2 px, about 11 mm of lowercase x-height).
+  check('deployed sign sizes Lines 2/3 to 22 mm lowercase x-height by itself, in every three-line state', () => {
+    // route-start is left out: it is a sentence state until slice C makes it three lines.
+    for (const id of ['next-three-line', 'this-is-three-line', 'this-is-early-wait', 'long-stop-line', 'long-town-line']) {
+      const rows = report.deployed[id].rows.filter((r) => r.verdict);
+      assert.equal(rows.length, 2, `${id} should expose Line 2 and 3`);
+      for (const r of rows) { near(r.xHeightMm, 22, 0.1); assert.equal(r.verdict.pass, true); }
+    }
   });
-  check('deployed Line 2/3 font is 105.2 px', () => {
-    for (const r of report.deployed['next-three-line'].rows.filter((r) => r.verdict)) near(r.fontPx, 105.2, 0.2);
+  check('deployed --min-text is no longer the legacy 11.675vh', () => {
+    assert.ok(Math.abs(parseFloat(report.deployed['next-three-line'].minText) - 11.675) > 1);
   });
   check('three-line scenarios expose Line 2 and Line 3; sentence scenarios expose the sentence', () => {
     const rows = (id) => report.deployed[id].rows.map((r) => r.name);

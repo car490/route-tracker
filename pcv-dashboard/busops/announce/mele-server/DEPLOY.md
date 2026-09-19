@@ -255,7 +255,7 @@ diagonal, the confirmed unit in use for demo/validation builds today). Both
 are commissioned the same way, via `&panel-profile=bar` or
 `&panel-profile=monitor` appended to the fixed kiosk URL (same pattern as
 `&announce-token=`, see §6) — this sets the correct layout (wide/narrow, see
-`PANEL_PROFILES` in `src/onboard.js`) and PSVAIR text sizing together, so no
+`PANEL_PROFILES` in `src/panelSizing.js`) and PSVAIR text sizing together, so no
 other display param is normally needed. Example for the Dell Pro P2426H:
 `...announce/onboard.html?announce-token=<token>&panel-profile=monitor`.
 
@@ -279,9 +279,12 @@ this param remains as an escape hatch for any future third panel that
 doesn't have a named profile yet). Omit both entirely and the CSS default
 applies unchanged — correct for Bar, **not** for Monitor-class panels (the
 Dell P2426H needs ~7.42vh, well under half the 17vh default). See
-`computeMinTextVh()` in `src/onboard.js` for the underlying math if a
-different panel is ever used — it only needs the diagonal size; resolution
-and aspect ratio are already known automatically at runtime.
+`src/panelSizing.js` for the underlying math if a different panel is ever
+used. A profile with a measured `litHeightMm` (Announce Lite/Solo today) is
+sized physically: exactly 22mm lowercase x-height, from the lit height and the
+rendered font's measured x-height. A profile with only a diagonal keeps the
+older `computeMinTextVh()` calculation, which needs just the diagonal size —
+resolution and aspect ratio are already known automatically at runtime.
 
 ### Option B — HDMI display (Chromium kiosk on the Controller)
 
