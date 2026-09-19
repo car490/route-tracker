@@ -17,9 +17,9 @@
 //                         speechSynthesis fallback's own preferred voice,
 //                         see shared/speech.js's PREFERRED_VOICE_NAMES)
 //
-// Changing AZURE_SPEECH_VOICE (or this default) re-renders every clip, not
-// just new ones — hashText() folds the voice into each clip's hash, so a
-// voice change makes every existing hash mismatch.
+// Changing AZURE_SPEECH_VOICE (or this default), or AUDIO_FORMAT, re-renders
+// every clip, not just new ones — hashText() folds both into each clip's hash,
+// so a change makes every existing hash mismatch.
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
@@ -34,6 +34,13 @@ import { articleFor } from '../pcv-dashboard/busops/shared/announceStates.js';
 const AZURE_KEY = process.env.AZURE_SPEECH_KEY;
 const AZURE_REGION = process.env.AZURE_SPEECH_REGION;
 const VOICE = process.env.AZURE_SPEECH_VOICE || 'en-GB-RyanNeural';
+// Highest quality at the neural voices' native 24 kHz (it was audio-16khz-64kbitrate-mono-mp3, Azure's
+// lowest MP3 tier). Must equal AUDIO_FORMAT in supabase/functions/generate-announcement-clip/index.ts
+// (tests/announcementAudioFormat.test.js fails if they differ). It is part of every clip's hash, so a
+// format change re-renders every clip. NOTE: the clips committed under busops/driver/audio/announcements
+// were rendered at the old format; running this script re-renders and replaces all of them, which is
+// roughly 2.5x the bytes (about 8 MB becomes about 20 MB).
+const AUDIO_FORMAT = 'audio-24khz-160kbitrate-mono-mp3';
 
 if (!AZURE_KEY || !AZURE_REGION) {
   console.error('Set AZURE_SPEECH_KEY and AZURE_SPEECH_REGION before running this script.');
@@ -57,11 +64,11 @@ function slug(text) {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
-// Includes VOICE so switching AZURE_SPEECH_VOICE forces a full re-render
-// instead of every clip being skipped as "unchanged" (the text alone
-// hasn't changed, only which voice speaks it).
+// Includes VOICE and AUDIO_FORMAT so switching AZURE_SPEECH_VOICE, or the audio
+// quality, forces a full re-render instead of every clip being skipped as
+// "unchanged" (the text alone hasn't changed, only how it is spoken).
 function hashText(text) {
-  return createHash('sha256').update(`${VOICE}|${text}`).digest('hex').slice(0, 16);
+  return createHash('sha256').update(`${VOICE}|${AUDIO_FORMAT}|${text}`).digest('hex').slice(0, 16);
 }
 
 function escapeXml(text) {
@@ -79,7 +86,7 @@ async function synthesize(text) {
       headers: {
         'Ocp-Apim-Subscription-Key': AZURE_KEY,
         'Content-Type': 'application/ssml+xml',
-        'X-Microsoft-OutputFormat': 'audio-16khz-64kbitrate-mono-mp3',
+        'X-Microsoft-OutputFormat': AUDIO_FORMAT,
         'User-Agent': 'route-tracker-announcement-audio',
       },
       body: ssml,

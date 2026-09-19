@@ -447,6 +447,14 @@ doc for the phase-by-phase history; this section only summarizes the resulting a
   whose real name is too long for the onboard sign's 22mm minimum or unclear when spoken. No admin
   UI yet — set it directly via SQL, on both dev and production (the trigger picks it up
   automatically on either environment once set there).
+- **Audio quality (2026-09-19):** clips are rendered at `audio-24khz-160kbitrate-mono-mp3` — the highest quality at the
+  neural voice's native 24 kHz. They were `audio-16khz-64kbitrate-mono-mp3`, Azure's lowest MP3 tier, which sounded thin and
+  synthetic on the tablet speaker. Azure bills per character, not per format, so this costs nothing at the API (each clip is
+  about 2.5x larger). The format is part of every clip's hash (Edge Function and `scripts/generate-announcement-audio.mjs`
+  both), so changing `AUDIO_FORMAT` in both (a Jest test fails if they differ) re-renders every clip instead of skipping them
+  as "unchanged". Uploads carry `cacheControl: '300'` so a re-render or a stop rename reaches a tablet within minutes, not
+  after storage's one-hour default. To rebuild every clip on an environment: `insert into announcement_clip_jobs (key, text,
+  voice) select key, text, voice from announcement_clips;` and let the drain cron work through it (20 clips per 5 minutes).
 - `AZURE_SPEECH_KEY`/`AZURE_SPEECH_REGION`/`AZURE_SPEECH_VOICE` (default `en-GB-RyanNeural`) are
   **Edge Function secrets** on `generate-announcement-clip` (Supabase Dashboard → Edge Functions
   → generate-announcement-clip → Secrets) — never in `busops/driver/src/config.js` (public/
