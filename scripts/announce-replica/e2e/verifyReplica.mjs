@@ -58,7 +58,7 @@ try {
     const f = window.__replica.frame();
     return { wDev: w.width * devicePixelRatio, hDev: w.height * devicePixelRatio, fits: f.fits, scale: f.cssScale };
   });
-  check('frame is 289 mm wide on the laptop (about 1661 device px)', () => near(geo.wDev, 1661.3, 1));
+  check('frame is 289 mm wide on the laptop (about 1613 device px at 5.5814 px/mm)', () => near(geo.wDev, 1613.0, 1));
   check('frame fits the 1920x1080 screen at true size', () => assert.equal(geo.fits, true));
 
   const report = {};
@@ -294,7 +294,7 @@ try {
     const d = (l, a, b) => (l.getAttribute(b) - l.getAttribute(a)) * devicePixelRatio;
     return { h: d(ls[0], 'x1', 'x2'), v: d(ls[1], 'y1', 'y2') };
   });
-  check('both ruler bars are 100 mm (574.85 device px at 5.7485 px/mm)', () => { near(bars.h, 574.85, 0.5); near(bars.v, 574.85, 0.5); });
+  check('both ruler bars are 100 mm (558.14 device px at 5.5814 px/mm)', () => { near(bars.h, 558.14, 0.5); near(bars.v, 558.14, 0.5); });
 
   console.log('Hygiene');
   check('no unexpected page errors', () => assert.deepEqual(problems, []));
