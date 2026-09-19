@@ -67,10 +67,35 @@ export function computeMinTextVhFromLitHeight({ litHeightMm, xHeightRatio, targe
 // box text (0.6x / 0.42x) off --header-text, so this is the only number needed.
 export const HEADER_TEXT_MM = 13.5;
 
-export function computeHeaderTextVh({ litHeightMm, targetMm = HEADER_TEXT_MM } = {}) {
+// The full-screen sentence states — terminus ("all change please"), diversion,
+// and the no-comma safety net where a stop name can't be split into three
+// lines — at 24 mm (owner, 2026-09-19). Also no 22 mm rule (only Lines 2/3
+// have it), so a comfortable size that fits the panel. 13.3vh on the tablet.
+export const SENTENCE_TEXT_MM = 24;
+
+// The brand mark's main line ("BusOps Announce"), 5.5 mm (owner, 2026-09-19);
+// 3.06vh on the tablet. Its two smaller lines are fixed ratios of it in
+// onboard.css, so they follow.
+export const BRAND_TEXT_MM = 5.5;
+
+// mm -> vh from the measured lit height, so a size defined in millimetres
+// stays physical: vh = 100 * mm / litHeightMm.
+function mmToVh(litHeightMm, targetMm) {
   if (!isPositiveNumber(litHeightMm)) throw new RangeError(`litHeightMm must be a positive number, got ${litHeightMm}`);
   if (!isPositiveNumber(targetMm)) throw new RangeError(`targetMm must be a positive number, got ${targetMm}`);
   return (100 * targetMm) / litHeightMm;
+}
+
+export function computeHeaderTextVh({ litHeightMm, targetMm = HEADER_TEXT_MM } = {}) {
+  return mmToVh(litHeightMm, targetMm);
+}
+
+export function computeSentenceTextVh({ litHeightMm, targetMm = SENTENCE_TEXT_MM } = {}) {
+  return mmToVh(litHeightMm, targetMm);
+}
+
+export function computeBrandTextVh({ litHeightMm, targetMm = BRAND_TEXT_MM } = {}) {
+  return mmToVh(litHeightMm, targetMm);
 }
 
 // A canvas measurement can fail (no canvas, font not loaded, 0 back from a
@@ -90,8 +115,9 @@ export function usableXHeightRatio(measured) {
 //   2. profile with litHeightMm (physical maths; measures the font)
 //   3. profile with only a diagonal (legacy maths)
 //   4. nothing: vh is null, so CSS's own --min-text default stands
-// headerTextVh (the top bar / Line 1 size) is physical only on path 2, where the
-// lit height is trusted; otherwise null and onboard.css's own default stands.
+// headerTextVh (top bar / Line 1), sentenceTextVh (terminus, diversion) and
+// brandTextVh (the brand mark) are physical only on path 2, where the lit height
+// is trusted; otherwise null and onboard.css's own defaults stand.
 // measureXHeightRatio is only ever called on path 2, and may throw or return
 // junk — either falls back to the default ratio rather than breaking the sign.
 export function resolveMinTextVh({
@@ -103,6 +129,8 @@ export function resolveMinTextVh({
       source: 'explicit-diagonal',
       ratioFellBack: false,
       headerTextVh: null,
+      sentenceTextVh: null,
+      brandTextVh: null,
     };
   }
   if (profile?.litHeightMm) {
@@ -118,6 +146,8 @@ export function resolveMinTextVh({
       source: 'lit-height',
       ratioFellBack: fellBack,
       headerTextVh: computeHeaderTextVh({ litHeightMm: profile.litHeightMm }),
+      sentenceTextVh: computeSentenceTextVh({ litHeightMm: profile.litHeightMm }),
+      brandTextVh: computeBrandTextVh({ litHeightMm: profile.litHeightMm }),
     };
   }
   if (profile?.diagonalInches) {
@@ -126,7 +156,11 @@ export function resolveMinTextVh({
       source: 'profile-diagonal',
       ratioFellBack: false,
       headerTextVh: null,
+      sentenceTextVh: null,
+      brandTextVh: null,
     };
   }
-  return { vh: null, source: null, ratioFellBack: false, headerTextVh: null };
+  return {
+    vh: null, source: null, ratioFellBack: false, headerTextVh: null, sentenceTextVh: null, brandTextVh: null,
+  };
 }

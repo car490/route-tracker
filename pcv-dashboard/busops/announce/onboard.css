@@ -112,6 +112,19 @@
      compliance reason to force it larger — see .bo-wordmark below for how
      the sub-lines derive from it. */
   --logo-text:    3.2vh;
+  /* On a panel with a measured lit height onboard.js overrides --logo-text with
+     5.5mm (3.06vh on the 180mm Solo tablet, 2026-09-19); .cm-powered-by and
+     .cm-wordmark stay fixed ratios of it. The 3.2vh above is the fallback for
+     panels with no measured height. */
+
+  /* Full-screen sentence states — terminus, diversion, and the no-comma
+     safety net where a stop name can't be split into three lines. Not Lines 2/3
+     (those stay on --min-text, the 22mm rule), and no 22mm minimum of their
+     own, so onboard.js overrides this with 24mm (13.3vh on the 180mm Solo
+     tablet) on a panel with a measured lit height. The default below is
+     --min-text, i.e. exactly what these states did before 2026-09-19, so a
+     panel with no measured height (Bar, Monitor) is unchanged. */
+  --sentence-text: var(--min-text);
 
   /* Fixed depths, all multiples of --header-text (13.5mm on the Solo tablet):
        top bar          1.7x = 23mm    shared byte-for-byte by #sign-topbar and
@@ -491,20 +504,14 @@ body {
      never fired for any of 3 stops that needed it on the real device. */
   width: 100%;
   font-family: var(--ep-font);
-  /* The literal 22mm PSVAIR minimum (var(--min-text)) — this is the base
-     size for Line 2/3 (.hl-town/.hl-stop, the actual CPI stop text, styled
-     below) and for the single-line/two-line headline states (no separate
-     verb line to split out). Line 1 (.hl-verb) is the one exception,
-     overridden to the smaller --header-text below — until 2026-09-16 it
-     inherited this same size (2026-09-02/09-08 feedback: "all in-service
-     text should read as one consistent size"), but a later spec gave the
-     top bar/Line 1 their own no-minimum 28-36px target distinct from Line
-     2/3's ≥22mm one — see --header-text's own comment in :root. Still
-     derived from --min-text here, never an independent vw/vh number, so
-     Line 2/3 and the non-three-line states stay panel-diagonal-calibrated. */
-  font-size: var(--min-text);
+  /* The sentence states' size (--sentence-text, see :root): terminus,
+     diversion, and any headline with no comma to split on. NOT the 22mm rule —
+     Lines 2/3 (.hl-town/.hl-stop) take --min-text from the .hl-three-line
+     rule below, explicitly, so this size can never reach them. Until
+     2026-09-19 this was var(--min-text) and Lines 2/3 inherited it from here. */
+  font-size: var(--sentence-text);
   font-weight: 800;
-  line-height: 1.25;
+  line-height: 1.2;
   text-align: center;
   color: var(--ep-ink);
   /* A two-sentence state's second half can still be longer than one line
@@ -527,6 +534,10 @@ body {
    800) for all three lines, in pure black (--ep-ink) throughout — only the
    size differs now, not the weight/colour. */
 #sign-headline.hl-three-line {
+  /* Lines 2 and 3 (.hl-town/.hl-stop inherit this): the 22mm lowercase x-height
+     rule, set from --min-text by onboard.js. Explicit, not inherited from
+     #sign-headline, which now carries the sentence size. */
+  font-size: var(--min-text);
   display: flex;
   flex-direction: column;
   align-items: center;

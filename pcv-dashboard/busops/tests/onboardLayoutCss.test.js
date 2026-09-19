@@ -118,3 +118,43 @@ describe('vertical budget on the 180 mm tablet', () => {
     expect(declared(ruleBody('#sign-main'), 'padding')).toBe('1.5vh 2.5vw');
   });
 });
+
+// Slice D: terminus and diversion (and the no-comma sentence) at 24 mm, and the
+// brand mark's main line at 5.5 mm. onboard.js sets --sentence-text and
+// --logo-text from the lit height; the CSS defaults keep panels with no
+// measured height exactly as they were.
+describe('slice D: sentence states', () => {
+  it('--sentence-text defaults to --min-text, so a panel with no measured height is unchanged', () => {
+    expect(declared(ROOT(), '--sentence-text')).toBe('var(--min-text)');
+  });
+
+  it('the headline (every sentence state) takes its size from --sentence-text', () => {
+    expect(declared(ruleBody('#sign-headline'), 'font-size')).toBe('var(--sentence-text)');
+  });
+
+  it('Lines 2 and 3 stay on --min-text explicitly, so the 22 mm rule can never follow the sentence size', () => {
+    // they used to inherit --min-text from #sign-headline; that rule now carries the sentence size
+    expect(declared(ruleBody('#sign-headline.hl-three-line'), 'font-size')).toBe('var(--min-text)');
+  });
+
+  it('nothing on the three-line path (Line 1, wait box, bar) references --sentence-text', () => {
+    for (const selector of ['#sign-topbar', LINE_1, WAIT_BOX, WAIT_TITLE, WAIT_MSG]) {
+      expect(ruleBody(selector)).not.toContain('--sentence-text');
+    }
+  });
+});
+
+describe('slice D: brand mark', () => {
+  it('the main line is --logo-text', () => {
+    expect(declared(ruleBody('.bo-wordmark'), 'font-size')).toBe('var(--logo-text)');
+  });
+
+  it.each([
+    ['.cm-powered-by', 0.5],
+    ['.cm-wordmark', 0.6875],
+  ])('%s keeps its ratio to the main line (%s)', (selector, multiple) => {
+    const value = declared(ruleBody(selector), 'font-size');
+    const m = /^calc\(\s*var\(--logo-text\)\s*\*\s*([\d.]+)\s*\)$/.exec(value ?? '');
+    expect(m && Number(m[1])).toBe(multiple);
+  });
+});

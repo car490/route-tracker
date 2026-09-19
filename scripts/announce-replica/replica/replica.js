@@ -193,6 +193,8 @@ const TARGETS = [
   { name: 'Line 3 (stop)', sel: '.hl-stop', rule: true },
   { name: 'Sentence headline', sel: '#sign-headline:not(.hl-three-line)' },
   { name: 'Brand wordmark', sel: '.bo-wordmark' },
+  { name: 'Brand: from', sel: '.cm-powered-by' },
+  { name: 'Brand: company', sel: '.cm-wordmark' },
 ];
 
 const rectOf = (el) => {
