@@ -1,7 +1,7 @@
 // tests/panelSizing.test.js
 //
-// BusOps Announce sign sizing, slice A (physical sizing). Written BEFORE
-// announce/src/panelSizing.js (TDD).
+// BusOps Announce sign sizing. Slice A (physical sizing) and slice B (the
+// top bar and Line 1 share one physical size). Written BEFORE the code (TDD).
 //
 // PSV(AI)R Reg 14(4): Lines 2 and 3 (the locale and the actual stop) must
 // have no lowercase letter smaller than 22 mm, read as lowercase x-height —
@@ -20,6 +20,8 @@ import {
   DEFAULT_X_HEIGHT_RATIO,
   computeMinTextVh,
   computeMinTextVhFromLitHeight,
+  computeHeaderTextVh,
+  HEADER_TEXT_MM,
   usableXHeightRatio,
   resolveMinTextVh,
 } from '../announce/src/panelSizing.js';
@@ -167,7 +169,7 @@ describe('resolveMinTextVh — which sizing path applies', () => {
   });
 
   it('no profile and no explicit diagonal gives null, so the CSS default (17vh) stands', () => {
-    expect(resolveMinTextVh({ ...TABLET })).toEqual({ vh: null, source: null, ratioFellBack: false });
+    expect(resolveMinTextVh({ ...TABLET })).toEqual({ vh: null, source: null, ratioFellBack: false, headerTextVh: null });
   });
 
   it.each([NaN, 0, 5, undefined])('an unusable measured ratio (%s) falls back to 0.52 and says so', (bad) => {
@@ -195,6 +197,73 @@ describe('resolveMinTextVh — which sizing path applies', () => {
     const a = resolveMinTextVh({ profile: PANEL_PROFILES.lite, viewportWidthPx: 1442, viewportHeightPx: 901, measureXHeightRatio: measure(0.52) });
     const b = resolveMinTextVh({ profile: PANEL_PROFILES.lite, viewportWidthPx: 800, viewportHeightPx: 600, measureXHeightRatio: measure(0.52) });
     expect(a.vh).toBe(b.vh);
+  });
+});
+
+describe('computeHeaderTextVh — slice B: the top bar and Line 1 share one physical size', () => {
+  it('is 13.5 mm', () => {
+    expect(HEADER_TEXT_MM).toBe(13.5);
+  });
+
+  it('13.5 mm on a 180 mm lit height is exactly 7.5vh', () => {
+    expect(computeHeaderTextVh({ litHeightMm: 180 })).toBeCloseTo(7.5, 9);
+  });
+
+  it('a taller panel needs fewer vh for the same physical size', () => {
+    expect(computeHeaderTextVh({ litHeightMm: 360 })).toBeCloseTo(3.75, 9);
+  });
+
+  it('honours an explicit target', () => {
+    expect(computeHeaderTextVh({ litHeightMm: 180, targetMm: 18 })).toBeCloseTo(10, 9);
+  });
+
+  it.each([
+    ['zero lit height', { litHeightMm: 0 }],
+    ['negative lit height', { litHeightMm: -180 }],
+    ['missing lit height', {}],
+    ['string lit height', { litHeightMm: '180' }],
+    ['NaN lit height', { litHeightMm: NaN }],
+    ['negative target', { litHeightMm: 180, targetMm: -1 }],
+    ['no arguments at all', undefined],
+  ])('rejects %s', (_label, args) => {
+    expect(() => computeHeaderTextVh(args)).toThrow(RangeError);
+  });
+});
+
+describe('resolveMinTextVh — headerTextVh follows the sizing source', () => {
+  const measure = (ratio) => jest.fn(() => ratio);
+
+  it('a lit-height profile (the Solo tablet) gets a physical 13.5 mm header: 7.5vh', () => {
+    const out = resolveMinTextVh({ profile: PANEL_PROFILES.lite, ...TABLET, measureXHeightRatio: measure(0.52) });
+    expect(out.headerTextVh).toBeCloseTo(7.5, 9);
+  });
+
+  it('the header size does not depend on the measured font ratio', () => {
+    const a = resolveMinTextVh({ profile: PANEL_PROFILES.lite, ...TABLET, measureXHeightRatio: measure(0.48) });
+    const b = resolveMinTextVh({ profile: PANEL_PROFILES.lite, ...TABLET, measureXHeightRatio: measure(0.55) });
+    expect(a.headerTextVh).toBe(b.headerTextVh);
+  });
+
+  it('is still physical when the ratio measurement fails', () => {
+    const out = resolveMinTextVh({ profile: PANEL_PROFILES.lite, ...TABLET, measureXHeightRatio: measure(NaN) });
+    expect(out.ratioFellBack).toBe(true);
+    expect(out.headerTextVh).toBeCloseTo(7.5, 9);
+  });
+
+  it.each([
+    ['monitor', PANEL_PROFILES.monitor, 1920, 1080],
+    ['bar', PANEL_PROFILES.bar, 2560, 720],
+  ])('%s has no measured lit height, so the CSS default header size stands (null)', (_n, profile, w, h) => {
+    const out = resolveMinTextVh({ profile, viewportWidthPx: w, viewportHeightPx: h });
+    expect(out.headerTextVh).toBeNull();
+  });
+
+  it('an explicit ?panel-diagonal= wins for the header too: no lit height is trusted, so null', () => {
+    const out = resolveMinTextVh({
+      explicitDiagonalInches: 14, profile: PANEL_PROFILES.lite, ...TABLET, measureXHeightRatio: measure(0.52),
+    });
+    expect(out.source).toBe('explicit-diagonal');
+    expect(out.headerTextVh).toBeNull();
   });
 });
 

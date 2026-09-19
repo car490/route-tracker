@@ -106,6 +106,50 @@ try {
     }
   });
 
+  // Slice B (2026-09-19): the top bar and Line 1 share one physical size (13.5 mm),
+  // the bar has a fixed 23 mm depth, and Line 1 has a fixed 21.6 mm slot that also
+  // holds the wait box. Asserted against the REAL sign, not an injected candidate.
+  // route-start is left out until slice C: it is still a sentence state.
+  console.log('Slice B: the real sign - top bar and Line 1');
+  const B_STATES = ['next-three-line', 'this-is-three-line', 'this-is-early-wait', 'long-stop-line', 'long-town-line'];
+  check('deployed: top bar text and Line 1 are both 13.5 mm', () => {
+    for (const id of B_STATES) {
+      const rows = report.deployed[id].rows;
+      near(rows.find((r) => r.name === 'Top bar: destination').fontMm, 13.5, 0.1);
+      near(rows.find((r) => r.name === 'Top bar: route code').fontMm, 13.5, 0.1);
+      near(rows.find((r) => r.name.startsWith('Line 1')).fontMm, 13.5, 0.1);
+    }
+  });
+  check('deployed: top bar text and Line 1 are the same size in px', () => {
+    const rows = report.deployed['next-three-line'].rows;
+    near(rows.find((r) => r.name.startsWith('Line 1')).fontPx, rows.find((r) => r.name === 'Top bar: destination').fontPx, 0.2);
+  });
+  check('deployed: top bar is 23 mm deep and under 20% of the panel, in every state', () => {
+    for (const id of B_STATES) {
+      const bar = report.deployed[id].topbar;
+      assert.ok(bar, `${id}: no top bar measured`);
+      near(bar.heightMm, 22.95, 0.3);
+      assert.ok(bar.shareOfPanel < 0.2, `${id}: bar is ${(bar.shareOfPanel * 100).toFixed(1)}% of the panel`);
+    }
+  });
+  check('deployed: Line 1 slot is 21.6 mm and identical in every three-line state, including the wait box', () => {
+    const depths = B_STATES.map((id) => report.deployed[id].line1?.heightPx);
+    assert.ok(depths.every((d) => typeof d === 'number'), JSON.stringify(depths));
+    near(Math.max(...depths) - Math.min(...depths), 0, 0.5);
+    for (const id of B_STATES) near(report.deployed[id].line1.heightMm, 21.6, 0.3);
+  });
+  check('deployed: wait box title is 8.1 mm and its message 5.7 mm', () => {
+    const rows = report.deployed['this-is-early-wait'].rows;
+    near(rows.find((r) => r.name === 'Wait box title').fontMm, 8.1, 0.1);
+    near(rows.find((r) => r.name === 'Wait box message').fontMm, 5.7, 0.1);
+  });
+  check('deployed: no collisions or clipping in the five three-line states', () => {
+    for (const id of B_STATES) {
+      const bad = report.deployed[id].flags.filter((f) => f.type !== 'scrolling');
+      assert.deepEqual(bad, [], `${id}: ${JSON.stringify(bad)}`);
+    }
+  });
+
   console.log('Candidate layouts (compact / proposed / large)');
   const THREE = ['route-start', 'next-three-line', 'this-is-three-line', 'this-is-early-wait', 'long-stop-line', 'long-town-line'];
   for (const tier of ['compact', 'proposed', 'large']) {

@@ -52,6 +52,9 @@ const state = {
 if (!Number.isFinite(state.k) || state.k <= 0.5 || state.k > 2) state.k = 1;
 
 let originalMinText = '';
+// The sign's OWN inline values for the tokens a candidate overrides (slice B: the sign now
+// sets --header-text itself). Leaving a candidate must restore these, not delete them.
+const originalTokens = {};
 let frame = null;
 
 // ── geometry ────────────────────────────────────────────────────────────────
@@ -105,6 +108,7 @@ function loadSign() {
       for (let i = 0; i < 100 && !win().__signApi; i++) await new Promise((r) => setTimeout(r, 50));
       if (d.fonts?.ready) await d.fonts.ready.catch(() => {});
       originalMinText = d.documentElement.style.getPropertyValue('--min-text');
+      for (const k of CANDIDATE_TOKENS) originalTokens[k] = d.documentElement.style.getPropertyValue(k);
       resolve();
     }, { once: true });
     iframe.src = '/announce/onboard.html?panel-profile=lite';
@@ -173,7 +177,10 @@ function fontAvailable(d, family, weight) {
 function clearCandidate() {
   const d = doc();
   d.getElementById('replica-candidate')?.remove();
-  for (const k of CANDIDATE_TOKENS.slice(1)) d.documentElement.style.removeProperty(k);
+  for (const k of CANDIDATE_TOKENS.slice(1)) {
+    if (originalTokens[k]) d.documentElement.style.setProperty(k, originalTokens[k]);
+    else d.documentElement.style.removeProperty(k);
+  }
 }
 
 function applySizing() {
@@ -214,6 +221,8 @@ const TARGETS = [
   { name: 'Top bar: route code', sel: '.route-code' },
   { name: 'Top bar: destination', sel: '.route-destination' },
   { name: 'Line 1 (verb / wait box)', sel: '.hl-verb, .ewb-title' },
+  { name: 'Wait box title', sel: '.hl-verb--early .ewb-title' },
+  { name: 'Wait box message', sel: '.hl-verb--early .ewb-msg' },
   { name: 'Line 2 (town)', sel: '.hl-town', rule: true },
   { name: 'Line 3 (stop)', sel: '.hl-stop', rule: true },
   { name: 'Sentence headline', sel: '#sign-headline:not(.hl-three-line)' },
@@ -295,8 +304,14 @@ function measure() {
   }
   const verbEl = d.querySelector('#sign-headline .hl-verb');
   const line1 = verbEl ? { heightPx: +verbEl.getBoundingClientRect().height.toFixed(2), heightMm: +pxToMm(verbEl.getBoundingClientRect().height, panelDensity.y).toFixed(2) } : null;
+  const barEl = d.getElementById('sign-topbar');
+  const barRect = barEl ? barEl.getBoundingClientRect() : null;
+  const topbar = barRect && barRect.height > 0
+    ? { heightPx: +barRect.height.toFixed(2), heightMm: +pxToMm(barRect.height, panelDensity.y).toFixed(2), shareOfPanel: +(barRect.height / w.innerHeight).toFixed(4) }
+    : null;
   return {
     line1,
+    topbar,
     scenario: SCENARIOS[state.scenario].id,
     sizing: state.sizing,
     minText: w.getComputedStyle(d.documentElement).getPropertyValue('--min-text').trim(),

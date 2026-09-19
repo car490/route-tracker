@@ -87,20 +87,19 @@
   --min-text:     17vh;
 
   /* Top bar (route/destination) + Line 1 (the verb line of the three-line
-     headline, .hl-verb) — deliberately NOT tied to --min-text. Until
-     2026-09-16 these shared --min-text with Line 2/3 (the actual CPI
-     text) on the theory that "all in-service text should read as one
-     consistent size" (2026-09-02/09-08 feedback, see #sign-headline's and
-     .hl-three-line's comments below); a later spec explicitly separated
-     them — only Line 2/3 (the town/stop name) carry PSVAIR's ≥22mm
-     requirement, top bar/Line 1 have no minimum, just a 28-36px
-     recommendation. Flat vh (like .bo-wordmark below), not
-     computeMinTextVh()-derived, since there's no physical floor to hit —
-     tuned live on the connected Lite/Solo tablet (real viewport
-     1442x901): 3.2vh = ~28.8px there, ~34.6px on Monitor (1920x1080) —
-     both inside the 28-36px target. Untested on Bar (2560x480, not yet
-     built) where this computes much smaller (~15.4px) — acceptable, no
-     minimum applies. */
+     headline, .hl-verb) — ONE shared size, deliberately NOT tied to
+     --min-text, which carries Lines 2/3 only (the actual CPI text, PSVAIR's
+     22mm lowercase x-height rule). Neither of these has a minimum. Until
+     2026-09-16 they shared --min-text with Line 2/3; a later spec separated
+     them, and on 2026-09-19 the bar's depth stopped following it too (it
+     was 1.3x the Line 2/3 size, which put it at ~52mm once Lines 2/3
+     reached a true 22mm x-height).
+     On a panel with a measured lit height (Announce Lite/Solo) onboard.js
+     overrides this with 13.5mm — 7.5vh on the 180mm tablet — so it stays
+     physical. The 3.2vh here is the fallback for panels with no measured
+     height (Bar, Monitor): flat vh tuned live on the Solo tablet in 2026-09
+     (28.8px there, ~34.6px on Monitor). Everything below that depends on the
+     header size is a multiple of this one token, never a separate number. */
   --header-text:  3.2vh;
 
   /* Logo (the #onboard-brand wordmark: "BusOps Announce" + "From PCV
@@ -114,17 +113,20 @@
      the sub-lines derive from it. */
   --logo-text:    3.2vh;
 
-  /* Single source of truth for the topbar's height, shared byte-for-byte by
-     #sign-topbar and #idle-topbar (below) — previously #idle-topbar carried
-     its own separate hand-guessed approximation ("calc(var(--min-text) *
-     1.2 + 4vh)") meant to *match* #sign-topbar's organically-sized height
-     (padding + line-height), which could drift out of sync between the two
-     screens and, on a small --min-text, added a disproportionately large
-     flat 4vh on top. 1.3x is just enough headroom above the raw 22mm text
-     for normal line-height (ascenders/descenders) plus a little wriggle
-     room — not a separate padding budget. Changed 2026-09-02 per user
-     feedback that the bar read as oversized on the physical device. */
-  --topbar-height: calc(var(--min-text) * 1.3);
+  /* Fixed depths, all multiples of --header-text (13.5mm on the Solo tablet):
+       top bar          1.7x = 23mm    shared byte-for-byte by #sign-topbar and
+                                       #idle-topbar (its min-height), so the
+                                       two screens' bars can't drift apart
+       Line 1 slot      1.6x = 21.6mm  the verb line's box; the "wait here"
+                                       box fills the SAME slot (title 0.6x =
+                                       8.1mm, message 0.42x = 5.7mm), so the
+                                       headline stack is the same depth
+                                       whether or not the bus is running early
+     Decoupled from --min-text on 2026-09-19 (see --header-text above). */
+  --topbar-height:   calc(var(--header-text) * 1.7);
+  --line1-slot:      calc(var(--header-text) * 1.6);
+  --wait-title-text: calc(var(--header-text) * 0.6);
+  --wait-msg-text:   calc(var(--header-text) * 0.42);
 }
 
 *,
@@ -466,8 +468,12 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3vh;
-  padding: 4vh 6vw;
+  /* Tight on purpose (was 3vh / 4vh 6vw): the three-line stack — a 21.6mm
+     Line 1 slot plus two 22mm-x-height lines — has to fit the 180mm tablet
+     under a 23mm bar. 2.5vw each side also leaves a stop name 1370px of the
+     1442px width, the figure the stop-name review tooling measures against. */
+  gap: 1.5vh;
+  padding: 1.5vh 2.5vw;
   min-height: 0;
   overflow: hidden;
 }
@@ -524,20 +530,16 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5vh;
-  line-height: 1.15;
+  gap: 0.3vh;
+  line-height: 1.05;
   font-weight: 700;
   color: var(--ep-ink);
-  /* Small upward nudge — #sign-main centers this block via flex
-     justify-content, but it still read visually low on the real tablet
-     (more empty space below the last line than above the first) — per
-     user feedback 2026-09-08, most likely font-metric half-leading
-     asymmetry (most fonts reserve more space above cap-height than below
-     the baseline) rather than a real centering bug. Proportional to
-     --min-text, not a flat vh, so it scales with panel size like
-     everything else here. Re-tune this one value against the real device
-     if it's not quite balanced yet. */
-  margin-top: calc(var(--min-text) * -0.15);
+  /* No upward nudge any more (was calc(var(--min-text) * -0.15), added
+     2026-09-08 to offset font-metric half-leading): that scaled with
+     --min-text, so it grew to ~-3.4vh once Lines 2/3 reached a true 22mm
+     x-height, and the stack is now sized to fit the band rather than
+     centred loosely inside it. */
+  margin-top: 0;
 }
 
 /* Line 1 — see --header-text's own comment in :root. Only this line steps
@@ -546,6 +548,15 @@ body {
    size is superseded by the overlay's own .ewb-title/.ewb-msg sizing. */
 #sign-headline.hl-three-line .hl-verb {
   font-size: var(--header-text);
+  /* Fixed slot, in every state (plain verb text or the wait box): the depth
+     never depends on what is inside it. flex-centred so a single line of
+     verb text and the two-line wait box both sit in the middle of the slot. */
+  height: var(--line1-slot);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.1;
 }
 
 /* Marquee viewport/track for the town/stop lines — see onboard.js's
@@ -592,30 +603,33 @@ body {
    text rather than as a separate block below the headline (see
    onboard.js's updateEarlyWaitDisplay() for why: that separate block used
    to roll off the bottom of the Solo tablet's squarer panel once the
-   headline grew to three lines). Sized to still clear a legible line
-   height at this position, not the full 22mm floor — this is a
-   supplementary status box, not the passenger-facing stop name itself
-   (which resumes here, same size as before, the moment this clears). */
+   headline grew to three lines). Fills the fixed Line 1 slot
+   (--line1-slot, above) rather than growing it — title and message are
+   fixed multiples of --header-text (--wait-title-text / --wait-msg-text),
+   not the 22mm floor: this is a supplementary status box, not the
+   passenger-facing stop name itself (which resumes here, same size as
+   before, the moment this clears). */
 #sign-headline.hl-three-line .hl-verb.hl-verb--early {
   background: var(--ep-early);
   color: #000;
   border-radius: 0.6vh;
-  padding: 0.4vh 2vw;
-  line-height: 1.2;
+  padding: 0 2vw;
+  line-height: 1.15;
   animation: ewb-flash 1s ease-in-out infinite;
 }
 
 #sign-headline.hl-three-line .hl-verb--early .ewb-title {
-  font-size: calc(var(--min-text) * 0.42);
+  font-size: var(--wait-title-text);
   font-weight: 800;
   letter-spacing: 0.04em;
+  margin: 0;
   color: #000;
 }
 
 #sign-headline.hl-three-line .hl-verb--early .ewb-msg {
-  font-size: calc(var(--min-text) * 0.3);
+  font-size: var(--wait-msg-text);
   font-weight: 600;
-  margin-top: 0.2vh;
+  margin: 0;
   color: #000;
 }
 
