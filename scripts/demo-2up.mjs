@@ -300,7 +300,7 @@ const PWA_Y = Math.round((SCREEN_H - PWA_H) / 2); // vertically centred, left ed
 
 const NS_X = PWA_X + PWA_W + MARGIN;
 // Shaped like the Announce Lite tablet candidate (DOOGEE Tab E3 Max, 14.6",
-// 2160x1440 — 3:2, see PANEL_PROFILES in src/onboard.js), not an arbitrary
+// 2160x1440 — 3:2, see PANEL_PROFILES in src/panelSizing.js), not an arbitrary
 // wide strip — there's no wide/narrow layout branching left to demonstrate
 // (see onboard.js's file header), so the window shape should represent a
 // real deployable target instead.

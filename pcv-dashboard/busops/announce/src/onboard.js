@@ -36,68 +36,83 @@
 import { connectAnnounceDeviceFeed } from './announceDeviceFeed.js';
 import { captureAnnounceDeviceSetup, getAnnounceDeviceToken } from './announceDeviceSetup.js';
 import { ANNOUNCE_STATES, resolveAnnouncementText } from '../../shared/announceStates.js';
+import { PANEL_PROFILES, resolveMinTextVh } from './panelSizing.js';
 
-// Named display profiles — commissioned via ?panel-profile=<key> (same
-// URL-param pattern as ?panel-diagonal= below). Lets a specific physical
-// target's diagonal be forced explicitly instead of relying purely on
-// ?panel-diagonal= being passed directly — needed for kiosk deployments
-// where naming the target is more robust than trusting a URL param typed
-// once at commissioning time. Bar is the original ultra-wide
-// destination-board plan (not yet built, kept for later); monitor is the
-// Dell Pro P2426H, the confirmed demo/validation unit in use today
-// (mele-server/DEPLOY.md §5); lite is the Announce Lite/Solo tablet — a
-// LEVIRTU 14" Android tablet (OEM identity: PIXGOOD M328-EEA), 1200x1920
-// native panel — 3:2-ish, not 16:9, a deliberate compromise (see
-// docs/HARDWARE.md §14) — the layout itself doesn't care about aspect
-// ratio (no wide/narrow branching any more, see the file header), only
-// this diagonal figure for --min-text sizing. Corrected 2026-09-17 from
-// 14.6" — that figure was the DOOGEE Tab E3 Max, an earlier hardware
-// candidate never actually purchased (superseded per project memory,
-// 2026-09-01); the ~4% diagonal error was quietly undersizing Line 2/3
-// below the real 22mm PSVAIR target on the actual device.
-const PANEL_PROFILES = {
-  bar:     { diagonalInches: 28 },
-  monitor: { diagonalInches: 23.8 },
-  lite:    { diagonalInches: 14 },
-};
+// Named display profiles (PANEL_PROFILES, panelSizing.js) — commissioned via
+// ?panel-profile=<key>, the same URL-param pattern as ?panel-diagonal= below.
+// Naming the target is more robust for kiosk deployments than trusting a URL
+// param typed once at commissioning time.
 const panelProfile = PANEL_PROFILES[new URLSearchParams(window.location.search).get('panel-profile')] ?? null;
 
 const el = (id) => document.getElementById(id);
 
 // ── PSV(AI)R 22mm minimum text height — panel-agnostic sizing ──────────────
-// onboard.css's --min-text default (17vh) is a fixed constant calibrated
-// for the Bar panel alone (28" ultra-wide, ~16.8vh) — see that variable's
-// own comment. It does NOT generalise: a same-density but taller-in-pixels
-// panel (e.g. the Monitor profile's 1920x1080 Dell P2426H) needs a much
-// smaller vh fraction for the same physical 22mm — 7.42vh, not 17vh —
-// because vh is relative to total pixel height, and browsers have no
-// reliable API for a screen's physical size (no EDID access, by design,
-// for privacy/security — this is a real web platform limit, not a
-// workaround-able gap). So the one thing that must be supplied per-panel,
-// once, is its physical diagonal size — everything else (resolution,
-// aspect ratio) is already known automatically at runtime.
+// Lines 2 and 3 must have no lowercase letter under 22mm, read strictly as
+// x-height. Browsers have no reliable API for a screen's physical size (no
+// EDID access, by design — a real web platform limit), so the one thing
+// supplied per panel, once, is physical: the profile's measured lit height
+// (PANEL_PROFILES.lite.litHeightMm). The other input, the rendered font's
+// x-height, is measured here at runtime from the font actually loaded, so
+// 22mm still holds if the tablet falls back to another font offline. The
+// maths and the precedence between the paths live in panelSizing.js (pure,
+// unit-tested).
 //
-// Commissioned via ?panel-diagonal=<inches> on the same fixed kiosk URL that
-// already carries ?announce-token= — same per-device-settings-in-the-URL
-// pattern this device uses throughout (see the file header: nothing to
-// persist across visits, everything comes from its own URL each load).
-// A known ?panel-profile= (see PANEL_PROFILES above) supplies this
-// automatically — ?panel-diagonal=, if also present, still wins, as an
-// escape hatch for any future panel that doesn't have a named profile yet.
-// Omitted entirely = old behaviour: CSS's own 17vh default applies
-// unchanged (correct for Bar, wrong for anything Monitor-class).
-export function computeMinTextVh(diagonalInches, viewportWidthPx, viewportHeightPx) {
-  if (!diagonalInches || !viewportWidthPx || !viewportHeightPx) return null;
-  const diagonalPx = Math.sqrt(viewportWidthPx ** 2 + viewportHeightPx ** 2);
-  const panelHeightMm = diagonalInches * 25.4 * (viewportHeightPx / diagonalPx);
-  return (22 / panelHeightMm) * 100;
+// Precedence (panelSizing.js resolveMinTextVh): ?panel-diagonal=<inches>
+// (legacy maths, escape hatch for a panel with no profile) > a profile's
+// litHeightMm (physical) > a profile's nominal diagonal (legacy) > nothing,
+// where CSS's own --min-text default (17vh, calibrated for Bar alone) stands.
+const LINE_2_3_FONT_WEIGHT = 700; // .hl-three-line's font-weight in onboard.css, which Lines 2/3 inherit
+
+// x-height / font-size of the font Lines 2/3 render in. Measured on a canvas
+// with #sign-headline's own computed family (its .hl-town/.hl-stop children
+// inherit it). Throws if no canvas — resolveMinTextVh treats that as unusable.
+function measureXHeightRatio() {
+  const family = getComputedStyle(el('sign-headline')).fontFamily;
+  const ctx = document.createElement('canvas').getContext('2d');
+  ctx.font = `${LINE_2_3_FONT_WEIGHT} 200px ${family}`;
+  return ctx.measureText('x').actualBoundingBoxAscent / 200;
 }
 
+let appliedMinTextVh = null;
+let warnedRatioFallback = false;
+
+// Returns true if --min-text changed, so the caller knows to re-measure
+// anything laid out against the old size (marquees, brand position).
 function applyPanelSizing() {
   const explicitDiagonal = Number(new URLSearchParams(window.location.search).get('panel-diagonal'));
-  const diagonalInches = explicitDiagonal || panelProfile?.diagonalInches;
-  const minTextVh = computeMinTextVh(diagonalInches, window.innerWidth, window.innerHeight);
-  if (minTextVh) document.documentElement.style.setProperty('--min-text', `${minTextVh}vh`);
+  const { vh, ratioFellBack } = resolveMinTextVh({
+    explicitDiagonalInches: explicitDiagonal,
+    profile: panelProfile,
+    viewportWidthPx: window.innerWidth,
+    viewportHeightPx: window.innerHeight,
+    measureXHeightRatio,
+  });
+  if (ratioFellBack && !warnedRatioFallback) {
+    warnedRatioFallback = true;
+    console.warn('[onboard] could not measure the font x-height; sizing Lines 2/3 with the default ratio');
+  }
+  if (!vh || vh === appliedMinTextVh) return false;
+  appliedMinTextVh = vh;
+  document.documentElement.style.setProperty('--min-text', `${vh}vh`);
+  return true;
+}
+
+// The x-height ratio is only right once the real font has loaded; until then
+// a fallback font's ratio is measured. document.fonts.load() nudges the
+// browser to fetch the face (it may never start for text in a hidden
+// section), and 'loadingdone' re-applies whenever any font finishes later.
+// applyPanelSizing() is idempotent, so extra calls are harmless.
+function resizeWhenFontsLoad() {
+  if (!document.fonts) return;
+  const reapply = () => {
+    if (!applyPanelSizing()) return;
+    applyTopbarMarquee();
+    applyHeadlineMarquees();
+    positionBrand();
+  };
+  document.fonts.addEventListener('loadingdone', reapply);
+  const family = getComputedStyle(el('sign-headline')).fontFamily;
+  document.fonts.load(`${LINE_2_3_FONT_WEIGHT} 200px ${family}`, 'x').then(reapply, () => {});
 }
 
 // TEMPORARY — 2026-09-17 sizing investigation. ?debug-size=1 overlays the
@@ -749,6 +764,7 @@ function connectSignFeed() {
 
 function init() {
   applyPanelSizing();
+  resizeWhenFontsLoad();
   applyDebugSizeOverlay();
   initIdleScreen();
 

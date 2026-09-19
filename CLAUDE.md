@@ -498,7 +498,7 @@ no `schedule_view` queries. It's a pure renderer, driven only by what the Driver
 service code, branding), then `{type:'state', ...}` messages as the journey progresses. Stays
 blank until an authenticated push connection delivers a schedule — there's no `?journey=` URL
 param or depot-WiFi sync step anymore. Two named display profiles exist (`PANEL_PROFILES` in
-`busops/announce/src/onboard.js`, commissioned via `?panel-profile=`): **Bar** (28" ultra-wide
+`busops/announce/src/panelSizing.js`, commissioned via `?panel-profile=`): **Bar** (28" ultra-wide
 destination-board panel, not yet built — see `docs/onboard-widescreen-layout.md`) and **Monitor**
 (Dell Pro P2426H, the confirmed demo/validation display).
 

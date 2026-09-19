@@ -9,7 +9,7 @@
 //
 // What to look for once all four windows have started:
 //   - All three RIGHT-side (Announce) windows — Bar, Monitor, and Lite, see
-//     PANEL_PROFILES in src/onboard.js — should update in lockstep with the
+//     PANEL_PROFILES in src/panelSizing.js — should update in lockstep with the
 //     LEFT one WITHOUT ever requesting their own GPS permission — they're
 //     pure pushed-state renderers now (see docs/HARDWARE.md "Read this
 //     first"), with no GPS or Supabase access of their own at all, not a
@@ -168,12 +168,12 @@ async function openWindow({ url, windowPosition, windowSize, setup }) {
 // candidate, DOOGEE Tab E3 Max, 14.6", 2160x1440 — 3:2, see docs/
 // HARDWARE.md §14) side by side below it. Every window uses its real
 // target aspect ratio at a scaled-down size — only the aspect ratio needs
-// to match for correct rendering: onboard.js's computeMinTextVh() derives
-// --min-text purely from diagonal + aspect ratio, not absolute pixel
-// count, so a proportionally-shrunk window is exactly as accurate as a
-// literal native-resolution one. Each window also carries its own
-// ?panel-profile= (see PANEL_PROFILES in src/onboard.js) so the diagonal
-// used for sizing is explicit rather than guessed.
+// to match for correct rendering: onboard.js derives --min-text as a
+// fraction of viewport height (from the diagonal, or from a profile's
+// measured lit height), not absolute pixel count, so a proportionally-shrunk
+// window is exactly as accurate as a literal native-resolution one. Each
+// window also carries its own ?panel-profile= (see PANEL_PROFILES in
+// src/panelSizing.js) so the sizing source is explicit rather than guessed.
 const SCREEN_W = 1280, SCREEN_H = 720;
 const MARGIN = 20;
 const PWA_W = 340, PWA_H = 650;
