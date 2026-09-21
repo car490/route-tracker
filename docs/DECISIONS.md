@@ -10,13 +10,24 @@ decisions logged on `develop` in the days before that draft simply weren't visib
 **Rule for anyone updating this page: always check the current state on `origin/develop`,
 never `master`.** `master` only reflects the last release cut, not current decisions.
 
-Two rules for using this page day-to-day:
+Three rules for using this page day-to-day:
 
 1. **An item under "Decided" is not up for silent re-litigation.** If you think it's wrong,
    say so and change this doc (and its source) — don't just quietly build against a
    different assumption.
 2. **An item under "Still open" is open — don't invent an answer and present it as settled.**
    Flag it, or ask, instead of guessing.
+3. **A row can only say "Decided"/"Shipped" once it's backed by a test or an observed check
+   in production — not just a doc edit.** Two rows on this page were marked settled while the
+   running system quietly did something else: the Cloudflare Workers Builds Git integration
+   was claimed "confirmed working on `develop`" while every real deploy was still a manual
+   `wrangler deploy` (caught 2026-08-27), and the Bus Controller's `DEFAULT_AUDIO_DIR` bug
+   meant the one physical Controller in service had silently played zero PSVAIR audio since
+   commissioning — no test caught it because every test overrode `audioDir` explicitly. Both
+   were doc/decision drift, not architecture indecision, and both are just as costly once a
+   customer install exists. When you write or update a "Decided" row, name what actually
+   verifies it (a test file, or a specific prod check someone ran) — if there isn't one yet,
+   the row belongs under "Still open" or gets an explicit "decided but unverified" caveat.
 
 Detailed rationale lives in the source docs linked from each row. This page only exists to
 give the one-line current answer; it does not replace those docs and should not duplicate
