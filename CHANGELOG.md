@@ -5,6 +5,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.2.9] - 2026-09-23
+
+**Announce onboard sign: 22 mm x-height sizing finalized, verified on the real tablet**
+
+- feat(announce): sized every announce text tier off measured lit height instead of
+  assumption — Lines 2/3 at 22.1 mm (so the shortest drawn letter clears the 22.0 mm
+  PSVAIR floor), top bar/Line 1 at a shared 13.5 mm, terminus/diversion at 24 mm, and
+  the brand mark's main line at 5.5 mm; Line 1 centred between the top bar and Line 2;
+  route start now renders as three lines with the state recorded as `data-state`.
+- feat(announce-replica/tablet-capture): added a true-size replica harness plus a
+  read-only capture tool that measures the physical sign on the real tablet, and
+  stop-name review tooling — fixed a hang in the tablet-attach path, a wrong laptop
+  lit-width constant (344 mm, not 334), and made the capture scripts redact the
+  device token instead of printing it.
+- chore(announce): removed the dormant Dell "monitor" panel profile and the temporary
+  `?debug-size` overlay now that real-tablet measurement has replaced both.
+- docs: recorded the 22 mm sizing decisions and that the Dell display is not in use.
+
+**Other**
+
+- feat(announce): render announcement clips at 24 kHz / 160 kbps (up from the prior
+  quality), re-rendering existing clips automatically on format change.
+- docs: `docs/DECISIONS.md` rows now require a test or prod check before being marked
+  Decided (#81).
+- chore: gitignore the announce replica harness's verify output.
+- feat(announce): size Lines 2/3 to 22 mm x-height from measured lit height
+- chore(announce): add true-size replica harness and stop-name review tooling
+
 ## [2.2.8] - 2026-09-17
 
 - fix(announce): comma-spacing in stop names, headline scrollbar/shrink bug, wrong panel diagonal
