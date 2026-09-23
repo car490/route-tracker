@@ -48,7 +48,7 @@ journey yet — so it's commissioned directly onto the device instead, same
 one-time pattern as `&panel-profile=`/`&panel-diagonal=`:
 
 1. **Name** — append `&operator-name=<name>` (URL-encoded) to the fixed
-   kiosk URL, e.g. `...announce/onboard.html?announce-token=<token>&panel-profile=monitor&operator-name=Acme%20Coaches`.
+   kiosk URL, e.g. `...announce/onboard.html?announce-token=<token>&panel-diagonal=<inches>&operator-name=Acme%20Coaches`.
    Omit entirely and the idle screen stays exactly as it was before (blank
    background, small corner mark only). **For Option B (kiosk browser on the
    Controller itself), this param, `&announce-token=` (§6), and
@@ -250,14 +250,16 @@ already part of the same repo checkout above.
 
 Two named display profiles exist — **Bar** (the original ultra-wide
 destination-board panel, 28", not yet sourced/built — kept for later, see
-`docs/HARDWARE.md` §6) and **Monitor** (Dell Pro P2426H, 24"/23.8"
-diagonal, the confirmed unit in use for demo/validation builds today). Both
-are commissioned the same way, via `&panel-profile=bar` or
-`&panel-profile=monitor` appended to the fixed kiosk URL (same pattern as
-`&announce-token=`, see §6) — this sets the correct layout (wide/narrow, see
-`PANEL_PROFILES` in `src/onboard.js`) and PSVAIR text sizing together, so no
-other display param is normally needed. Example for the Dell Pro P2426H:
-`...announce/onboard.html?announce-token=<token>&panel-profile=monitor`.
+`docs/HARDWARE.md` §6) and **Lite** (the LEVIRTU 14" Android tablet, the
+Announce Lite/Solo display, lit area measured 289 × 180 mm). A `monitor` profile
+(the Dell Pro P2426H) existed until 2026-09-19 and was removed — the owner is
+not using that monitor. Commission a named profile with `&panel-profile=bar` or
+`&panel-profile=lite` appended to the fixed kiosk URL (same pattern as
+`&announce-token=`, see §6) — this sets the correct layout (see `PANEL_PROFILES`
+in `src/panelSizing.js`) and PSVAIR text sizing together, so no other display
+param is normally needed. A panel with no profile takes
+`&panel-diagonal=<inches>` instead. Example:
+`...announce/onboard.html?announce-token=<token>&panel-diagonal=23.8`.
 
 ### Option A — WiFi-client display
 No specific device is deployed this way today — the tablet originally used
@@ -274,14 +276,18 @@ reopen the same URL on boot.
 the Bar profile it was originally calibrated against — browsers have no
 reliable API for a screen's physical size, so any other panel needs its
 physical diagonal supplied once, via **`&panel-diagonal=<inches>`** (a named
-`&panel-profile=` above already supplies this for Bar/Monitor automatically;
+`&panel-profile=` above already supplies this for Bar automatically (and Lite sizes itself physically);
 this param remains as an escape hatch for any future third panel that
 doesn't have a named profile yet). Omit both entirely and the CSS default
-applies unchanged — correct for Bar, **not** for Monitor-class panels (the
-Dell P2426H needs ~7.42vh, well under half the 17vh default). See
-`computeMinTextVh()` in `src/onboard.js` for the underlying math if a
-different panel is ever used — it only needs the diagonal size; resolution
-and aspect ratio are already known automatically at runtime.
+applies unchanged — correct for Bar, **not** for a panel with a different
+pixel height (a 23.8" 1920x1080 panel needs ~7.42vh, well under half the 17vh
+default). See
+`src/panelSizing.js` for the underlying math if a different panel is ever
+used. A profile with a measured `litHeightMm` (Announce Lite/Solo today) is
+sized physically: 22.1mm lowercase x-height (the 22mm rule plus a 0.1mm margin), from the lit height and the
+rendered font's measured x-height. A profile with only a diagonal keeps the
+older `computeMinTextVh()` calculation, which needs just the diagonal size —
+resolution and aspect ratio are already known automatically at runtime.
 
 ### Option B — HDMI display (Chromium kiosk on the Controller)
 

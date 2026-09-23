@@ -1,0 +1,14 @@
+/* Neutral surround so the sign's own edge is visible. Nothing here styles the sign. */
+html, body { margin: 0; height: 100%; overflow: hidden; background: #262626; color: #e6e6e6; }
+#wrap { position: absolute; overflow: hidden; }
+#sign { border: 0; display: block; transform-origin: 0 0; pointer-events: none; background: #fff; }
+#calib { position: absolute; inset: 0; background: #fff; color: #111; }
+#calib svg { position: absolute; inset: 0; }
+#hud, #help {
+  position: absolute; margin: 0; padding: 8px 10px; max-width: 46%;
+  font: 12px/1.35 ui-monospace, Consolas, monospace; white-space: pre-wrap;
+  background: rgba(0, 0, 0, 0.82); color: #d8f3d8; border: 1px solid #555;
+}
+#hud { top: 8px; right: 8px; }
+#help { left: 8px; bottom: 8px; color: #e6e6e6; }
+[hidden] { display: none !important; }

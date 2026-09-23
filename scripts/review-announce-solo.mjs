@@ -40,6 +40,9 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { haversine } from '../pcv-dashboard/busops/shared/geo.js';
+// Everything printed that came from the tablet goes through this: its page URL carries the
+// device token (?announce-device-token=<JWT>, valid for 100 years).
+import { redactSecrets } from './announce-replica/src/redact.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -169,7 +172,7 @@ async function findOnboardPageTarget() {
   const page = targets.find((t) => t.type === 'page' && /onboard\.html/.test(t.url))
     ?? targets.find((t) => t.type === 'page');
   if (!page) {
-    throw new Error(`No page target found at http://localhost:${FORWARD_PORT}/json — got: ${JSON.stringify(targets)}`);
+    throw new Error(`No page target found at http://localhost:${FORWARD_PORT}/json — got: ${redactSecrets(JSON.stringify(targets))}`);
   }
   return page;
 }
@@ -229,10 +232,10 @@ async function connectCDP(webSocketDebuggerUrl) {
   await client.send('Runtime.enable');
   client.on('Runtime.consoleAPICalled', (p) => {
     const text = (p.args ?? []).map((a) => a.value ?? a.description ?? '').join(' ');
-    console.log(`[tablet:${p.type}] ${text}`);
+    console.log(`[tablet:${p.type}] ${redactSecrets(text)}`);
   });
   client.on('Runtime.exceptionThrown', (p) => {
-    console.log('[tablet:pageerror]', p.exceptionDetails?.text ?? p.exceptionDetails);
+    console.log('[tablet:pageerror]', redactSecrets(p.exceptionDetails?.text ?? p.exceptionDetails));
   });
   return { ws, client };
 }
@@ -327,7 +330,7 @@ process.on('SIGINT', shutdown);
   await sleep(300); // let the forward settle before the first HTTP fetch
 
   const target = await findOnboardPageTarget();
-  console.log(`Attached to: ${target.url}`);
+  console.log(`Attached to: ${redactSecrets(target.url)}`);
   const conn = await connectCDP(target.webSocketDebuggerUrl);
   ws = conn.ws;
   const { client } = conn;
@@ -410,7 +413,7 @@ process.on('SIGINT', shutdown);
   await shutdown();
 })().catch(async (err) => {
   console.error('\n=== review-announce-solo.mjs failed ===');
-  console.error(err.message ?? err);
+  console.error(redactSecrets(err.message ?? err));
   removePortForward();
   if (ws) ws.close();
   process.exitCode = 1;

@@ -181,12 +181,27 @@ Run from `pcv-dashboard/busops/` (they're npm scripts on that `package.json`):
 ```sh
 npm run demo:2up:duty              # two windows: driver PWA + BusOps Announce, duty-card start
 npm run demo:2up:manual            # same, but via the manual-selection fallback flow
-npm run demo:announce-push         # driver PWA + all three Announce display profiles, push-feed proof
+npm run demo:announce-push         # driver PWA + both Announce display profiles (Bar and Lite), push-feed proof
 ```
 All drive the real app code with mocked Geolocation (not a fake simulation) — useful for
 testing timing, announcements, and the onboard display end-to-end without being in a moving
 vehicle. `demo.html` is a separate, fully scripted/fake visual simulation (no real app code)
 used for quick client-facing demos.
+
+### Measure the real sign on the real tablet (read-only)
+```sh
+npm run measure:announce-solo      # from pcv-dashboard/busops/ — needs the tablet on USB (adb)
+```
+Takes one measurement of whatever the Solo tablet is showing and judges it against the approved sizes (22 mm
+lowercase x-height on Lines 2/3, measured two independent ways; 13.5 mm top bar/Line 1; 23 mm bar; 21.6 mm Line 1
+slot; 24 mm sentence states; 5.5 mm brand mark). Attaches over a temporary DevTools session through `adb forward`,
+evaluates one read-only function, takes a screenshot, detaches: it never navigates, never changes a Fully Kiosk or
+Android setting, and never records the URL query (it carries the device token). **Needs Fully Kiosk's web-contents
+debugging ON** (`webviewDebugging`; Import Settings resets it to off) — the tool says so and stops if it is off, it
+does not switch it on. Run it while the sign is showing a stop for the Lines 2/3 checks; on the idle screen it still
+checks the bar and the brand mark. Output goes to `scripts/tablet-captures/` (gitignored). Exit 0 pass, 1 a check
+failed, 2 could not measure. `--cdp-port <port>` attaches to an existing DevTools port with no adb (how it is
+tested: `npm run verify:tablet` in `scripts/announce-replica`).
 
 ### PSVAIR announcement audio (Bus Controller's clip generator)
 ```sh
@@ -432,6 +447,14 @@ doc for the phase-by-phase history; this section only summarizes the resulting a
   whose real name is too long for the onboard sign's 22mm minimum or unclear when spoken. No admin
   UI yet — set it directly via SQL, on both dev and production (the trigger picks it up
   automatically on either environment once set there).
+- **Audio quality (2026-09-19):** clips are rendered at `audio-24khz-160kbitrate-mono-mp3` — the highest quality at the
+  neural voice's native 24 kHz. They were `audio-16khz-64kbitrate-mono-mp3`, Azure's lowest MP3 tier, which sounded thin and
+  synthetic on the tablet speaker. Azure bills per character, not per format, so this costs nothing at the API (each clip is
+  about 2.5x larger). The format is part of every clip's hash (Edge Function and `scripts/generate-announcement-audio.mjs`
+  both), so changing `AUDIO_FORMAT` in both (a Jest test fails if they differ) re-renders every clip instead of skipping them
+  as "unchanged". Uploads carry `cacheControl: '300'` so a re-render or a stop rename reaches a tablet within minutes, not
+  after storage's one-hour default. To rebuild every clip on an environment: `insert into announcement_clip_jobs (key, text,
+  voice) select key, text, voice from announcement_clips;` and let the drain cron work through it (20 clips per 5 minutes).
 - `AZURE_SPEECH_KEY`/`AZURE_SPEECH_REGION`/`AZURE_SPEECH_VOICE` (default `en-GB-RyanNeural`) are
   **Edge Function secrets** on `generate-announcement-clip` (Supabase Dashboard → Edge Functions
   → generate-announcement-clip → Secrets) — never in `busops/driver/src/config.js` (public/
@@ -498,9 +521,17 @@ no `schedule_view` queries. It's a pure renderer, driven only by what the Driver
 service code, branding), then `{type:'state', ...}` messages as the journey progresses. Stays
 blank until an authenticated push connection delivers a schedule — there's no `?journey=` URL
 param or depot-WiFi sync step anymore. Two named display profiles exist (`PANEL_PROFILES` in
-`busops/announce/src/onboard.js`, commissioned via `?panel-profile=`): **Bar** (28" ultra-wide
-destination-board panel, not yet built — see `docs/onboard-widescreen-layout.md`) and **Monitor**
-(Dell Pro P2426H, the confirmed demo/validation display).
+`busops/announce/src/panelSizing.js`, commissioned via `?panel-profile=`): **Bar** (28" ultra-wide
+destination-board panel, not yet built — see `docs/onboard-widescreen-layout.md`) and **Lite** (the LEVIRTU 14"
+Android tablet, lit area measured 289 × 180 mm — the display in use). The Dell Pro P2426H `monitor` profile was
+removed 2026-09-19 (owner: not using it).
+
+Sign text sizes are physical (2026-09-19, PRs #65–#68): a profile with a measured `litHeightMm` gets Lines 2/3 at
+22.1 mm lowercase x-height, a 0.1 mm margin over the 22 mm rule (sized to exactly 22.0 the real tablet's shortest drawn letter measured 21.92 mm; the owner's strict reading of PSV(AI)R Reg 14(4); not yet confirmed against DfT
+guidance) and every other size defined in mm — the pure logic is `busops/announce/src/panelSizing.js` (sizes) and
+`headlineLines.js` (three-line split, `data-state`); `onboard.css` hangs the rest off `--header-text`,
+`--sentence-text` and `--logo-text`. See `docs/DECISIONS.md` "Announce sign text sizing". Prove a change against the
+real sign at true size with `npm run verify` in `scripts/announce-replica` (headless Chromium) before the tablet.
 
 ### Dashboard (Vertical Slice Architecture)
 `pcv-dashboard/src/features/<slice>/` — each slice owns its own pages/components; shared code
