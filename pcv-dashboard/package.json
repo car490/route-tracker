@@ -1,7 +1,7 @@
 {
   "name": "coachmate-dashboard",
   "private": true,
-  "version": "2.2.9",
+  "version": "2.2.10",
   "type": "module",
   "engines": {
     "node": ">=20.19.0"

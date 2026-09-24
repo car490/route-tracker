@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.2.10] - 2026-09-24
+
+**Driver PWA: route-start audio fixed, Announcements panel simplified**
+
+- fix(announce): the route-start clip ("This is an S116S to Donington, Cowley Academy")
+  was never generated, so every journey start showed "Audio not fully ready". It was
+  built from the route's empty Destination field; it is now generated per timetable
+  from its final stop (the destination the app actually uses), kept current by new
+  timetable-stop, stop-rename and service-code triggers, and backfilled on dev and
+  production. Spoken names now strip every "(...)" indicator, matching the app.
+- fix(driver): the journey-start warning now names what is missing (e.g. "the route
+  start announcement") instead of counting it as "1 stop".
+- feat(driver): removed the Announcements cog, voice dropdown and Test button. They
+  listed the device's own voices (none on the tablet) and had no effect, since every
+  announcement is a recorded clip in the one centrally set voice.
+- feat(driver): the Announcements panel now starts closed on every journey. Sound stays
+  on by default.
+
 ## [2.2.9] - 2026-09-23
 
 **Announce onboard sign: 22 mm x-height sizing finalized, verified on the real tablet**
