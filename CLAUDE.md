@@ -164,7 +164,7 @@ cd pcv-dashboard && npm test
 ### Lint / build (dashboard only — the PWA has no build step)
 ```sh
 cd pcv-dashboard
-npm run lint    # eslint, ratcheted at --max-warnings 7 (see pcv-dashboard/eslint.config.js)
+npm run lint    # eslint, ratcheted at --max-warnings 0 (see pcv-dashboard/eslint.config.js)
 npm run build   # vite build
 ```
 CI (`.github/workflows/ci.yml`) runs: `pcv-dashboard/busops` `npm test` + `npm run test:vitest`

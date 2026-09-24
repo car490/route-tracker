@@ -57,7 +57,7 @@ beforeEach(() => {
 describe('POST /api/send-duty-email', () => {
   it('returns 401 when authenticate() fails', async () => {
     authenticateMock.mockResolvedValue(null)
-    const req = makeReq({ driver_id: 'd1', date: '2026-09-20', url: 'https://example.com/duty' })
+    const req = makeReq({ driver_id: 'd1', date: '2026-09-20', url: 'https://driver.pcvtechnologies.co.uk/?duties=j1' })
     const res = makeRes()
 
     await handler(req, res)
@@ -70,7 +70,7 @@ describe('POST /api/send-duty-email', () => {
   it('returns 403 when driver_id lookup is empty', async () => {
     const supabase = makeSupabase({ driverRow: null })
     authenticateMock.mockResolvedValue({ user: { id: 'u1' }, supabase })
-    const req = makeReq({ driver_id: 'd1', date: '2026-09-20', url: 'https://example.com/duty' })
+    const req = makeReq({ driver_id: 'd1', date: '2026-09-20', url: 'https://driver.pcvtechnologies.co.uk/?duties=j1' })
     const res = makeRes()
 
     await handler(req, res)
@@ -83,7 +83,7 @@ describe('POST /api/send-duty-email', () => {
   it('returns 400 when the driver has no email address on file', async () => {
     const supabase = makeSupabase({ driverRow: { id: 'd1', name: 'Jo Driver' }, contactRow: null })
     authenticateMock.mockResolvedValue({ user: { id: 'u1' }, supabase })
-    const req = makeReq({ driver_id: 'd1', date: '2026-09-20', url: 'https://example.com/duty' })
+    const req = makeReq({ driver_id: 'd1', date: '2026-09-20', url: 'https://driver.pcvtechnologies.co.uk/?duties=j1' })
     const res = makeRes()
 
     await handler(req, res)
@@ -99,7 +99,7 @@ describe('POST /api/send-duty-email', () => {
       contactRow: { value: 'jo@example.com' },
     })
     authenticateMock.mockResolvedValue({ user: { id: 'u1' }, supabase })
-    const req = makeReq({ driver_id: 'd1', date: '2026-09-20', url: 'https://example.com/duty', company_name: 'Phil Haines Coaches' })
+    const req = makeReq({ driver_id: 'd1', date: '2026-09-20', url: 'https://driver.pcvtechnologies.co.uk/?duties=j1', company_name: 'Phil Haines Coaches' })
     const res = makeRes()
 
     await handler(req, res)
@@ -120,7 +120,7 @@ describe('POST /api/send-duty-email', () => {
     const req = makeReq({
       driver_id: 'd1',
       date: '2026-09-20',
-      url: 'https://example.com/duty',
+      url: 'https://driver.pcvtechnologies.co.uk/?duties=j1',
       company_name: 'A & B Coaches',
     })
     const res = makeRes()
@@ -134,5 +134,63 @@ describe('POST /api/send-duty-email', () => {
     expect(sentBody.html).toContain('A &amp; B Coaches')
     expect(sentBody.text).toContain('<b>Evil</b>')
     expect(sentBody.text).toContain('A & B Coaches')
+  })
+  it('rejects a url that is not one of our own driver origins (phishing guard)', async () => {
+    authenticateMock.mockResolvedValue({ user: { id: 'u1' }, supabase: makeSupabase({
+      driverRow: { id: 'd1', name: 'Jo' }, contactRow: { value: 'jo@example.com' },
+    }) })
+    for (const url of [
+      'https://evil.example.com/duty',
+      'https://driver.pcvtechnologies.co.uk.evil.com/x',
+      'javascript:alert(1)',
+      'not a url',
+    ]) {
+      const res = makeRes()
+      await handler(makeReq({ driver_id: 'd1', date: '2026-09-20', url }), res)
+      expect(res.status).toHaveBeenCalledWith(400)
+    }
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('only allows the localhost driver url outside production', async () => {
+    authenticateMock.mockResolvedValue({ user: { id: 'u1' }, supabase: makeSupabase({
+      driverRow: { id: 'd1', name: 'Jo' }, contactRow: { value: 'jo@example.com' },
+    }) })
+    const body = { driver_id: 'd1', date: '2026-09-20', url: 'http://localhost:8080/?duties=j1' }
+    process.env.VERCEL_ENV = 'production'
+    const prodRes = makeRes()
+    await handler(makeReq(body), prodRes)
+    expect(prodRes.status).toHaveBeenCalledWith(400)
+    delete process.env.VERCEL_ENV
+    const devRes = makeRes()
+    await handler(makeReq(body), devRes)
+    expect(devRes.json).toHaveBeenCalledWith({ ok: true })
+  })
+
+  it('ignores a company_name that could inject headers or break the From field', async () => {
+    authenticateMock.mockResolvedValue({ user: { id: 'u1' }, supabase: makeSupabase({
+      driverRow: { id: 'd1', name: 'Jo' }, contactRow: { value: 'jo@example.com' },
+    }) })
+    const res = makeRes()
+    await handler(makeReq({
+      driver_id: 'd1', date: '2026-09-20', url: 'https://driver.pcvtechnologies.co.uk/?duties=j1',
+      company_name: 'Bank <security@bank.example>',
+    }), res)
+    const sent = JSON.parse(global.fetch.mock.calls[0][1].body)
+    expect(sent.from).toBe('noreply@example.com')
+  })
+
+  it('escapes the url inside the html href', async () => {
+    authenticateMock.mockResolvedValue({ user: { id: 'u1' }, supabase: makeSupabase({
+      driverRow: { id: 'd1', name: 'Jo' }, contactRow: { value: 'jo@example.com' },
+    }) })
+    const res = makeRes()
+    await handler(makeReq({
+      driver_id: 'd1', date: '2026-09-20',
+      url: 'https://driver.pcvtechnologies.co.uk/?duties=j1&token=a"b',
+    }), res)
+    const sent = JSON.parse(global.fetch.mock.calls[0][1].body)
+    expect(sent.html).toContain('&amp;token=a&quot;b')
+    expect(sent.html).not.toContain('a"b')
   })
 })

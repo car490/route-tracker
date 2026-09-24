@@ -11,7 +11,7 @@
     "dev:safe": "node ./scripts/dev-safe.mjs",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint . --max-warnings 7",
+    "lint": "eslint . --max-warnings 0",
     "test": "vitest run"
   },
   "dependencies": {

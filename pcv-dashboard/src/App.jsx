@@ -65,7 +65,9 @@ export default function App() {
       mounted = false
       subscription.unsubscribe()
     }
-  }, [])
+    // Subscribe to auth changes once per mount; re-running on a new `navigate`
+    // identity would tear down and re-create the Supabase auth listener.
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (session === undefined) {
     return <div className="app-loading">Loading…</div>
