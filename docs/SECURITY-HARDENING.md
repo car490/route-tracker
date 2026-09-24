@@ -39,9 +39,9 @@ Hetzner VPS), so each step is mapped onto what actually exists below.
 | 13 | Leaked-password protection off (both projects) | Low | **Live** 2026-09-24 (owner enabled it on both projects; the advisor no longer flags it) |
 | 14 | `mele-server` has no lockfile, so the Controller's `npm install` is unpinned and unauditable | Low-Med | In PR (`package-lock.json`, bootstrap uses `npm ci`, CI audits it) |
 | 15 | Edge Function bearer comparisons not constant-time | Low | In PR (`generate-announcement-clip`, `naptan-import`). Takes effect once each function is redeployed |
-| 16 | `companies` is fully anon-readable (licence no., email, address) | Low | In PR (`migration_security_hardening_phase1.sql`: anon gets `id, name, logo_path, primary_color, accent_color` only) |
-| 17 | **Prod-only drift:** the old two-argument `link_announce_device(uuid, uuid)` was never dropped on production. Anon-executable SECURITY DEFINER with no pairing-secret check, so anyone with the anon key and a device id could re-link that sign to another vehicle in its company | Med | In PR (dropped in `migration_security_hardening_phase1.sql`; nothing calls it) |
-| 18 | **Dev-only drift:** `enqueue_service_clips_for_timetables` and its trigger function were revoked from PUBLIC only, so dev's default privileges left them callable by anon/authenticated | Low | In PR (same migration) |
+| 16 | `companies` is fully anon-readable (licence no., email, address) | Low | **Live** 2026-09-24 (`migration_security_hardening_phase1.sql`: anon gets `id, name, logo_path, primary_color, accent_color` only; prod verified, anon REST branding queries 200, `operator_licence_number`/`select=*` refused) |
+| 17 | **Prod-only drift:** the old two-argument `link_announce_device(uuid, uuid)` was never dropped on production. Anon-executable SECURITY DEFINER with no pairing-secret check, so anyone with the anon key and a device id could re-link that sign to another vehicle in its company | Med | **Live** 2026-09-24 (dropped on prod by `migration_security_hardening_phase1.sql`; nothing calls it) |
+| 18 | **Dev-only drift:** `enqueue_service_clips_for_timetables` and its trigger function were revoked from PUBLIC only, so dev's default privileges left them callable by anon/authenticated | Low | **Live** 2026-09-24 (same migration, applied on both) |
 
 ## Step 3 (supply chain): on develop (#83)
 `.github/workflows/ci.yml` now has a `supply-chain` job (npm audit at high+, Trivy vuln + secret
