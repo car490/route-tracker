@@ -39,5 +39,5 @@ test('clip hash is stable, and changes with the text, any voice setting, the mod
   assert.notEqual(await elevenLabsClipHash('This is Boston.', BEN, LEVELLING), base);
   assert.notEqual(await elevenLabsClipHash('This is Kirton.', { ...BEN, voiceSettings: { ...BEN.voiceSettings, speed: 1.0 } }, LEVELLING), base);
   assert.notEqual(await elevenLabsClipHash('This is Kirton.', { ...BEN, modelId: 'eleven_v3' }, LEVELLING), base);
-  assert.notEqual(await elevenLabsClipHash('This is Kirton.', BEN, { ...LEVELLING, version: 2 }), base);
+  assert.notEqual(await elevenLabsClipHash('This is Kirton.', BEN, { ...LEVELLING, version: LEVELLING.version + 1 }), base);
 });
