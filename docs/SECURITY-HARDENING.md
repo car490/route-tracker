@@ -22,19 +22,19 @@ Hetzner VPS), so each step is mapped onto what actually exists below.
 | # | Finding | Sev | Status |
 |---|---|---|---|
 | 0 | Supabase Auth signup is open on dev **and** prod (dev also auto-confirms email), so anyone is an `authenticated` user. Amplifies every item below. | High | **Open: owner decision** (disable signup in Auth settings; users are then created by invite) |
-| 1 | `generate_duty_token()` RPC signed JWTs for any journey ids with no ownership check | High | Dev only (dropped; unused, `/api/sign-token` is the real path) |
-| 2 | `stops` INSERT/UPDATE open to any authenticated user; `stops.name`/`announcement_name` drive spoken PSVAIR clips | High | Dev only (INSERT needs ops role; no client UPDATE). **Known gap:** any company's ops user can still insert a stop (stops are global) |
-| 2b | `journey_types` / `term_dates` writable by any authenticated user (term dates control which school departures run) | High | Dev only (read-only) |
-| 2c | **Prod-only drift:** extra `anon_upload_stop_times` policy bypassed JWT scoping on `journey_stop_times`; exists in no repo file | High | Dev only (dev never had it); **prod still has it until the migration is applied there** |
+| 1 | `generate_duty_token()` RPC signed JWTs for any journey ids with no ownership check | High | **Live** 2026-09-24 (dropped; unused, `/api/sign-token` is the real path) |
+| 2 | `stops` INSERT/UPDATE open to any authenticated user; `stops.name`/`announcement_name` drive spoken PSVAIR clips | High | **Live** 2026-09-24 (INSERT needs ops role; no client UPDATE). **Known gap:** any company's ops user can still insert a stop (stops are global) |
+| 2b | `journey_types` / `term_dates` writable by any authenticated user (term dates control which school departures run) | High | **Live** 2026-09-24 (read-only) |
+| 2c | **Prod-only drift:** extra `anon_upload_stop_times` policy bypassed JWT scoping on `journey_stop_times`; exists in no repo file | High | **Live** 2026-09-24 (dropped on prod; dev never had it) |
 | 3 | Claim-less anon key passes every `is_jwt_*_allowed()` check (documented compat tradeoff) | High | **Open** (needs a date to retire the legacy no-token flow) |
 | 4 | No security headers on Vercel or Cloudflare | Med | In PR (`vercel.json`, `busops/_headers`). CSP is Report-Only on purpose; see below |
 | 5 | `/api/directions` open proxy; `/api/directions-diagnostics` open, leaks env var names/host | Med | In PR (auth required, waypoint cap, coordinate validation) |
 | 6 | `send-duty-email`: unvalidated `url` (phishing link from company sender), spoofable From name | Med | In PR |
-| 7 | `announcement_coverage_gap` anon insert was `with check (true)` | Med | Dev only (scoped by `is_jwt_journey_allowed`; still passes for a claim-less key, see #3) |
+| 7 | `announcement_coverage_gap` anon insert was `with check (true)` | Med | **Live** 2026-09-24 (scoped by `is_jwt_journey_allowed`; still passes for a claim-less key, see #3) |
 | 8 | Controller relay: token in query string, non-constant-time compare, binds 0.0.0.0, one fleet-wide token | Med | **Open** |
 | 9 | Announce device tokens live 100 years; revocation is SQL-only; `sign-announce-token` does not verify `vehicle_id` belongs to the company | Med | **Open** |
 | 10 | Dependencies: `ws` high, `sharp`/`wrangler`/`js-yaml`/`browserslist` high, `react-router` moderate | Med | In PR (`npm audit fix`; all HIGH cleared). Remaining moderates need breaking majors: `react-router` (SSR/hydration + link redirect; this is a client-side SPA) and `vitest` (dev-only) |
-| 11 | Anon-executable `SECURITY DEFINER` helpers / trigger function via `/rest/v1/rpc` | Low-Med | Dev only for `current_company_id`, `current_employee_role`, `fn_naptan_import_on_county_change`; the `is_jwt_*` helpers must stay anon-callable |
+| 11 | Anon-executable `SECURITY DEFINER` helpers / trigger function via `/rest/v1/rpc` | Low-Med | **Live** 2026-09-24 for `current_company_id`, `current_employee_role`, `fn_naptan_import_on_county_change`; the `is_jwt_*` helpers must stay anon-callable |
 | 12 | 30 live functions have a mutable `search_path` (schema.sql sets it for some, so live DB has drifted) | Low-Med | **Open** (needs per-function testing; do not bulk-alter blind) |
 | 13 | Leaked-password protection off (both projects) | Low | **Open** (Auth dashboard toggle) |
 | 14 | `mele-server` has no lockfile, so the Controller's `npm install` is unpinned and unauditable | Low-Med | **Open** |
@@ -75,11 +75,19 @@ connects to the Bus Controller over `ws://` on the local network, so an enforced
 `connect-src` could blank a bus display. Browse both apps with the console open, fix real
 violations, then switch the header name to `Content-Security-Policy`.
 
-## Applying the DB migration to production
-`supabase/migration_security_hardening_phase0.sql` is applied on **dev** and tested by
-`supabase/tests/security_hardening_phase0_rls.sql`. Production needs it too, and item 2c
-(`anon_upload_stop_times`) is only closed there once it runs. Prod currently has 1 auth user and 3
-employees. Per project rules: dev first (done), then production after sign-off.
+## Applying the DB migration to production: done
+`supabase/migration_security_hardening_phase0.sql` is applied on **dev** (tested by
+`supabase/tests/security_hardening_phase0_rls.sql`) and on **production** (2026-09-24, run by the
+owner in the Supabase SQL Editor). Verified on production afterwards against `pg_policies`,
+function ACLs and table grants: `anon_upload_stop_times` gone, `stops.ops_insert` in place with no
+UPDATE policy, `journey_types`/`term_dates` read-only, `generate_duty_token` dropped, the coverage-gap
+insert scoped, and the three helpers no longer anon-executable. The only production login is an
+ops manager, so dashboard stop creation still works.
+
+Small follow-up noticed while verifying: `authenticated` still holds `TRUNCATE` (and `REFERENCES`,
+`TRIGGER`) on `journey_types`/`term_dates`, as on most tables via Supabase's default grants.
+`TRUNCATE` bypasses RLS, but PostgREST does not expose it, so it is only reachable with a direct
+database login. Worth a schema-wide `revoke truncate ... from anon, authenticated` in a later phase.
 
 Test gap to know about: the "driver-level employee cannot insert a stop" block skips when the DB
 has no driver with a linked login (dev has none), so that one path was not exercised on dev.
