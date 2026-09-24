@@ -10,7 +10,7 @@
 // registration failure today.
 import { SUPABASE_URL, SUPABASE_KEY } from './driver/src/config.js';
 
-const CACHE_NAME = 'busops-driver-v2.2.9';
+const CACHE_NAME = 'busops-driver-v2.2.10';
 
 const STATIC_ASSETS = [
   './',
