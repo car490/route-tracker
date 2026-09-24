@@ -172,3 +172,4 @@
 }
 .mj-select:disabled { background: #EEF0F3; }
 .mj-hint { margin: 16px 0; color: var(--mj-muted); }
+.mj-retry { margin-top: 10px; }
