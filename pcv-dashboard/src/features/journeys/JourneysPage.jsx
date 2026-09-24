@@ -3,6 +3,10 @@ import { supabase, PWA_BASE } from '../../shared/supabase'
 import { getCompanyId } from '../../shared/company'
 import Modal from '../../shared/components/Modal'
 import { buildJourneyReportHtml } from './journeyReportHtml.js'
+import {
+  todayStr, depLabel, routeOptionsFor, timetableOptionsFor, friendlySaveError, resetJourney as resetJourneyRpc,
+} from './journeyActions.js'
+import { Link } from 'react-router-dom'
 
 const STATUS_BADGE = {
   scheduled:   <span className="badge badge-gray">Scheduled</span>,
@@ -10,8 +14,6 @@ const STATUS_BADGE = {
   completed:   <span className="badge badge-green">Completed</span>,
   cancelled:   <span className="badge badge-red">Cancelled</span>,
 }
-
-function todayStr() { return new Date().toISOString().slice(0, 10) }
 
 const EMPTY_FORM = { route_id: '', timetable_id: '', timetable_departure_id: '', driver_id: '', vehicle_id: '', journey_date: todayStr() }
 
@@ -140,12 +142,6 @@ export default function JourneysPage() {
     setReportLoading(false)
   }
 
-  function depLabel(j) {
-    const dep = j.departure
-    if (!dep) return '—'
-    return `${dep.timetable?.route?.service_code ?? ''} ${dep.timetable?.name ?? ''} ${dep.timetable?.direction ?? ''} @ ${dep.departure_time?.slice(0, 5) ?? ''}`
-  }
-
   function downloadCsv(j, stops, incidents) {
     const fmt = ts => ts ? new Date(ts).toLocaleString('en-GB') : '—'
     const fmtTime = ts => ts ? new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—'
@@ -225,7 +221,7 @@ export default function JourneysPage() {
       ? await supabase.from('journeys').insert(payload)
       : await supabase.from('journeys').update(payload).eq('id', modal.id)
     setSaving(false)
-    if (err) { setError(err.message); return }
+    if (err) { setError(friendlySaveError(err.message)); return }
     setModal(null); loadJourneys(dateFilter)
   }
 
@@ -236,19 +232,9 @@ export default function JourneysPage() {
       `This will permanently delete:\n• All stop times\n• GPS track\n• Incident log\n\nThis cannot be undone.`
     )) return
 
-    const [evRes, stRes] = await Promise.all([
-      supabase.from('journey_events').delete().eq('journey_id', j.id),
-      supabase.from('journey_stop_times').delete().eq('journey_id', j.id),
-    ])
-    if (evRes.error || stRes.error) {
-      alert('Failed to clear journey data: ' + (evRes.error?.message ?? stRes.error?.message))
-      return
-    }
-    const { error: err } = await supabase
-      .from('journeys')
-      .update({ status: 'scheduled', started_at: null, completed_at: null })
-      .eq('id', j.id)
-    if (err) { alert('Failed to reset journey: ' + err.message); return }
+    // One transaction server-side, so it can't be left half-reset.
+    const { error: err } = await resetJourneyRpc(supabase, j.id)
+    if (err) { alert('Failed to reset journey: ' + err); return }
     loadJourneys(dateFilter)
   }
 
@@ -287,25 +273,11 @@ export default function JourneysPage() {
     setError(''); setModal(j)
   }
 
-  const routeOptions = useMemo(() => {
-    const seen = new Map()
-    for (const dep of departures) {
-      const r = dep.timetable?.route
-      if (r && !seen.has(r.id)) seen.set(r.id, r)
-    }
-    return [...seen.values()].sort((a, b) => (a.service_code ?? '').localeCompare(b.service_code ?? ''))
-  }, [departures])
+  const routeOptions = useMemo(() => routeOptionsFor(departures), [departures])
 
   const selectedRoute = routeOptions.find(r => r.id === form.route_id)
 
-  const timetableOptions = useMemo(() => {
-    const seen = new Map()
-    for (const dep of departures) {
-      const t = dep.timetable
-      if (t && t.route?.id === form.route_id && !seen.has(dep.timetable_id)) seen.set(dep.timetable_id, t)
-    }
-    return [...seen.values()]
-  }, [departures, form.route_id])
+  const timetableOptions = useMemo(() => timetableOptionsFor(departures, form.route_id), [departures, form.route_id])
 
   const timetableDeps = departures.filter(d => d.timetable_id === form.timetable_id)
 
@@ -335,6 +307,7 @@ export default function JourneysPage() {
             onChange={handleDateChange}
             style={{ width: 160 }}
           />
+          <Link className="btn btn-ghost" to="/m/journeys">Phone view</Link>
           <button className="btn btn-primary" onClick={openAdd}>+ Add Journey</button>
         </div>
       </div>

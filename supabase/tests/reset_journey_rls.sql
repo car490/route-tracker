@@ -131,3 +131,38 @@ exception
       raise exception '%', sqlerrm;
     end if;
 end $$;
+
+-- 4. A logged-in user with no employee row (no company at all) gets false and
+--    changes nothing. Covers the same property as test 3 on a database with
+--    only one company, where test 3 SKIPs.
+do $$
+declare
+  v_journey uuid := (select id from journeys where status in ('in_progress', 'completed') limit 1);
+  v_result  boolean;
+  v_status  text;
+begin
+  if v_journey is null then
+    raise notice 'SKIP: no started journey';
+    return;
+  end if;
+
+  set local role authenticated;
+  perform set_config('request.jwt.claims',
+    json_build_object('role', 'authenticated', 'sub', gen_random_uuid())::text, true);
+
+  select reset_journey(v_journey) into v_result;
+  reset role;
+
+  select status into v_status from journeys where id = v_journey;
+  if v_result or v_status = 'scheduled' then
+    raise exception 'FAIL: user with no company reset the journey (result=%, status=%)', v_result, v_status;
+  end if;
+
+  raise notice 'PASS: user with no company cannot reset the journey';
+  raise exception 'rollback';
+exception
+  when others then
+    if sqlerrm <> 'rollback' then
+      raise exception '%', sqlerrm;
+    end if;
+end $$;
