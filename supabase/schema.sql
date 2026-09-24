@@ -330,6 +330,7 @@ create table if not exists public.app_config (
 
 alter table public.app_config enable row level security;
 -- The clip drain Edge Function reads the daily cap (migration_announce_voice_safeguards.sql).
+revoke insert, update, delete, truncate on public.app_config from service_role;
 grant select on public.app_config to service_role;
 
 

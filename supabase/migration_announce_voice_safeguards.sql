@@ -20,6 +20,9 @@ alter table public.elevenlabs_usage enable row level security;
 --    (service_role) needs to read app_config; clients still can't.
 insert into public.app_config (key, value) values ('elevenlabs_daily_char_cap', '6000')
 on conflict (key) do nothing;
+-- Read-only: dev's default privileges had also given service_role write
+-- access, which nothing uses (production never had it).
+revoke insert, update, delete, truncate on public.app_config from service_role;
 grant select on public.app_config to service_role;
 
 -- 3. One place that words and queues a stop's approach/departure clips.
