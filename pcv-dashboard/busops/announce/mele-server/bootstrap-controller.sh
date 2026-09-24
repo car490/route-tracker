@@ -66,7 +66,7 @@ else
   git clone -b "$REPO_BRANCH" "$REPO_URL" "$REPO_DIR"
 fi
 cd "$REPO_DIR/pcv-dashboard/busops/announce/mele-server"
-npm install --omit=dev
+npm ci --omit=dev   # exact versions from package-lock.json
 
 echo "== 4. Static IP for $WIFI_IFACE (systemd-networkd, bypasses netplan/wpa_supplicant) =="
 sudo tee /etc/systemd/network/10-coachmate-ap.network >/dev/null <<EOF

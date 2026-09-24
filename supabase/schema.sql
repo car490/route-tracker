@@ -1521,7 +1521,7 @@ begin
 end;
 $$;
 
-revoke execute on function public.enqueue_service_clips_for_timetables(uuid[]) from public;
+revoke execute on function public.enqueue_service_clips_for_timetables(uuid[]) from public, anon, authenticated;
 
 -- Enqueue trigger: stops (approach/<id>, departure/<id>, plus ROUTE_START for
 -- every timetable this stop ends). Fires on insert and on update of the three
@@ -1629,7 +1629,7 @@ begin
 end;
 $$;
 
-revoke execute on function public.fn_announcement_clip_enqueue_on_timetable_stops_change() from public;
+revoke execute on function public.fn_announcement_clip_enqueue_on_timetable_stops_change() from public, anon, authenticated;
 
 create trigger trg_announcement_clip_enqueue_on_timetable_stops_insert
   after insert on public.timetable_stops
@@ -2472,6 +2472,13 @@ revoke execute on function public.current_company_id()    from public, anon;
 revoke execute on function public.current_employee_role() from public, anon;
 grant  execute on function public.current_company_id()    to authenticated, service_role;
 grant  execute on function public.current_employee_role() to authenticated, service_role;
+
+-- ── companies: anon reads branding columns only (migration_security_hardening_phase1.sql)
+-- Must follow "grant select on all tables in schema public to anon" above.
+-- The Driver PWA and Announce sign read name/logo/colours; licence number,
+-- Companies House number, email and address stay dashboard-only.
+revoke select on public.companies from anon;
+grant select (id, name, logo_path, primary_color, accent_color) on public.companies to anon;
 
 -- ── Table-admin privileges: keep this block LAST ─────────────────────────────
 -- The "grant all" statements above (and Supabase's own default privileges)

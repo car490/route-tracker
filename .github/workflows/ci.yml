@@ -75,6 +75,9 @@ jobs:
       - name: npm audit (busops, high+)
         run: npm audit --package-lock-only --audit-level=high
         working-directory: pcv-dashboard/busops
+      - name: npm audit (Bus Controller mele-server, high+)
+        run: npm audit --package-lock-only --audit-level=high
+        working-directory: pcv-dashboard/busops/announce/mele-server
       - name: Trivy — vulnerabilities and secrets
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:

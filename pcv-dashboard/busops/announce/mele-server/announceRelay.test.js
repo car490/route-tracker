@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import http from 'node:http';
 import WebSocket from 'ws';
-import { attachAnnounceRelay } from './announceRelay.mjs';
+import { attachAnnounceRelay, tokenMatches } from './announceRelay.mjs';
 
 const TOKEN = 'test-token';
 
@@ -201,5 +201,21 @@ describe('announceRelay', () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(received).toBe(false);
     });
+  });
+});
+
+describe('tokenMatches', () => {
+  it('accepts only an exact match', () => {
+    expect(tokenMatches('abc123', 'abc123')).toBe(true);
+    expect(tokenMatches('abc124', 'abc123')).toBe(false);
+    expect(tokenMatches('abc12', 'abc123')).toBe(false);
+    expect(tokenMatches('abc1234', 'abc123')).toBe(false);
+  });
+
+  it('rejects a missing token or an unset secret', () => {
+    expect(tokenMatches(null, 'abc123')).toBe(false);
+    expect(tokenMatches('', 'abc123')).toBe(false);
+    expect(tokenMatches('abc123', null)).toBe(false);
+    expect(tokenMatches(null, null)).toBe(false);
   });
 });
