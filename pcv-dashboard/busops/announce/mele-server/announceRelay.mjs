@@ -29,7 +29,17 @@
 // are fire-and-forget (no latestAnnounce) — a reconnecting sign or a
 // Controller restart has nothing useful to catch up on for an
 // announcement that's already been superseded by whatever's happening now.
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { WebSocketServer } from 'ws';
+
+// Constant-time token check: compare fixed-length SHA-256 digests with
+// timingSafeEqual, so response timing doesn't reveal how many leading
+// characters of a guess were right (a plain !== stops at the first mismatch).
+export function tokenMatches(given, expected) {
+  if (!given || !expected) return false;
+  const digest = (v) => createHash('sha256').update(String(v)).digest();
+  return timingSafeEqual(digest(given), digest(expected));
+}
 
 export function attachAnnounceRelay(httpServer, { token, onSchedule, onAnnounce } = {}) {
   const driverWss = new WebSocketServer({ noServer: true });
@@ -50,7 +60,7 @@ export function attachAnnounceRelay(httpServer, { token, onSchedule, onAnnounce 
 
     if (pathname !== '/driver-push' && pathname !== '/sign-feed') return; // not ours — leave for anything else listening
 
-    if (!token || searchParams.get('token') !== token) {
+    if (!tokenMatches(searchParams.get('token'), token)) {
       // .end() (not .write()+.destroy()) so the status line/headers are
       // guaranteed to flush before the socket closes — otherwise a client
       // can see a bare connection drop instead of a clean 401.
