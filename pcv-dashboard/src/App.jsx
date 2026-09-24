@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { supabase } from './shared/supabase'
 import Layout from './shared/components/Layout'
@@ -12,18 +12,23 @@ import RoutesPage from './features/routes/RoutesPage'
 import JourneysPage from './features/journeys/JourneysPage'
 import SchedulePage from './features/schedule/SchedulePage'
 import DutyCardsPage from './features/journeys/DutyCardsPage'
+import MobileJourneysPage from './features/journeys/MobileJourneysPage'
 import LiveTracking from './features/tracking/LiveTracking'
 import RoutePlannerPage from './features/route-planner/RoutePlannerPage'
 import BrandingPage from './features/settings/BrandingPage'
 
 function Protected({ session, children }) {
-  if (!session) return <Navigate to="/login" replace />
+  const location = useLocation()
+  // Remember where they were going, so a bookmarked page (e.g. the phone
+  // journeys page) comes back after login instead of the desktop home page.
+  if (!session) return <Navigate to="/login" replace state={{ from: location.pathname }} />
   return children
 }
 
 export default function App() {
   const [session, setSession] = useState(undefined)
   const navigate = useNavigate()
+  const location = useLocation()
 
   useEffect(() => {
     let mounted = true
@@ -68,8 +73,16 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/login" element={session ? <Navigate to="/" replace /> : <Login />} />
+      <Route path="/login" element={session ? <Navigate to={location.state?.from ?? '/'} replace /> : <Login />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route
+        path="/m/journeys"
+        element={
+          <Protected session={session}>
+            <MobileJourneysPage />
+          </Protected>
+        }
+      />
       <Route
         path="/"
         element={

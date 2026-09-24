@@ -945,6 +945,39 @@ $$;
 
 grant execute on function complete_journey(uuid) to anon;
 
+-- Called by the dashboard (authenticated) to reset a journey back to
+-- Scheduled — clears its GPS track, incidents and stop times and the
+-- start/complete timestamps in one transaction, so a dropped connection can't
+-- leave it half-reset. SECURITY INVOKER: the caller's own "company_all" RLS
+-- policies scope every statement, so another company's id just returns
+-- false. Not callable by anon. See migration_reset_journey_rpc.sql.
+create or replace function public.reset_journey(p_journey_id uuid)
+returns boolean
+language plpgsql
+security invoker
+set search_path = public
+as $$
+begin
+  -- RLS hides other companies' journeys, so this is also the ownership check.
+  perform 1 from journeys where id = p_journey_id;
+  if not found then
+    return false;
+  end if;
+
+  delete from journey_events     where journey_id = p_journey_id;
+  delete from journey_stop_times where journey_id = p_journey_id;
+
+  update journeys
+     set status = 'scheduled', started_at = null, completed_at = null
+   where id = p_journey_id;
+
+  return found;
+end;
+$$;
+
+revoke execute on function public.reset_journey(uuid) from public, anon;
+grant  execute on function public.reset_journey(uuid) to authenticated;
+
 -- Called by the driver PWA (anon) for the manual service-selection fallback
 -- (no active duty card): gets or creates today's journey row for a chosen
 -- timetable_departure_id. company_id is always derived server-side from
