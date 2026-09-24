@@ -1491,13 +1491,19 @@ $$;
 -- from shared/announcementAudio.js (see
 -- migration_announcement_service_clips_from_timetables.sql).
 
--- Mirrors stripSpeechAnnotations() in shared/announcementAudio.js.
+-- Strips parentheticals like stripSpeechAnnotations() in shared/announcementAudio.js
+-- (which only builds keys), then adds a space after a comma followed by a
+-- letter so "Boston,College" is spoken with a pause
+-- (migration_announcement_speech_comma_space.sql). Clip keys are unaffected:
+-- the slug ignores punctuation and spaces.
 create or replace function public.announcement_speech_name(p_name text)
 returns text
 language sql
 immutable
 as $$
-  select regexp_replace(p_name, '\s*\([^)]*\)', '', 'g')
+  select regexp_replace(
+           regexp_replace(p_name, '\s*\([^)]*\)', '', 'g'),
+           ',([A-Za-z])', ', \1', 'g')
 $$;
 
 -- Mirrors slug() in shared/announcementAudio.js.

@@ -9,8 +9,9 @@ Implements `docs/announce-voice-swap-handoff.md`, adapted to how the codebase ac
 | Design | **Ben is the automatic voice** (revised 2026-09-24, replacing "Azure safety net"): ElevenLabs runs inside the existing pipeline, so a changed stop gets a Ben clip within 5 minutes. Azure is an emergency setting only and never overwrites a Ben clip. |
 | Review | **Play first, review after.** New Ben clips play straight away and show as unreviewed; John approves them or sets `spoken_name`, which regenerates the clip. (The brief said only approved clips ship; John accepted this trade-off to avoid silence at a renamed stop.) |
 | Scope | **Only clips a route actually uses** are rendered with ElevenLabs. A daily character cap protects the monthly credits. Dev can stay on Azure except when testing. |
-| Voice speed | **0.90** |
+| Voice speed | **0.80** (was 0.90; the first dev clip sounded rushed) |
 | Other settings | stability 0.50, similarity boost 1.00, style 0 vs 0.50 decided by ear in the audition, speaker boost on (confirm in the app) |
+| Comma pauses | Spoken text gets a space after a comma followed by a letter ("Boston,College" → "Boston, College"); speech only, sign and keys unchanged |
 | Loudness | Speaker output no more than 90 dB, **set by hand on each vehicle's amplifier**. No software cap or calibration clip. The clips only need to be consistently levelled so one amplifier setting suits them all |
 
 ## How it works today (the base we build on)

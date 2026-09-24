@@ -20,7 +20,7 @@ export const BEN = Object.freeze({
     similarity_boost: 1.0,
     style: 0, // audition decides 0 vs 0.5 (plan, step 6)
     use_speaker_boost: true,
-    speed: 0.9, // John, 2026-09-24
+    speed: 0.8, // John, 2026-09-24 (0.9 sounded rushed on the first dev clip)
   }),
 });
 

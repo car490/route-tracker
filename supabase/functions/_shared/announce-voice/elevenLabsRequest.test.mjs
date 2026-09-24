@@ -17,7 +17,7 @@ test('builds the documented text-to-speech request with the pinned settings', ()
   assert.deepEqual(body, {
     text: 'This is Boston, College.',
     model_id: 'eleven_multilingual_v2',
-    voice_settings: { stability: 0.5, similarity_boost: 1.0, style: 0, use_speaker_boost: true, speed: 0.9 },
+    voice_settings: { stability: 0.5, similarity_boost: 1.0, style: 0, use_speaker_boost: true, speed: 0.8 },
   });
 });
 
