@@ -1,4 +1,19 @@
 import { buildGHBody, normaliseGHResponse } from './_graphhopper.js'
+import { authenticate } from './_auth.js'
+
+// Route planner legs are a handful of stops; this caps what one request can make
+// GraphHopper compute.
+const MAX_COORDINATES = 50
+
+function validCoordinates(coords) {
+  return Array.isArray(coords)
+    && coords.length >= 2
+    && coords.length <= MAX_COORDINATES
+    && coords.every(c =>
+      Array.isArray(c) && c.length >= 2
+      && Number.isFinite(c[0]) && Math.abs(c[0]) <= 180
+      && Number.isFinite(c[1]) && Math.abs(c[1]) <= 90)
+}
 
 function firstNonEmpty(...values) {
   return values.find(v => typeof v === 'string' && v.trim().length > 0)
@@ -24,13 +39,18 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  // Signed-in dashboard users only: this proxies a paid/limited routing backend.
+  if (!(await authenticate(req))) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
   if (!GH_BASE) {
     return res.status(503).json({ error: 'GraphHopper URL is not configured (set GRAPHHOPPER_URL)' })
   }
 
   const { coordinates, vehicle } = req.body ?? {}
-  if (!coordinates || coordinates.length < 2) {
-    return res.status(400).json({ error: 'At least 2 coordinates required' })
+  if (!validCoordinates(coordinates)) {
+    return res.status(400).json({ error: `Between 2 and ${MAX_COORDINATES} valid [lon, lat] coordinates required` })
   }
 
   const ghRequestInit = {

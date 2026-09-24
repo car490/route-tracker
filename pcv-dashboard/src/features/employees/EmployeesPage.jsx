@@ -32,13 +32,6 @@ const accessLevelBadge = lvl => {
   return <span className="badge badge-gray">Driver</span>
 }
 
-const jobRoleBadge = r => {
-  if (r === 'DRIVER') return <span className="badge badge-blue">Driver</span>
-  if (r === 'OPS')    return <span className="badge badge-gray">Ops</span>
-  if (r === 'OFFICE') return <span className="badge badge-gray">Office</span>
-  return null
-}
-
 const statusBadge = s =>
   s === 'AVAILABLE'
     ? <span className="badge badge-green">Available</span>

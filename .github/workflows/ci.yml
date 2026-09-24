@@ -5,13 +5,17 @@ on:
     branches: ['**']
   pull_request:
 
+# Least privilege for the GITHUB_TOKEN: nothing in this workflow writes to the repo.
+permissions:
+  contents: read
+
 jobs:
   pwa-test:
     name: Driver PWA — unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -27,8 +31,8 @@ jobs:
     name: Dashboard — lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -42,8 +46,8 @@ jobs:
     name: Dashboard — build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -53,14 +57,42 @@ jobs:
       - run: npm run build
         working-directory: pcv-dashboard
 
+  # Supply-chain gate (Step 3 of the security hardening plan). Blocks a PR that adds a
+  # HIGH/CRITICAL dependency vulnerability or commits a secret. Moderate advisories are
+  # tracked in docs/SECURITY-HARDENING.md rather than blocking, until the breaking
+  # react-router / vitest majors are taken.
+  supply-chain:
+    name: Security — dependency audit + secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+      - name: npm audit (dashboard, high+)
+        run: npm audit --package-lock-only --audit-level=high
+        working-directory: pcv-dashboard
+      - name: npm audit (busops, high+)
+        run: npm audit --package-lock-only --audit-level=high
+        working-directory: pcv-dashboard/busops
+      - name: Trivy — vulnerabilities and secrets
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          skip-dirs: node_modules,.git,dist
+          exit-code: '1'
+
   deploy-driver-pwa-dev:
     name: Driver PWA — deploy to driver-dev.pcvtechnologies.co.uk (dev Supabase)
-    needs: [pwa-test, dashboard-lint, dashboard-build]
+    needs: [pwa-test, dashboard-lint, dashboard-build, supply-chain]
     if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -75,12 +107,12 @@ jobs:
 
   deploy-driver-pwa-production:
     name: Driver PWA — deploy to driver.pcvtechnologies.co.uk (production Supabase)
-    needs: [pwa-test, dashboard-lint, dashboard-build]
+    needs: [pwa-test, dashboard-lint, dashboard-build, supply-chain]
     if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: 'npm'

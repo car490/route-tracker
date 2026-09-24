@@ -1,3 +1,5 @@
+import { supabase } from '../../shared/supabase.js'
+
 export async function getRoute(waypoints, vehicle = null) {
   if (!waypoints || waypoints.length < 2) return null
 
@@ -13,9 +15,13 @@ export async function getRoute(waypoints, vehicle = null) {
   }
 
   try {
+    const { data: { session } } = await supabase.auth.getSession()
     const res = await fetch('/api/directions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session?.access_token ?? ''}`,
+      },
       body: JSON.stringify(body),
     })
 

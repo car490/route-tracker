@@ -335,15 +335,15 @@ create table journey_types (
 );
 
 grant select on public.journey_types to anon;
-grant all    on public.journey_types to authenticated;
+grant select on public.journey_types to authenticated;  -- read-only: see migration_security_hardening_phase0.sql
 
 alter table public.journey_types enable row level security;
 
 create policy "anon_read" on public.journey_types
   for select to anon using (true);
 
-create policy "auth_all" on public.journey_types
-  for all to authenticated using (true) with check (true);
+create policy "auth_read" on public.journey_types
+  for select to authenticated using (true);
 
 
 -- ── Term dates ────────────────────────────────────────────────────────────────
@@ -365,15 +365,15 @@ create table term_dates (
 );
 
 grant select on public.term_dates to anon;
-grant all    on public.term_dates to authenticated;
+grant select on public.term_dates to authenticated;  -- read-only: see migration_security_hardening_phase0.sql
 
 alter table public.term_dates enable row level security;
 
 create policy "anon_read" on public.term_dates
   for select to anon using (true);
 
-create policy "auth_all" on public.term_dates
-  for all to authenticated using (true) with check (true);
+create policy "auth_read" on public.term_dates
+  for select to authenticated using (true);
 
 
 -- ── Routes ────────────────────────────────────────────────────────────────────
@@ -786,71 +786,9 @@ $$;
 
 grant execute on function is_journey_in_progress(uuid) to anon;
 
--- Signs a driver duty-card JWT directly in Postgres via pgcrypto, rather than
--- relying on a separately-deployed Edge Function. Output is structurally
--- identical to the old Edge Function's JWT and is read by is_jwt_journey_allowed().
-create extension if not exists pgcrypto;
-
-create or replace function public.generate_duty_token(
-  p_journey_ids  uuid[],
-  p_driver_name  text,
-  p_driver_id    uuid
-) returns text
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  -- HS256 JWT header is a fixed constant
-  v_header      text := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9';
-  v_payload     jsonb;
-  v_payload_b64 text;
-  v_input       text;
-  v_sig         text;
-  v_now         bigint;
-  v_secret      text;
-begin
-  if auth.role() is distinct from 'authenticated' then
-    raise exception 'Unauthorized';
-  end if;
-
-  v_now    := extract(epoch from clock_timestamp())::bigint;
-  v_secret := current_setting('app.settings.jwt_secret', true);
-
-  if v_secret is null or v_secret = '' then
-    raise exception 'JWT secret unavailable';
-  end if;
-
-  v_payload := jsonb_build_object(
-    'iss',         'supabase',
-    'role',        'anon',
-    'driver_name', coalesce(p_driver_name, 'Driver'),
-    'driver_id',   p_driver_id,
-    'journey_ids', coalesce(
-                     (select jsonb_agg(elem::text) from unnest(p_journey_ids) as elem),
-                     '[]'::jsonb
-                   ),
-    'iat',         v_now,
-    'exp',         v_now + 86400
-  );
-
-  -- base64url-encode payload (remove newlines pgcrypto adds, swap +/ → -_)
-  v_payload_b64 := replace(replace(replace(
-    replace(encode(convert_to(v_payload::text, 'UTF8'), 'base64'), chr(10), ''),
-    '+', '-'), '/', '_'), '=', '');
-
-  v_input := v_header || '.' || v_payload_b64;
-
-  -- HMAC-SHA256, then base64url-encode the signature
-  v_sig := replace(replace(replace(
-    replace(encode(hmac(convert_to(v_input, 'UTF8'), convert_to(v_secret, 'UTF8'), 'sha256'), 'base64'), chr(10), ''),
-    '+', '-'), '/', '_'), '=', '');
-
-  return v_input || '.' || v_sig;
-end;
-$$;
-
-grant execute on function public.generate_duty_token(uuid[], text, uuid) to authenticated;
+-- generate_duty_token() was removed (migration_security_hardening_phase0.sql): it signed
+-- JWTs for arbitrary journey_ids with no ownership check. Duty tokens are minted by
+-- pcv-dashboard/api/sign-token.js, which validates every id through the caller's RLS.
 
 -- Returns true when the current JWT either carries no journey_ids claim (legacy anon key)
 -- or when j_id appears in the claim. Scopes driver tokens to their own journeys only.
@@ -2100,7 +2038,7 @@ create policy "announcement_coverage_gap_anon_insert"
   on public.announcement_coverage_gap
   for insert
   to anon
-  with check (true);
+  with check (is_jwt_journey_allowed(journey_id));
 
 -- ── Views ─────────────────────────────────────────────────────────────────────
 -- Returns one row per (departure × stop).
@@ -2341,18 +2279,15 @@ create policy "company_all" on journey_stop_times
     journey_id in (select id from journeys where company_id = current_company_id())
   );
 
--- Stops: any authenticated user can read, insert, or update
--- TODO: restore super_user_insert / super_user_update policies for production
+-- Stops: any authenticated user can read; only ops employees can insert; no client-side
+-- UPDATE (NaPTAN import / announcement_name edits use service_role or SQL).
+-- Known gap: stops are global, so an ops user of any company can still insert one.
 create policy "auth_read" on stops
   for select to authenticated using (true);
 
-create policy "auth_insert" on stops
+create policy "ops_insert" on stops
   for insert to authenticated
-  with check (true);
-
-create policy "auth_update" on stops
-  for update to authenticated
-  using (true);
+  with check (current_employee_role() in ('super_user', 'ops_manager'));
 
 
 -- Employee contacts: ops users can manage contacts for employees in their own company
@@ -2528,3 +2463,13 @@ create policy "operator_assets_delete" on storage.objects
     and current_employee_role() in ('super_user', 'ops_manager')
   );
 
+
+-- ── RPC exposure (migration_security_hardening_phase0.sql) ────────────────────
+-- Postgres grants EXECUTE to PUBLIC by default, which anon inherits, exposing these
+-- through /rest/v1/rpc. The trigger fn is never meant to be called directly; the two
+-- RLS helpers are only needed by authenticated policies (no anon policy uses them).
+revoke execute on function public.fn_naptan_import_on_county_change() from public, anon, authenticated;
+revoke execute on function public.current_company_id()    from public, anon;
+revoke execute on function public.current_employee_role() from public, anon;
+grant  execute on function public.current_company_id()    to authenticated, service_role;
+grant  execute on function public.current_employee_role() to authenticated, service_role;

@@ -1,0 +1,12 @@
+# Cloudflare Workers static-assets response headers (this file is applied, not served).
+# Enforced: safe, low-risk hardening. CSP is Report-Only on purpose -- Announce's
+# sign connects to the Bus Controller over ws:// on the LAN, so an enforced strict
+# connect-src could blank a bus display. Watch the browser console for violations,
+# then tighten and switch to Content-Security-Policy (see docs/SECURITY-HARDENING.md).
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=31536000
+  Permissions-Policy: geolocation=(self), microphone=(), camera=(), payment=()
+  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://tile.openstreetmap.org https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://router.project-osrm.org https://nominatim.openstreetmap.org ws: wss: http:; media-src 'self' https://*.supabase.co blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'
