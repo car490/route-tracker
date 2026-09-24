@@ -5,7 +5,7 @@ advisors on both projects. This file is the single place that says what is fixed
 fixed on dev, and what is still open. Update it in the same PR as any change that moves an item.
 
 Status words are literal: **Live** = verified on production. **Dev only** = applied and tested on
-dev, not yet on production. **In PR** = code merged nowhere yet. **Open** = nothing done.
+dev, not yet on production. **In PR** = code merged nowhere yet. **On develop** = merged, not yet released to production. **Open** = nothing done.
 
 ## Framework (four steps)
 
@@ -21,27 +21,29 @@ Hetzner VPS), so each step is mapped onto what actually exists below.
 
 | # | Finding | Sev | Status |
 |---|---|---|---|
-| 0 | Supabase Auth signup is open on dev **and** prod (dev also auto-confirms email), so anyone is an `authenticated` user. Amplifies every item below. | High | **Open: owner decision** (disable signup in Auth settings; users are then created by invite) |
+| 0 | Supabase Auth signup is open on dev **and** prod (dev also auto-confirms email), so anyone is an `authenticated` user. Amplifies every item below. | High | **Live** 2026-09-24 (owner disabled signup on both projects; verified `disable_signup: true` via `/auth/v1/settings`). Users are now created by invite |
 | 1 | `generate_duty_token()` RPC signed JWTs for any journey ids with no ownership check | High | **Live** 2026-09-24 (dropped; unused, `/api/sign-token` is the real path) |
 | 2 | `stops` INSERT/UPDATE open to any authenticated user; `stops.name`/`announcement_name` drive spoken PSVAIR clips | High | **Live** 2026-09-24 (INSERT needs ops role; no client UPDATE). **Known gap:** any company's ops user can still insert a stop (stops are global) |
 | 2b | `journey_types` / `term_dates` writable by any authenticated user (term dates control which school departures run) | High | **Live** 2026-09-24 (read-only) |
 | 2c | **Prod-only drift:** extra `anon_upload_stop_times` policy bypassed JWT scoping on `journey_stop_times`; exists in no repo file | High | **Live** 2026-09-24 (dropped on prod; dev never had it) |
 | 3 | Claim-less anon key passes every `is_jwt_*_allowed()` check (documented compat tradeoff) | High | **Open** (needs a date to retire the legacy no-token flow) |
-| 4 | No security headers on Vercel or Cloudflare | Med | In PR (`vercel.json`, `busops/_headers`). CSP is Report-Only on purpose; see below |
-| 5 | `/api/directions` open proxy; `/api/directions-diagnostics` open, leaks env var names/host | Med | In PR (auth required, waypoint cap, coordinate validation) |
-| 6 | `send-duty-email`: unvalidated `url` (phishing link from company sender), spoofable From name | Med | In PR |
+| 4 | No security headers on Vercel or Cloudflare | Med | On develop, #83 (`vercel.json`, `busops/_headers`). CSP is Report-Only on purpose; see below |
+| 5 | `/api/directions` open proxy; `/api/directions-diagnostics` open, leaks env var names/host | Med | On develop, #83 (auth required, waypoint cap, coordinate validation) |
+| 6 | `send-duty-email`: unvalidated `url` (phishing link from company sender), spoofable From name | Med | On develop, #83 |
 | 7 | `announcement_coverage_gap` anon insert was `with check (true)` | Med | **Live** 2026-09-24 (scoped by `is_jwt_journey_allowed`; still passes for a claim-less key, see #3) |
-| 8 | Controller relay: token in query string, non-constant-time compare, binds 0.0.0.0, one fleet-wide token | Med | **Open** |
-| 9 | Announce device tokens live 100 years; revocation is SQL-only; `sign-announce-token` does not verify `vehicle_id` belongs to the company | Med | **Open** |
-| 10 | Dependencies: `ws` high, `sharp`/`wrangler`/`js-yaml`/`browserslist` high, `react-router` moderate | Med | In PR (`npm audit fix`; all HIGH cleared). Remaining moderates need breaking majors: `react-router` (SSR/hydration + link redirect; this is a client-side SPA) and `vitest` (dev-only) |
+| 8 | Controller relay: token in query string, non-constant-time compare, binds 0.0.0.0, one fleet-wide token | Med | **Partly done.** Constant-time compare: in PR. **Deferred, with reasons:** binding to one address would cut off either the kiosk (`localhost`) or the Driver device (`192.168.4.1`), so restrict port 8080 with a firewall rule on the Controller instead (Step 2, needs doing on the real box). Moving the token out of the query string needs the WebSocket subprotocol, which fails the handshake if the Driver PWA updates before the Controller; low gain, since the sign's own page URL carries the token anyway. Per-device tokens: Step 1 |
+| 9 | Announce device tokens live 100 years; revocation is SQL-only; `sign-announce-token` does not verify `vehicle_id` belongs to the company | Med | **Partly done.** `vehicle_id` (and `device_id`) must belong to `company_id`: in PR. **Open:** token lifetime needs a refresh mechanism first (a short-lived token with no refresh would blank the sign); a dashboard revoke button for `revoked_at` |
+| 10 | Dependencies: `ws` high, `sharp`/`wrangler`/`js-yaml`/`browserslist` high, `react-router` moderate | Med | On develop, #83 (`npm audit fix`; all HIGH cleared). Remaining moderates need breaking majors: `react-router` (SSR/hydration + link redirect; this is a client-side SPA) and `vitest` (dev-only) |
 | 11 | Anon-executable `SECURITY DEFINER` helpers / trigger function via `/rest/v1/rpc` | Low-Med | **Live** 2026-09-24 for `current_company_id`, `current_employee_role`, `fn_naptan_import_on_county_change`; the `is_jwt_*` helpers must stay anon-callable |
 | 12 | 30 live functions have a mutable `search_path` (schema.sql sets it for some, so live DB has drifted) | Low-Med | **Open** (needs per-function testing; do not bulk-alter blind) |
-| 13 | Leaked-password protection off (both projects) | Low | **Open** (Auth dashboard toggle) |
-| 14 | `mele-server` has no lockfile, so the Controller's `npm install` is unpinned and unauditable | Low-Med | **Open** |
-| 15 | Edge Function bearer comparisons not constant-time | Low | **Open** |
-| 16 | `companies` is fully anon-readable (licence no., email, address) | Low | **Open** (decide what the driver PWA and sign genuinely need, then column-grant) |
+| 13 | Leaked-password protection off (both projects) | Low | **Live** 2026-09-24 (owner enabled it on both projects; the advisor no longer flags it) |
+| 14 | `mele-server` has no lockfile, so the Controller's `npm install` is unpinned and unauditable | Low-Med | In PR (`package-lock.json`, bootstrap uses `npm ci`, CI audits it) |
+| 15 | Edge Function bearer comparisons not constant-time | Low | In PR (`generate-announcement-clip`, `naptan-import`). Takes effect once each function is redeployed |
+| 16 | `companies` is fully anon-readable (licence no., email, address) | Low | In PR (`migration_security_hardening_phase1.sql`: anon gets `id, name, logo_path, primary_color, accent_color` only) |
+| 17 | **Prod-only drift:** the old two-argument `link_announce_device(uuid, uuid)` was never dropped on production. Anon-executable SECURITY DEFINER with no pairing-secret check, so anyone with the anon key and a device id could re-link that sign to another vehicle in its company | Med | In PR (dropped in `migration_security_hardening_phase1.sql`; nothing calls it) |
+| 18 | **Dev-only drift:** `enqueue_service_clips_for_timetables` and its trigger function were revoked from PUBLIC only, so dev's default privileges left them callable by anon/authenticated | Low | In PR (same migration) |
 
-## Step 3 (supply chain): in PR
+## Step 3 (supply chain): on develop (#83)
 `.github/workflows/ci.yml` now has a `supply-chain` job (npm audit at high+, Trivy vuln + secret
 scan at HIGH/CRITICAL) that both deploy jobs wait on. Third-party actions are pinned to commit
 SHAs and the workflow token is `contents: read`. Not done: Dependabot config, pinning the two
