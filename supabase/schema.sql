@@ -2463,7 +2463,6 @@ create policy "operator_assets_delete" on storage.objects
     and current_employee_role() in ('super_user', 'ops_manager')
   );
 
-
 -- ── RPC exposure (migration_security_hardening_phase0.sql) ────────────────────
 -- Postgres grants EXECUTE to PUBLIC by default, which anon inherits, exposing these
 -- through /rest/v1/rpc. The trigger fn is never meant to be called directly; the two
@@ -2473,3 +2472,14 @@ revoke execute on function public.current_company_id()    from public, anon;
 revoke execute on function public.current_employee_role() from public, anon;
 grant  execute on function public.current_company_id()    to authenticated, service_role;
 grant  execute on function public.current_employee_role() to authenticated, service_role;
+
+-- ── Table-admin privileges: keep this block LAST ─────────────────────────────
+-- The "grant all" statements above (and Supabase's own default privileges)
+-- also hand anon/authenticated table-admin privileges no app uses: TRUNCATE
+-- (bypasses RLS), MAINTAIN (incl. LOCK TABLE), TRIGGER, REFERENCES. Take them
+-- back after every grant has run, and for future tables too.
+-- See migration_revoke_table_admin_privileges.sql.
+revoke truncate, references, trigger, maintain
+  on all tables in schema public from anon, authenticated;
+alter default privileges for role postgres in schema public
+  revoke truncate, references, trigger, maintain on tables from anon, authenticated;
