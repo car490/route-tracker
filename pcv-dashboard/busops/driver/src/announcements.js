@@ -23,14 +23,11 @@
 // each other (PSVAIR Regulation 12(1)).
 
 import { broadcastAnnounce } from './announceLink.js';
-import { listVoices, pickVoice } from '../../shared/speech.js';
 import { resolveAnnouncementText } from '../../shared/announceStates.js';
 import { clipKeysFor, createAnnouncementPlayer } from '../../shared/announcementAudio.js';
 import { recordAnnouncementCoverageGap } from '../../shared/announcementCoverage.js';
 
 const MUTE_KEY = 'psvair-muted';
-const VOICE_KEY = 'psvair-voice-uri';
-const BANNER_SHOWN_KEY = 'psvair-banner-shown';
 
 const player = createAnnouncementPlayer({
   onGap: (missingKeys, text, context) => {
@@ -62,29 +59,6 @@ export function setMuted(v) {
   if (v) player.stop();
 }
 
-// Whether the driver has opted to show the on-screen caption/mute/voice
-// banner — shown by default; a driver who prefers it out of the way can
-// collapse it (setBannerShown(false)), remembered from then on via the
-// same key.
-export function isBannerShown() {
-  return localStorage.getItem(BANNER_SHOWN_KEY) !== '0';
-}
-
-export function setBannerShown(v) {
-  localStorage.setItem(BANNER_SHOWN_KEY, v ? '1' : '0');
-}
-
-export { listVoices };
-
-export function getSelectedVoiceURI() {
-  return localStorage.getItem(VOICE_KEY) || '';
-}
-
-export function setSelectedVoiceURI(uri) {
-  if (uri) localStorage.setItem(VOICE_KEY, uri);
-  else localStorage.removeItem(VOICE_KEY);
-}
-
 export function onAnnouncementChange(fn) {
   onAnnounce = fn;
 }
@@ -95,19 +69,6 @@ export function onAnnouncementChange(fn) {
 function speak(text, audioKeys, context) {
   if (isMuted()) return;
   player.speak(text, audioKeys, context);
-}
-
-// Lets the voice picker play a sample regardless of the mute toggle — the
-// driver is explicitly asking to hear it, not receiving a real announcement.
-export function previewVoice(voiceURI) {
-  if (!('speechSynthesis' in window)) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(
-    'This is Example Street. The next stop will be Example Road.');
-  utterance.lang = 'en-GB';
-  const voice = listVoices().find((v) => v.voiceURI === voiceURI) || pickVoice();
-  if (voice) utterance.voice = voice;
-  window.speechSynthesis.speak(utterance);
 }
 
 function announce(text, audioKeys, context) {

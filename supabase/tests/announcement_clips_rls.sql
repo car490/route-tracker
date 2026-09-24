@@ -189,13 +189,13 @@ exception
     end if;
 end $$;
 
--- 5. Inserting a route with a destination enqueues a service/<code>__<dest>
--- job with the correctly-articled text; no destination -> no job.
+-- 5. routes.destination no longer feeds any clip: ROUTE_START is keyed by
+-- each timetable's final stop instead (see announcement_service_clips.sql and
+-- migration_announcement_service_clips_from_timetables.sql). A new route,
+-- with or without a destination, enqueues nothing -- it has no timetables yet.
 do $$
 declare
   v_company_id uuid;
-  v_route_id   uuid;
-  v_count      int;
 begin
   select id into v_company_id from companies limit 1;
   if v_company_id is null then
@@ -204,25 +204,13 @@ begin
   end if;
 
   insert into routes (company_id, service_code, journey_type, destination)
-  values (v_company_id, 'S999X', array['fixed'], 'Grantham (Bus Station)')
-  returning id into v_route_id;
+  values (v_company_id, 'S999X', array['fixed'], 'Grantham (Bus Station)');
 
-  select count(*) into v_count from announcement_clip_jobs
-  where key = 'service/s999x__grantham'
-    and text = 'This is an S999X to Grantham.';
-
-  if v_count < 1 then
-    raise exception 'FAIL: expected a correctly-worded, indicator-stripped ROUTE_START job for the new route';
+  if exists (select 1 from announcement_clip_jobs where key like 'service/s999x%') then
+    raise exception 'FAIL: a new route should not enqueue a ROUTE_START job from routes.destination';
   end if;
 
-  insert into routes (company_id, service_code, journey_type)
-  values (v_company_id, 'S998X', array['fixed']);
-
-  if exists (select 1 from announcement_clip_jobs where key like 'service/s998x%') then
-    raise exception 'FAIL: a route with no destination should not enqueue a ROUTE_START job';
-  end if;
-
-  raise notice 'PASS: route insert enqueues ROUTE_START job only when a destination is set, worded correctly';
+  raise notice 'PASS: route insert enqueues no ROUTE_START job (routes.destination is not a clip source)';
   raise exception 'rollback';
 exception
   when others then

@@ -1480,10 +1480,82 @@ begin
 end;
 $$;
 
--- Enqueue trigger: stops (approach/<id>, departure/<id>). Fires on insert
--- and on update of the three columns display_name() actually reads. Doesn't
--- fire on a naptan_stops-only change (e.g. a bulk NaPTAN re-import) -- a
--- known gap, not covered here.
+-- ── Clip key/speech helpers ────────────────────────────────────────────────────
+-- Shared by the enqueue triggers below so they can't drift from each other or
+-- from shared/announcementAudio.js (see
+-- migration_announcement_service_clips_from_timetables.sql).
+
+-- Mirrors stripSpeechAnnotations() in shared/announcementAudio.js.
+create or replace function public.announcement_speech_name(p_name text)
+returns text
+language sql
+immutable
+as $$
+  select regexp_replace(p_name, '\s*\([^)]*\)', '', 'g')
+$$;
+
+-- Mirrors slug() in shared/announcementAudio.js.
+create or replace function public.announcement_clip_slug(p_text text)
+returns text
+language sql
+immutable
+as $$
+  select trim(both '-' from regexp_replace(lower(p_text), '[^a-z0-9]+', '-', 'g'))
+$$;
+
+-- Mirrors clipKeysFor(ROUTE_START) in shared/announcementAudio.js.
+create or replace function public.announcement_service_clip_key(p_service_code text, p_destination text)
+returns text
+language sql
+immutable
+as $$
+  select 'service/' || public.announcement_clip_slug(p_service_code)
+      || '__' || public.announcement_clip_slug(public.announcement_speech_name(p_destination))
+$$;
+
+-- ROUTE_START (service/<code>__<dest>): one job per given timetable, for its
+-- highest-sequence stop's display_name -- the same destination the driver PWA
+-- and Announce Solo pass to clipKeysFor(). Not routes.destination: that BODS
+-- field is usually empty, and one route can end in more than one place. No-ops
+-- for a timetable with no stops (e.g. mid-save, between the dashboard's
+-- delete-all and its bulk insert).
+create or replace function public.enqueue_service_clips_for_timetables(p_timetable_ids uuid[])
+returns void
+language plpgsql
+security definer
+as $$
+declare
+  v_voice text;
+begin
+  select coalesce((select value from public.app_config where key = 'announcement_voice'), 'en-GB-RyanNeural')
+    into v_voice;
+
+  insert into public.announcement_clip_jobs (key, text, voice)
+  select distinct
+    public.announcement_service_clip_key(last_stop.service_code, last_stop.dest),
+    'This is ' || public.article_for(last_stop.service_code) || ' ' || last_stop.service_code
+      || ' to ' || public.announcement_speech_name(last_stop.dest) || '.',
+    v_voice
+  from (
+    select distinct on (t.id) r.service_code, public.display_name(s.*) as dest
+    from public.timetables t
+    join public.routes r           on r.id = t.route_id
+    join public.timetable_stops ts on ts.timetable_id = t.id
+    join public.stops s            on s.id = ts.stop_id
+    where t.id = any(p_timetable_ids)
+    order by t.id, ts.sequence desc
+  ) last_stop
+  where last_stop.service_code is not null
+    and coalesce(trim(last_stop.dest), '') <> '';
+end;
+$$;
+
+revoke execute on function public.enqueue_service_clips_for_timetables(uuid[]) from public;
+
+-- Enqueue trigger: stops (approach/<id>, departure/<id>, plus ROUTE_START for
+-- every timetable this stop ends). Fires on insert and on update of the three
+-- columns display_name() actually reads. Doesn't fire on a naptan_stops-only
+-- change (e.g. a bulk NaPTAN re-import) -- a known gap, not covered here.
 create or replace function public.fn_announcement_clip_enqueue_on_stop_change()
 returns trigger
 language plpgsql
@@ -1492,8 +1564,9 @@ as $$
 declare
   v_name  text;
   v_voice text;
+  v_ids   uuid[];
 begin
-  v_name := regexp_replace(display_name(NEW), '\s*\([^)]*\)\s*$', '');
+  v_name := public.announcement_speech_name(display_name(NEW));
   select coalesce((select value from public.app_config where key = 'announcement_voice'), 'en-GB-RyanNeural')
     into v_voice;
 
@@ -1501,6 +1574,16 @@ begin
   values
     ('approach/' || NEW.id,  'This is ' || v_name || '.', v_voice),
     ('departure/' || NEW.id, 'The next stop is ' || v_name || '.', v_voice);
+
+  -- Every timetable this stop currently ends (its ROUTE_START clip names it).
+  select array_agg(t.id) into v_ids
+  from public.timetables t
+  where (select ts.stop_id from public.timetable_stops ts
+         where ts.timetable_id = t.id order by ts.sequence desc limit 1) = NEW.id;
+
+  if v_ids is not null then
+    perform public.enqueue_service_clips_for_timetables(v_ids);
+  end if;
 
   return NEW;
 end;
@@ -1519,53 +1602,81 @@ create trigger trg_announcement_clip_enqueue_on_stop_change
 -- that PUBLIC held this grant until revoked explicitly here.
 revoke execute on function public.fn_announcement_clip_enqueue_on_stop_change() from public;
 
--- Enqueue trigger: routes (service/<code>__<dest>). ROUTE_START's key/text
--- depend only on routes.service_code + destination (both route-level, not
--- per-departure). No-ops when destination isn't set yet (non-BODS routes
--- never carry one).
+-- Enqueue trigger: routes. A service_code change renames every one of the
+-- route's ROUTE_START clips. A new route has no timetables yet, so insert
+-- needs nothing; destination no longer feeds any clip.
 create or replace function public.fn_announcement_clip_enqueue_on_route_change()
 returns trigger
 language plpgsql
 security definer
 as $$
 declare
-  v_voice text;
-  v_dest  text;
-  v_key   text;
+  v_ids uuid[];
 begin
-  if NEW.destination is null or trim(NEW.destination) = '' or NEW.service_code is null then
-    return NEW;
+  select array_agg(id) into v_ids from public.timetables where route_id = NEW.id;
+  if v_ids is not null then
+    perform public.enqueue_service_clips_for_timetables(v_ids);
   end if;
-
-  v_dest := regexp_replace(NEW.destination, '\s*\([^)]*\)\s*$', '');
-
-  -- Same slug rule as scripts/generate-announcement-audio.mjs / clipKeysFor().
-  v_key := 'service/'
-    || trim(both '-' from regexp_replace(lower(NEW.service_code), '[^a-z0-9]+', '-', 'g'))
-    || '__'
-    || trim(both '-' from regexp_replace(lower(v_dest), '[^a-z0-9]+', '-', 'g'));
-
-  select coalesce((select value from public.app_config where key = 'announcement_voice'), 'en-GB-RyanNeural')
-    into v_voice;
-
-  insert into public.announcement_clip_jobs (key, text, voice)
-  values (
-    v_key,
-    'This is ' || public.article_for(NEW.service_code) || ' ' || NEW.service_code || ' to ' || v_dest || '.',
-    v_voice
-  );
-
   return NEW;
 end;
 $$;
 
 create trigger trg_announcement_clip_enqueue_on_route_change
-  after insert or update of service_code, destination
+  after update of service_code
   on public.routes
   for each row
   execute function public.fn_announcement_clip_enqueue_on_route_change();
 
 revoke execute on function public.fn_announcement_clip_enqueue_on_route_change() from public;
+
+-- Enqueue triggers: timetable_stops (ROUTE_START for each affected timetable's
+-- current final stop). Statement-level, so the dashboard's delete-all + bulk
+-- insert save (saveRouteTimetableStops.js) enqueues once per timetable, never
+-- for an intermediate stop. Postgres allows transition tables only on
+-- single-event triggers, hence three triggers sharing one function.
+create or replace function public.fn_announcement_clip_enqueue_on_timetable_stops_change()
+returns trigger
+language plpgsql
+security definer
+as $$
+declare
+  v_ids uuid[];
+begin
+  if TG_OP = 'INSERT' then
+    select array_agg(distinct timetable_id) into v_ids from new_rows;
+  elsif TG_OP = 'DELETE' then
+    select array_agg(distinct timetable_id) into v_ids from old_rows;
+  else
+    select array_agg(distinct timetable_id) into v_ids
+    from (select timetable_id from new_rows union select timetable_id from old_rows) changed;
+  end if;
+
+  if v_ids is not null then
+    perform public.enqueue_service_clips_for_timetables(v_ids);
+  end if;
+  return null;
+end;
+$$;
+
+revoke execute on function public.fn_announcement_clip_enqueue_on_timetable_stops_change() from public;
+
+create trigger trg_announcement_clip_enqueue_on_timetable_stops_insert
+  after insert on public.timetable_stops
+  referencing new table as new_rows
+  for each statement
+  execute function public.fn_announcement_clip_enqueue_on_timetable_stops_change();
+
+create trigger trg_announcement_clip_enqueue_on_timetable_stops_update
+  after update on public.timetable_stops
+  referencing new table as new_rows old table as old_rows
+  for each statement
+  execute function public.fn_announcement_clip_enqueue_on_timetable_stops_change();
+
+create trigger trg_announcement_clip_enqueue_on_timetable_stops_delete
+  after delete on public.timetable_stops
+  referencing old table as old_rows
+  for each statement
+  execute function public.fn_announcement_clip_enqueue_on_timetable_stops_change();
 
 
 -- ── BusOps Announce Lite/Solo tiers ─────────────────────────────────────────
