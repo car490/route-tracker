@@ -329,6 +329,8 @@ create table if not exists public.app_config (
 );
 
 alter table public.app_config enable row level security;
+-- The clip drain Edge Function reads the daily cap (migration_announce_voice_safeguards.sql).
+grant select on public.app_config to service_role;
 
 
 -- ── Journey types lookup ──────────────────────────────────────────────────────
@@ -1403,6 +1405,21 @@ create index announcement_clip_jobs_key_idx on public.announcement_clip_jobs (ke
 revoke all on public.announcement_clip_jobs from anon, authenticated;
 grant all on public.announcement_clip_jobs to service_role;
 
+-- ElevenLabs usage log (migration_announce_voice_safeguards.sql): one row per
+-- successful call, so the drain can enforce app_config 'elevenlabs_daily_char_cap'
+-- (default 6000 in code if unset; '0' pauses Ben rendering). Service role only.
+create table public.elevenlabs_usage (
+  id         bigint generated always as identity primary key,
+  key        text        not null,
+  chars      int         not null check (chars > 0),
+  created_at timestamptz not null default now()
+);
+create index elevenlabs_usage_created_at_idx on public.elevenlabs_usage (created_at);
+
+revoke all on public.elevenlabs_usage from anon, authenticated;
+grant select, insert on public.elevenlabs_usage to service_role;
+alter table public.elevenlabs_usage enable row level security;
+
 alter table public.announcement_clip_jobs enable row level security;
 
 -- SQL port of announceStates.js's articleFor() -- needed so the
@@ -1540,6 +1557,39 @@ $$;
 
 revoke execute on function public.enqueue_service_clips_for_timetables(uuid[]) from public, anon, authenticated;
 
+-- approach/departure wording in one place (migration_announce_voice_safeguards.sql).
+-- p_only_missing: queue only keys with no clip (and no pending job) in the
+-- current voice, so routine timetable saves don't flood the queue.
+create or replace function public.enqueue_stop_clips(p_stop_ids uuid[], p_only_missing boolean)
+returns void
+language plpgsql
+security definer
+as $$
+declare
+  v_voice text;
+begin
+  select coalesce((select value from public.app_config where key = 'announcement_voice'), 'en-GB-RyanNeural')
+    into v_voice;
+
+  insert into public.announcement_clip_jobs (key, text, voice)
+  select k.key, k.text, v_voice
+  from (
+    select s.id, coalesce(s.spoken_name, public.announcement_speech_name(public.display_name(s.*))) as name
+    from public.stops s
+    where s.id = any(p_stop_ids)
+  ) st
+  cross join lateral (values
+    ('approach/'  || st.id, 'This is '          || st.name || '.'),
+    ('departure/' || st.id, 'The next stop is ' || st.name || '.')
+  ) as k(key, text)
+  where not p_only_missing
+     or (not exists (select 1 from public.announcement_clips c where c.key = k.key and c.voice = v_voice)
+         and not exists (select 1 from public.announcement_clip_jobs j where j.key = k.key and j.voice = v_voice));
+end;
+$$;
+
+revoke execute on function public.enqueue_stop_clips(uuid[], boolean) from public, anon, authenticated;
+
 -- Enqueue trigger: stops (approach/<id>, departure/<id>, plus ROUTE_START for
 -- every timetable this stop ends). Fires on insert and on update of the three
 -- columns display_name() actually reads. Doesn't fire on a naptan_stops-only
@@ -1550,18 +1600,9 @@ language plpgsql
 security definer
 as $$
 declare
-  v_name  text;
-  v_voice text;
-  v_ids   uuid[];
+  v_ids uuid[];
 begin
-  v_name := coalesce(NEW.spoken_name, public.announcement_speech_name(display_name(NEW)));
-  select coalesce((select value from public.app_config where key = 'announcement_voice'), 'en-GB-RyanNeural')
-    into v_voice;
-
-  insert into public.announcement_clip_jobs (key, text, voice)
-  values
-    ('approach/' || NEW.id,  'This is ' || v_name || '.', v_voice),
-    ('departure/' || NEW.id, 'The next stop is ' || v_name || '.', v_voice);
+  perform public.enqueue_stop_clips(array[NEW.id], false);
 
   -- Every timetable this stop currently ends (its ROUTE_START clip names it).
   select array_agg(t.id) into v_ids
@@ -1628,19 +1669,25 @@ language plpgsql
 security definer
 as $$
 declare
-  v_ids uuid[];
+  v_ids   uuid[];
+  v_stops uuid[];
 begin
   if TG_OP = 'INSERT' then
     select array_agg(distinct timetable_id) into v_ids from new_rows;
+    select array_agg(distinct stop_id) into v_stops from new_rows;
   elsif TG_OP = 'DELETE' then
     select array_agg(distinct timetable_id) into v_ids from old_rows;
   else
     select array_agg(distinct timetable_id) into v_ids
     from (select timetable_id from new_rows union select timetable_id from old_rows) changed;
+    select array_agg(distinct stop_id) into v_stops from new_rows;
   end if;
 
   if v_ids is not null then
     perform public.enqueue_service_clips_for_timetables(v_ids);
+  end if;
+  if v_stops is not null then
+    perform public.enqueue_stop_clips(v_stops, true);
   end if;
   return null;
 end;

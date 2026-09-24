@@ -53,7 +53,8 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { BEN, LEVELLING, ELEVENLABS_BATCH_SIZE, MAX_JOB_ATTEMPTS } from '../_shared/announce-voice/voiceConfig.mjs'
-import { isElevenLabsVoice, elevenLabsVoiceId, decideClipAction } from '../_shared/announce-voice/renderDecision.mjs'
+import { isElevenLabsVoice, elevenLabsVoiceId, decideClipAction, stopIdFromKey } from '../_shared/announce-voice/renderDecision.mjs'
+import { parseDailyCap, fitsDailyCap } from '../_shared/announce-voice/dailyCap.mjs'
 import { buildElevenLabsRequest, elevenLabsClipHash } from '../_shared/announce-voice/elevenLabsRequest.mjs'
 import { levelClip, integratedLoudness, truePeakDb, correctionGainDb, applyGainDb } from '../_shared/announce-voice/levelling.mjs'
 
@@ -128,6 +129,11 @@ Deno.serve(async (req) => {
 //   * a failing job is retried at most MAX_JOB_ATTEMPTS times, then left in
 //     the queue with its last_error for ops to see, so a bad key or a clip
 //     that can't be levelled can't spend credits in a loop
+//   * only stops a timetable uses are rendered with Ben (unused stops cost nothing)
+//   * a daily character cap (app_config 'elevenlabs_daily_char_cap'); jobs over
+//     it wait in the queue for the next UTC day
+//   * a refused job whose wording differs from the Ben clip (out of date) is
+//     kept in the queue as needing attention, not silently dropped
 
 async function drain(batchSize: number) {
   const supabase = createClient(
@@ -148,7 +154,7 @@ async function drain(batchSize: number) {
     .limit(batchSize)
   if (fetchError) throw new Error(`Failed to read announcement_clip_jobs: ${fetchError.message}`)
   if (!jobs || jobs.length === 0) {
-    return { processed: 0, rendered: 0, skipped: 0, protected: 0, deferred: 0, failed: 0, errors: [] }
+    return { processed: 0, rendered: 0, skipped: 0, protected: 0, stale: 0, unused: 0, capped: 0, deferred: 0, failed: 0, errors: [] }
   }
 
   // Dedupe by key within this batch -- a key can be enqueued more than once
@@ -166,9 +172,26 @@ async function drain(batchSize: number) {
     }
   }
 
-  let rendered = 0, skipped = 0, protectedCount = 0, deferred = 0, failed = 0, benRenders = 0
+  let rendered = 0, skipped = 0, protectedCount = 0, stale = 0, unused = 0, capped = 0, deferred = 0, failed = 0, benRenders = 0
   const errors: { key: string; message: string }[] = []
   const handledJobIds: string[] = []
+
+  // Daily character budget, loaded only when this batch has Ben jobs.
+  let cap = 0, usedToday = 0
+  if ((jobs as ClipJob[]).some((j) => isElevenLabsVoice(j.voice))) {
+    const { data: capRow } = await supabase.from('app_config').select('value').eq('key', 'elevenlabs_daily_char_cap').maybeSingle()
+    cap = parseDailyCap(capRow?.value)
+    const dayStart = new Date(); dayStart.setUTCHours(0, 0, 0, 0)
+    const { data: usage, error: usageError } = await supabase
+      .from('elevenlabs_usage').select('chars').gte('created_at', dayStart.toISOString())
+    if (usageError) throw new Error(`Failed to read elevenlabs_usage: ${usageError.message}`)
+    usedToday = (usage ?? []).reduce((n: number, r: { chars: number }) => n + r.chars, 0)
+  }
+  const logUsage = async (key: string, chars: number) => {
+    usedToday += chars
+    const { error } = await supabase.from('elevenlabs_usage').insert({ key, chars })
+    if (error) console.error(`generate-announcement-clip: failed to log ElevenLabs usage for ${key}: ${error.message}`)
+  }
 
   for (const [key, { job, jobIds }] of byKey) {
     const isBen = isElevenLabsVoice(job.voice)
@@ -179,11 +202,11 @@ async function drain(batchSize: number) {
 
       const { data: existingClip } = await supabase
         .from('announcement_clips')
-        .select('hash, voice')
+        .select('hash, voice, text')
         .eq('key', key)
         .maybeSingle()
 
-      const action = decideClipAction({ jobVoice: job.voice, newHash: hash, existing: existingClip })
+      const action = decideClipAction({ jobVoice: job.voice, jobText: job.text, newHash: hash, existing: existingClip })
       if (action === 'skip-unchanged') {
         skipped++
         handledJobIds.push(...jobIds)
@@ -195,16 +218,48 @@ async function drain(batchSize: number) {
         console.warn(`generate-announcement-clip: kept Ben clip for ${key}; refused to replace it with ${job.voice}`)
         continue
       }
-      if (isBen && benRenders >= ELEVENLABS_BATCH_SIZE) {
-        deferred++ // left queued, untouched, for the next run
+      if (action === 'skip-protected-stale') {
+        // Needs attention: kept in the queue, never retried, with a plain reason.
+        stale++
+        await supabase.from('announcement_clip_jobs').update({
+          attempts: MAX_JOB_ATTEMPTS,
+          last_error: `Ben clip is out of date ("${existingClip?.text}" -> "${job.text}") but this environment's voice setting is ${job.voice}, so it was not replaced. Set app_config announcement_voice to the Ben voice and re-queue.`,
+          last_attempt_at: new Date().toISOString(),
+        }).in('id', jobIds)
+        console.warn(`generate-announcement-clip: stale Ben clip for ${key} flagged for attention`)
         continue
+      }
+      if (isBen) {
+        const stopId = stopIdFromKey(key)
+        if (stopId) {
+          const { count, error: usedError } = await supabase
+            .from('timetable_stops').select('id', { count: 'exact', head: true }).eq('stop_id', stopId)
+          if (usedError) throw new Error(`timetable_stops check failed: ${usedError.message}`)
+          if (!count) {
+            unused++ // no timetable uses this stop: spend nothing; queued again if it's added to one
+            handledJobIds.push(...jobIds)
+            continue
+          }
+        }
+        if (!fitsDailyCap({ usedToday, chars: job.text.length, cap })) {
+          capped++ // waits for tomorrow; not counted as a failed attempt
+          await supabase.from('announcement_clip_jobs').update({
+            last_error: `daily ElevenLabs character cap reached (${usedToday} of ${cap} used today, UTC)`,
+            last_attempt_at: new Date().toISOString(),
+          }).in('id', jobIds)
+          continue
+        }
+        if (benRenders >= ELEVENLABS_BATCH_SIZE) {
+          deferred++ // left queued, untouched, for the next run
+          continue
+        }
       }
 
       let mp3: Uint8Array
       let meta: Record<string, unknown> = {}
       if (isBen) {
         benRenders++
-        const ben = await renderBen(job.voice, job.text)
+        const ben = await renderBen(job.voice, job.text, (chars) => logUsage(key, chars))
         mp3 = ben.mp3
         meta = {
           model: BEN.modelId,
@@ -257,8 +312,8 @@ async function drain(batchSize: number) {
     if (deleteError) throw new Error(`Failed to clear handled jobs: ${deleteError.message}`)
   }
 
-  console.log(`generate-announcement-clip: ${byKey.size} keys (${rendered} rendered, ${skipped} skipped, ${protectedCount} protected, ${deferred} deferred, ${failed} failed)`)
-  return { processed: byKey.size, rendered, skipped, protected: protectedCount, deferred, failed, errors }
+  console.log(`generate-announcement-clip: ${byKey.size} keys (${rendered} rendered, ${skipped} skipped, ${protectedCount} protected, ${stale} stale, ${unused} unused, ${capped} capped, ${deferred} deferred, ${failed} failed)`)
+  return { processed: byKey.size, rendered, skipped, protected: protectedCount, stale, unused, capped, deferred, failed, errors }
 }
 
 // ── ElevenLabs "Ben" ─────────────────────────────────────────────────────────
@@ -266,7 +321,7 @@ async function drain(batchSize: number) {
 // file: a clip is only stored if the finished MP3 is within the limits.
 // The MP3 codecs load on first use only, so an Azure-only run never needs them.
 
-async function renderBen(voice: string, text: string) {
+async function renderBen(voice: string, text: string, onCharged: (chars: number) => Promise<void>) {
   if (elevenLabsVoiceId(voice) !== BEN.voiceId) {
     throw new Error(`unknown ElevenLabs voice ${voice}; only the pinned Ben voice is allowed`)
   }
@@ -277,6 +332,8 @@ async function renderBen(voice: string, text: string) {
     throw new Error(`ElevenLabs error ${res.status}: ${(await res.text()).slice(0, 300)}`)
   }
   const raw = new Uint8Array(await res.arrayBuffer())
+  // Credits are spent once ElevenLabs answers, whatever happens next.
+  await onCharged(text.length)
 
   const { samples, sampleRate } = await decodeMp3(raw)
   const levelled = levelClip(samples, sampleRate, LEVELLING)
