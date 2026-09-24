@@ -1,0 +1,175 @@
+/* Phone journeys page (/m/journeys). Own classes rather than the desktop
+   .btn/.badge set: body text is 16px, tap targets are at least 48px, and every
+   text/background pair clears WCAG AA (docs/ACCESSIBILITY_BRAND_PLAYBOOK.md) —
+   notably the primary button is charcoal, not the cyan .btn-primary, whose
+   white text only reaches 2.46:1. */
+
+.mj-page {
+  --mj-ink:     var(--pcv-color-ink);
+  --mj-muted:   #56677A;   /* 5.9:1 on white, 5.5:1 on --bg */
+  --mj-line:    #6B7785;   /* 4.6:1 — button borders */
+  --mj-danger:  #B42323;   /* 6.5:1 on white */
+
+  min-height: 100vh;
+  min-height: 100dvh;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 0 16px calc(96px + env(safe-area-inset-bottom));
+  background: var(--bg);
+  color: var(--mj-ink);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.mj-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(12px + env(safe-area-inset-top)) 0 12px;
+}
+
+.mj-title { font-size: 24px; font-weight: 700; }
+
+.mj-link-btn {
+  min-height: 48px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  background: none;
+  border: none;
+  color: var(--mj-ink);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ── Date picker ────────────────────────────────────────────── */
+.mj-date { display: flex; gap: 8px; }
+.mj-date-step { width: 48px; flex: none; font-size: 24px; line-height: 1; }
+.mj-date-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 1px solid var(--mj-line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--mj-ink);
+  font: inherit;
+}
+.mj-date-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 48px;
+  color: var(--mj-muted);
+}
+.mj-today { font-size: 16px; }
+
+/* ── Messages ───────────────────────────────────────────────── */
+.mj-message {
+  margin: 4px 0 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border-left: 4px solid #0B6E50;
+  background: #E6F9F4;
+  color: #0B4F3A;
+}
+.mj-message--error { border-left-color: var(--mj-danger); background: #FEE8E8; color: #8E1B1B; }
+
+.mj-empty { padding: 32px 0; text-align: center; color: var(--mj-muted); }
+
+/* ── Journey cards ──────────────────────────────────────────── */
+.mj-list { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+
+.mj-card {
+  padding: 14px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.mj-card-top { display: flex; align-items: center; gap: 10px; }
+.mj-time { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mj-service { font-size: 18px; font-weight: 600; }
+
+.mj-status {
+  margin-left: auto;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.mj-status--scheduled   { background: #EEF0F3; color: #3F4B59; }
+.mj-status--in_progress { background: #FEF3E6; color: #7A420A; }
+.mj-status--completed   { background: #E6F9F4; color: #0B5E45; }
+.mj-status--cancelled   { background: #FEE8E8; color: #8E1B1B; }
+
+.mj-card-run  { margin-top: 2px; }
+.mj-card-meta { color: var(--mj-muted); }
+
+.mj-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.mj-busy { margin-top: 8px; color: var(--mj-muted); }
+
+/* ── Buttons ────────────────────────────────────────────────── */
+.mj-btn {
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.mj-btn:disabled { opacity: 0.55; cursor: default; }
+.mj-btn:focus-visible,
+.mj-link-btn:focus-visible,
+.mj-date-input:focus-visible,
+.mj-select:focus-visible {
+  outline: 3px solid var(--mj-ink);
+  outline-offset: 2px;
+}
+
+.mj-btn--primary { background: var(--mj-ink); color: #fff; }
+.mj-btn--ghost   { background: #fff; color: var(--mj-ink); border-color: var(--mj-line); }
+.mj-btn--danger  { background: #fff; color: var(--mj-danger); border-color: var(--mj-danger); }
+.mj-btn--block   { width: 100%; }
+
+.mj-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+.mj-footer .mj-btn { display: block; max-width: 528px; margin: 0 auto; }
+
+/* ── Add form ───────────────────────────────────────────────── */
+.mj-form { display: flex; flex-direction: column; }
+.mj-form-date { margin-bottom: 12px; color: var(--mj-muted); }
+.mj-label { margin: 12px 0 6px; font-weight: 600; }
+.mj-select {
+  min-height: 48px;
+  padding: 0 12px;
+  border: 1px solid var(--mj-line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--mj-ink);
+  font: inherit;
+}
+.mj-select:disabled { background: #EEF0F3; }
+.mj-hint { margin: 16px 0; color: var(--mj-muted); }
+.mj-retry { margin-top: 10px; }
