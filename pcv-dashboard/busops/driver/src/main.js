@@ -8,15 +8,14 @@ import { log, getEntries } from '../../shared/logger.js';
 import { initDirections, syncCurrentStop, updateDirections } from './directions.js';
 import {
   setAnnouncementsEnabled, onAnnouncementChange, announceState,
-  isMuted, setMuted, isBannerShown, setBannerShown,
-  listVoices, getSelectedVoiceURI, setSelectedVoiceURI, previewVoice,
+  isMuted, setMuted,
 } from './announcements.js';
 import { sbFetch, rpc, fetchStopsForDeparture, fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyName, preloadAllRoutes, fetchActiveManualJourney, captureDutyLinkParams } from './supabaseApi.js';
 import { resolveBootAction, BOOT_ACTION } from './activeJourneyRecovery.js';
 import { announceApproachEvent, announceStopEvent } from './announceStopEvent.js';
 import { triggerDiversionAlert, clearDiversionAlert } from './diversionAlert.js';
 import { selectServiceManually } from './manualSelection.js';
-import { checkAnnouncementCoverage } from './journeyAnnouncementPreflight.js';
+import { checkAnnouncementCoverage, describeMissingAudio } from './journeyAnnouncementPreflight.js';
 import { getStoredVehicle, storeVehicle } from './vehicleSetup.js';
 import {
   captureAnnounceSetup, connectAnnounceLink, disconnectAnnounceLink,
@@ -218,11 +217,11 @@ function showTripCompleteBanner(onDismiss) {
 // can't start".
 function runAnnouncementPreflight({ allStops, serviceCode, destination, journeyId, vehicleId, driverId }) {
   checkAnnouncementCoverage({ allStops, serviceCode, destination, journeyId, vehicleId, driverId })
-    .then(({ missingCount }) => {
+    .then(({ missingCount, missingKeys }) => {
       if (!missingCount) return;
       showInfoBanner({
         title: 'Audio not fully ready',
-        body: `Audio not yet ready for ${missingCount} stop${missingCount === 1 ? '' : 's'} on this route. The screen will still show every stop.`,
+        body: describeMissingAudio(missingKeys),
         durationMs: TRIP_COMPLETE_AUTO_DISMISS_MS,
         onDismiss: () => {},
       });
@@ -325,26 +324,21 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   const psvairBanner     = document.getElementById('psvair-banner');
   const psvairText       = document.getElementById('psvair-text');
   const psvairMuteBtn    = document.getElementById('psvair-mute-btn');
-  const psvairVoiceBtn   = document.getElementById('psvair-voice-btn');
-  const psvairVoicePanel = document.getElementById('psvair-voice-panel');
-  const psvairVoiceSelect  = document.getElementById('psvair-voice-select');
-  const psvairVoiceTestBtn = document.getElementById('psvair-voice-test-btn');
   const psvairToggleBtn  = document.getElementById('psvair-toggle-btn');
   setAnnouncementsEnabled(!!psvairEnabled);
 
-  // Banner shown by default — the running caption + mute/voice controls are
-  // useful every trip; a driver who prefers it out of the way can collapse
-  // it, remembered across the app (localStorage) rather than resetting
-  // every journey. The toggle button itself only ever shows on
-  // PSVAIR-in-scope routes.
+  // Caption + mute banner starts collapsed on every journey (owner,
+  // 2026-09-24) and is opened on demand. Only the banner is collapsed:
+  // announcements still play and still go to the sign whether it's open or
+  // not. The toggle button itself only ever shows on PSVAIR-in-scope routes.
   psvairToggleBtn.hidden = !psvairEnabled;
+  let bannerShown = false;
   const applyBannerVisibility = () => {
-    const shown = isBannerShown();
-    psvairBanner.hidden = !psvairEnabled || !shown;
-    psvairToggleBtn.textContent = shown ? '\u{1F508} Hide Announcements' : '\u{1F50A} Announcements';
+    psvairBanner.hidden = !psvairEnabled || !bannerShown;
+    psvairToggleBtn.textContent = bannerShown ? '\u{1F508} Hide Announcements' : '\u{1F50A} Announcements';
   };
   applyBannerVisibility();
-  psvairToggleBtn.onclick = () => { setBannerShown(!isBannerShown()); applyBannerVisibility(); };
+  psvairToggleBtn.onclick = () => { bannerShown = !bannerShown; applyBannerVisibility(); };
   // Starts null, not initialStopIndex: Start of Route no longer names the
   // first stop (see shared/announceStates.js) — its own "This stop is X"
   // announcement now fires naturally off the atStop edge below, exactly
@@ -403,32 +397,9 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
     setMuteBtnLabel();
     psvairMuteBtn.onclick = () => { setMuted(!isMuted()); setMuteBtnLabel(); };
 
-    // Voice list only becomes available once 'voiceschanged' fires on some
-    // browsers (notably Chrome) — repopulate whenever it does, keeping the
-    // driver's saved choice selected if it's in the refreshed list.
-    const populateVoiceSelect = () => {
-      const voices = listVoices();
-      if (!voices.length) return;
-      const current = psvairVoiceSelect.value || getSelectedVoiceURI();
-      psvairVoiceSelect.innerHTML = '';
-      voices.forEach(v => {
-        const opt = document.createElement('option');
-        opt.value = v.voiceURI;
-        opt.textContent = `${v.name} (${v.lang})`;
-        psvairVoiceSelect.appendChild(opt);
-      });
-      if (current && voices.some(v => v.voiceURI === current)) {
-        psvairVoiceSelect.value = current;
-      }
-    };
-    populateVoiceSelect();
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.addEventListener('voiceschanged', populateVoiceSelect);
-    }
-
-    psvairVoiceBtn.onclick = () => { psvairVoicePanel.hidden = !psvairVoicePanel.hidden; };
-    psvairVoiceSelect.onchange = () => setSelectedVoiceURI(psvairVoiceSelect.value);
-    psvairVoiceTestBtn.onclick = () => previewVoice(psvairVoiceSelect.value);
+    // No voice picker: every announcement is a pre-rendered clip in the one
+    // voice set centrally (app_config 'announcement_voice'), so there is
+    // nothing per-device to choose (owner, 2026-09-24).
     // ROUTE_START's spoken half no longer fires here either — see the
     // isJourneyStart branch below, which speaks it at the same true-arrival
     // moment the sign switches off IDLE.
