@@ -237,7 +237,7 @@ See "Release / versioning" below.
 create table public.my_table ( ... );
 
 grant select on public.my_table to anon;
-grant all    on public.my_table to authenticated;
+grant select, insert, update, delete on public.my_table to authenticated;
 
 alter table public.my_table enable row level security;
 
@@ -253,10 +253,16 @@ create table public.my_table ( ... );
 
 grant select on public.my_table to anon;
 grant insert on public.my_table to anon;
-grant all    on public.my_table to authenticated;
+grant select, insert, update, delete on public.my_table to authenticated;
 ```
 
 Always follow GRANTs with the appropriate RLS policy.
+
+**Never `grant all` to `anon`/`authenticated`** — list the DML verbs. `all` includes TRUNCATE
+(which RLS does not gate), MAINTAIN (incl. LOCK TABLE), TRIGGER and REFERENCES; these were revoked
+schema-wide on 2026-09-24 (`migration_revoke_table_admin_privileges.sql`, also the last block of
+`schema.sql`), and a per-table `grant all` puts them straight back. `supabase/tests/revoke_table_admin_privileges.sql`
+fails if any client role holds them again.
 
 **If any Edge Function (service-role) code will read/write the table, grant `service_role`
 explicitly too** — don't rely on it having implicit access. Found 2026-09-15 while shipping the

@@ -2528,3 +2528,13 @@ create policy "operator_assets_delete" on storage.objects
     and current_employee_role() in ('super_user', 'ops_manager')
   );
 
+-- ── Table-admin privileges: keep this block LAST ─────────────────────────────
+-- The "grant all" statements above (and Supabase's own default privileges)
+-- also hand anon/authenticated table-admin privileges no app uses: TRUNCATE
+-- (bypasses RLS), MAINTAIN (incl. LOCK TABLE), TRIGGER, REFERENCES. Take them
+-- back after every grant has run, and for future tables too.
+-- See migration_revoke_table_admin_privileges.sql.
+revoke truncate, references, trigger, maintain
+  on all tables in schema public from anon, authenticated;
+alter default privileges for role postgres in schema public
+  revoke truncate, references, trigger, maintain on tables from anon, authenticated;
