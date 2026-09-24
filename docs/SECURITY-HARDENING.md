@@ -87,8 +87,8 @@ ops manager, so dashboard stop creation still works.
 Small follow-up noticed while verifying: `authenticated` still holds `TRUNCATE` (and `REFERENCES`,
 `TRIGGER`) on `journey_types`/`term_dates`, as on most tables via Supabase's default grants.
 `TRUNCATE` bypasses RLS, but PostgREST does not expose it, so it is only reachable with a direct
-database login. **In PR #89** (also revokes MAINTAIN, which includes LOCK TABLE; applied and verified
-on dev, production pending).
+database login. **Live** 2026-09-24 on dev and production (PR #89; also revokes MAINTAIN, which
+includes LOCK TABLE, plus TRIGGER/REFERENCES, now and in future-table defaults).
 
 Test gap to know about: the "driver-level employee cannot insert a stop" block skips when the DB
 has no driver with a linked login (dev has none), so that one path was not exercised on dev.
