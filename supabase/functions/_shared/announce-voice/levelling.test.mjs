@@ -2,7 +2,7 @@
 // Synthetic signals with known answers, so no audio fixtures or decoder needed.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { integratedLoudness, truePeakDb, silenceEdges, levelClip } from './levelling.mjs';
+import { integratedLoudness, truePeakDb, silenceEdges, levelClip, correctionGainDb } from './levelling.mjs';
 import { LEVELLING } from './voiceConfig.mjs';
 
 function sine({ fs, seconds, amplitude, freq = 997, phase = 0 }) {
@@ -73,4 +73,18 @@ test('levelClip refuses silence rather than producing an empty clip', () => {
   const r = levelClip(silence(44100, 2), 44100, LEVELLING);
   assert.equal(r.ok, false);
   assert.match(r.reason, /silent|no speech/i);
+});
+
+test('correctionGainDb nudges an encoded clip back to target, never past the true-peak aim', () => {
+  const cfg = { ...LEVELLING };
+  // Within 0.2 LU: leave it alone.
+  assert.equal(correctionGainDb(-21.1, -5, cfg), 0);
+  // 0.5 LU low with plenty of peak headroom: add 0.5 dB.
+  assert.ok(Math.abs(correctionGainDb(-21.5, -5, cfg) - 0.5) < 1e-9);
+  // Too loud: take it down.
+  assert.ok(Math.abs(correctionGainDb(-20.4, -5, cfg) - -0.6) < 1e-9);
+  // Low, but peaks already near the aim (-1.5 dBTP): only allowed up to the aim.
+  assert.ok(Math.abs(correctionGainDb(-21.8, -1.7, cfg) - 0.2) < 1e-9);
+  // Low with peaks already at the aim: no boost at all.
+  assert.equal(correctionGainDb(-21.8, -1.5, cfg), 0);
 });

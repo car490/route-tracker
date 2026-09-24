@@ -55,7 +55,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { BEN, LEVELLING, ELEVENLABS_BATCH_SIZE, MAX_JOB_ATTEMPTS } from '../_shared/announce-voice/voiceConfig.mjs'
 import { isElevenLabsVoice, elevenLabsVoiceId, decideClipAction } from '../_shared/announce-voice/renderDecision.mjs'
 import { buildElevenLabsRequest, elevenLabsClipHash } from '../_shared/announce-voice/elevenLabsRequest.mjs'
-import { levelClip, integratedLoudness, truePeakDb } from '../_shared/announce-voice/levelling.mjs'
+import { levelClip, integratedLoudness, truePeakDb, correctionGainDb, applyGainDb } from '../_shared/announce-voice/levelling.mjs'
 
 const DEFAULT_BATCH_SIZE = 20
 // Highest quality at the neural voices' native 24 kHz. It was audio-16khz-64kbitrate-mono-mp3, Azure's
@@ -282,10 +282,20 @@ async function renderBen(voice: string, text: string) {
   const levelled = levelClip(samples, sampleRate, LEVELLING)
   if (!levelled.ok) throw new Error(`levelling refused the clip: ${levelled.reason}`)
 
-  const mp3 = await encodeMp3(levelled.samples, sampleRate)
-  const check = await decodeMp3(mp3)
-  const loudnessLufs = integratedLoudness(check.samples, check.sampleRate)
-  const truePeak = truePeakDb(check.samples)
+  let mp3 = await encodeMp3(levelled.samples, sampleRate)
+  let check = await decodeMp3(mp3)
+  let loudnessLufs = integratedLoudness(check.samples, check.sampleRate)
+  let truePeak = truePeakDb(check.samples)
+
+  // Encoding lands slightly below the level set (see correctionGainDb); one
+  // correction pass brings it back to target.
+  const correction = correctionGainDb(loudnessLufs, truePeak, LEVELLING)
+  if (correction !== 0) {
+    mp3 = await encodeMp3(applyGainDb(levelled.samples, correction), sampleRate)
+    check = await decodeMp3(mp3)
+    loudnessLufs = integratedLoudness(check.samples, check.sampleRate)
+    truePeak = truePeakDb(check.samples)
+  }
   if (Math.abs(loudnessLufs - LEVELLING.targetLufs) > LEVELLING.toleranceLu || truePeak > LEVELLING.truePeakCeilingDb) {
     throw new Error(`encoded clip out of limits: ${loudnessLufs.toFixed(2)} LUFS, ${truePeak.toFixed(2)} dBTP`)
   }

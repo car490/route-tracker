@@ -155,3 +155,17 @@ export function levelClip(samples, fs, cfg) {
   }
   return { ok: true, samples: out, report };
 }
+
+// One correction after encoding: MP3 encoding trims a little high-frequency
+// energy, which K-weighting counts heavily, so an encoded clip lands about
+// 0.2-0.5 LU below the level it was set to (measured 2026-09-24). Returns the
+// gain (dB) to apply to the pre-encode samples before encoding once more, or
+// 0 if the clip is already within 0.2 LU. Never lifts true peak past the aim
+// (ceiling minus encode headroom).
+export function correctionGainDb(encodedLufs, encodedTruePeakDb, cfg) {
+  const diff = cfg.targetLufs - encodedLufs;
+  if (Math.abs(diff) <= 0.2) return 0;
+  if (diff < 0) return diff;
+  const aimDb = cfg.truePeakCeilingDb - (cfg.encodeHeadroomDb ?? 0);
+  return Math.max(0, Math.min(diff, aimDb - encodedTruePeakDb));
+}

@@ -28,7 +28,7 @@ export const BEN = Object.freeze({
 // clips (measured -20.2 to -21.9), so the amplifier setting on each vehicle
 // doesn't change when the voice does.
 export const LEVELLING = Object.freeze({
-  version: 1, // bump when the levelling algorithm changes, to force re-renders
+  version: 2, // bump when the levelling algorithm changes, to force re-renders (2: post-encode correction pass)
   targetLufs: -21,
   toleranceLu: 1,
   truePeakCeilingDb: -1,
