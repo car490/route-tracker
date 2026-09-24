@@ -26,6 +26,9 @@ jobs:
         working-directory: pcv-dashboard/busops
       - run: npm run test:vitest
         working-directory: pcv-dashboard/busops
+      # Announcement voice (Ben) shared logic: levelling, render rules, ElevenLabs request, secret scan.
+      # Plain node:test, no dependencies; see docs/ANNOUNCE-VOICE-PLAN.md.
+      - run: node --test supabase/functions/_shared/announce-voice/*.test.mjs
 
   dashboard-lint:
     name: Dashboard — lint

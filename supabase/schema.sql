@@ -1348,8 +1348,14 @@ create table public.announcement_clips (
   storage_path text not null,
   hash         text not null,         -- same '<voice>|<text>' hash as today's generator
   text         text not null,
-  voice        text not null,
-  rendered_at  timestamptz not null default now()
+  voice        text not null,         -- 'en-GB-RyanNeural', or 'elevenlabs:<voice id>' for Ben
+  rendered_at  timestamptz not null default now(),
+  -- Source indicator (migration_announcement_clip_source.sql); null for clips
+  -- rendered before it.
+  model          text,
+  voice_settings jsonb,
+  loudness_lufs  numeric(5,2),
+  true_peak_db   numeric(5,2)
 );
 
 grant select on public.announcement_clips to anon;
@@ -1384,7 +1390,12 @@ create table public.announcement_clip_jobs (
   key          text not null,
   text         text not null,
   voice        text not null,
-  requested_at timestamptz not null default now()
+  requested_at timestamptz not null default now(),
+  -- Retry cap (migration_announcement_clip_source.sql): the drain stops
+  -- retrying after MAX_JOB_ATTEMPTS failures, so credits can't loop away.
+  attempts        int not null default 0,
+  last_error      text,
+  last_attempt_at timestamptz
 );
 
 create index announcement_clip_jobs_key_idx on public.announcement_clip_jobs (key);

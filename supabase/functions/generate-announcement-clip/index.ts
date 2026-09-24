@@ -52,6 +52,10 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { BEN, LEVELLING, ELEVENLABS_BATCH_SIZE, MAX_JOB_ATTEMPTS } from '../_shared/announce-voice/voiceConfig.mjs'
+import { isElevenLabsVoice, elevenLabsVoiceId, decideClipAction } from '../_shared/announce-voice/renderDecision.mjs'
+import { buildElevenLabsRequest, elevenLabsClipHash } from '../_shared/announce-voice/elevenLabsRequest.mjs'
+import { levelClip, integratedLoudness, truePeakDb } from '../_shared/announce-voice/levelling.mjs'
 
 const DEFAULT_BATCH_SIZE = 20
 // Highest quality at the neural voices' native 24 kHz. It was audio-16khz-64kbitrate-mono-mp3, Azure's
@@ -68,6 +72,7 @@ interface ClipJob {
   text: string
   voice: string
   requested_at: string
+  attempts?: number
 }
 
 // Constant-time bearer check: hash both sides to fixed-length digests, then
@@ -113,6 +118,16 @@ Deno.serve(async (req) => {
 })
 
 // ── Drain logic ─────────────────────────────────────────────────────────────
+//
+// Two voices share one queue: Azure (unchanged behaviour) and ElevenLabs "Ben"
+// (docs/ANNOUNCE-VOICE-PLAN.md), selected per job by its `voice` value
+// ('elevenlabs:<id>' for Ben, set from app_config.announcement_voice).
+// Rules added for Ben:
+//   * a Ben clip is never replaced by any other voice (decideClipAction)
+//   * at most ELEVENLABS_BATCH_SIZE Ben renders per run (Edge CPU allowance)
+//   * a failing job is retried at most MAX_JOB_ATTEMPTS times, then left in
+//     the queue with its last_error for ops to see, so a bad key or a clip
+//     that can't be levelled can't spend credits in a loop
 
 async function drain(batchSize: number) {
   const supabase = createClient(
@@ -127,12 +142,13 @@ async function drain(batchSize: number) {
 
   const { data: jobs, error: fetchError } = await supabase
     .from('announcement_clip_jobs')
-    .select('id, key, text, voice, requested_at')
+    .select('id, key, text, voice, requested_at, attempts')
+    .lt('attempts', MAX_JOB_ATTEMPTS)
     .order('requested_at', { ascending: true })
     .limit(batchSize)
   if (fetchError) throw new Error(`Failed to read announcement_clip_jobs: ${fetchError.message}`)
   if (!jobs || jobs.length === 0) {
-    return { processed: 0, rendered: 0, skipped: 0, failed: 0, errors: [] }
+    return { processed: 0, rendered: 0, skipped: 0, protected: 0, deferred: 0, failed: 0, errors: [] }
   }
 
   // Dedupe by key within this batch -- a key can be enqueued more than once
@@ -150,27 +166,55 @@ async function drain(batchSize: number) {
     }
   }
 
-  let rendered = 0, skipped = 0, failed = 0
+  let rendered = 0, skipped = 0, protectedCount = 0, deferred = 0, failed = 0, benRenders = 0
   const errors: { key: string; message: string }[] = []
   const handledJobIds: string[] = []
 
   for (const [key, { job, jobIds }] of byKey) {
+    const isBen = isElevenLabsVoice(job.voice)
     try {
-      const hash = await hashText(job.voice, job.text)
+      const hash = isBen
+        ? await elevenLabsClipHash(job.text, BEN, LEVELLING)
+        : await hashText(job.voice, job.text)
 
       const { data: existingClip } = await supabase
         .from('announcement_clips')
-        .select('hash')
+        .select('hash, voice')
         .eq('key', key)
         .maybeSingle()
 
-      if (existingClip?.hash === hash) {
+      const action = decideClipAction({ jobVoice: job.voice, newHash: hash, existing: existingClip })
+      if (action === 'skip-unchanged') {
         skipped++
         handledJobIds.push(...jobIds)
         continue
       }
+      if (action === 'skip-protected') {
+        protectedCount++
+        handledJobIds.push(...jobIds)
+        console.warn(`generate-announcement-clip: kept Ben clip for ${key}; refused to replace it with ${job.voice}`)
+        continue
+      }
+      if (isBen && benRenders >= ELEVENLABS_BATCH_SIZE) {
+        deferred++ // left queued, untouched, for the next run
+        continue
+      }
 
-      const mp3 = await synthesize(job.text, job.voice, azureKey, azureRegion)
+      let mp3: Uint8Array
+      let meta: Record<string, unknown> = {}
+      if (isBen) {
+        benRenders++
+        const ben = await renderBen(job.voice, job.text)
+        mp3 = ben.mp3
+        meta = {
+          model: BEN.modelId,
+          voice_settings: BEN.voiceSettings,
+          loudness_lufs: Math.round(ben.loudnessLufs * 100) / 100,
+          true_peak_db: Math.round(ben.truePeakDb * 100) / 100,
+        }
+      } else {
+        mp3 = await synthesize(job.text, job.voice, azureKey, azureRegion)
+      }
       const storagePath = `${key}.mp3`
 
       const { error: uploadError } = await supabase.storage
@@ -181,7 +225,10 @@ async function drain(batchSize: number) {
       const { error: upsertError } = await supabase
         .from('announcement_clips')
         .upsert(
-          { key, storage_path: storagePath, hash, text: job.text, voice: job.voice, rendered_at: new Date().toISOString() },
+          {
+            key, storage_path: storagePath, hash, text: job.text, voice: job.voice, rendered_at: new Date().toISOString(),
+            model: null, voice_settings: null, loudness_lufs: null, true_peak_db: null, ...meta,
+          },
           { onConflict: 'key' },
         )
       if (upsertError) throw new Error(`announcement_clips upsert failed: ${upsertError.message}`)
@@ -189,11 +236,16 @@ async function drain(batchSize: number) {
       rendered++
       handledJobIds.push(...jobIds)
     } catch (err) {
-      // Deliberately NOT added to handledJobIds -- left in the queue so the
-      // next drain cycle retries it, rather than silently losing the job.
+      // Left in the queue for a retry, up to MAX_JOB_ATTEMPTS; after that the
+      // row stays with its last_error for ops to see instead of looping.
       failed++
-      errors.push({ key, message: String(err) })
-      console.error(`generate-announcement-clip: failed key ${key}:`, err)
+      const message = String(err).slice(0, 500)
+      errors.push({ key, message })
+      console.error(`generate-announcement-clip: failed key ${key}: ${message}`)
+      await supabase
+        .from('announcement_clip_jobs')
+        .update({ attempts: (job.attempts ?? 0) + 1, last_error: message, last_attempt_at: new Date().toISOString() })
+        .in('id', jobIds)
     }
   }
 
@@ -205,8 +257,70 @@ async function drain(batchSize: number) {
     if (deleteError) throw new Error(`Failed to clear handled jobs: ${deleteError.message}`)
   }
 
-  console.log(`generate-announcement-clip: ${byKey.size} keys (${rendered} rendered, ${skipped} skipped, ${failed} failed)`)
-  return { processed: byKey.size, rendered, skipped, failed, errors }
+  console.log(`generate-announcement-clip: ${byKey.size} keys (${rendered} rendered, ${skipped} skipped, ${protectedCount} protected, ${deferred} deferred, ${failed} failed)`)
+  return { processed: byKey.size, rendered, skipped, protected: protectedCount, deferred, failed, errors }
+}
+
+// ── ElevenLabs "Ben" ─────────────────────────────────────────────────────────
+// Render, level to the target loudness, encode, then re-measure the encoded
+// file: a clip is only stored if the finished MP3 is within the limits.
+// The MP3 codecs load on first use only, so an Azure-only run never needs them.
+
+async function renderBen(voice: string, text: string) {
+  if (elevenLabsVoiceId(voice) !== BEN.voiceId) {
+    throw new Error(`unknown ElevenLabs voice ${voice}; only the pinned Ben voice is allowed`)
+  }
+  const req = buildElevenLabsRequest(text, BEN, Deno.env.get('ELEVENLABS_API_KEY') ?? '')
+  const res = await fetch(req.url, req.init)
+  if (!res.ok) {
+    // Never echo request headers; the response body is ElevenLabs' own error text.
+    throw new Error(`ElevenLabs error ${res.status}: ${(await res.text()).slice(0, 300)}`)
+  }
+  const raw = new Uint8Array(await res.arrayBuffer())
+
+  const { samples, sampleRate } = await decodeMp3(raw)
+  const levelled = levelClip(samples, sampleRate, LEVELLING)
+  if (!levelled.ok) throw new Error(`levelling refused the clip: ${levelled.reason}`)
+
+  const mp3 = await encodeMp3(levelled.samples, sampleRate)
+  const check = await decodeMp3(mp3)
+  const loudnessLufs = integratedLoudness(check.samples, check.sampleRate)
+  const truePeak = truePeakDb(check.samples)
+  if (Math.abs(loudnessLufs - LEVELLING.targetLufs) > LEVELLING.toleranceLu || truePeak > LEVELLING.truePeakCeilingDb) {
+    throw new Error(`encoded clip out of limits: ${loudnessLufs.toFixed(2)} LUFS, ${truePeak.toFixed(2)} dBTP`)
+  }
+  return { mp3, loudnessLufs, truePeakDb: truePeak }
+}
+
+async function decodeMp3(bytes: Uint8Array) {
+  const { MPEGDecoder } = await import('npm:mpg123-decoder@1.0.3')
+  const decoder = new MPEGDecoder()
+  await decoder.ready
+  try {
+    const { channelData, sampleRate } = decoder.decode(bytes)
+    if (!channelData?.length || !channelData[0].length) throw new Error('MP3 decoded to no audio')
+    return { samples: channelData[0] as Float32Array, sampleRate: sampleRate as number }
+  } finally {
+    decoder.free()
+  }
+}
+
+async function encodeMp3(samples: Float32Array, sampleRate: number): Promise<Uint8Array> {
+  const { Mp3Encoder } = await import('npm:@breezystack/lamejs@1.2.7')
+  const encoder = new Mp3Encoder(1, sampleRate, 128)
+  const pcm = new Int16Array(samples.length)
+  for (let i = 0; i < samples.length; i++) pcm[i] = Math.max(-32768, Math.min(32767, Math.round(samples[i] * 32767)))
+  const parts: Uint8Array[] = []
+  for (let i = 0; i < pcm.length; i += 1152) {
+    const chunk = encoder.encodeBuffer(pcm.subarray(i, i + 1152))
+    if (chunk.length) parts.push(new Uint8Array(chunk))
+  }
+  const tail = encoder.flush()
+  if (tail.length) parts.push(new Uint8Array(tail))
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0))
+  let o = 0
+  for (const p of parts) { out.set(p, o); o += p.length }
+  return out
 }
 
 // ── Azure TTS ────────────────────────────────────────────────────────────────
