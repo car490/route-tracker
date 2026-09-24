@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase, PWA_BASE } from '../../shared/supabase'
 import { getCompanyId } from '../../shared/company'
@@ -14,6 +14,7 @@ import './mobileJourneys.css'
 // else — reports, editing drivers/vehicles.
 
 const EMPTY_FORM = { route_id: '', timetable_id: '', timetable_departure_id: '' }
+const LOAD_TIMEOUT_MS = 20000
 
 function shiftDate(dateStr, days) {
   const d = new Date(dateStr + 'T12:00:00')
@@ -38,21 +39,37 @@ export default function MobileJourneysPage() {
   const [saving,     setSaving]     = useState(false)
   const [formError,  setFormError]  = useState('')
 
+  const latestLoad = useRef(0)
+
+  // Never leaves the page stuck on "Loading…": a request that hangs (weak
+  // mobile signal) is abandoned after LOAD_TIMEOUT_MS, and any failure shows
+  // an error with a Try again button. Only the newest load updates the page,
+  // so tapping through dates quickly can't show an older day's journeys.
   async function loadJourneys(d) {
+    const loadId = ++latestLoad.current
     setLoading(true)
-    const { data, error } = await supabase
-      .from('journeys')
-      .select(`
-        *,
-        departure:timetable_departures(departure_time, timetable_id, timetable:timetables(name, direction, route:routes(id, service_code, single_journey))),
-        driver:employees(name),
-        vehicle:vehicles(registration)
-      `)
-      .eq('journey_date', d)
-    setLoadError(error ? error.message : '')
-    const rows = data ?? []
+    setLoadError('')
+    let rows = [], errorText = ''
+    try {
+      const { data, error } = await supabase
+        .from('journeys')
+        .select(`
+          *,
+          departure:timetable_departures(departure_time, timetable_id, timetable:timetables(name, direction, route:routes(id, service_code, single_journey))),
+          driver:employees(name),
+          vehicle:vehicles(registration)
+        `)
+        .eq('journey_date', d)
+        .abortSignal(AbortSignal.timeout(LOAD_TIMEOUT_MS))
+      if (error) errorText = /abort|timeout/i.test(`${error.name} ${error.message}`) ? 'No response — check your signal.' : error.message
+      rows = data ?? []
+    } catch (err) {
+      errorText = err?.message || 'Something went wrong.'
+    }
+    if (loadId !== latestLoad.current) return
     rows.sort((a, b) => (a.departure?.departure_time ?? '').localeCompare(b.departure?.departure_time ?? ''))
     setJourneys(rows)
+    setLoadError(errorText)
     setLoading(false)
   }
 
@@ -241,7 +258,10 @@ export default function MobileJourneysPage() {
       {loading ? (
         <p className="mj-empty">Loading…</p>
       ) : loadError ? (
-        <div className="mj-message mj-message--error" role="alert">Couldn't load journeys: {loadError}</div>
+        <div className="mj-message mj-message--error" role="alert">
+          <p>Couldn't load journeys: {loadError}</p>
+          <button type="button" className="mj-btn mj-btn--ghost mj-retry" onClick={() => loadJourneys(date)}>Try again</button>
+        </div>
       ) : journeys.length === 0 ? (
         <p className="mj-empty">No journeys on this date.</p>
       ) : (
