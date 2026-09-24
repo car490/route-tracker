@@ -159,6 +159,15 @@ async function main() {
   const schedule = JSON.parse(readFileSync(scheduleJsonPath, 'utf8'));
   const jobs = buildJobs(schedule);
   const manifest = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, 'utf8')) : {};
+  // Once the Controller folder holds clips exported from the live pipeline
+  // (scripts/controller-clips/export.mjs, e.g. the ElevenLabs "Ben" voice),
+  // re-synthesising here would put Azure clips back over them. Use the export.
+  const exported = Object.values(manifest).filter((m) => m.voice && m.voice !== VOICE);
+  if (exported.length) {
+    console.error(`Refusing to run: ${exported.length} clips in ${manifestPath} were exported in another voice (${exported[0].voice}).`);
+    console.error('Use `npm run export:controller-clips` (from pcv-dashboard/busops) instead. See docs/ANNOUNCE-VOICE-PLAN.md.');
+    process.exit(1);
+  }
   const nextManifest = {};
 
   let rendered = 0, skipped = 0;

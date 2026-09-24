@@ -86,7 +86,7 @@ existing Azure clips (measured first), so switching voices doesn't change how lo
 2. **Experiment: done, it works** (see Experiment results). Target -21 LUFS.
 3. Shared audio module (trim/normalise), tests first; ElevenLabs render path in the Edge Function; never-overwrite guard; source columns. **Done on dev** (first Ben clip -21.01 LUFS; guard verified live).
 4. Credit safeguards: used-stops-only scope, daily cap (`app_config.elevenlabs_daily_char_cap`, default 6000, `elevenlabs_usage` log), stale-Ben-clip alert. **Done on dev** (all three verified live in one run, no credits spent).
-5. Review page and Controller export.
+5. Review page and Controller export. **Done on dev**: "Announcement Clips" page in the PCV Dashboard (John chose it over a local page) with approve-by-version and an audit log; `npm run export:controller-clips` (dry-run tested against dev and production); the old Azure generator refuses to overwrite exported clips.
 6. Rollout: audition about 10 hard names at style 0 vs 0.50; John picks; licence and listing check recorded;
    dev run, then listen on the tablet; production switch; `docs/DECISIONS.md` entry.
 

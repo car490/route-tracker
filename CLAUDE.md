@@ -203,20 +203,21 @@ checks the bar and the brand mark. Output goes to `scripts/tablet-captures/` (gi
 failed, 2 could not measure. `--cdp-port <port>` attaches to an existing DevTools port with no adb (how it is
 tested: `npm run verify:tablet` in `scripts/announce-replica`).
 
-### PSVAIR announcement audio (Bus Controller's clip generator)
+### PSVAIR announcement audio for the Bus Controller
 ```sh
-AZURE_SPEECH_KEY=... AZURE_SPEECH_REGION=... npm run generate:audio
+npm run export:controller-clips            # from pcv-dashboard/busops; production by default
+npm run export:controller-clips -- --dev   # dev; add --dry-run to print the plan and write nothing
 ```
-Run from `pcv-dashboard/busops/`. Predates the server-side clip pipeline (see "PSVAIR
-announcement audio" under Architecture below), which is now what generates clips for the Driver
-PWA and Announce Solo automatically via a DB trigger + cron + Edge Function — no manual step
-required for those two tiers. **This script is still genuinely necessary, indefinitely, for a
-third consumer**: it's the only thing that produces `busops/driver/audio/announcements/`, which
-the Bus Controller (`mele-server/audioPlayer.mjs`) plays from local disk, having no live-fetch
-path of its own (see "PSVAIR announcement audio" under Architecture). Re-run this and commit the
-result after any stop rename or route change that affects a Controller-served vehicle — nothing
-currently automates or reminds anyone to do so (a real process gap, `docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md`
-Phase 4). Not part of CI; also useful for auditioning a wording change locally before it ships.
+The Bus Controller (`mele-server/audioPlayer.mjs`) plays clips from local disk only
+(`busops/driver/audio/announcements/`), having no live-fetch path of its own. As of 2026-09-24
+(`docs/ANNOUNCE-VOICE-PLAN.md` step 5) that folder is filled by **exporting** the live pipeline's
+clips (`scripts/controller-clips/export.mjs`), so the Controller plays exactly what the Driver PWA
+and Announce Solo play, including the ElevenLabs "Ben" voice. It downloads only changed clips for
+stops a timetable uses, refuses unexpected keys as file paths, and lists files no longer needed
+rather than deleting them. Re-run it and commit the result after stop/route changes that affect a
+Controller-served vehicle; nothing automates that yet (`docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md` Phase 4).
+The older `npm run generate:audio` (local Azure synthesis) still exists but refuses to run once the
+folder holds exported clips in another voice, so it can't put Azure clips back over Ben.
 
 ### Release (version bump across PWA + dashboard together)
 ```sh
@@ -492,7 +493,7 @@ doc for the phase-by-phase history; this section only summarizes the resulting a
   `generate-announcement-clip` Edge Function, `shared/announcementAudio.js`'s `clipKeysFor()`, and
   `scripts/generate-announcement-audio.mjs`'s own `slug()` — keep them in sync by hand.
 
-**A third, separate playback path — the Bus Controller, permanently on the local generator:**
+**A third, separate playback path — the Bus Controller, on local files** (filled by `npm run export:controller-clips` since 2026-09-24; the local generator described below is superseded for it, see Commands):
 `mele-server/audioPlayer.mjs` (Controller-side, see "Onboard passenger sign" below) plays the same
 clips from **local disk only** — `busops/driver/audio/announcements/`, cloned onto the Controller
 as part of its own `git clone` of this repo (`mele-server/DEPLOY.md`). The Controller deliberately
