@@ -113,6 +113,7 @@ const NAV = [
   { to: '/employees',     label: 'Drivers',          icon: 'drivers' },
   { to: '/vehicles',      label: 'Vehicles',         icon: 'vehicles' },
   { to: '/announce-devices', label: 'Announce Devices', icon: 'announce' },
+  { to: '/announcement-clips', label: 'Announcement Clips', icon: 'announce' },
   { divider: true },
   { to: '/routes',        label: 'Routes',           icon: 'routes' },
   { to: '/journeys',      label: 'Daily Journeys',   icon: 'journeys' },
