@@ -248,6 +248,12 @@ create table stops (
   -- directly via SQL for specific problem stops (no admin UI yet — flagged
   -- as a follow-up, see memory).
   announcement_name   text,
+  -- Speech-only name (e.g. a pronunciation respelling like "Haze-bruh" for
+  -- Happisburgh). Never shown on the sign; used verbatim by the clip enqueue
+  -- triggers when set. Clip keys still come from display_name(). See
+  -- migration_stops_spoken_name.sql.
+  spoken_name         text        constraint stops_spoken_name_not_blank
+                                  check (spoken_name is null or length(trim(spoken_name)) > 0),
   created_at          timestamptz not null default now()
 );
 
@@ -1505,10 +1511,10 @@ begin
   select distinct
     public.announcement_service_clip_key(last_stop.service_code, last_stop.dest),
     'This is ' || public.article_for(last_stop.service_code) || ' ' || last_stop.service_code
-      || ' to ' || public.announcement_speech_name(last_stop.dest) || '.',
+      || ' to ' || coalesce(last_stop.spoken, public.announcement_speech_name(last_stop.dest)) || '.',
     v_voice
   from (
-    select distinct on (t.id) r.service_code, public.display_name(s.*) as dest
+    select distinct on (t.id) r.service_code, public.display_name(s.*) as dest, s.spoken_name as spoken
     from public.timetables t
     join public.routes r           on r.id = t.route_id
     join public.timetable_stops ts on ts.timetable_id = t.id
@@ -1537,7 +1543,7 @@ declare
   v_voice text;
   v_ids   uuid[];
 begin
-  v_name := public.announcement_speech_name(display_name(NEW));
+  v_name := coalesce(NEW.spoken_name, public.announcement_speech_name(display_name(NEW)));
   select coalesce((select value from public.app_config where key = 'announcement_voice'), 'en-GB-RyanNeural')
     into v_voice;
 
@@ -1561,7 +1567,7 @@ end;
 $$;
 
 create trigger trg_announcement_clip_enqueue_on_stop_change
-  after insert or update of announcement_name, name, atco_code
+  after insert or update of announcement_name, name, atco_code, spoken_name
   on public.stops
   for each row
   execute function public.fn_announcement_clip_enqueue_on_stop_change();
@@ -1571,7 +1577,7 @@ create trigger trg_announcement_clip_enqueue_on_stop_change
 -- which anon/authenticated inherit as members of PUBLIC regardless of any
 -- per-role grant -- confirmed via information_schema.role_routine_grants
 -- that PUBLIC held this grant until revoked explicitly here.
-revoke execute on function public.fn_announcement_clip_enqueue_on_stop_change() from public;
+revoke execute on function public.fn_announcement_clip_enqueue_on_stop_change() from public, anon, authenticated;
 
 -- Enqueue trigger: routes. A service_code change renames every one of the
 -- route's ROUTE_START clips. A new route has no timetables yet, so insert

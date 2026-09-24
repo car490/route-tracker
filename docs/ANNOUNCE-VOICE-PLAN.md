@@ -10,7 +10,7 @@ Implements `docs/announce-voice-swap-handoff.md`, adapted to how the codebase ac
 | Scope | **Only clips a route actually uses** get Ben. Stops no timetable uses keep their Azure clip. |
 | Voice speed | **0.90** |
 | Other settings | stability 0.50, similarity boost 1.00, style 0 vs 0.50 decided by ear in the audition, speaker boost on (confirm in the app) |
-| Loudness | Speaker output **no more than 90 dB** (see "Loudness and the 90 dB limit") |
+| Loudness | Speaker output no more than 90 dB, **set by hand on each vehicle's amplifier**. No software cap or calibration clip. The clips only need to be consistently levelled so one amplifier setting suits them all |
 
 ## How it works today (the base we build on)
 - **Automatic Azure pipeline** (driver app and Announce Solo): a stop/route/timetable change queues a job
@@ -47,19 +47,12 @@ environments. Dev gets only what testing needs.
    - `review` serves a local page (localhost only) to play and approve clips. Approvals are written to the staging manifest.
    - `promote` uploads approved clips to the existing Storage paths and updates the `announcement_clips` rows. No app code changes.
    - `export-controller` writes the approved set and manifest into `busops/driver/audio/announcements/` for the Controller.
-   - `calibration` writes the loudness calibration clip (see below).
 
-## Loudness and the 90 dB limit
-The 90 dB limit is a sound level in the bus. It depends on the clip files **and** the device volume/amplifier, so it is enforced in three places:
-1. **Files:** every Ben clip is normalised to one integrated-loudness target with a true-peak ceiling of -1 dBTP,
-   tolerance ±1 LU. The target is set to match the measured level of the existing Azure clips, so a safety-net
-   clip is never louder than a Ben clip.
-2. **Calibration clip:** the studio produces a reference clip at the loudest peak any announcement can reach. At
-   commissioning, play it, measure it with a sound level meter, and set the device volume so it reads no more than 90 dB.
-   Documented in `mele-server/DEPLOY.md` and the Solo commissioning notes.
-3. **Software cap:** `validateAudioConfig` rejects a fixed output level above 90 dB, and `computeFixedOutputLevel`
-   is capped at 90. Wiring the level into playback is Annex A work, outside this plan.
-To confirm: how the 90 dB is measured (proposed: A-weighted maximum, dB(A) LAFmax, at the nearest seated passenger's head position).
+## Loudness
+The 90 dB limit is set by hand on each vehicle's amplifier (John, 2026-09-24), so there is no software cap and no calibration clip.
+What the software must guarantee is consistency, so one amplifier setting suits every clip: each Ben clip is normalised to
+one integrated-loudness target with a true-peak ceiling of -1 dBTP, tolerance ±1 LU. The target matches the measured level of the
+existing Azure clips, so a safety-net clip is never louder than a Ben clip.
 
 ## Security
 - The ElevenLabs key is environment-only. A test scans the repo, manifest and clip folders for key-like strings.
@@ -80,14 +73,14 @@ To confirm: how the 90 dB is measured (proposed: A-weighted maximum, dB(A) LAFma
 | 5. Manifest matches files (voice, model, settings, date, text hash) | manifest tests |
 | 6. Changing a stop name or its spoken name marks the clip stale | DB test (`supabase/tests/`) and `plan` test |
 | 7. No API key anywhere | secret-scan test |
-| Also | Edge Function guard test; 90 dB cap test; gitignore/serving test |
+| Also | Edge Function guard test; gitignore/serving test |
 
 ## Build order
 1. `stops.spoken_name` column and trigger. Dev first.
 2. Edge Function guard.
 3. Studio: `plan`, dry run, `generate`, `process`, loudness checks. Measure the Azure clips to fix the target.
 4. Studio: `review`, `promote`, audit table, RPC and Storage policy.
-5. `export-controller` and `calibration`; 90 dB cap in `validateAudioConfig`.
+5. `export-controller`.
 6. Rollout: audition about 10 hard names at style 0 vs 0.50; John picks; licence and listing check recorded;
    dev run, then listen on the tablet; production run; `docs/DECISIONS.md` entry.
 
