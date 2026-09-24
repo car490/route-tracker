@@ -13,9 +13,7 @@
 //   AZURE_SPEECH_REGION — e.g. "uksouth"
 // Optional:
 //   AZURE_SPEECH_VOICE  — defaults to en-GB-RyanNeural (a natural-sounding
-//                         male English-GB voice — matches the browser
-//                         speechSynthesis fallback's own preferred voice,
-//                         see shared/speech.js's PREFERRED_VOICE_NAMES)
+//                         male English-GB voice; the one voice every clip uses)
 //
 // Changing AZURE_SPEECH_VOICE (or this default), or AUDIO_FORMAT, re-renders
 // every clip, not just new ones — hashText() folds both into each clip's hash,

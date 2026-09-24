@@ -173,10 +173,7 @@ export function createAnnouncementPlayer({ onGap } = {}) {
   return {
     // audioKeys: ordered list of pre-rendered clip keys (no .mp3/base path)
     // to try — omit/leave empty to play nothing and report a gap via onGap
-    // (any caller with no stop/service id to key on hits this; previewVoice
-    // in announcements.js bypasses this player entirely, calling
-    // window.speechSynthesis directly, since it's a settings/testing
-    // feature, not a live passenger announcement).
+    // (any caller with no stop/service id to key on hits this).
     //
     // context: opaque, passed straight through to onGap alongside the
     // missing keys (e.g. { journeyId, vehicleId, driverId }) — this module

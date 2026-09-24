@@ -26,6 +26,17 @@ describe('clipKeysFor', () => {
       .toEqual(['service/s125s__boston-college']);
   });
 
+  // Same inputs and expected keys as supabase/tests/announcement_service_clips.sql
+  // test 1: the DB builds this key from the timetable's final stop, and the two
+  // must agree or the journey-start check reports the clip missing forever.
+  it.each([
+    ['S116S', 'Donington,Cowley Academy (NW-bound)', 'service/s116s__donington-cowley-academy'],
+    ['XXXX', "Swineshead,Bentley's Garage", 'service/xxxx__swineshead-bentley-s-garage'],
+    ['S997X', 'High Street (opp), Kirton', 'service/s997x__high-street-kirton'],
+  ])('ROUTE_START — %s to %s matches the database key', (serviceCode, destination, key) => {
+    expect(clipKeysFor(ANNOUNCE_STATES.ROUTE_START, {}, { serviceCode, destination })).toEqual([key]);
+  });
+
   it('ROUTE_START — missing ids falls back to live synthesis (null)', () => {
     expect(clipKeysFor(ANNOUNCE_STATES.ROUTE_START, {}, {})).toBeNull();
   });

@@ -162,8 +162,10 @@ this run since it only fires on `master` pushes:
 - `shared/announcementAudio.js`'s `createAnnouncementPlayer` no longer falls back to
   `speechSynthesis` at all — a stop with no confirmed clip now plays no audio and calls an
   `onGap` callback instead. `shared/speech.js`'s `speakUtterance` (its one remaining caller) was
-  deleted outright as genuinely dead code, not just unused — `listVoices`/`pickVoice` stay for
-  `previewVoice`'s settings-only voice picker.
+  deleted outright as genuinely dead code, not just unused — `listVoices`/`pickVoice` stayed for
+  `previewVoice`'s settings-only voice picker until 2026-09-24, when the picker (cog, dropdown, Test
+  button) was removed from the driver PWA and `shared/speech.js` deleted with it: every clip is in the
+  one centrally set voice, so a per-device choice had nothing to control.
 - New table `announcement_coverage_gap` (`supabase/migration_announcement_coverage_gap.sql`) is
   the "loud" ops-facing alert this checklist item asked for — a queryable row instead of a
   `console.warn`. `vehicle_id`/`device_id` are both nullable, exactly one populated depending on

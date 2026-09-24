@@ -5,6 +5,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.2.11] - 2026-09-24
+
+**Dashboard: phone journeys page, one-step journey reset**
+
+- feat(dashboard): new phone-sized page at `/m/journeys` for testing runs from a phone:
+  pick a date, then Run (opens the driver app on that journey with a signed duty link),
+  Reset, Complete or Delete each journey, and Add a journey (route, run, time). Large
+  tap targets, 16px text, AA contrast. Linked from the Journeys page as "Phone view".
+- fix(dashboard): Reset now happens in one database transaction (new `reset_journey()`
+  function, applied to dev and production), so a dropped connection can't leave a
+  journey half-reset. Used by both the phone page and the desktop Journeys page.
+- fix(dashboard): the phone page never sticks on "Loading" -- a request with no answer
+  after 20 seconds shows an error with a Try again button.
+- fix(dashboard): signing in returns you to the page you asked for (so a phone bookmark
+  works), and "today" on the Journeys pages uses local time, not UTC.
+
+## [2.2.10] - 2026-09-24
+
+**Driver PWA: route-start audio fixed, Announcements panel simplified**
+
+- fix(announce): the route-start clip ("This is an S116S to Donington, Cowley Academy")
+  was never generated, so every journey start showed "Audio not fully ready". It was
+  built from the route's empty Destination field; it is now generated per timetable
+  from its final stop (the destination the app actually uses), kept current by new
+  timetable-stop, stop-rename and service-code triggers, and backfilled on dev and
+  production. Spoken names now strip every "(...)" indicator, matching the app.
+- fix(driver): the journey-start warning now names what is missing (e.g. "the route
+  start announcement") instead of counting it as "1 stop".
+- feat(driver): removed the Announcements cog, voice dropdown and Test button. They
+  listed the device's own voices (none on the tablet) and had no effect, since every
+  announcement is a recorded clip in the one centrally set voice.
+- feat(driver): the Announcements panel now starts closed on every journey. Sound stays
+  on by default.
+
 ## [2.2.9] - 2026-09-23
 
 **Announce onboard sign: 22 mm x-height sizing finalized, verified on the real tablet**

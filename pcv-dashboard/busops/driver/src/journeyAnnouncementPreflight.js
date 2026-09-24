@@ -38,6 +38,35 @@ export function computeRequiredClipKeys(allStops, serviceCode, destination) {
   return [...keys];
 }
 
+// Plain-English banner body for a set of missing clip keys. Only approach/
+// departure keys name a stop (counted once per stop); the route-start,
+// terminus and diversion clips are named for what they are, so a missing
+// route-start clip no longer reads as "1 stop".
+export function describeMissingAudio(missingKeys) {
+  const stopIds = new Set();
+  let routeStart = false;
+  let terminus = false;
+  let diversion = false;
+
+  for (const key of missingKeys) {
+    if (key.startsWith('service/')) routeStart = true;
+    else if (key === 'terminus') terminus = true;
+    else if (key === 'diversion') diversion = true;
+    else stopIds.add(key.slice(key.indexOf('/') + 1));
+  }
+
+  const parts = [];
+  if (routeStart) parts.push('the route start announcement');
+  if (stopIds.size) parts.push(`${stopIds.size} stop${stopIds.size === 1 ? '' : 's'} on this route`);
+  if (terminus) parts.push('the end of route announcement');
+  if (diversion) parts.push('the diversion announcement');
+
+  const list = parts.length > 1
+    ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
+    : parts[0];
+  return `Audio not yet ready for ${list}. The screen will still show every stop.`;
+}
+
 // Never blocks journey start -- this only reports what's missing so the
 // caller can show a non-blocking warning and move on; runTracker fires
 // regardless of this call's outcome (or even its failure -- callers should
