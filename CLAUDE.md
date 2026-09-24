@@ -32,7 +32,7 @@ used by more than one surface. `pcv-dashboard/busops/shared/` holds what BusOps'
 from icons/`brand-tokens.css` only**: it's now also the GPS/schedule-matching core
 (`gps.js`, `geofence.js`, `engine.js`, `scheduleTimeShift.js`, `geo.js`) and the announcement
 stack (`announceStates.js`, `announcementAudio.js`, `announcementCoverage.js`,
-`deviceStateSync.js`, `speech.js`, `logger.js`, `escapeHtml.js`) — real cross-surface use, not
+`deviceStateSync.js`, `logger.js`, `escapeHtml.js`) — real cross-surface use, not
 folder guesswork: Announce Solo's autopilot (`announceSoloAutopilot.js`) imports
 `gps.js`/`geofence.js`/`scheduleTimeShift.js` directly, and `onboard.js` reads announcement
 state through the same `announceStates.js` Driver uses. `lib/` (Leaflet) and `audio/` (PSVAIR
@@ -69,7 +69,7 @@ pcv-dashboard/                  # PCV Dashboard — Vercel app root
     │   ├── brand-tokens.css
     │   ├── gps.js, geofence.js, engine.js, scheduleTimeShift.js, geo.js
     │   └── announceStates.js, announcementAudio.js, announcementCoverage.js,
-    │       deviceStateSync.js, speech.js, logger.js, escapeHtml.js
+    │       deviceStateSync.js, logger.js, escapeHtml.js
     ├── driver/                  # BusOps Driver (the PWA)
     │   ├── index.html, manifest.json, style.css, lib/, audio/, cab-device/
     │   └── src/                 # main.js's whole import closure
@@ -469,8 +469,8 @@ doc for the phase-by-phase history; this section only summarizes the resulting a
   then production; see below for why the bundled files themselves didn't go away).
   `busops/service-worker.js` precaches every row from `announcement_clips` live at `install` time
   (paginated past PostgREST's 1000-row cap) so clips work offline mid-route.
-- Phase 3 removed the `speechSynthesis` fallback entirely — `shared/speech.js`'s old
-  `speakUtterance` is deleted dead code. A stop reached with no confirmed clip now plays **no
+- Phase 3 removed the `speechSynthesis` fallback entirely (`shared/speech.js` itself was deleted
+  2026-09-24 along with the driver PWA's now-pointless voice picker). A stop reached with no confirmed clip now plays **no
   audio** (visual text only, which is already required regardless) and calls `onGap`, which
   `shared/announcementCoverage.js` turns into a queryable row in `announcement_coverage_gap` — a
   loud, ops-facing alert, not a silent `console.warn`. Separately,
