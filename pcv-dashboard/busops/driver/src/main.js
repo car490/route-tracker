@@ -16,7 +16,7 @@ import { resolveBootAction, BOOT_ACTION } from './activeJourneyRecovery.js';
 import { announceApproachEvent, announceStopEvent } from './announceStopEvent.js';
 import { triggerDiversionAlert, clearDiversionAlert } from './diversionAlert.js';
 import { selectServiceManually } from './manualSelection.js';
-import { checkAnnouncementCoverage } from './journeyAnnouncementPreflight.js';
+import { checkAnnouncementCoverage, describeMissingAudio } from './journeyAnnouncementPreflight.js';
 import { getStoredVehicle, storeVehicle } from './vehicleSetup.js';
 import {
   captureAnnounceSetup, connectAnnounceLink, disconnectAnnounceLink,
@@ -218,11 +218,11 @@ function showTripCompleteBanner(onDismiss) {
 // can't start".
 function runAnnouncementPreflight({ allStops, serviceCode, destination, journeyId, vehicleId, driverId }) {
   checkAnnouncementCoverage({ allStops, serviceCode, destination, journeyId, vehicleId, driverId })
-    .then(({ missingCount }) => {
+    .then(({ missingCount, missingKeys }) => {
       if (!missingCount) return;
       showInfoBanner({
         title: 'Audio not fully ready',
-        body: `Audio not yet ready for ${missingCount} stop${missingCount === 1 ? '' : 's'} on this route. The screen will still show every stop.`,
+        body: describeMissingAudio(missingKeys),
         durationMs: TRIP_COMPLETE_AUTO_DISMISS_MS,
         onDismiss: () => {},
       });

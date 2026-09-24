@@ -12,7 +12,7 @@
 // pattern for the same announcement_clips endpoint.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { computeRequiredClipKeys, checkAnnouncementCoverage } from './journeyAnnouncementPreflight.js';
+import { computeRequiredClipKeys, checkAnnouncementCoverage, describeMissingAudio } from './journeyAnnouncementPreflight.js';
 
 const ALL_STOPS = [
   { stop_id: 'stop-1', name: 'High Street' },
@@ -38,6 +38,30 @@ describe('computeRequiredClipKeys', () => {
   it('omits the ROUTE_START key entirely when serviceCode/destination are missing', () => {
     const keys = computeRequiredClipKeys(ALL_STOPS, null, null);
     expect(keys).not.toEqual(expect.arrayContaining([expect.stringMatching(/^service\//)]));
+  });
+});
+
+// The driver-facing banner used to say "Audio not yet ready for 1 stop" when
+// the only missing clip was the route-start one, which names no stop at all.
+describe('describeMissingAudio', () => {
+  it('names the route start announcement when only its clip is missing', () => {
+    expect(describeMissingAudio(['service/s116s__donington-cowley-academy']))
+      .toBe('Audio not yet ready for the route start announcement. The screen will still show every stop.');
+  });
+
+  it('counts stops once each, however many of their clips are missing', () => {
+    expect(describeMissingAudio(['approach/stop-1', 'departure/stop-1', 'approach/stop-2']))
+      .toBe('Audio not yet ready for 2 stops on this route. The screen will still show every stop.');
+  });
+
+  it('uses the singular for one stop', () => {
+    expect(describeMissingAudio(['departure/stop-9']))
+      .toBe('Audio not yet ready for 1 stop on this route. The screen will still show every stop.');
+  });
+
+  it('lists every kind of missing announcement together', () => {
+    expect(describeMissingAudio(['service/s116s__bus-station', 'approach/stop-1', 'terminus', 'diversion']))
+      .toBe('Audio not yet ready for the route start announcement, 1 stop on this route, the end of route announcement and the diversion announcement. The screen will still show every stop.');
   });
 });
 
