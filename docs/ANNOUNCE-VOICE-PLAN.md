@@ -49,6 +49,17 @@ What the software must guarantee is consistency, so one amplifier setting suits 
 one integrated-loudness target with a true-peak ceiling of -1 dBTP, tolerance ±1 LU. The target matches the measured level of the
 existing Azure clips (measured first), so switching voices doesn't change how loud the bus is.
 
+## Experiment results (step 2, 2026-09-24): levelling inside the Edge Function works
+- **Target set to -21 LUFS**: every existing Azure clip on dev and production measured -20.2 to -21.9 LUFS integrated,
+  true peak about -4 dBTP (ffmpeg `ebur128`). Ben clips at -21 ±1 LU, peaks at or under -1 dBTP, change nothing for the amplifier setting.
+- **Pure-JS pipeline**: `mpg123-decoder` (WASM decode) → silence trim → BS.1770-4 gated loudness and 4x-oversampled true peak
+  (own code, no imports) → gain → `@breezystack/lamejs` MP3 encode.
+- **Accuracy vs ffmpeg** on 10 real clips: loudness within 0.06–0.17 LU, true peak within 0.1 dB. After turning each clip down 20 dB
+  and levelling, ffmpeg measured -21.2 to -21.5 LUFS (all in tolerance). Silence went from 0.24 s / 0.87 s to about 0.08 s / 0.07–0.13 s.
+- **Real Edge runtime (dev, temporary function, deleted afterwards)**: a 4 s clip at 44.1 kHz from -41 LUFS input took
+  **0.3–0.4 s** of processing (decode 18 ms, loudness 12 ms, true peak ~100 ms, encode ~190 ms). The drain will process a few clips
+  per run rather than 20, to stay well inside the function's CPU allowance.
+
 ## Security
 - `ELEVENLABS_API_KEY` is an Edge Function secret only (never in the repo, config.js, logs or the manifest). A test scans the repo and clip folders for key-like strings.
 - The Edge Function stays behind `verify_jwt` plus its constant-time `CALLER_AUTH_TOKEN` check; clients cannot trigger renders.
@@ -71,7 +82,7 @@ existing Azure clips (measured first), so switching voices doesn't change how lo
 
 ## Build order (revised)
 1. `stops.spoken_name` column and trigger. **Done on dev.**
-2. **Experiment:** can the Edge Function decode, trim, normalise and re-encode an MP3 within its time limits? Measure the Azure clips' loudness to fix the target.
+2. **Experiment: done, it works** (see Experiment results). Target -21 LUFS.
 3. Shared audio module (trim/normalise), tests first; ElevenLabs render path in the Edge Function; never-overwrite guard; source columns.
 4. Credit safeguards: used-stops-only scope and the daily cap.
 5. Review page and Controller export.
