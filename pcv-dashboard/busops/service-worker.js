@@ -33,7 +33,7 @@ const STATIC_ASSETS = [
   './announce/src/announceDeviceSetup.js',
   './announce/src/announceGps.js',
   './announce/src/announceSoloAutopilot.js',
-  './announce/src/scheduleAutopilot.js',
+  './shared/scheduleAutopilot.js',
   './driver/src/announcements.js',
   './driver/src/directions.js',
   './shared/engine.js',
@@ -50,6 +50,15 @@ const STATIC_ASSETS = [
   './driver/src/vehicleSetup.js',
   './driver/src/announceDeviceLink.js',
   './driver/src/announceDeviceLinkApi.js',
+  './driver/src/theme/themeController.js',
+  './driver/src/theme/resolveTheme.js',
+  './driver/src/theme/themePreference.js',
+  './driver/src/theme/sunTimes.js',
+  './driver/src/screens/scrollOnShow.js',
+  './driver/src/autostart/autoStartController.js',
+  './driver/src/autostart/autoStartState.js',
+  './driver/src/autostart/autoStartOverlay.js',
+  './driver/src/autostart/candidates.js',
 ];
 
 const TILE_CACHE = [

@@ -6,12 +6,24 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black" />
-    <meta name="theme-color" content="#242F35" />
+    <meta name="theme-color" content="#1C2333" />
     <title>BusOps Driver</title>
     <link rel="icon" type="image/png" href="../shared/icons/icon-192.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script>
+      // Theme before first paint: reapplies the last light/dark the app
+      // showed, so a night launch doesn't flash the light theme while
+      // src/theme/ loads. Only 'light' or 'dark' is ever set; anything else
+      // (or blocked storage) leaves the default and src/theme/ decides.
+      // Keys match src/theme/themePreference.js.
+      (function () {
+        try {
+          var pref = localStorage.getItem('busops.driver.theme');
+          var last = localStorage.getItem('busops.driver.theme.resolved');
+          var theme = pref === 'light' || pref === 'dark' ? pref : last;
+          if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
+        } catch (e) {}
+      })();
+    </script>
     <link rel="manifest" href="manifest.json" />
     <link rel="stylesheet" href="lib/leaflet.min.css" />
     <link rel="stylesheet" href="style.css" />
@@ -37,6 +49,8 @@
       <div class="ndc-icon">&#128204;</div>
       <div class="ndc-title">No duty assigned</div>
       <div class="ndc-body">Tap below to select today's service.</div>
+      <!-- Shown when automatic mode is on (main.js init(), src/autostart/). -->
+      <div id="ndc-auto-note" class="ndc-auto-note" hidden>Your service starts automatically when you are at its first stop.</div>
       <button id="ndc-manual-btn" class="ndc-secondary-btn">Select a service manually</button>
       <div class="ndc-vehicle-info">
         Vehicle: <span id="ndc-vehicle-label"></span>
@@ -196,15 +210,23 @@
     <button id="btn-complete-manual" class="manual-complete-link" type="button">Trip not finishing automatically? Complete manually</button>
     </div>
 
-    <!-- Fixed to the viewport corner (see style.css) so it's visible on
-         every screen without scrolling, including #duty-card. -->
-    <div id="app-brand">
-      <div class="bo-wordmark">BusOps <span class="bo-app">Driver</span></div>
-      <div class="cm-attribution">
-        <span class="cm-powered-by">From</span>
-        <span class="cm-wordmark">PCV Technologies</span>
+    <!-- Footer strip on every screen (style.css #app-footer): brand mark on
+         the left; version label and display-theme button on the right. The
+         button (Auto / Light / Dark) is driven by src/theme/themeController.js;
+         scripts/release.mjs rewrites the version text on each release. -->
+    <footer id="app-footer">
+      <div id="app-brand">
+        <div class="bo-wordmark">BusOps <span class="bo-app">Driver</span></div>
+        <div class="cm-attribution">
+          <span class="cm-powered-by">From</span>
+          <span class="cm-wordmark">PCV Technologies</span>
+        </div>
       </div>
-    </div>
+      <div class="footer-controls">
+        <p id="app-version">v2.2.11</p>
+        <button id="theme-toggle" type="button">&#9680; Auto</button>
+      </div>
+    </footer>
 
     <!-- Incident reporting overlay -->
     <div id="incident-overlay" hidden>
@@ -241,7 +263,22 @@
       </div>
     </div>
 
-    <p style="text-align:center;font-size:0.7rem;color:var(--text-muted);opacity:0.6;padding:16px 0 8px;margin:0;">v2.2.11</p>
+    <!-- Automatic start: shown when the vehicle is at the first stop of a
+         departure that runs now (src/autostart/). Counts down 10 seconds,
+         then starts the journey by itself; the driver can start now, pick a
+         different service, or say not now. Text set by autoStartOverlay.js. -->
+    <div id="autostart-overlay" hidden>
+      <div id="autostart-modal" role="dialog" aria-modal="true" aria-labelledby="as-title">
+        <div id="as-title" class="as-title">Starting automatically</div>
+        <div id="as-service" class="as-service"></div>
+        <div id="as-detail" class="as-detail"></div>
+        <div id="as-countdown" class="as-countdown" aria-live="polite"></div>
+        <div id="as-message" class="as-message" role="alert" hidden></div>
+        <button id="as-start-now" class="as-btn as-btn-primary" type="button">Start now</button>
+        <button id="as-change" class="as-btn" type="button">Change service</button>
+        <button id="as-cancel" class="as-btn" type="button">Not now</button>
+      </div>
+    </div>
 
     <script src="lib/leaflet.min.js"></script>
     <script type="module" src="src/main.js"></script>

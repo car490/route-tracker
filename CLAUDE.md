@@ -30,7 +30,9 @@ Supabase schema lives at `supabase/schema.sql`. `graphhopper/` and `scripts/` ar
 used by more than one surface. `pcv-dashboard/busops/shared/` holds what BusOps' two surfaces
 (Driver, Announce) genuinely share with each other — **corrected 2026-09-17, this had drifted
 from icons/`brand-tokens.css` only**: it's now also the GPS/schedule-matching core
-(`gps.js`, `geofence.js`, `engine.js`, `scheduleTimeShift.js`, `geo.js`) and the announcement
+(`gps.js`, `geofence.js`, `engine.js`, `scheduleTimeShift.js`, `geo.js`, and since 2026-09-27
+`scheduleAutopilot.js`, the geofence + time departure matcher shared by Announce Solo and the
+Driver's automatic mode) and the announcement
 stack (`announceStates.js`, `announcementAudio.js`, `announcementCoverage.js`,
 `deviceStateSync.js`, `logger.js`, `escapeHtml.js`) — real cross-surface use, not
 folder guesswork: Announce Solo's autopilot (`announceSoloAutopilot.js`) imports
@@ -67,7 +69,7 @@ pcv-dashboard/                  # PCV Dashboard — Vercel app root
     │   │                         # stack, not just icons/brand-tokens.css (see above)
     │   ├── icons/
     │   ├── brand-tokens.css
-    │   ├── gps.js, geofence.js, engine.js, scheduleTimeShift.js, geo.js
+    │   ├── gps.js, geofence.js, engine.js, scheduleTimeShift.js, geo.js, scheduleAutopilot.js
     │   └── announceStates.js, announcementAudio.js, announcementCoverage.js,
     │       deviceStateSync.js, logger.js, escapeHtml.js
     ├── driver/                  # BusOps Driver (the PWA)
@@ -187,6 +189,14 @@ All drive the real app code with mocked Geolocation (not a fake simulation) — 
 testing timing, announcements, and the onboard display end-to-end without being in a moving
 vehicle. `demo.html` is a separate, fully scripted/fake visual simulation (no real app code)
 used for quick client-facing demos.
+
+```sh
+npm run verify:autostart           # headless pass/fail check of the Driver's automatic mode (~2 min)
+```
+Unlike the demos, this is a check, not a show: it runs the real Driver app with simulated GPS and a
+local Supabase stand-in (no network, nothing written anywhere) through auto-start, a drive to trip
+complete, Not now, Change service, a server refusal and a duty-card link. Exit 0 all passed, 1 a
+check failed. Not part of CI (it needs Chromium and takes about 2 minutes).
 
 ### Measure the real sign on the real tablet (read-only)
 ```sh
@@ -403,6 +413,30 @@ ES module with no circular imports; `gps.js` and `main.js` are the layers with s
 (geolocation watch, clock reads, network). `manualSelection.js` provides a fallback path for
 picking a service manually when there's no active scheduled duty. `diversionAlert.js` handles
 driver-triggered diversion alerts, wired into both the PWA and the onboard sign.
+
+**Display theme** (`driver/src/theme/`, decided 2026-09-27 — see `docs/DECISIONS.md`
+"Display theme"): light and dark palettes, both defined only in the two token blocks at the top
+of `driver/style.css` and measured by `tests/driverPalette.test.js`. Auto (the default) picks
+light between sunrise and sunset from the GPS position (`sunTimes.js`, on-device, offline);
+the bottom-right button pins Light or Dark. The Driver PWA uses the system font and no brand
+cyan — a Driver-only exception; don't reintroduce `brand-tokens.css`, Google Fonts or a colour
+literal outside those blocks (the test fails).
+
+**Screen scroll** (`driver/src/screens/scrollOnShow.js`, 2026-09-27): each of the six top-level
+screens opens scrolled to the top, and so does the visible one when the driver returns to the
+app. It watches the screens' `hidden` attribute, so any show path is covered; a new screen in
+`index.html` must be added to `SCREEN_IDS` (`tests/driverScreens.test.js` fails otherwise).
+Tracker tabs and inner scroll boxes (the stop list's centring) are deliberately left alone.
+
+**Automatic mode** (`driver/src/autostart/`, 2026-09-27, `docs/DECISIONS.md` "Driver automatic
+mode"): a third way to start a journey, beside the duty card and the manual picker. On the waiting
+(no duty) screen only, it matches the vehicle's GPS against every Local Bus departure running today
+with the same matcher Announce Solo uses (`shared/scheduleAutopilot.js`), shows a 10-second
+countdown (Start now / Change service / Not now) and then starts through `launchManualResult()`,
+the same path as the manual Start button. Never set up with a duty card (`?duties=`). It passes
+`rejectRefusal: true` to `selectServiceManually()` so a start the server refuses (e.g. cancelled
+today) is not started by itself; offline starts still queue. `tests/driverAutoStart.test.js` guards
+the `main.js` wiring.
 
 **OSRM/directions must always use scheduled stop coordinates, never the live GPS position** —
 this keeps route drawing and turn-by-turn stable regardless of GPS drift.

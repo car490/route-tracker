@@ -17,6 +17,11 @@ import { triggerDiversionAlert, clearDiversionAlert } from './diversionAlert.js'
 import { selectServiceManually } from './manualSelection.js';
 import { checkAnnouncementCoverage, describeMissingAudio } from './journeyAnnouncementPreflight.js';
 import { getStoredVehicle, storeVehicle } from './vehicleSetup.js';
+import { initTheme } from './theme/themeController.js';
+import { initScrollOnShow } from './screens/scrollOnShow.js';
+import { initAutoStart, getBrowserPosition } from './autostart/autoStartController.js';
+import { createAutoStartOverlay } from './autostart/autoStartOverlay.js';
+import { fetchCandidateData } from './autostart/candidates.js';
 import {
   captureAnnounceSetup, connectAnnounceLink, disconnectAnnounceLink,
   broadcastState, broadcastSchedule,
@@ -234,8 +239,7 @@ function runAnnouncementPreflight({ allStops, serviceCode, destination, journeyI
 function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex, serviceCode, servicePeriod, psvairEnabled, accentColor, primaryColor, onComplete }) {
   const myTrackerId = ++activeTrackerId; // see this var's own comment — race guard for completeTrip()'s delayed disconnect
   document.getElementById('picker').hidden  = true;
-  document.getElementById('tracker').hidden = false;
-  document.getElementById('route-header').scrollIntoView();
+  document.getElementById('tracker').hidden = false; // opens at the top: screens/scrollOnShow.js
 
   // No-op on any device not commissioned with a Controller target (see
   // announceLink.js) — safe to call unconditionally, including on the
@@ -552,7 +556,7 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
     onUpdate: ({ timing, nextStopIndex, speedMps, distanceToNextM, stopStates, earlyWait, atStop, approaching, departedStopIndex, lat, lon }) => {
       stopStatesRef = stopStates;
       lastStopIdx = nextStopIndex;
-      if (lat !== undefined) { lastLat = lat; lastLon = lon; }
+      if (lat !== undefined) { lastLat = lat; lastLon = lon; displayTheme?.setLocation(lat, lon); }
 
       // PSVAIR event 2 — approaching (fires once per stop off gps.js's
       // stopStates 'approaching' status, the same signal the stop list and
@@ -1084,6 +1088,15 @@ function showNoDutyCard() {
   document.getElementById('vehicle-setup').hidden = true;
   document.getElementById('tracker').hidden       = true;
   document.getElementById('ndc-vehicle-label').textContent = getStoredVehicle()?.label || '(none)';
+
+  // Automatic mode (src/autostart/) watches for a departure whenever this
+  // waiting screen is showing: after a journey ends, after backing out of
+  // the manual picker, or on boot. No-ops in duty-card mode (autoStart null).
+  if (autoStart) {
+    autoStart.journeyEnded();
+    autoStart.resume();
+    autoStart.start();
+  }
 }
 
 // ── Vehicle setup (one-time per device — which vehicle is this?) ──────────────
@@ -1217,11 +1230,21 @@ function initManualSelection() {
     }
   }
 
-  document.getElementById('ndc-manual-btn').onclick = () => {
+  // Also used by automatic mode's "Change service", preselecting the
+  // departure it had matched so the driver only has to adjust it.
+  async function open(preselect = null) {
     document.getElementById('no-duty-card').hidden  = true;
     document.getElementById('manual-picker').hidden = false;
-    loadServices();
-  };
+    await loadServices();
+    if (preselect && services[preselect.serviceCode]) {
+      serviceSelect.value = preselect.serviceCode;
+      populatePeriods();
+      if (services[preselect.serviceCode][preselect.period]) periodSelect.value = preselect.period;
+      updateTestingDepartureTime();
+    }
+  }
+
+  document.getElementById('ndc-manual-btn').onclick = () => open();
 
   document.getElementById('manual-back-btn').onclick = () => {
     document.getElementById('manual-picker').hidden = true;
@@ -1241,21 +1264,7 @@ function initManualSelection() {
         result.allStops = shiftStopTimes(result.allStops, minutesFromNow(result.allStops[0].time));
       }
 
-      document.getElementById('manual-picker').hidden = true;
-      await acquireWakeLock();
-
-      if (result.psvairEnabled) {
-        runAnnouncementPreflight({
-          allStops: result.allStops,
-          serviceCode: result.serviceCode,
-          destination: result.allStops[result.allStops.length - 1].name,
-          journeyId: result.journeyId,
-          vehicleId: result.vehicleId,
-          driverId: result.driverId,
-        });
-      }
-
-      runTracker(result);
+      await launchManualResult(result);
     } catch (err) {
       console.error('Manual service selection failed:', err);
       alert(`Couldn't start this service:\n${err.message}`);
@@ -1263,9 +1272,64 @@ function initManualSelection() {
       startBtn.disabled = false;
     }
   };
+
+  return { open };
+}
+
+// The one launch path for a service started without a duty card, whether
+// the driver tapped Start in the manual picker or automatic mode started it
+// (startAutomaticJourney below): same wake lock, announcement preflight and
+// tracker, so both behave identically downstream.
+async function launchManualResult(result) {
+  document.getElementById('manual-picker').hidden = true;
+  document.getElementById('no-duty-card').hidden  = true;
+  await acquireWakeLock();
+
+  if (result.psvairEnabled) {
+    runAnnouncementPreflight({
+      allStops: result.allStops,
+      serviceCode: result.serviceCode,
+      destination: result.allStops[result.allStops.length - 1].name,
+      journeyId: result.journeyId,
+      vehicleId: result.vehicleId,
+      driverId: result.driverId,
+    });
+  }
+
+  runTracker(result);
+}
+
+// ── Automatic mode ────────────────────────────────────────────────────────────
+// See src/autostart/autoStartController.js and docs/DECISIONS.md "Driver
+// automatic mode". Starts exactly what the manual picker would have started
+// for this departure; shiftMinutes is only ever non-zero in ?debug testing.
+async function startAutomaticJourney(candidate, { shiftMinutes }) {
+  const vehicleId = getStoredVehicle()?.id;
+  const period = `${candidate.label} (${candidate.departureTime})`;
+  const result = await selectServiceManually(candidate.departureId, candidate.serviceCode, period, vehicleId, {
+    onComplete: showNoDutyCard,
+    rejectRefusal: true, // a departure the server says isn't running today is never started by itself
+  });
+  if (shiftMinutes && result.allStops.length) {
+    result.allStops = shiftStopTimes(result.allStops, shiftMinutes);
+  }
+  await launchManualResult(result);
+}
+
+async function fetchJson(path) {
+  const res = await sbFetch(path);
+  if (!res.ok) throw new Error(`${path.split('?')[0]} ${res.status}`);
+  return res.json();
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
+
+// Display theme (src/theme/): Auto follows sunrise/sunset, using the live GPS
+// position once tracking supplies one (runTracker's onUpdate above).
+let displayTheme = null;
+
+// Automatic mode (src/autostart/): only without a duty card; see init().
+let autoStart = null;
 
 async function init() {
   // One-time capture of the duty-card bearer token (`?token=`) and journey
@@ -1277,6 +1341,16 @@ async function init() {
   // captured) — this is why it's the very first statement in init(), not
   // inlined further down where the old `dutiesParam` read used to live.
   const dutiesParam = captureDutyLinkParams();
+
+  // Local-only (no network), so safe straight after the capture above.
+  displayTheme = initTheme({
+    button: document.getElementById('theme-toggle'),
+    metaThemeColor: document.querySelector('meta[name="theme-color"]'),
+  });
+
+  // Every screen opens scrolled to the top, and so does the visible one when
+  // the driver comes back to the app. Local-only, like the theme above.
+  initScrollOnShow();
 
   // Retries any trip(s) that failed to reach Supabase at completion time on
   // a previous visit (src/localStore.js's queue) — covers the app being
@@ -1317,8 +1391,28 @@ async function init() {
   // Wake Lock API failure rather than "haven't pressed Start yet".
   acquireWakeLock();
 
-  initManualSelection();
+  const manualSelection = initManualSelection();
   const vehicleSetup = initVehicleSetup();
+
+  // Automatic mode: without a duty card, the waiting screen starts the
+  // departure the vehicle is at by itself (10 s countdown, Start now /
+  // Change service / Not now). A duty card is ops' explicit assignment and
+  // always wins, so there it is never set up.
+  if (!dutiesParam) {
+    autoStart = initAutoStart({
+      loadCandidates: () => fetchCandidateData({ fetchJson }),
+      getPosition: () => getBrowserPosition(),
+      ui: createAutoStartOverlay(document),
+      onStart: startAutomaticJourney,
+      onChange: (candidate) => manualSelection.open({
+        serviceCode: candidate.serviceCode,
+        period: `${candidate.label} (${candidate.departureTime})`,
+      }),
+      isActive: () => !document.getElementById('no-duty-card').hidden,
+      testing: DEBUG,
+    });
+    document.getElementById('ndc-auto-note').hidden = false;
+  }
   document.getElementById('ndc-change-vehicle-btn').onclick = () => vehicleSetup.show();
 
   // One-time commissioning step for the Driver -> Controller push feed (see

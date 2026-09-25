@@ -319,6 +319,37 @@ Chrome DevTools can simulate a GPS position so you can test arrival detection wi
 1. Click the ⏭ button next to a future stop in the list
 2. The tracker jumps to that stop as the next expected stop
 
+### Test automatic mode (no duty card)
+**Quick automated check first:** `npm run verify:autostart` (from `pcv-dashboard/busops/`) runs the real
+app in headless Chromium with simulated GPS and a local stand-in for Supabase (no network, no data
+touched): auto-start after the countdown and a drive through every stop to trip complete, Not now,
+Change service, a server refusal, and a duty-card link. About 2 minutes; exit 0 all passed, 1 a check
+failed. The manual steps below are for a real device against dev Supabase.
+
+Automatic mode (`driver/src/autostart/`, `docs/DECISIONS.md` "Driver automatic mode") runs on the
+waiting ("No duty assigned") screen: a device with a commissioned vehicle and no `?duties=` link. It
+checks GPS every 5 seconds and offers a Local Bus departure that runs today when the vehicle is within
+150 m of its first stop, from 15 minutes before to 30 minutes after its time.
+
+1. Open **http://localhost:8080/?debug** (debug lets you test at any time of day: the timetable is
+   shifted to now, the same as a Solo device's `testing_mode`). Without `?debug`, set your computer's
+   clock or pick a departure due within the window.
+2. Commission a vehicle if asked. The waiting screen should say *"Your service starts automatically
+   when you are at its first stop."*
+3. In DevTools **Sensors**, set the location to a departure's first stop
+4. Within ~5 seconds an overlay appears: **Starting automatically**, the service and its departure,
+   and **Starting in 10 seconds** counting down, with **Start now**, **Change service**, **Not now**
+5. Let it reach zero: the journey starts exactly as the manual Start button would (tracker screen,
+   announcements if PSVAIR, Controller feed)
+6. Repeat and check each button:
+   - **Start now** starts at once
+   - **Not now** closes it, and the same departure is not offered again today
+   - **Change service** opens the manual picker with that service already selected
+7. A departure that isn't running today (for example cancelled via a service exception) is refused by
+   the server: the overlay says *"Couldn't start … Choose the service yourself."* and nothing starts.
+   Offline, it starts anyway and the start is queued, the same as the manual picker.
+8. With a duty-card link (`?duties=`), automatic mode must never appear
+
 ---
 
 ## 14. Test: Driver PWA — debug mode

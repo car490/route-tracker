@@ -113,10 +113,10 @@ the rest of the product to the same bar.
 | White text on `--operator-accent` default fill (`.btn-primary`) | `#FFFFFF` | `#00B4D8` | 2.46:1 | 4.5:1 text | ❌ **fail** |
 | `on-time` status | `#10B981` | `#1B2428` (driver PWA bg) | 6.23:1 | 4.5:1 text | ✅ pass |
 | `early` status | `#F59E0B` | `#1B2428` | 7.35:1 | 4.5:1 text | ✅ pass |
-| `late` status | `#EF4444` | `#242F35` (card surface) | 3.64:1 | 4.5:1 text | ❌ **fail** (this is the status most likely to matter to a driver under time pressure) |
+| `late` status | `#EF4444` | `#242F35` (card surface) | 3.64:1 | 4.5:1 text | ❌ **fail** (this is the status most likely to matter to a driver under time pressure) — ✅ **fixed 2026-09-27**: the Driver PWA's new palette puts `late` at 7.5:1 (light) / 8.0:1 (dark) on its tinted status card, see §3.3 |
 | `sidebar-accent-tint` on `sidebar-bg` (dashboard) | `#8CDDED` | `#475569` | 4.94:1 | 4.5:1 text | ✅ pass — already deliberately tuned as its own token, see `brand-tokens.css`'s comment on `--pcv-color-sidebar-accent-tint` |
 | `#app-brand` mark, `.cm-wordmark` (driver PWA footer, "PCV Technologies") | `#00B4D8` blended at 0.55 opacity → `#10788F` | `#242F35` | 2.68:1 | 4.5:1 text | ❌ **fail** |
-| `#app-brand` mark, `.cm-powered-by` ("From") | `#8BA4B0` blended at 0.55 opacity → `#5D6F79` | `#242F35` | 2.62:1 | 4.5:1 text | ❌ **fail** |
+| `#app-brand` mark, `.cm-powered-by` ("From") | `#8BA4B0` blended at 0.55 opacity → `#5D6F79` | `#242F35` | 2.62:1 | 4.5:1 text | ❌ **fail** — ✅ both `#app-brand` rows **fixed 2026-09-27**, see §3.3 |
 | Onboard sign headline/main text (`--ep-ink` on `--ep-paper`, `busops/announce/onboard.css`) — added 2026-09-08, part of the "Accessible surface palette" in `docs/BRAND.md` | `#000000` | `#F9FAF4` | 20.01:1 | 4.5:1 text | ✅ pass |
 
 Dropped from this pass (resolved, no longer applicable): the original audit's Phil Haines
@@ -140,6 +140,12 @@ wrapper opacity — mirroring the dashboard's existing fix, with hierarchy carri
 alone instead — would bring both to 4.5:1+ (5.56:1 / 5.24:1 unwrapped). Logged as a
 remediation item rather than changed here — this playbook pass is about establishing the
 standard, not patching the product.
+
+**Resolved 2026-09-27** by the Driver PWA display-theme rework (`docs/DECISIONS.md` "Display
+theme"): the wrapper opacity is gone, the mark's text is 12px and up, and it is drawn in the
+theme's own ink and muted colours. Every Driver PWA text pair, in both the light and dark
+themes, is now measured by `busops/tests/driverPalette.test.js` (≥ 4.5:1; on-time/early/late
+≥ 7:1 on the tinted status card), so this class of bug fails CI instead of shipping.
 
 ### 3.4 Remaining findings — tracked in `docs/TODO.md`
 
@@ -165,6 +171,10 @@ the 4.5:1 bar) and the driver PWA's `#app-brand` attribution mark (§3.3).
   at full size (e.g. a version-number footer).
 - Sans-serif only for UI and body copy — CoachMate's `Plus Jakarta Sans` already satisfies this
   everywhere it's used; keep it as the one brand typeface rather than introducing a second.
+  **One recorded exception (2026-09-27): the Driver PWA uses the device's system font**
+  (Roboto on Android, `-apple-system`/Segoe UI elsewhere) as part of its display-theme rework —
+  chosen by the owner for glance legibility in the cab, and it removes the app's only
+  third-party font request. See `docs/DECISIONS.md` "Display theme".
 - Left-align body text. Never justify.
 - Avoid italics for body copy (harder to read for low-vision and dyslexic users).
 - Line height ≥ 1.4 for body text (already the case: driver PWA `style.css`
