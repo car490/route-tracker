@@ -37,6 +37,7 @@
 
   --scrim:          rgba(28, 35, 51, 0.6);
   --shadow:         rgba(28, 35, 51, 0.14);
+  --logo-plate:     #FFFFFF; /* operator logos are drawn for white */
 }
 
 :root[data-theme="dark"] {
@@ -65,6 +66,7 @@
 
   --scrim:          rgba(0, 0, 0, 0.75);
   --shadow:         rgba(0, 0, 0, 0.45);
+  --logo-plate:     #FFFFFF; /* operator logos are drawn for white */
 }
 
 *,
@@ -487,6 +489,39 @@ body {
 
 .ndc-secondary-btn:active {
   background: var(--surface-2);
+}
+
+/* ── Operator logo (src/brandLogo.js) ────────────
+   Replaces the company name in .picker-brand / .ndc-brand. The plate is
+   about the width of the text and buttons below it, and the logo on it is
+   capped in height so a tall logo can't push the screen down. */
+
+.picker-brand.has-logo,
+.ndc-brand.has-logo {
+  display: flex;
+  justify-content: center;
+  line-height: 0;
+}
+
+.brand-plate {
+  display: inline-flex;
+  background: var(--logo-plate);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  max-width: 100%;
+}
+
+.picker-brand.has-logo + .picker-subtitle {
+  margin-top: 0.75rem;
+}
+
+.brand-logo {
+  display: block;
+  width: min(18rem, 100%);
+  height: auto;
+  max-height: 6rem;
+  object-fit: contain;
 }
 
 /* ── Picker screen ───────────────────────────── */

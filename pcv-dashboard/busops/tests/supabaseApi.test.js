@@ -5,7 +5,7 @@
  * so anything importing supabaseApi.js transitively needs a DOM global —
  * plain Node (this project's default test environment) doesn't have one.
  */
-import { fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyName, preloadAllRoutes, captureDutyLinkParams, sbFetch } from '../driver/src/supabaseApi.js';
+import { fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyBranding, preloadAllRoutes, captureDutyLinkParams, sbFetch } from '../driver/src/supabaseApi.js';
 import { getCachedStops } from '../driver/src/localStore.js';
 
 // schedule_view is one row per stop, not per departure — a two-stop
@@ -168,33 +168,40 @@ describe('fetchLocalBusVehicles', () => {
   });
 });
 
-describe('fetchCompanyName', () => {
+describe('fetchCompanyBranding', () => {
   const originalFetch = global.fetch;
 
   afterEach(() => {
     global.fetch = originalFetch;
   });
 
-  test('queries the companies table', async () => {
+  test('queries the companies table for the name and logo path', async () => {
     global.fetch = jest.fn(async () => ({ ok: true, json: async () => [] }));
-    await fetchCompanyName();
+    await fetchCompanyBranding();
     const [url] = global.fetch.mock.calls[0];
-    expect(String(url)).toContain('/rest/v1/companies');
+    expect(String(url)).toContain('/rest/v1/companies?select=name,logo_path');
   });
 
-  test('returns the first row\'s name', async () => {
-    global.fetch = jest.fn(async () => ({ ok: true, json: async () => [{ name: 'Acme Coaches' }] }));
-    expect(await fetchCompanyName()).toBe('Acme Coaches');
+  test('returns the name and the logo\'s public operator-assets URL', async () => {
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => [{ name: 'Acme Coaches', logo_path: 'co-1/logo.png' }] }));
+    const branding = await fetchCompanyBranding();
+    expect(branding.name).toBe('Acme Coaches');
+    expect(branding.logoUrl).toMatch(/\/storage\/v1\/object\/public\/operator-assets\/co-1\/logo\.png$/);
   });
 
-  test('returns null when no company row exists', async () => {
+  test('logoUrl is null when the company has no logo', async () => {
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => [{ name: 'Acme Coaches', logo_path: null }] }));
+    expect(await fetchCompanyBranding()).toEqual({ name: 'Acme Coaches', logoUrl: null });
+  });
+
+  test('returns nulls when no company row exists', async () => {
     global.fetch = jest.fn(async () => ({ ok: true, json: async () => [] }));
-    expect(await fetchCompanyName()).toBeNull();
+    expect(await fetchCompanyBranding()).toEqual({ name: null, logoUrl: null });
   });
 
   test('throws on a non-ok response rather than returning a stale/empty name silently', async () => {
     global.fetch = jest.fn(async () => ({ ok: false, status: 500 }));
-    await expect(fetchCompanyName()).rejects.toThrow(/500/);
+    await expect(fetchCompanyBranding()).rejects.toThrow(/500/);
   });
 });
 
