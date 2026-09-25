@@ -18,7 +18,7 @@ export const BEN = Object.freeze({
   voiceSettings: Object.freeze({
     stability: 0.5,
     similarity_boost: 1.0,
-    style: 0, // audition decides 0 vs 0.5 (plan, step 6)
+    style: 0, // John, 2026-09-27: same style on dev and production, no audition
     use_speaker_boost: true,
     speed: 0.8, // John, 2026-09-24 (0.9 sounded rushed on the first dev clip)
   }),
