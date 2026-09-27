@@ -187,6 +187,23 @@ function isCandidateRunningOn(candidate, dateStr, isoDow, termDateRanges) {
 }
 
 /**
+ * Whether a candidate departure runs on now's local calendar day (days of
+ * week, school term time, added/removed service exceptions). The Driver
+ * PWA's automatic mode matches against every departure the company runs, so
+ * it filters with this before findScheduleMatch; Solo gets the same effect
+ * from isWithinDepartureWakeWindow below, which uses the same predicate.
+ *
+ * @param {{daysOfWeek: number[], schoolTermTime?: boolean, removedDates?: string[], addedDates?: string[]}} candidate
+ * @param {Date} now
+ * @param {Array<{start_date: string, end_date: string}>} [termDateRanges]
+ * @returns {boolean}
+ */
+export function isRunningOn(candidate, now, termDateRanges = []) {
+  const isoDow = now.getDay() === 0 ? 7 : now.getDay();
+  return isCandidateRunningOn(candidate, localDateString(now), isoDow, termDateRanges);
+}
+
+/**
  * Whether "now" falls inside the wake window around any candidate's own
  * scheduled departure — a Solo device only wakes (GPS polling, and the
  * screen itself — see announceSoloAutopilot.js's isAwake) within

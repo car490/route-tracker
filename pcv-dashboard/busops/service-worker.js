@@ -55,6 +55,10 @@ const STATIC_ASSETS = [
   './driver/src/theme/themePreference.js',
   './driver/src/theme/sunTimes.js',
   './driver/src/screens/scrollOnShow.js',
+  './driver/src/autostart/autoStartController.js',
+  './driver/src/autostart/autoStartState.js',
+  './driver/src/autostart/autoStartOverlay.js',
+  './driver/src/autostart/candidates.js',
 ];
 
 const TILE_CACHE = [

@@ -11,14 +11,15 @@
 import fs from 'fs';
 import path from 'path';
 import { SCREEN_IDS } from '../driver/src/screens/scrollOnShow.js';
+import { OVERLAY_IDS } from '../driver/src/autostart/autoStartOverlay.js';
 
 const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'driver', 'index.html'), 'utf8');
 const mainJs = fs.readFileSync(path.join(root, 'driver', 'src', 'main.js'), 'utf8');
 
 // Body-level elements that start hidden but are not screens: a warning
-// banner and two modal overlays drawn over whichever screen is showing.
-const NOT_SCREENS = ['wakelock-warning', 'incident-overlay', 'trip-complete-overlay'];
+// banner and three modal overlays drawn over whichever screen is showing.
+const NOT_SCREENS = ['wakelock-warning', 'incident-overlay', 'trip-complete-overlay', 'autostart-overlay'];
 
 // Top-level = a direct child of <body> (parsed, not guessed from indentation:
 // #tracker's own children are not indented in index.html).
@@ -38,4 +39,28 @@ test('main.js wires the slice up and no longer relies on scrollIntoView', () => 
   expect(mainJs).toMatch(/import \{ initScrollOnShow \} from '\.\/screens\/scrollOnShow\.js';/);
   expect(mainJs).toMatch(/initScrollOnShow\(\)/);
   expect(mainJs).not.toMatch(/route-header'\)\.scrollIntoView/);
+});
+
+describe('automatic start overlay', () => {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+
+  test('has every element autoStartOverlay.js drives', () => {
+    for (const id of OVERLAY_IDS) expect(doc.getElementById(id)).not.toBeNull();
+  });
+
+  test('is a labelled modal dialog, hidden until a match', () => {
+    const overlay = doc.getElementById('autostart-overlay');
+    expect(overlay.hidden).toBe(true);
+    const dialog = overlay.querySelector('[role="dialog"]');
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+    expect(doc.getElementById(dialog.getAttribute('aria-labelledby'))).not.toBeNull();
+  });
+
+  test('its three buttons are real buttons', () => {
+    for (const id of ['as-start-now', 'as-change', 'as-cancel']) {
+      const el = doc.getElementById(id);
+      expect(el.tagName).toBe('BUTTON');
+      expect(el.getAttribute('type')).toBe('button');
+    }
+  });
 });
