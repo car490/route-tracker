@@ -30,7 +30,9 @@ Supabase schema lives at `supabase/schema.sql`. `graphhopper/` and `scripts/` ar
 used by more than one surface. `pcv-dashboard/busops/shared/` holds what BusOps' two surfaces
 (Driver, Announce) genuinely share with each other — **corrected 2026-09-17, this had drifted
 from icons/`brand-tokens.css` only**: it's now also the GPS/schedule-matching core
-(`gps.js`, `geofence.js`, `engine.js`, `scheduleTimeShift.js`, `geo.js`) and the announcement
+(`gps.js`, `geofence.js`, `engine.js`, `scheduleTimeShift.js`, `geo.js`, and since 2026-09-27
+`scheduleAutopilot.js`, the geofence + time departure matcher shared by Announce Solo and the
+Driver's automatic mode) and the announcement
 stack (`announceStates.js`, `announcementAudio.js`, `announcementCoverage.js`,
 `deviceStateSync.js`, `logger.js`, `escapeHtml.js`) — real cross-surface use, not
 folder guesswork: Announce Solo's autopilot (`announceSoloAutopilot.js`) imports
@@ -67,7 +69,7 @@ pcv-dashboard/                  # PCV Dashboard — Vercel app root
     │   │                         # stack, not just icons/brand-tokens.css (see above)
     │   ├── icons/
     │   ├── brand-tokens.css
-    │   ├── gps.js, geofence.js, engine.js, scheduleTimeShift.js, geo.js
+    │   ├── gps.js, geofence.js, engine.js, scheduleTimeShift.js, geo.js, scheduleAutopilot.js
     │   └── announceStates.js, announcementAudio.js, announcementCoverage.js,
     │       deviceStateSync.js, logger.js, escapeHtml.js
     ├── driver/                  # BusOps Driver (the PWA)

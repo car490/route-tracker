@@ -11,7 +11,7 @@
 import {
   findScheduleMatch, findTestingScheduleMatch, isJourneyComplete, isWithinDepartureWakeWindow,
   describeConfigUpdate,
-} from '../announce/src/scheduleAutopilot.js';
+} from '../shared/scheduleAutopilot.js';
 
 // Bus depot terminus — both an outbound and a return service happen to
 // start/end here, per the shared-terminus test below.

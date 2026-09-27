@@ -33,7 +33,7 @@ const STATIC_ASSETS = [
   './announce/src/announceDeviceSetup.js',
   './announce/src/announceGps.js',
   './announce/src/announceSoloAutopilot.js',
-  './announce/src/scheduleAutopilot.js',
+  './shared/scheduleAutopilot.js',
   './driver/src/announcements.js',
   './driver/src/directions.js',
   './shared/engine.js',
