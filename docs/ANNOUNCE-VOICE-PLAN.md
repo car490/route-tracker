@@ -10,8 +10,9 @@ Implements `docs/announce-voice-swap-handoff.md`, adapted to how the codebase ac
 | Review | **Play first, review after.** New Ben clips play straight away and show as unreviewed; John approves them or sets `spoken_name`, which regenerates the clip. (The brief said only approved clips ship; John accepted this trade-off to avoid silence at a renamed stop.) |
 | Scope | **Only clips a route actually uses** are rendered with ElevenLabs. A daily character cap protects the monthly credits. Dev can stay on Azure except when testing. |
 | Voice speed | **0.80** (was 0.90; the first dev clip sounded rushed) |
-| Other settings | stability 0.50, similarity boost 1.00, style 0 vs 0.50 decided by ear in the audition, speaker boost on (confirm in the app) |
+| Other settings | stability 0.50, similarity boost 1.00, **style 0**, speaker boost on. **Same settings on dev and production** (John, 2026-09-27): production uses the style dev already uses, so there is no style audition |
 | Comma pauses | Spoken text gets a space after a comma followed by a letter ("Boston,College" → "Boston, College"); speech only, sign and keys unchanged |
+| API key | **One ElevenLabs key for dev and production** (John, 2026-09-27): the same `ELEVENLABS_API_KEY` secret is set on both projects. Both draw on one monthly credit allowance, and each project's daily cap (`elevenlabs_daily_char_cap`) counts only its own renders, so the two caps together must stay under the plan's credits |
 | Loudness | Speaker output no more than 90 dB, **set by hand on each vehicle's amplifier**. No software cap or calibration clip. The clips only need to be consistently levelled so one amplifier setting suits them all |
 
 ## How it works today (the base we build on)
@@ -35,7 +36,7 @@ environments. Dev gets only what testing needs.
 ## Design (revised 2026-09-24)
 1. **ElevenLabs in the pipeline.** `generate-announcement-clip` renders with ElevenLabs when `app_config.announcement_voice`
    names the Ben voice (per environment), then trims and loudness-normalises the MP3 in the function itself. Settings
-   (model, stability, similarity, style, speed 0.90, speaker boost) are pinned in one config and folded into each clip's hash.
+   (model, stability, similarity, style, speed 0.80, speaker boost) are pinned in one config and folded into each clip's hash.
 2. **Never overwrite Ben.** The function refuses to replace a clip rendered by the primary (Ben) voice with any other voice.
 3. **Source indicator.** `announcement_clips` records voice (exists), plus model, settings hash, and `reviewed_at`/`reviewed_by`.
 4. **`stops.spoken_name`** (step 1, done on dev): speech-only respelling; changing it regenerates the clip.
@@ -87,7 +88,7 @@ existing Azure clips (measured first), so switching voices doesn't change how lo
 3. Shared audio module (trim/normalise), tests first; ElevenLabs render path in the Edge Function; never-overwrite guard; source columns. **Done on dev** (first Ben clip -21.01 LUFS; guard verified live).
 4. Credit safeguards: used-stops-only scope, daily cap (`app_config.elevenlabs_daily_char_cap`, default 6000, `elevenlabs_usage` log), stale-Ben-clip alert. **Done on dev** (all three verified live in one run, no credits spent).
 5. Review page and Controller export. **Done on dev**: "Announcement Clips" page in the PCV Dashboard (John chose it over a local page) with approve-by-version and an audit log; `npm run export:controller-clips` (dry-run tested against dev and production); the old Azure generator refuses to overwrite exported clips.
-6. Rollout: audition about 10 hard names at style 0 vs 0.50; John picks; licence and listing check recorded;
+6. Rollout: style is settled (style 0, same as dev) and the key is shared (one key on both projects), so no audition; licence and listing check recorded;
    dev run, then listen on the tablet; production switch; `docs/DECISIONS.md` entry.
 
 ## Not in scope
