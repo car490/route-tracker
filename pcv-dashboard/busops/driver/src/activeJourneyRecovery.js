@@ -34,9 +34,29 @@ export const BOOT_ACTION = Object.freeze({
 // if none/not found/lookup failed (a failed lookup is treated as "none" by
 // the caller, not surfaced here — this function only sees the resolved
 // value).
-export function resolveBootAction({ dutiesParam, storedVehicleId, activeJourney }) {
+// now: injectable clock for tests.
+//
+// Only a journey started today (UK date) is resumed. One left 'in_progress'
+// from an earlier day was abandoned mid-route (a test drive, a trip that
+// never reached its last stop), not interrupted by a reload — resuming it
+// put the driver on an old trip's "select a starting stop" screen instead
+// of "No duty assigned". Owner's cut-off, 2026-09-27: end of the day.
+export function resolveBootAction({ dutiesParam, storedVehicleId, activeJourney, now = new Date() }) {
   if (dutiesParam) return BOOT_ACTION.DUTY_CARD;
   if (!storedVehicleId) return BOOT_ACTION.VEHICLE_SETUP;
-  if (activeJourney) return BOOT_ACTION.RESUME_ACTIVE;
+  if (activeJourney && startedToday(activeJourney.started_at, now)) return BOOT_ACTION.RESUME_ACTIVE;
   return BOOT_ACTION.NO_DUTY;
+}
+
+const ukDate = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit',
+});
+
+// A missing or unparseable started_at can't be shown to be today, so it
+// isn't resumed; the driver can still pick the same departure manually.
+export function startedToday(startedAt, now) {
+  if (!startedAt) return false;
+  const started = new Date(startedAt);
+  if (Number.isNaN(started.getTime())) return false;
+  return ukDate.format(started) === ukDate.format(now);
 }

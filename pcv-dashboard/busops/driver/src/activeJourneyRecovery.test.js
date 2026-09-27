@@ -5,7 +5,10 @@
 // in supabaseApi.js) aren't tested here, only the decision logic.
 
 import { describe, it, expect } from 'vitest';
-import { resolveBootAction, BOOT_ACTION } from './activeJourneyRecovery.js';
+import { resolveBootAction, startedToday, BOOT_ACTION } from './activeJourneyRecovery.js';
+
+// Midday BST, 27 Sep 2026.
+const NOW = new Date('2026-09-27T11:00:00Z');
 
 describe('resolveBootAction', () => {
   it('always prefers the duty-card flow when a duties param is present', () => {
@@ -28,7 +31,8 @@ describe('resolveBootAction', () => {
     expect(resolveBootAction({
       dutiesParam: null,
       storedVehicleId: 'veh-1',
-      activeJourney: { journey_id: 'j-active' },
+      activeJourney: { journey_id: 'j-active', started_at: '2026-09-27T06:30:00Z' },
+      now: NOW,
     })).toBe(BOOT_ACTION.RESUME_ACTIVE);
   });
 
@@ -46,5 +50,37 @@ describe('resolveBootAction', () => {
       storedVehicleId: null,
       activeJourney: null,
     })).toBe(BOOT_ACTION.DUTY_CARD);
+  });
+
+  it('does not resume a journey left in progress from an earlier day', () => {
+    expect(resolveBootAction({
+      dutiesParam: null,
+      storedVehicleId: 'veh-1',
+      activeJourney: { journey_id: 'j-old', started_at: '2026-09-16T09:29:24Z' },
+      now: NOW,
+    })).toBe(BOOT_ACTION.NO_DUTY);
+  });
+
+  it('does not resume a journey with no start time', () => {
+    expect(resolveBootAction({
+      dutiesParam: null,
+      storedVehicleId: 'veh-1',
+      activeJourney: { journey_id: 'j-active', started_at: null },
+      now: NOW,
+    })).toBe(BOOT_ACTION.NO_DUTY);
+  });
+});
+
+describe('startedToday', () => {
+  it('uses the UK date, not UTC: 23:30 UTC in summer is already tomorrow in London', () => {
+    expect(startedToday('2026-09-26T23:30:00Z', NOW)).toBe(true);
+  });
+
+  it('a journey from late yesterday (UK) is not today', () => {
+    expect(startedToday('2026-09-26T22:30:00Z', NOW)).toBe(false);
+  });
+
+  it('rejects an unparseable start time', () => {
+    expect(startedToday('not a date', NOW)).toBe(false);
   });
 });
