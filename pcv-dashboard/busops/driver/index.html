@@ -261,6 +261,23 @@
       </div>
     </div>
 
+    <!-- Automatic start: shown when the vehicle is at the first stop of a
+         departure that runs now (src/autostart/). Counts down 10 seconds,
+         then starts the journey by itself; the driver can start now, pick a
+         different service, or say not now. Text set by autoStartOverlay.js. -->
+    <div id="autostart-overlay" hidden>
+      <div id="autostart-modal" role="dialog" aria-modal="true" aria-labelledby="as-title">
+        <div id="as-title" class="as-title">Starting automatically</div>
+        <div id="as-service" class="as-service"></div>
+        <div id="as-detail" class="as-detail"></div>
+        <div id="as-countdown" class="as-countdown" aria-live="polite"></div>
+        <div id="as-message" class="as-message" role="alert" hidden></div>
+        <button id="as-start-now" class="as-btn as-btn-primary" type="button">Start now</button>
+        <button id="as-change" class="as-btn" type="button">Change service</button>
+        <button id="as-cancel" class="as-btn" type="button">Not now</button>
+      </div>
+    </div>
+
     <script src="lib/leaflet.min.js"></script>
     <script type="module" src="src/main.js"></script>
     <script>

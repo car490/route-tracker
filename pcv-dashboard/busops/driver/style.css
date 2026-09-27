@@ -1465,3 +1465,110 @@ body {
 .tc-ok-btn:active {
   opacity: 0.85;
 }
+
+/* ── Automatic start ───────────────────────────── */
+/* Countdown panel for automatic mode (src/autostart/). Same overlay pattern
+   as the trip-complete panel; large buttons so the driver can stop or
+   change it with one tap. */
+
+#autostart-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+#autostart-modal {
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 420px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.as-title {
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.as-service {
+  font-family: var(--font-sans);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.25;
+}
+
+.as-detail {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  color: var(--text-muted);
+}
+
+.as-countdown {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  margin: 0.4rem 0;
+}
+
+.as-message {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--late);
+  background: var(--late-tint);
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.as-btn {
+  min-height: 3rem;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  color: var(--text);
+  border: 2px solid var(--border-strong);
+  border-radius: 8px;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.as-btn:active {
+  background: var(--surface-2);
+}
+
+.as-btn-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
+
+.as-btn-primary:active {
+  background: var(--accent-pressed);
+}
+
+.as-btn:disabled {
+  cursor: default;
+  color: var(--text-muted);
+}
+
+.as-btn-primary:disabled {
+  color: var(--on-accent);
+}
+
