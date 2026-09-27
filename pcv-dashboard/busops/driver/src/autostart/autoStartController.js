@@ -49,6 +49,11 @@ export function initAutoStart({
   ui,
   onStart,
   onChange = () => {},
+  // Only look for a match while this returns true. main.js passes "the
+  // waiting (no duty) screen is showing", so an offer can never appear over
+  // a picker, the vehicle setup screen or a running journey, whichever path
+  // led there.
+  isActive = () => true,
   testing = false,
   config = MATCH_CONFIG,
   setInterval: setIntervalFn = globalThis.setInterval.bind(globalThis),
@@ -110,7 +115,7 @@ export function initAutoStart({
   }
 
   async function poll() {
-    if (state.phase !== 'watching' || polling) return;
+    if (state.phase !== 'watching' || polling || !isActive()) return;
     polling = true;
     try {
       const clock = now();
@@ -124,7 +129,7 @@ export function initAutoStart({
         try { data = await loadCandidates(); } catch { return; } // offline, nothing cached: try next tick
       }
       const position = await getPosition();
-      if (!position || state.phase !== 'watching') return;
+      if (!position || state.phase !== 'watching' || !isActive()) return;
 
       const candidates = data.candidates.filter((c) => isRunningOn(c, clock, data.termDateRanges));
       const params = { candidates, lat: position.lat, lon: position.lon, now: clock, ...config };
