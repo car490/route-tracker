@@ -96,6 +96,12 @@ jobs:
     needs: [pwa-test, dashboard-lint, dashboard-build, supply-chain]
     if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
     runs-on: ubuntu-latest
+    # One deploy to this site at a time, never cancelled mid-deploy. Together
+    # with the head check below, an older commit's run can't overwrite a
+    # newer one (PRs #100/#101 did on 2026-09-27; tests/ciDeploy.test.js).
+    concurrency:
+      group: deploy-driver-${{ github.ref }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -103,9 +109,24 @@ jobs:
           node-version: '22'
           cache: 'npm'
           cache-dependency-path: pcv-dashboard/busops/package-lock.json
+      # Skip when develop has moved on: the newer commit's run deploys it.
+      - name: Check this commit is still the head of develop
+        id: head
+        run: |
+          head=$(git ls-remote --exit-code origin refs/heads/develop | cut -f1)
+          # A failed lookup must fail the job, not look like "moved on".
+          [ -n "$head" ] || { echo "::error::Could not read the head of develop."; exit 1; }
+          if [ "$head" = "$GITHUB_SHA" ]; then
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Not deploying $GITHUB_SHA: develop is now at $head, whose run deploys it."
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+          fi
       - run: npm ci
+        if: steps.head.outputs.latest == 'true'
         working-directory: pcv-dashboard/busops
       - run: npx wrangler deploy --env dev
+        if: steps.head.outputs.latest == 'true'
         working-directory: pcv-dashboard/busops
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -116,6 +137,12 @@ jobs:
     needs: [pwa-test, dashboard-lint, dashboard-build, supply-chain]
     if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     runs-on: ubuntu-latest
+    # One deploy to this site at a time, never cancelled mid-deploy. Together
+    # with the head check below, an older commit's run can't overwrite a
+    # newer one (PRs #100/#101 did on 2026-09-27; tests/ciDeploy.test.js).
+    concurrency:
+      group: deploy-driver-${{ github.ref }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -123,9 +150,24 @@ jobs:
           node-version: '22'
           cache: 'npm'
           cache-dependency-path: pcv-dashboard/busops/package-lock.json
+      # Skip when master has moved on: the newer commit's run deploys it.
+      - name: Check this commit is still the head of master
+        id: head
+        run: |
+          head=$(git ls-remote --exit-code origin refs/heads/master | cut -f1)
+          # A failed lookup must fail the job, not look like "moved on".
+          [ -n "$head" ] || { echo "::error::Could not read the head of master."; exit 1; }
+          if [ "$head" = "$GITHUB_SHA" ]; then
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Not deploying $GITHUB_SHA: master is now at $head, whose run deploys it."
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+          fi
       - run: npm ci
+        if: steps.head.outputs.latest == 'true'
         working-directory: pcv-dashboard/busops
       - run: npx wrangler deploy
+        if: steps.head.outputs.latest == 'true'
         working-directory: pcv-dashboard/busops
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

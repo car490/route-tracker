@@ -30,3 +30,28 @@ test.each(['driver/src/theme', 'driver/src/screens', 'driver/src/autostart'])('p
 test('precaches the shared schedule-autopilot matcher', () => {
   expect(assets).toContain('./shared/scheduleAutopilot.js');
 });
+
+// Every local module main.js loads, directly or through another module. One
+// not precached stops the whole Driver loading offline if the device has not
+// fetched it online since the last update (brandLogo.js and four older
+// modules were missed this way, found 2026-09-27).
+function importClosure(entry) {
+  const seen = new Set();
+  const visit = (rel) => {
+    if (seen.has(rel)) return;
+    seen.add(rel);
+    const src = fs.readFileSync(path.join(root, rel), 'utf8');
+    for (const m of src.matchAll(/(?:^|\n)\s*(?:import|export)\s[^;]*?from\s*'(\.{1,2}\/[^']+)'|(?:^|\n)\s*import\s*'(\.{1,2}\/[^']+)'/g)) {
+      const spec = m[1] ?? m[2];
+      visit(path.posix.normalize(path.posix.join(path.posix.dirname(rel), spec)));
+    }
+  };
+  visit(entry);
+  return [...seen].map((rel) => `./${rel}`);
+}
+
+test('precaches every local module in main.js\'s import closure', () => {
+  const closure = importClosure('driver/src/main.js');
+  expect(closure.length).toBeGreaterThan(20); // the walk really followed imports
+  expect(closure.filter((mod) => !assets.includes(mod))).toEqual([]);
+});
