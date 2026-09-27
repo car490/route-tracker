@@ -11,6 +11,7 @@
     "generate:audio": "node ../../scripts/generate-announcement-audio.mjs",
     "demo:announce-push": "node ../../scripts/demo-announce-push.mjs",
     "demo:announce-solo": "node ../../scripts/demo-announce-solo.mjs",
+    "verify:autostart": "node ../../scripts/verify-driver-autostart.mjs",
     "review:announce-solo": "node ../../scripts/review-announce-solo.mjs",
     "measure:announce-solo": "node ../../scripts/measure-announce-solo.mjs"
   },

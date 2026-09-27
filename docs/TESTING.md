@@ -320,6 +320,12 @@ Chrome DevTools can simulate a GPS position so you can test arrival detection wi
 2. The tracker jumps to that stop as the next expected stop
 
 ### Test automatic mode (no duty card)
+**Quick automated check first:** `npm run verify:autostart` (from `pcv-dashboard/busops/`) runs the real
+app in headless Chromium with simulated GPS and a local stand-in for Supabase (no network, no data
+touched): auto-start after the countdown and a drive through every stop to trip complete, Not now,
+Change service, a server refusal, and a duty-card link. About 2 minutes; exit 0 all passed, 1 a check
+failed. The manual steps below are for a real device against dev Supabase.
+
 Automatic mode (`driver/src/autostart/`, `docs/DECISIONS.md` "Driver automatic mode") runs on the
 waiting ("No duty assigned") screen: a device with a commissioned vehicle and no `?duties=` link. It
 checks GPS every 5 seconds and offers a Local Bus departure that runs today when the vehicle is within
