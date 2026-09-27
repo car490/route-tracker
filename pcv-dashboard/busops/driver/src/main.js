@@ -17,6 +17,7 @@ import { triggerDiversionAlert, clearDiversionAlert } from './diversionAlert.js'
 import { selectServiceManually } from './manualSelection.js';
 import { checkAnnouncementCoverage, describeMissingAudio } from './journeyAnnouncementPreflight.js';
 import { getStoredVehicle, storeVehicle } from './vehicleSetup.js';
+import { initTheme } from './theme/themeController.js';
 import {
   captureAnnounceSetup, connectAnnounceLink, disconnectAnnounceLink,
   broadcastState, broadcastSchedule,
@@ -552,7 +553,7 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
     onUpdate: ({ timing, nextStopIndex, speedMps, distanceToNextM, stopStates, earlyWait, atStop, approaching, departedStopIndex, lat, lon }) => {
       stopStatesRef = stopStates;
       lastStopIdx = nextStopIndex;
-      if (lat !== undefined) { lastLat = lat; lastLon = lon; }
+      if (lat !== undefined) { lastLat = lat; lastLon = lon; displayTheme?.setLocation(lat, lon); }
 
       // PSVAIR event 2 — approaching (fires once per stop off gps.js's
       // stopStates 'approaching' status, the same signal the stop list and
@@ -1267,6 +1268,10 @@ function initManualSelection() {
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
+// Display theme (src/theme/): Auto follows sunrise/sunset, using the live GPS
+// position once tracking supplies one (runTracker's onUpdate above).
+let displayTheme = null;
+
 async function init() {
   // One-time capture of the duty-card bearer token (`?token=`) and journey
   // ids (`?duties=`) out of the URL into sessionStorage, then strips both
@@ -1277,6 +1282,12 @@ async function init() {
   // captured) — this is why it's the very first statement in init(), not
   // inlined further down where the old `dutiesParam` read used to live.
   const dutiesParam = captureDutyLinkParams();
+
+  // Local-only (no network), so safe straight after the capture above.
+  displayTheme = initTheme({
+    button: document.getElementById('theme-toggle'),
+    metaThemeColor: document.querySelector('meta[name="theme-color"]'),
+  });
 
   // Retries any trip(s) that failed to reach Supabase at completion time on
   // a previous visit (src/localStore.js's queue) — covers the app being
