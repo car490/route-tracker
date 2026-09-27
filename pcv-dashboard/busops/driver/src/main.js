@@ -18,6 +18,7 @@ import { selectServiceManually } from './manualSelection.js';
 import { checkAnnouncementCoverage, describeMissingAudio } from './journeyAnnouncementPreflight.js';
 import { getStoredVehicle, storeVehicle } from './vehicleSetup.js';
 import { initTheme } from './theme/themeController.js';
+import { initScrollOnShow } from './screens/scrollOnShow.js';
 import {
   captureAnnounceSetup, connectAnnounceLink, disconnectAnnounceLink,
   broadcastState, broadcastSchedule,
@@ -235,8 +236,7 @@ function runAnnouncementPreflight({ allStops, serviceCode, destination, journeyI
 function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex, serviceCode, servicePeriod, psvairEnabled, accentColor, primaryColor, onComplete }) {
   const myTrackerId = ++activeTrackerId; // see this var's own comment — race guard for completeTrip()'s delayed disconnect
   document.getElementById('picker').hidden  = true;
-  document.getElementById('tracker').hidden = false;
-  document.getElementById('route-header').scrollIntoView();
+  document.getElementById('tracker').hidden = false; // opens at the top: screens/scrollOnShow.js
 
   // No-op on any device not commissioned with a Controller target (see
   // announceLink.js) — safe to call unconditionally, including on the
@@ -1288,6 +1288,10 @@ async function init() {
     button: document.getElementById('theme-toggle'),
     metaThemeColor: document.querySelector('meta[name="theme-color"]'),
   });
+
+  // Every screen opens scrolled to the top, and so does the visible one when
+  // the driver comes back to the app. Local-only, like the theme above.
+  initScrollOnShow();
 
   // Retries any trip(s) that failed to reach Supabase at completion time on
   // a previous visit (src/localStore.js's queue) — covers the app being

@@ -411,6 +411,12 @@ the bottom-right button pins Light or Dark. The Driver PWA uses the system font 
 cyan — a Driver-only exception; don't reintroduce `brand-tokens.css`, Google Fonts or a colour
 literal outside those blocks (the test fails).
 
+**Screen scroll** (`driver/src/screens/scrollOnShow.js`, 2026-09-27): each of the six top-level
+screens opens scrolled to the top, and so does the visible one when the driver returns to the
+app. It watches the screens' `hidden` attribute, so any show path is covered; a new screen in
+`index.html` must be added to `SCREEN_IDS` (`tests/driverScreens.test.js` fails otherwise).
+Tracker tabs and inner scroll boxes (the stop list's centring) are deliberately left alone.
+
 **OSRM/directions must always use scheduled stop coordinates, never the live GPS position** —
 this keeps route drawing and turn-by-turn stable regardless of GPS drift.
 

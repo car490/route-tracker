@@ -54,6 +54,7 @@ const STATIC_ASSETS = [
   './driver/src/theme/resolveTheme.js',
   './driver/src/theme/themePreference.js',
   './driver/src/theme/sunTimes.js',
+  './driver/src/screens/scrollOnShow.js',
 ];
 
 const TILE_CACHE = [
