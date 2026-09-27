@@ -190,6 +190,14 @@ testing timing, announcements, and the onboard display end-to-end without being 
 vehicle. `demo.html` is a separate, fully scripted/fake visual simulation (no real app code)
 used for quick client-facing demos.
 
+```sh
+npm run verify:autostart           # headless pass/fail check of the Driver's automatic mode (~2 min)
+```
+Unlike the demos, this is a check, not a show: it runs the real Driver app with simulated GPS and a
+local Supabase stand-in (no network, nothing written anywhere) through auto-start, a drive to trip
+complete, Not now, Change service, a server refusal and a duty-card link. Exit 0 all passed, 1 a
+check failed. Not part of CI (it needs Chromium and takes about 2 minutes).
+
 ### Measure the real sign on the real tablet (read-only)
 ```sh
 npm run measure:announce-solo      # from pcv-dashboard/busops/ — needs the tablet on USB (adb)
