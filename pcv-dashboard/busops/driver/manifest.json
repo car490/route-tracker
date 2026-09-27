@@ -4,8 +4,8 @@
   "description": "Real-time bus route timing PWA for drivers, from PCV Technologies",
   "display": "standalone",
   "orientation": "portrait",
-  "theme_color": "#242F35",
-  "background_color": "#242F35",
+  "theme_color": "#1C2333",
+  "background_color": "#14181F",
   "start_url": "./",
   "scope": "./",
   "icons": [

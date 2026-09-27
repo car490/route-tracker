@@ -1,25 +1,70 @@
-@import url('../shared/brand-tokens.css');
-/* Font itself is loaded by index.html's <link> to Google Fonts — this file
-   only names the family (via --pcv-font-sans), not redundantly re-fetch it. */
+/* BusOps Driver display themes (docs/DECISIONS.md "Driver PWA display theme").
+   Light is the route-sheet look: ink on paper. Dark is its night twin. Which
+   one shows is set on <html data-theme> by src/theme/ (Auto follows sunrise
+   and sunset; the driver can pin Light or Dark). Every colour in this file
+   lives in these two blocks and nowhere else, so tests/driverPalette.test.js
+   can measure both themes against the accessibility playbook.
 
-:root {
-  /* CoachMate core brand — from brand-tokens.css */
-  --cm-cyan:      var(--pcv-color-primary-action);
-  --cm-charcoal:  var(--pcv-color-ink);
-  --cm-font:      var(--pcv-font-sans);
+   The Driver PWA deliberately uses the device's system font (Roboto on
+   Android) and no brand cyan: a recorded Driver-only exception to
+   docs/BRAND.md, see docs/DECISIONS.md. Nothing here is imported from the
+   shared brand token file any more; the Announce sign still uses it. */
 
-  /* Dark surface tokens */
-  --bg:           #1B2428;
-  --surface:      var(--cm-charcoal);
-  --text:         #ffffff;
-  --text-muted:   #8BA4B0;
-  --on-time:      #10B981;
-  --late:         #EF4444;
-  --early:        #F59E0B;
-  --border:       rgba(255, 255, 255, 0.09);
-  --progress-bg:  rgba(255, 255, 255, 0.08);
-  --brand-cyan:   var(--cm-cyan);
-  --brand-charcoal: var(--cm-charcoal);
+:root,
+:root[data-theme="light"] {
+  --font-sans:      -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  --bg:             #EFF1ED;
+  --surface:        #FFFFFF;
+  --surface-2:      #E6E9E3;
+  --text:           #1C2333;
+  --text-muted:     #555E6B;
+  --border:         #D8DCD4;
+  --border-strong:  #767E8A;
+  --accent:         #1C2333;
+  --accent-pressed: #34405A;
+  --on-accent:      #FFFFFF;
+  --focus:          #1D4ED8;
+  --progress-bg:    #DCE0D8;
+
+  --on-time:        #154F3E;
+  --on-time-tint:   #EAF5F0;
+  --early:          #6E3B0B;
+  --early-tint:     #F8EFE4;
+  --late:           #961B13;
+  --late-tint:      #FCEDEB;
+  --on-status:      #FFFFFF;
+
+  --scrim:          rgba(28, 35, 51, 0.6);
+  --shadow:         rgba(28, 35, 51, 0.14);
+}
+
+:root[data-theme="dark"] {
+  --font-sans:      -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  --bg:             #14181F;
+  --surface:        #1D222C;
+  --surface-2:      #262C38;
+  --text:           #EDEFF2;
+  --text-muted:     #9AA3B2;
+  --border:         #2B313C;
+  --border-strong:  #6B7483;
+  --accent:         #EDEFF2;
+  --accent-pressed: #C9CED6;
+  --on-accent:      #14181F;
+  --focus:          #8AB4FF;
+  --progress-bg:    #2B313C;
+
+  --on-time:        #6FD6B2;
+  --on-time-tint:   #152B24;
+  --early:          #EBB57A;
+  --early-tint:     #2D2317;
+  --late:           #F7A39B;
+  --late-tint:      #341C1B;
+  --on-status:      #14181F;
+
+  --scrim:          rgba(0, 0, 0, 0.75);
+  --shadow:         rgba(0, 0, 0, 0.45);
 }
 
 *,
@@ -31,6 +76,13 @@
 }
 
 [hidden] { display: none !important; }
+
+/* Keyboard/switch-access focus, visible in both themes (3:1 against every
+   surface, tests/driverPalette.test.js). */
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
 
 html,
 body {
@@ -44,7 +96,7 @@ html {
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: var(--cm-font);
+  font-family: var(--font-sans);
   font-size: 1rem;
   line-height: 1.4;
   padding: 1rem;
@@ -87,24 +139,24 @@ body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 12px var(--shadow);
   pointer-events: none;
 }
 
 /* Bounded to the viewport minus the brand mark's own footprint (1rem body
-   top padding + 4.5rem for the mark itself) so #tracker scrolls internally
+   top padding + 5rem for the mark itself) so #tracker scrolls internally
    and none of its content — including #stop-list — can ever land under
    the fixed mark above. dvh falls back to vh where unsupported. */
 #tracker {
-  max-height: calc(100vh - 5.5rem);
-  max-height: calc(100dvh - 5.5rem);
+  max-height: calc(100vh - 6rem);
+  max-height: calc(100dvh - 6rem);
   overflow-y: auto;
   padding-bottom: 1rem;
 }
 
 .bo-wordmark {
-  font-family: var(--cm-font);
-  font-size: 1rem;
+  font-family: var(--font-sans);
+  font-size: 1.125rem;
   font-weight: 800;
   letter-spacing: -0.01em;
   color: var(--text);
@@ -119,35 +171,77 @@ body {
   flex-direction: row;
   align-items: baseline;
   gap: 0.3rem;
-  opacity: 0.55;
 }
 
 .cm-powered-by {
-  font-family: var(--cm-font);
-  font-size: 0.5rem;
-  font-weight: 400;
-  letter-spacing: 0.04em;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-muted);
 }
 
 .cm-wordmark {
-  font-family: var(--cm-font);
-  font-size: 0.7rem;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
   font-weight: 600;
   letter-spacing: -0.02em;
-  color: var(--brand-cyan);
+  color: var(--text);
+}
+
+/* ── Display theme button ─────────────────────── */
+/* Mirror of #app-brand in the opposite corner: always reachable, one tap
+   cycles Auto -> Light -> Dark (src/theme/themeController.js), and it sits
+   in the strip #tracker already keeps clear for the brand mark. */
+#theme-toggle {
+  position: fixed;
+  right: 1rem;
+  bottom: 0.75rem;
+  z-index: 10;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.9rem;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  box-shadow: 0 4px 12px var(--shadow);
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#theme-toggle:active {
+  background: var(--surface-2);
+}
+
+/* Version label, stacked just above #theme-toggle. It used to sit in the page
+   flow after #tracker, where the fixed brand mark covered it. This corner's
+   strip is already kept clear by #tracker's max-height, so nothing scrolls
+   under it either. */
+#app-version {
+  position: fixed;
+  right: 1rem;
+  bottom: calc(0.75rem + 2.75rem + 0.4rem);
+  z-index: 10;
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  pointer-events: none;
 }
 
 /* ── Wake-lock warning ───────────────────────── */
 
 #wakelock-warning {
-  background: #b71c1c;
-  color: #fff;
+  background: var(--late);
+  color: var(--on-status);
+  font-weight: 600;
   padding: 0.6rem 1rem;
   text-align: center;
-  font-family: var(--cm-font);
-  font-size: 0.85rem;
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
   letter-spacing: 0.02em;
   border-radius: 6px;
 }
@@ -167,8 +261,8 @@ body {
   color: var(--text-muted);
   border: 1px solid var(--border);
   border-radius: 8px;
-  font-family: var(--cm-font);
-  font-size: 0.8rem;
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
 }
@@ -185,7 +279,7 @@ body {
 
 .top-toggle-btn--diversion.active {
   background: var(--late);
-  color: #fff;
+  color: var(--on-status);
 }
 
 #diversion-panel {
@@ -198,8 +292,8 @@ body {
   flex: 1;
   padding: 0.6rem;
   border-radius: 8px;
-  font-family: var(--cm-font);
-  font-size: 0.85rem;
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -208,14 +302,14 @@ body {
 
 #diversion-confirm-btn {
   background: var(--late);
-  color: #fff;
+  color: var(--on-status);
   border: none;
 }
 
 #diversion-cancel-btn {
   background: transparent;
-  color: var(--text-muted);
-  border: 1px solid var(--border);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
 }
 
 /* ── PSVAIR announcement banner ──────────────── */
@@ -223,8 +317,8 @@ body {
    services — audio via Web Speech API (announcements.js), visual here. */
 
 #psvair-banner {
-  background: var(--brand-cyan);
-  color: #000;
+  background: var(--accent);
+  color: var(--on-accent);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -234,7 +328,7 @@ body {
 }
 
 #psvair-text {
-  font-family: var(--cm-font);
+  font-family: var(--font-sans);
   font-size: 1.05rem;
   font-weight: 700;
   line-height: 1.3;
@@ -246,7 +340,8 @@ body {
   height: 2.25rem;
   border: none;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--surface);
+  color: var(--text);
   font-size: 1.1rem;
   cursor: pointer;
 }
@@ -255,7 +350,7 @@ body {
 
 #early-wait-banner {
   background: var(--early);
-  color: #000;
+  color: var(--on-status);
   text-align: center;
   padding: 0.9rem 1rem;
   border-radius: 10px;
@@ -263,14 +358,14 @@ body {
 }
 
 .ewb-title {
-  font-family: var(--cm-font);
+  font-family: var(--font-sans);
   font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: 0.05em;
 }
 
 .ewb-msg {
-  font-family: var(--cm-font);
+  font-family: var(--font-sans);
   font-size: 1rem;
   font-weight: 400;
   margin-top: 0.2rem;
@@ -289,7 +384,7 @@ body {
   align-items: flex-start;
   gap: 0.4rem;
   padding: 0.5rem 0.25rem;
-  border-bottom: 2px solid var(--brand-cyan);
+  border-bottom: 2px solid var(--accent);
 }
 
 #header-service {
@@ -304,9 +399,9 @@ body {
 }
 
 #header-service-code {
-  color: #ffffff;
-  font-family: var(--cm-font);
-  font-size: 1rem;
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 1.1rem;
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -321,8 +416,8 @@ body {
 }
 
 #header-line1 {
-  font-family: var(--cm-font);
-  font-size: 0.9rem;
+  font-family: var(--font-sans);
+  font-size: 1rem;
   font-weight: 600;
   color: var(--text);
   line-height: 1.3;
@@ -342,12 +437,12 @@ body {
 }
 
 .ndc-brand {
-  font-family: var(--cm-font);
+  font-family: var(--font-sans);
   font-size: 1.3rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: var(--brand-cyan);
+  color: var(--text);
 }
 
 .ndc-icon {
@@ -356,7 +451,7 @@ body {
 }
 
 .ndc-title {
-  font-family: var(--cm-font);
+  font-family: var(--font-sans);
   font-size: 1.6rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -372,11 +467,11 @@ body {
 
 .ndc-secondary-btn {
   background: transparent;
-  color: var(--brand-cyan);
-  border: 1px solid var(--brand-cyan);
+  color: var(--accent);
+  border: 2px solid var(--accent);
   border-radius: 10px;
   padding: 0.85rem 1.5rem;
-  font-family: var(--cm-font);
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -386,7 +481,7 @@ body {
 }
 
 .ndc-secondary-btn:active {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--surface-2);
 }
 
 /* ── Picker screen ───────────────────────────── */
@@ -403,18 +498,18 @@ body {
 }
 
 .picker-brand {
-  font-family: var(--cm-font);
+  font-family: var(--font-sans);
   font-size: 2rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--brand-cyan);
+  color: var(--text);
   text-align: center;
   line-height: 1.1;
 }
 
 .picker-subtitle {
-  font-family: var(--cm-font);
+  font-family: var(--font-sans);
   font-size: 1rem;
   font-weight: 400;
   letter-spacing: 0.05em;
@@ -431,7 +526,7 @@ body {
 }
 
 .picker-field label {
-  font-family: var(--cm-font);
+  font-family: var(--font-sans);
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -460,7 +555,7 @@ body {
 .picker-field select {
   background: var(--surface);
   color: var(--text);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   padding: 0.75rem 2.5rem 0.75rem 1rem;
   font-size: 1.1rem;
@@ -469,8 +564,7 @@ body {
 }
 
 .picker-field select:focus {
-  outline: none;
-  border-color: var(--brand-cyan);
+  border-color: var(--focus);
 }
 
 .testing-time-field {
@@ -500,12 +594,12 @@ body {
 #start-btn,
 #manual-start-btn,
 #vehicle-setup-btn {
-  background: var(--brand-cyan);
-  color: #fff;
+  background: var(--accent);
+  color: var(--on-accent);
   border: none;
   border-radius: 10px;
   padding: 1rem;
-  font-family: var(--cm-font);
+  font-family: var(--font-sans);
   font-size: 1.2rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -518,7 +612,7 @@ body {
 #start-btn:active,
 #manual-start-btn:active,
 #vehicle-setup-btn:active {
-  background: #3da038;
+  background: var(--accent-pressed);
 }
 
 /* ── Status card ─────────────────────────────── */
@@ -533,16 +627,20 @@ body {
   gap: 0.75rem;
 }
 
-.status-on-time    { border-color: var(--on-time); }
-.status-late       { border-color: var(--late); }
-.status-early      { border-color: var(--early); }
-.status-at-stop    { border-color: var(--surface); }
-.status-approaching { border-color: var(--brand-cyan); }
+/* Qualified with #status-card: the bare classes lost to #status-card's own
+   id-level border/background, so the status border never showed. The tint
+   makes on time / early / late readable at a glance; the label still says it
+   in words (never colour alone). */
+#status-card.status-on-time     { border-color: var(--on-time); background: var(--on-time-tint); }
+#status-card.status-late        { border-color: var(--late);    background: var(--late-tint); }
+#status-card.status-early       { border-color: var(--early);   background: var(--early-tint); }
+#status-card.status-at-stop     { border-color: var(--border-strong); }
+#status-card.status-approaching { border-color: var(--accent); }
 
 #status-label {
-  font-family: var(--cm-font);
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -551,11 +649,11 @@ body {
 .status-on-time    #status-label { color: var(--on-time); }
 .status-late       #status-label { color: var(--late); }
 .status-early      #status-label { color: var(--early); }
-.status-at-stop    #status-label { color: var(--surface); }
-.status-approaching #status-label { color: var(--brand-cyan); }
+.status-at-stop    #status-label { color: var(--text); }
+.status-approaching #status-label { color: var(--text); }
 
 #next-stop {
-  font-size: 1.5rem;
+  font-size: 1.75rem;
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
@@ -577,8 +675,8 @@ body {
 }
 
 .time-label {
-  font-family: var(--cm-font);
-  font-size: 0.65rem;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
   font-weight: 400;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -586,13 +684,13 @@ body {
 }
 
 .time-value {
-  font-size: 1.25rem;
+  font-size: 1.4rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
 #delta {
-  font-size: 1.1rem;
+  font-size: 1.5rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   margin-left: auto;
@@ -602,8 +700,8 @@ body {
 .status-on-time    #delta { color: var(--on-time); }
 .status-late       #delta { color: var(--late); }
 .status-early      #delta { color: var(--early); }
-.status-at-stop    #delta { color: var(--surface); }
-.status-approaching #delta { color: var(--brand-cyan); }
+.status-at-stop    #delta { color: var(--text); }
+.status-approaching #delta { color: var(--text); }
 
 /* ── Metrics row ──────────────────────────────── */
 
@@ -619,8 +717,8 @@ body {
 }
 
 .metric-label {
-  font-family: var(--cm-font);
-  font-size: 0.65rem;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
   font-weight: 400;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -628,7 +726,7 @@ body {
 }
 
 .metric-value {
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -652,8 +750,8 @@ body {
 }
 
 .stop-label-prefix {
-  font-size: 0.7rem;
-  font-family: var(--cm-font);
+  font-size: 0.75rem;
+  font-family: var(--font-sans);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -679,7 +777,7 @@ body {
 #progress-fill {
   height: 100%;
   width: 0%;
-  background: var(--brand-cyan);
+  background: var(--accent);
   border-radius: 4px;
   transition: width 1s linear;
 }
@@ -698,8 +796,8 @@ body {
   color: var(--text-muted);
   border: 1px solid var(--border);
   border-radius: 6px;
-  font-family: var(--cm-font);
-  font-size: 0.85rem;
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -707,9 +805,9 @@ body {
 }
 
 .toggle-btn.toggle-active {
-  background: var(--surface);
-  color: var(--text);
-  border-color: var(--surface);
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
 }
 
 /* ── Map view ─────────────────────────────────── */
@@ -740,7 +838,7 @@ body {
   align-items: center;
   padding: 0.6rem 1rem;
   border-bottom: 1px solid var(--border);
-  font-size: 0.8rem;
+  font-size: 0.95rem;
 }
 
 .stop-row:last-child {
@@ -763,12 +861,12 @@ body {
   color: var(--text-muted);
 }
 
-.stop-past {
-  opacity: 0.45;
-}
-
-.stop-past .sl-actual {
-  opacity: 1;
+/* Past stops step back by colour, not opacity: opacity took their text below
+   4.5:1, and a past stop's actual arrival time (on time / late) is still
+   worth reading. Actual times keep their status colour. */
+.stop-past .sl-name,
+.stop-past .sl-sched {
+  color: var(--text-muted);
 }
 
 .sl-ontime { color: var(--on-time); }
@@ -780,7 +878,7 @@ body {
 }
 
 .stop-current {
-  background: var(--surface);
+  background: var(--surface-2);
   font-weight: 700;
 }
 
@@ -789,7 +887,7 @@ body {
 }
 
 .stop-approaching {
-  border-left: 3px solid var(--brand-cyan);
+  border-left: 4px solid var(--accent);
 }
 
 .sl-jump {
@@ -797,15 +895,15 @@ body {
   border: 1px solid var(--border);
   border-radius: 4px;
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   padding: 0.15rem 0.35rem;
   cursor: pointer;
   line-height: 1;
 }
 
 .sl-jump:active {
-  color: var(--brand-cyan);
-  border-color: var(--brand-cyan);
+  color: var(--text);
+  border-color: var(--accent);
 }
 
 /* ── Directions view ──────────────────────────── */
@@ -830,8 +928,8 @@ body {
 }
 
 .dir-select-label {
-  font-family: var(--cm-font);
-  font-size: 0.7rem;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -842,24 +940,23 @@ body {
 .dir-from-select {
   background: var(--bg);
   color: var(--text);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: 4px;
   padding: 0.3rem 0.5rem;
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   flex: 1;
   min-width: 0;
   appearance: none;
 }
 
 .dir-from-select:focus {
-  outline: none;
-  border-color: var(--brand-cyan);
+  border-color: var(--focus);
 }
 
 .dir-destination {
   padding: 0.75rem 1rem;
-  font-family: var(--cm-font);
-  font-size: 0.8rem;
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
   font-weight: 600;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -886,7 +983,7 @@ body {
   align-items: center;
   padding: 0.65rem 1rem;
   border-bottom: 1px solid var(--border);
-  font-size: 0.85rem;
+  font-size: 0.95rem;
 }
 
 .dir-step:last-child {
@@ -896,7 +993,7 @@ body {
 .dir-icon {
   font-size: 1.15rem;
   text-align: center;
-  color: var(--brand-cyan);
+  color: var(--text);
 }
 
 .dir-road {
@@ -907,7 +1004,7 @@ body {
 
 .dir-dist {
   font-variant-numeric: tabular-nums;
-  font-size: 0.78rem;
+  font-size: 0.85rem;
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -930,7 +1027,7 @@ body {
   overflow-y: auto;
   max-height: 40vh;
   font-family: monospace;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
 }
 
 .log-empty {
@@ -967,17 +1064,17 @@ body {
   flex-direction: column;
   gap: 1rem;
   min-height: 100vh;
-  padding: 2rem 0 4.5rem;
+  padding: 2rem 0 5.5rem;
 }
 
 .dc-header {
   text-align: center;
   padding-bottom: 1rem;
-  border-bottom: 2px solid var(--brand-cyan);
+  border-bottom: 2px solid var(--accent);
 }
 
 .dc-greeting {
-  font-family: var(--cm-font);
+  font-family: var(--font-sans);
   font-size: 1.1rem;
   color: var(--text-muted);
   margin-top: 0.5rem;
@@ -989,7 +1086,7 @@ body {
 }
 
 .dc-date {
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   color: var(--text-muted);
   margin-top: 0.3rem;
 }
@@ -1011,11 +1108,23 @@ body {
 }
 
 .dc-route-in_progress {
-  border-color: var(--brand-cyan);
+  border: 2px solid var(--accent);
 }
 
+/* Completed duties sink into the page background instead of fading, so the
+   text stays readable (see .stop-past). */
 .dc-route-completed {
-  opacity: 0.55;
+  background: var(--bg);
+}
+
+.dc-route-completed .dc-route-label,
+.dc-route-completed .dc-route-stops {
+  color: var(--text-muted);
+}
+
+.dc-route-completed .dc-service-badge {
+  background: var(--text-muted);
+  color: var(--surface);
 }
 
 .dc-route-top {
@@ -1025,10 +1134,10 @@ body {
 }
 
 .dc-service-badge {
-  background: var(--surface);
-  color: #fff;
-  font-family: var(--cm-font);
-  font-size: 0.85rem;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -1039,14 +1148,14 @@ body {
 }
 
 .dc-route-label {
-  font-family: var(--cm-font);
-  font-size: 0.9rem;
+  font-family: var(--font-sans);
+  font-size: 1rem;
   font-weight: 600;
   color: var(--text);
 }
 
 .dc-route-stops {
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
@@ -1056,27 +1165,27 @@ body {
 .dc-route-meta {
   display: flex;
   justify-content: space-between;
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   color: var(--text-muted);
 }
 
 .dc-route-notes {
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   color: var(--text);
   margin-top: 8px;
   padding: 6px 10px;
-  background: rgba(255, 255, 255, 0.05);
-  border-left: 3px solid var(--brand-cyan);
+  background: var(--surface-2);
+  border-left: 3px solid var(--accent);
   border-radius: 0 4px 4px 0;
 }
 
 .dc-action-btn {
-  background: var(--brand-cyan);
-  color: #fff;
+  background: var(--accent);
+  color: var(--on-accent);
   border: none;
   border-radius: 6px;
   padding: 0.7rem 1rem;
-  font-family: var(--cm-font);
+  font-family: var(--font-sans);
   font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -1086,16 +1195,20 @@ body {
   margin-top: 0.25rem;
 }
 
-.dc-action-btn:active { background: #3da038; }
+.dc-action-btn:active { background: var(--accent-pressed); }
 
-.dc-resume-btn { background: var(--surface); }
-.dc-resume-btn:active { background: #162d55; }
+.dc-resume-btn {
+  background: var(--surface);
+  color: var(--text);
+  border: 2px solid var(--accent);
+}
+.dc-resume-btn:active { background: var(--surface-2); }
 
 .dc-done-badge {
-  font-family: var(--cm-font);
+  font-family: var(--font-sans);
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--brand-cyan);
+  color: var(--on-time);
   text-align: center;
   padding: 0.4rem;
 }
@@ -1105,7 +1218,7 @@ body {
 #incident-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
+  background: var(--scrim);
   z-index: 1000;
   display: flex;
   align-items: flex-end;
@@ -1123,7 +1236,7 @@ body {
 }
 
 .incident-title {
-  font-family: var(--cm-font);
+  font-family: var(--font-sans);
   font-size: 1.1rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -1141,8 +1254,8 @@ body {
 }
 
 .incident-label {
-  font-family: var(--cm-font);
-  font-size: 0.7rem;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -1150,8 +1263,8 @@ body {
 }
 
 .incident-optional {
-  font-family: system-ui, sans-serif;
-  font-size: 0.7rem;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
   font-weight: 400;
   text-transform: none;
   letter-spacing: 0;
@@ -1161,19 +1274,18 @@ body {
 .incident-textarea {
   background: var(--bg);
   color: var(--text);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   padding: 0.65rem 0.75rem;
   font-size: 1rem;
   width: 100%;
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-sans);
   appearance: none;
 }
 
 .incident-select:focus,
 .incident-textarea:focus {
-  outline: none;
-  border-color: var(--early);
+  border-color: var(--focus);
 }
 
 .incident-textarea {
@@ -1193,7 +1305,7 @@ body {
   flex: 1;
   padding: 0.8rem;
   border-radius: 6px;
-  font-family: var(--cm-font);
+  font-family: var(--font-sans);
   font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.03em;
@@ -1204,8 +1316,8 @@ body {
 
 .incident-btn-cancel {
   background: var(--bg);
-  color: var(--text-muted);
-  border: 1px solid var(--border);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
 }
 
 .incident-btn-cancel:active {
@@ -1214,7 +1326,7 @@ body {
 
 .incident-btn-submit {
   background: var(--early);
-  color: #000;
+  color: var(--on-status);
 }
 
 .incident-btn-submit:active {
@@ -1226,11 +1338,11 @@ body {
 #manual-back-btn,
 #vehicle-setup-back-btn {
   background: none;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
-  color: var(--text-muted);
-  font-family: var(--cm-font);
-  font-size: 0.85rem;
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
   font-weight: 600;
   letter-spacing: 0.02em;
   padding: 0.5rem 0.75rem;
@@ -1241,13 +1353,12 @@ body {
 #picker-back-btn:active,
 #manual-back-btn:active,
 #vehicle-setup-back-btn:active {
-  color: var(--text);
-  border-color: var(--text);
+  background: var(--surface-2);
 }
 
 /* Vehicle line + "Change" link on the no-duty-card screen */
 .ndc-vehicle-info {
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   color: var(--text-muted);
   margin-top: 1.5rem;
 }
@@ -1260,9 +1371,9 @@ body {
 .ndc-link-btn {
   background: none;
   border: none;
-  color: var(--brand-cyan);
-  font-size: 0.85rem;
-  font-family: var(--cm-font);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-family: var(--font-sans);
   text-decoration: underline;
   cursor: pointer;
   margin-left: 0.5rem;
@@ -1281,11 +1392,11 @@ body {
   margin-top: 12px;
   padding: 0.75rem;
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
   color: var(--text);
-  font-family: var(--cm-font);
-  font-size: 0.9rem;
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
   font-weight: 600;
   text-align: center;
   text-decoration: none;
@@ -1297,7 +1408,7 @@ body {
 #trip-complete-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
+  background: var(--scrim);
   z-index: 1000;
   display: flex;
   align-items: center;
@@ -1307,7 +1418,7 @@ body {
 
 #trip-complete-modal {
   background: var(--surface);
-  border: 1px solid var(--brand-cyan);
+  border: 2px solid var(--on-time);
   border-radius: 12px;
   width: 100%;
   max-width: 380px;
@@ -1317,13 +1428,13 @@ body {
 
 .tc-icon {
   font-size: 2.5rem;
-  color: var(--brand-cyan);
+  color: var(--on-time);
   line-height: 1;
   margin-bottom: 0.5rem;
 }
 
 .tc-title {
-  font-family: var(--cm-font);
+  font-family: var(--font-sans);
   font-size: 1.2rem;
   font-weight: 700;
   letter-spacing: 0.03em;
@@ -1332,7 +1443,7 @@ body {
 }
 
 .tc-body {
-  font-family: var(--cm-font);
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--text-muted);
   margin-top: 0.35rem;
@@ -1342,11 +1453,11 @@ body {
   margin-top: 1.25rem;
   width: 100%;
   padding: 0.8rem;
-  background: var(--brand-cyan);
-  color: #000;
+  background: var(--accent);
+  color: var(--on-accent);
   border: none;
   border-radius: 6px;
-  font-family: var(--cm-font);
+  font-family: var(--font-sans);
   font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.03em;

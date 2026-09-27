@@ -403,6 +403,14 @@ ES module with no circular imports; `gps.js` and `main.js` are the layers with s
 picking a service manually when there's no active scheduled duty. `diversionAlert.js` handles
 driver-triggered diversion alerts, wired into both the PWA and the onboard sign.
 
+**Display theme** (`driver/src/theme/`, decided 2026-09-27 — see `docs/DECISIONS.md`
+"Display theme"): light and dark palettes, both defined only in the two token blocks at the top
+of `driver/style.css` and measured by `tests/driverPalette.test.js`. Auto (the default) picks
+light between sunrise and sunset from the GPS position (`sunTimes.js`, on-device, offline);
+the bottom-right button pins Light or Dark. The Driver PWA uses the system font and no brand
+cyan — a Driver-only exception; don't reintroduce `brand-tokens.css`, Google Fonts or a colour
+literal outside those blocks (the test fails).
+
 **OSRM/directions must always use scheduled stop coordinates, never the live GPS position** —
 this keeps route drawing and turn-by-turn stable regardless of GPS drift.
 

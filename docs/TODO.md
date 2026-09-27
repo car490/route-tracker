@@ -138,7 +138,8 @@ currently-shipped brand tokens (re-verified 2026-08-23 against the post-restruct
 playbook's original 2026-08-20 draft) and found the following gaps — logged here rather than
 fixed inline, since this pass was about establishing the playbook, not changing the product:
 
-- [ ] The driver PWA's `#app-brand` corner attribution ("From PCV Technologies") wraps its
+- [x] **Done 2026-09-27** (Driver PWA display-theme rework, guarded by
+  `busops/tests/driverPalette.test.js`). The driver PWA's `#app-brand` corner attribution ("From PCV Technologies") wrapped its
   `.cm-powered-by`/`.cm-wordmark` text in `.cm-attribution { opacity: 0.55 }`, which drops both
   below WCAG AA (2.62:1 / 2.68:1, need 4.5:1) — see playbook §3.3. This is the *same* bug
   already fixed in the dashboard's equivalent mark (`pcv-dashboard/src/index.css`
@@ -154,7 +155,8 @@ fixed inline, since this pass was about establishing the playbook, not changing 
   operator can't save a non-compliant `primary_color`/`accent_color` in the first place — the
   picker has no such check today, so any operator (not just the default theme) can ship a
   non-compliant UI.
-- [ ] `late` status colour (`#EF4444`) is 3.64:1 against the driver PWA's card surface
+- [x] **Done 2026-09-27** (same rework: `late` is now 7.5:1 light / 8.0:1 dark on the tinted status
+  card). `late` status colour (`#EF4444`) was 3.64:1 against the driver PWA's card surface
   (`#242F35`), just under the 4.5:1 text minimum — the status most likely to need to be read at
   a glance under time pressure. Needs either a darker red or a heavier font-weight/larger size
   to qualify as "large text" (3:1 threshold).

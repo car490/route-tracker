@@ -50,6 +50,10 @@ const STATIC_ASSETS = [
   './driver/src/vehicleSetup.js',
   './driver/src/announceDeviceLink.js',
   './driver/src/announceDeviceLinkApi.js',
+  './driver/src/theme/themeController.js',
+  './driver/src/theme/resolveTheme.js',
+  './driver/src/theme/themePreference.js',
+  './driver/src/theme/sunTimes.js',
 ];
 
 const TILE_CACHE = [

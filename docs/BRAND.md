@@ -56,11 +56,17 @@ tier.
 - **Plus Jakarta Sans** — the brand typeface, weights 400–800, stacked as
   `'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif` (`--pcv-font-sans` in
   `brand-tokens.css`). Loaded via each app's own Google Fonts `<link>`
-  (`busops/driver/index.html`/`busops/announce/onboard.html`/`pcv-dashboard/index.html`) —
+  (`busops/announce/onboard.html`/`pcv-dashboard/index.html`) —
   `brand-tokens.css` only names the family, it doesn't fetch it;
   `pcv-dashboard/busops/tests/brandTokens.test.js` /
-  `pcv-dashboard/src/shared/brandTokens.test.js` guard those three links against naming a
+  `pcv-dashboard/src/shared/brandTokens.test.js` guard those links against naming a
   different family than the token.
+- **Driver PWA exception (2026-09-27):** BusOps Driver uses the device's system font and its
+  own light/dark palette with no PCV Cyan — chosen for glance legibility in the cab (see
+  `docs/DECISIONS.md` "Display theme"). Its tokens live in `busops/driver/style.css` and are
+  measured by `busops/tests/driverPalette.test.js`; it no longer imports `brand-tokens.css`
+  or loads Google Fonts. The "BusOps Driver / From PCV Technologies" mark is unchanged in
+  wording and layout, drawn in the theme's ink colours.
 
 ### Accessible surface palette
 
@@ -137,8 +143,9 @@ Cloudflare Workers deploy excludes `docs/` (dev/reference material only) via `.a
 a token file the PWA actually imports at runtime can't be parked there. `busops/shared/` — rather
 than `busops/driver/` or `busops/announce/` individually — is deliberate too: it's the one thing
 both BusOps surfaces genuinely share, alongside the favicon and (for scope reasons —
-see `CLAUDE.md`) `service-worker.js` itself. It is wired into `busops/driver/style.css`,
-`busops/announce/onboard.css`, and `pcv-dashboard/src/index.css` via `@import`;
+see `CLAUDE.md`) `service-worker.js` itself. It is wired into `busops/announce/onboard.css`
+and `pcv-dashboard/src/index.css` via `@import` (the Driver PWA stopped importing it 2026-09-27,
+see the Typography exception above);
 `pcv-dashboard/vite.config.js` and `supabase/schema.sql` read/duplicate its values where a CSS
 import isn't possible (build-time manifest generation, SQL column defaults, the Google Fonts
 `<link>` URLs) — see the comment at the top of `brand-tokens.css` for details on keeping those
