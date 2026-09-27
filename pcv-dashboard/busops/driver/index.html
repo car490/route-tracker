@@ -6,12 +6,24 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black" />
-    <meta name="theme-color" content="#242F35" />
+    <meta name="theme-color" content="#1C2333" />
     <title>BusOps Driver</title>
     <link rel="icon" type="image/png" href="../shared/icons/icon-192.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script>
+      // Theme before first paint: reapplies the last light/dark the app
+      // showed, so a night launch doesn't flash the light theme while
+      // src/theme/ loads. Only 'light' or 'dark' is ever set; anything else
+      // (or blocked storage) leaves the default and src/theme/ decides.
+      // Keys match src/theme/themePreference.js.
+      (function () {
+        try {
+          var pref = localStorage.getItem('busops.driver.theme');
+          var last = localStorage.getItem('busops.driver.theme.resolved');
+          var theme = pref === 'light' || pref === 'dark' ? pref : last;
+          if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
+        } catch (e) {}
+      })();
+    </script>
     <link rel="manifest" href="manifest.json" />
     <link rel="stylesheet" href="lib/leaflet.min.css" />
     <link rel="stylesheet" href="style.css" />
@@ -205,6 +217,10 @@
         <span class="cm-wordmark">PCV Technologies</span>
       </div>
     </div>
+
+    <!-- Display theme: Auto (sunrise/sunset) / Light / Dark, one tap to
+         cycle. Label and behaviour set by src/theme/themeController.js. -->
+    <button id="theme-toggle" type="button">&#9680; Auto</button>
 
     <!-- Incident reporting overlay -->
     <div id="incident-overlay" hidden>

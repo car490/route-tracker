@@ -3,11 +3,24 @@ let _posMarker = null;
 let _routeLine = null;
 const _stopMarkers = [];
 
+// Map colours come from the light palette in style.css whichever display
+// theme is showing: the OpenStreetMap tiles are light in both, so these are
+// tuned to read against the map, not against the page. Leaflet takes colour
+// strings, not CSS variables, hence literals here (tests/driverPalette.test.js
+// checks every one is a light-palette value).
+const MAP_COLOURS = {
+  onTime: '#154F3E', // --on-time: stops already served
+  early:  '#6E3B0B', // --early: stops missed
+  ink:    '#1C2333', // --text: stops still to come, and the vehicle itself
+  route:  '#1D4ED8', // --focus: the route line, distinct from every stop state
+  paper:  '#FFFFFF', // --surface
+};
+
 function stopStyle(state) {
-  if (state === 'past')    return { radius: 5, color: '#4db848', fillColor: '#4db848', fillOpacity: 0.55, weight: 1 };
-  if (state === 'missed')  return { radius: 5, color: '#f97316', fillColor: '#f97316', fillOpacity: 0.8,  weight: 1 };
-  if (state === 'current') return { radius: 8, color: '#4db848', fillColor: '#ffffff', fillOpacity: 1,    weight: 2 };
-  return                          { radius: 5, color: '#1e3d72', fillColor: '#ffffff', fillOpacity: 1,    weight: 2 };
+  if (state === 'past')    return { radius: 5, color: MAP_COLOURS.onTime, fillColor: MAP_COLOURS.onTime, fillOpacity: 0.6, weight: 1 };
+  if (state === 'missed')  return { radius: 5, color: MAP_COLOURS.early,  fillColor: MAP_COLOURS.early,  fillOpacity: 0.85, weight: 1 };
+  if (state === 'current') return { radius: 8, color: MAP_COLOURS.onTime, fillColor: MAP_COLOURS.paper,  fillOpacity: 1,    weight: 3 };
+  return                          { radius: 5, color: MAP_COLOURS.ink,    fillColor: MAP_COLOURS.paper,  fillOpacity: 1,    weight: 2 };
 }
 
 async function fetchRoadGeometry(stops) {
@@ -46,7 +59,7 @@ export function initMap(stops) {
   }).addTo(_map);
 
   _routeLine = L.polyline(stops.map(s => [s.lat, s.lon]), {
-    color: '#ff7700', weight: 5, opacity: 0.9,
+    color: MAP_COLOURS.route, weight: 5, opacity: 0.85,
   }).addTo(_map);
 
   stops.forEach(stop => {
@@ -58,7 +71,7 @@ export function initMap(stops) {
   });
 
   _posMarker = L.circleMarker([stops[0].lat, stops[0].lon], {
-    radius: 9, color: '#ffffff', fillColor: '#4db848', fillOpacity: 1, weight: 3,
+    radius: 9, color: MAP_COLOURS.paper, fillColor: MAP_COLOURS.ink, fillOpacity: 1, weight: 3,
   }).addTo(_map);
 
   // Container is visible — fitBounds works correctly here
