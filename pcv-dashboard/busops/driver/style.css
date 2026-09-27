@@ -107,46 +107,53 @@ body {
   margin: 0 auto;
 }
 
-/* ── App brand mark ───────────────────────────── */
-/* App name (BusOps Driver — this product, one of several under the BusOps
-   suite) over a smaller CoachMate attribution (the platform all BusOps
-   products run on; same wordmark as the ops dashboard's sidebar footer,
-   dashboard/src/index.css .sidebar-coachmate, where CoachMate alone is
-   shown with no BusOps line since the dashboard *is* CoachMate).
-   Fixed to the viewport corner so it's visible on every screen without
-   scrolling — including #duty-card, which reserves a full min-height:100vh
-   whether or not its content fills that, so an in-flow mark would land
-   off-screen there.
+/* ── Footer strip ─────────────────────────────── */
+/* One strip pinned to the bottom of every screen: the brand mark (BusOps
+   Driver over "From PCV Technologies") on the left, the version label and
+   the display-theme button on the right. It sits in the page's own
+   background colour, so none of it reads as a box (owner, 2026-09-27: the
+   white boxes looked heavy), yet anything scrolling behind it is still
+   covered rather than drawn through the text.
 
-   #tracker is bounded and scrolls internally (below) rather than the page
-   scrolling past this mark — a page-level scroll only clears the mark at
-   the final scroll position (the bug fixed in 47b0f80), and #stop-list's
-   own rows kept passing underneath it at every position in between, since
-   they occupy far more vertical space than fits in one screen. Bounding
-   #tracker's own height to stop short of this mark means no descendant,
-   however tall, can ever be scrolled underneath it. */
+   Fixed rather than in the page flow so it shows on every screen without
+   scrolling, including #duty-card, which reserves a full min-height:100vh.
+   #tracker is bounded to stop short of the strip and scrolls internally
+   (below), so none of its content, however tall, passes underneath it (the
+   bug fixed in 47b0f80). */
+#app-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem calc(0.5rem + env(safe-area-inset-bottom, 0px));
+  background: var(--bg);
+}
 
 #app-brand {
-  position: fixed;
-  left: 1rem;
-  bottom: 0.75rem;
-  z-index: 10;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.4rem;
-  padding: 0.4rem 0.6rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 4px 12px var(--shadow);
+  gap: 0.25rem;
   pointer-events: none;
 }
 
-/* Bounded to the viewport minus the brand mark's own footprint (1rem body
-   top padding + 5rem for the mark itself) so #tracker scrolls internally
-   and none of its content — including #stop-list — can ever land under
-   the fixed mark above. dvh falls back to vh where unsupported. */
+.footer-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Bounded to the viewport minus the footer strip (1rem body top padding +
+   5rem for the strip and a margin) so #tracker scrolls internally and none
+   of its content, including #stop-list, lands under the strip. dvh falls
+   back to vh where unsupported. */
 #tracker {
   max-height: calc(100vh - 6rem);
   max-height: calc(100dvh - 6rem);
@@ -191,21 +198,17 @@ body {
 }
 
 /* ── Display theme button ─────────────────────── */
-/* Mirror of #app-brand in the opposite corner: always reachable, one tap
-   cycles Auto -> Light -> Dark (src/theme/themeController.js), and it sits
-   in the strip #tracker already keeps clear for the brand mark. */
+/* One tap cycles Auto -> Light -> Dark (src/theme/themeController.js). An
+   outline, not a filled box: its border is --border-strong, >= 3:1 against
+   the page in both themes (tests/driverPalette.test.js), so it still reads
+   as a button (WCAG 1.4.11). */
 #theme-toggle {
-  position: fixed;
-  right: 1rem;
-  bottom: 0.75rem;
-  z-index: 10;
   min-height: 2.75rem;
   padding: 0.5rem 0.9rem;
-  background: var(--surface);
+  background: transparent;
   color: var(--text);
   border: 1px solid var(--border-strong);
   border-radius: 999px;
-  box-shadow: 0 4px 12px var(--shadow);
   font-family: var(--font-sans);
   font-size: 0.9rem;
   font-weight: 600;
@@ -216,15 +219,9 @@ body {
   background: var(--surface-2);
 }
 
-/* Version label, stacked just above #theme-toggle. It used to sit in the page
-   flow after #tracker, where the fixed brand mark covered it. This corner's
-   strip is already kept clear by #tracker's max-height, so nothing scrolls
-   under it either. */
+/* Version label, beside the theme button. scripts/release.mjs rewrites its
+   text on each release. */
 #app-version {
-  position: fixed;
-  right: 1rem;
-  bottom: calc(0.75rem + 2.75rem + 0.4rem);
-  z-index: 10;
   margin: 0;
   font-family: var(--font-sans);
   font-size: 0.75rem;
@@ -432,7 +429,7 @@ body {
   justify-content: center;
   gap: 1rem;
   min-height: 100vh;
-  padding: 2rem;
+  padding: 2rem 2rem 6rem; /* bottom: clear of the footer strip */
   text-align: center;
 }
 
@@ -494,7 +491,7 @@ body {
   justify-content: center;
   gap: 1.5rem;
   min-height: 100vh;
-  padding: 2rem;
+  padding: 2rem 2rem 6rem; /* bottom: clear of the footer strip */
 }
 
 .picker-brand {

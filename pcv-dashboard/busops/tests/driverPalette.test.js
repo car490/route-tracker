@@ -168,18 +168,59 @@ describe('version label', () => {
     expect(html).not.toMatch(/<p style=[^>]*>v[\d.]+<\/p>/);
   });
 
-  test('sits fixed above the theme button, clear of the brand mark in the opposite corner', () => {
-    const rule = css.match(/#app-version\s*\{([^}]*)\}/);
-    expect(rule).not.toBeNull();
-    expect(rule[1]).toMatch(/position:\s*fixed/);
-    expect(rule[1]).toMatch(/right:\s*1rem/);
-    expect(rule[1]).not.toMatch(/left:/);
-    expect(rule[1]).not.toMatch(/opacity/);
+  test('lives in the footer next to the theme button', () => {
+    const footer = html.match(/<footer id="app-footer">([\s\S]*?)<\/footer>/);
+    expect(footer).not.toBeNull();
+    expect(footer[1]).toMatch(/<p id="app-version">v[\d.]+<\/p>/);
   });
 
   test("scripts/release.mjs's footer regex still finds exactly one version string", () => {
     // Mirrors the replace() in scripts/release.mjs; a second match would be
     // silently skipped and a zero match would leave the version stale.
     expect(html.match(/>v[^<]*?<\/p>/g)).toHaveLength(1);
+  });
+});
+
+// Bottom bar tidy (2026-09-27, owner): one footer strip in the page's own
+// background colour, so nothing reads as a white box; the brand mark is
+// plain text and the theme button an outline.
+describe('footer strip', () => {
+  const rule = (selector) => {
+    const m = css.match(new RegExp(`(?:^|\\n)${selector.replace(/[#-]/g, '\\$&')}\\s*\\{([^}]*)\\}`));
+    expect(m).not.toBeNull();
+    return m[1];
+  };
+  const footerHtml = () => html.match(/<footer id="app-footer">([\s\S]*?)<\/footer>/)[1];
+
+  test('holds the brand mark, the version label and the theme button', () => {
+    expect(footerHtml()).toMatch(/<div id="app-brand">/);
+    expect(footerHtml()).toMatch(/<p id="app-version">/);
+    expect(footerHtml()).toMatch(/<button id="theme-toggle"/);
+  });
+
+  test('is pinned full width to the bottom in the page background colour', () => {
+    const body = rule('#app-footer');
+    expect(body).toMatch(/position:\s*fixed/);
+    expect(body).toMatch(/bottom:\s*0/);
+    expect(body).toMatch(/left:\s*0/);
+    expect(body).toMatch(/right:\s*0/);
+    expect(body).toMatch(/background:\s*var\(--bg\)/);
+    expect(body).not.toMatch(/box-shadow|border-top/);
+  });
+
+  test('the brand mark is plain text: no box, border or shadow', () => {
+    const body = rule('#app-brand');
+    expect(body).not.toMatch(/background|border|box-shadow|position:\s*fixed/);
+  });
+
+  test('the theme button is an outline with no fill, its border >= 3:1 (checked in the pair tests)', () => {
+    const body = rule('#theme-toggle');
+    expect(body).toMatch(/background:\s*transparent/);
+    expect(body).toMatch(/border:\s*1px solid var\(--border-strong\)/);
+    expect(body).not.toMatch(/box-shadow|position:\s*fixed/);
+  });
+
+  test('the version label is not positioned on its own any more', () => {
+    expect(rule('#app-version')).not.toMatch(/position:\s*fixed/);
   });
 });

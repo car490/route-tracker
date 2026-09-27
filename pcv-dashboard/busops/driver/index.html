@@ -208,19 +208,23 @@
     <button id="btn-complete-manual" class="manual-complete-link" type="button">Trip not finishing automatically? Complete manually</button>
     </div>
 
-    <!-- Fixed to the viewport corner (see style.css) so it's visible on
-         every screen without scrolling, including #duty-card. -->
-    <div id="app-brand">
-      <div class="bo-wordmark">BusOps <span class="bo-app">Driver</span></div>
-      <div class="cm-attribution">
-        <span class="cm-powered-by">From</span>
-        <span class="cm-wordmark">PCV Technologies</span>
+    <!-- Footer strip on every screen (style.css #app-footer): brand mark on
+         the left; version label and display-theme button on the right. The
+         button (Auto / Light / Dark) is driven by src/theme/themeController.js;
+         scripts/release.mjs rewrites the version text on each release. -->
+    <footer id="app-footer">
+      <div id="app-brand">
+        <div class="bo-wordmark">BusOps <span class="bo-app">Driver</span></div>
+        <div class="cm-attribution">
+          <span class="cm-powered-by">From</span>
+          <span class="cm-wordmark">PCV Technologies</span>
+        </div>
       </div>
-    </div>
-
-    <!-- Display theme: Auto (sunrise/sunset) / Light / Dark, one tap to
-         cycle. Label and behaviour set by src/theme/themeController.js. -->
-    <button id="theme-toggle" type="button">&#9680; Auto</button>
+      <div class="footer-controls">
+        <p id="app-version">v2.2.11</p>
+        <button id="theme-toggle" type="button">&#9680; Auto</button>
+      </div>
+    </footer>
 
     <!-- Incident reporting overlay -->
     <div id="incident-overlay" hidden>
@@ -256,10 +260,6 @@
         <button id="trip-complete-ok-btn" class="tc-ok-btn">OK</button>
       </div>
     </div>
-
-    <!-- Version label: pinned above the theme button (style.css #app-version).
-         scripts/release.mjs rewrites its version text on each release. -->
-    <p id="app-version">v2.2.11</p>
 
     <script src="lib/leaflet.min.js"></script>
     <script type="module" src="src/main.js"></script>
