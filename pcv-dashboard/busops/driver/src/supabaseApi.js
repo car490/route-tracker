@@ -84,7 +84,11 @@ export async function rpc(fn, args) {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    throw new Error(body?.message || `RPC ${fn}: ${res.status}`);
+    const err = new Error(body?.message || `RPC ${fn}: ${res.status}`);
+    // The server answered and refused (vs. no answer at all): lets a caller
+    // such as automatic mode tell a refusal from a dead network.
+    err.status = res.status;
+    throw err;
   }
   return res.json();
 }

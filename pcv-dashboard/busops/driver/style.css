@@ -462,6 +462,14 @@ body {
   line-height: 1.6;
 }
 
+.ndc-auto-note {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  max-width: 300px;
+  line-height: 1.5;
+}
+
 .ndc-secondary-btn {
   background: transparent;
   color: var(--accent);

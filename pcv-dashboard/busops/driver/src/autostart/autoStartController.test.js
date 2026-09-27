@@ -230,6 +230,25 @@ describe('initAutoStart', () => {
     expect(ui.calls).toEqual([]);
   });
 
+  it('only offers while its screen is showing (isActive), never over a picker or a journey', async () => {
+    let active = false;
+    const getPosition = vi.fn(async () => BUS_STATION);
+    const ui = fakeUi();
+    const c = initAutoStart({
+      loadCandidates: async () => ({ candidates: [S116S], termDateRanges: [] }),
+      getPosition, now: () => at(7, 35), ui, onStart: async () => {},
+      isActive: () => active,
+      setInterval: () => 0, clearInterval: () => {},
+    });
+    await c.start();
+    await c.poll();
+    expect(getPosition).not.toHaveBeenCalled();
+    expect(ui.calls).toEqual([]);
+    active = true;
+    await c.poll();
+    expect(ui.last()).toEqual(['countdown', 'd-s116s', 10]);
+  });
+
   it('stop() clears its timers and hides any offer', async () => {
     const { controller, ui, timers } = setup();
     await controller.start();

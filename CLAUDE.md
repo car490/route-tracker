@@ -419,6 +419,16 @@ app. It watches the screens' `hidden` attribute, so any show path is covered; a 
 `index.html` must be added to `SCREEN_IDS` (`tests/driverScreens.test.js` fails otherwise).
 Tracker tabs and inner scroll boxes (the stop list's centring) are deliberately left alone.
 
+**Automatic mode** (`driver/src/autostart/`, 2026-09-27, `docs/DECISIONS.md` "Driver automatic
+mode"): a third way to start a journey, beside the duty card and the manual picker. On the waiting
+(no duty) screen only, it matches the vehicle's GPS against every Local Bus departure running today
+with the same matcher Announce Solo uses (`shared/scheduleAutopilot.js`), shows a 10-second
+countdown (Start now / Change service / Not now) and then starts through `launchManualResult()`,
+the same path as the manual Start button. Never set up with a duty card (`?duties=`). It passes
+`rejectRefusal: true` to `selectServiceManually()` so a start the server refuses (e.g. cancelled
+today) is not started by itself; offline starts still queue. `tests/driverAutoStart.test.js` guards
+the `main.js` wiring.
+
 **OSRM/directions must always use scheduled stop coordinates, never the live GPS position** —
 this keeps route drawing and turn-by-turn stable regardless of GPS drift.
 
