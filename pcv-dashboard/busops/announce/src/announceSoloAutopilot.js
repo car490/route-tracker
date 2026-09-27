@@ -40,7 +40,7 @@ import { startAnnounceGpsTracking } from './announceGps.js';
 import {
   findScheduleMatch, findTestingScheduleMatch, isJourneyComplete, isWithinDepartureWakeWindow,
   describeConfigUpdate,
-} from './scheduleAutopilot.js';
+} from '../../shared/scheduleAutopilot.js';
 import { shiftStopTimes } from '../../shared/scheduleTimeShift.js';
 import { buildStopTimeRows } from '../../shared/journeyStopTimes.js';
 import {

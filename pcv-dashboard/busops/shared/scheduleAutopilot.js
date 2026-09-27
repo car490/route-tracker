@@ -1,12 +1,16 @@
 /**
- * BusOps Announce Solo — schedule-autopilot idle-loop matcher.
+ * Schedule-autopilot matcher, shared by BusOps Announce Solo
+ * (announce/src/announceSoloAutopilot.js) and the Driver PWA's automatic
+ * mode, so both surfaces decide "which departure is this?" the same way.
+ * Moved here from announce/src/ 2026-09-27 (see docs/DECISIONS.md "Shared
+ * journey-tracking core").
  * Pure — no side effects, no I/O, no Supabase/GPS access of its own — same
  * treatment as shared/geofence.js/engine.js. See docs/ANNOUNCE-PRODUCT-TIERS.md's
  * "Schedule-autopilot" section (built for Phil Haines Travel's two-route
  * case, where no route shares a start/end point with any other service —
  * that non-overlap is what makes this lightweight approach safe).
  */
-import { haversine } from '../../shared/geo.js';
+import { haversine } from './geo.js';
 
 function minutesFromScheduled(departureTime, now) {
   const [h, m] = departureTime.split(':').map(Number);
