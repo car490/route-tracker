@@ -163,11 +163,20 @@ export async function fetchLocalBusVehicles() {
 // this deployment model is one Supabase project per operator, so "the
 // company" is unambiguous. Best-effort/cosmetic only: callers should treat
 // a thrown error the same as "keep whatever's already in the DOM".
-export async function fetchCompanyName() {
-  const res = await sbFetch(`/rest/v1/companies?select=name&limit=1`);
+// { name, logoUrl }: the operator's name and the public URL of the logo
+// uploaded in the dashboard's Company Settings (companies.logo_path in the
+// 'operator-assets' bucket — the same lookup Announce's idle screen makes,
+// announceDeviceFeed.js). logoUrl is null when no logo is set.
+export async function fetchCompanyBranding() {
+  const res = await sbFetch(`/rest/v1/companies?select=name,logo_path&limit=1`);
   if (!res.ok) throw new Error(`companies ${res.status}`);
   const rows = await res.json();
-  return rows[0]?.name ?? null;
+  const row = rows[0];
+  if (!row) return { name: null, logoUrl: null };
+  const logoUrl = row.logo_path
+    ? `${SUPABASE_URL}/storage/v1/object/public/operator-assets/${row.logo_path.split('/').map(encodeURIComponent).join('/')}`
+    : null;
+  return { name: row.name ?? null, logoUrl };
 }
 
 // Falls back to the last successful result for this departureId

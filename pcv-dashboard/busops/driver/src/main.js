@@ -10,7 +10,7 @@ import {
   setAnnouncementsEnabled, onAnnouncementChange, announceState,
   isMuted, setMuted,
 } from './announcements.js';
-import { sbFetch, rpc, fetchStopsForDeparture, fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyName, preloadAllRoutes, fetchActiveManualJourney, captureDutyLinkParams } from './supabaseApi.js';
+import { sbFetch, rpc, fetchStopsForDeparture, fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyBranding, preloadAllRoutes, fetchActiveManualJourney, captureDutyLinkParams } from './supabaseApi.js';
 import { resolveBootAction, BOOT_ACTION } from './activeJourneyRecovery.js';
 import { announceApproachEvent, announceStopEvent } from './announceStopEvent.js';
 import { triggerDiversionAlert, clearDiversionAlert } from './diversionAlert.js';
@@ -18,6 +18,7 @@ import { selectServiceManually } from './manualSelection.js';
 import { checkAnnouncementCoverage, describeMissingAudio } from './journeyAnnouncementPreflight.js';
 import { getStoredVehicle, storeVehicle } from './vehicleSetup.js';
 import { initTheme } from './theme/themeController.js';
+import { initBrandLogo } from './brandLogo.js';
 import { initScrollOnShow } from './screens/scrollOnShow.js';
 import { initAutoStart, getBrowserPosition } from './autostart/autoStartController.js';
 import { createAutoStartOverlay } from './autostart/autoStartOverlay.js';
@@ -1356,7 +1357,7 @@ async function init() {
   // a previous visit (src/localStore.js's queue) — covers the app being
   // reopened after sitting offline overnight. Also re-attempted on every
   // 'online' event below, for a mid-session reconnect. Best-effort/silent,
-  // same treatment as fetchCompanyName() just below.
+  // same treatment as initBrandLogo() just below.
   flushPendingTrips().catch(() => {});
   flushPendingJourneyStarts().catch(() => {});
   window.addEventListener('online', () => {
@@ -1370,20 +1371,16 @@ async function init() {
   // whose stops were never cached has nothing to fall back to if Supabase
   // is unreachable at start time, even though the journey itself can still
   // start via the pending-start queue above). Best-effort/non-blocking,
-  // same treatment as fetchCompanyName() just below — never delays showing
+  // same treatment as initBrandLogo() just below — never delays showing
   // the actual functional screens.
   preloadAllRoutes().catch(() => {});
 
-  // Real operator name for the picker/duty-card screens' brand heading —
-  // best-effort and non-blocking (doesn't delay showing the actual
-  // functional screens below); on failure (e.g. offline before any cache
-  // exists) the generic "BusOps Driver" default already in index.html stands.
-  fetchCompanyName()
-    .then(name => {
-      if (!name) return;
-      document.querySelectorAll('.picker-brand, .ndc-brand').forEach(el => { el.textContent = name; });
-    })
-    .catch(() => {});
+  // Operator's logo (or name, when it has none) for the picker/duty-card
+  // screens' brand heading — see brandLogo.js. Best-effort and non-blocking
+  // (doesn't delay showing the functional screens below); a cached logo
+  // shows at once, and with neither cache nor network the generic
+  // "BusOps Driver" default already in index.html stands.
+  initBrandLogo({ fetchBranding: fetchCompanyBranding }).catch(() => {});
 
   // Dedicated tablet mount, not a driver's own phone — keep the screen awake
   // from boot (duty-card/picker screens included), not just once tracking
