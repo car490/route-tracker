@@ -161,3 +161,25 @@ test('past stops and completed duties are de-emphasised by colour, not opacity',
     for (const body of rules) expect(body).not.toMatch(/opacity/);
   }
 });
+
+describe('version label', () => {
+  test('is a styled element, not an inline-styled paragraph under the brand mark', () => {
+    expect(html).toMatch(/<p id="app-version">v[\d.]+<\/p>/);
+    expect(html).not.toMatch(/<p style=[^>]*>v[\d.]+<\/p>/);
+  });
+
+  test('sits fixed above the theme button, clear of the brand mark in the opposite corner', () => {
+    const rule = css.match(/#app-version\s*\{([^}]*)\}/);
+    expect(rule).not.toBeNull();
+    expect(rule[1]).toMatch(/position:\s*fixed/);
+    expect(rule[1]).toMatch(/right:\s*1rem/);
+    expect(rule[1]).not.toMatch(/left:/);
+    expect(rule[1]).not.toMatch(/opacity/);
+  });
+
+  test("scripts/release.mjs's footer regex still finds exactly one version string", () => {
+    // Mirrors the replace() in scripts/release.mjs; a second match would be
+    // silently skipped and a zero match would leave the version stale.
+    expect(html.match(/>v[^<]*?<\/p>/g)).toHaveLength(1);
+  });
+});

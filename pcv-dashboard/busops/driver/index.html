@@ -257,7 +257,9 @@
       </div>
     </div>
 
-    <p style="text-align:center;font-size:0.7rem;color:var(--text-muted);opacity:0.6;padding:16px 0 8px;margin:0;">v2.2.11</p>
+    <!-- Version label: pinned above the theme button (style.css #app-version).
+         scripts/release.mjs rewrites its version text on each release. -->
+    <p id="app-version">v2.2.11</p>
 
     <script src="lib/leaflet.min.js"></script>
     <script type="module" src="src/main.js"></script>
