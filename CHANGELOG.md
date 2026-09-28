@@ -5,6 +5,56 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.3.0] - 2026-09-28
+
+**ElevenLabs "Ben" announcement voice, Driver automatic mode and display theme, power-cut recovery, security hardening**
+
+Announcements (Driver, Announce Solo, Bus Controller)
+- feat(announce): ElevenLabs "Ben" voice rendered inside the existing clip pipeline, with
+  silence trimming and loudness levelling to -21 LUFS (matches the Azure clips, so the
+  amplifier setting doesn't change), speed 0.80, and a spoken pause after commas.
+  A Ben clip is never overwritten by another voice.
+- feat(announce): credit safeguards: only stops a timetable uses are rendered with Ben,
+  a daily character cap (`app_config.elevenlabs_daily_char_cap`, default 6000), a retry
+  cap of 3, and an alert when a Ben clip is out of date.
+- feat(db): `stops.spoken_name`, a speech-only respelling; changing it regenerates the clip.
+- feat(dashboard): Announcement Clips page to play and approve Ben clips, with an audit log.
+- feat(announce): `npm run export:controller-clips` exports the live clips to the Bus
+  Controller, so it plays the same voice as the Driver PWA and Solo.
+- feat(announce): Solo carries a trip through a power cut and can start with no signal.
+
+Driver PWA
+- feat(driver): automatic mode: on the waiting screen with no duty card, the departure
+  the vehicle is at starts itself after a 10-second countdown (Start now / Change
+  service / Not now). `npm run verify:autostart` checks it end to end.
+- feat(driver): display theme: Auto (light from sunrise to sunset, from GPS) / Light /
+  Dark, route-sheet palette, system font, clearer brand mark.
+- feat(driver): shows the operator's logo instead of the company name; one footer strip;
+  every screen opens scrolled to the top.
+- feat(driver): the duty card and a trip in progress survive a power cut (duty card
+  until end of shift; a trip saved under 2 hours ago today is offered back, and its
+  stop times still upload).
+- fix(driver): only resume a journey started today; precache every module main.js
+  loads, so the app starts offline.
+
+Bus Controller
+- feat(controller): read-only system disk, hardware watchdog and automatic restarts
+  against power cuts (switched on by `bootstrap-controller.sh`; not yet proven on the box).
+
+Security
+- fix(security): RLS/RPC hardening (phase 0 and 1), TRUNCATE/MAINTAIN/TRIGGER/REFERENCES
+  revoked from client roles, companies no longer fully anon-readable, stale production-only
+  functions removed. See `docs/SECURITY-HARDENING.md`.
+- fix(security): auth and input limits on the directions endpoints, `send-duty-email`
+  hardened, security headers (CSP report-only), dependency fixes, CI supply-chain gate,
+  constant-time secret checks, vehicle ownership checked on announce tokens,
+  `mele-server` dependencies pinned.
+- chore(lint): dashboard lint backlog cleared, ratcheted to `--max-warnings 0`.
+- fix(ci): an older commit's Driver deploy can no longer overwrite a newer one.
+
+Docs
+- Power-cut bench test and first-boot notes for every device (`docs/TESTING.md` §19).
+
 ## [2.2.11] - 2026-09-24
 
 **Dashboard: phone journeys page, one-step journey reset**
