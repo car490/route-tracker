@@ -67,9 +67,12 @@ export function deriveConnectionState(status) {
 // never trusted as a one-time read. `filter` is applied via .eq(column,
 // value); omit it when RLS already scopes to exactly one row (e.g.
 // announce_devices' device_self policy).
-export async function hydrate(client, table, filter) {
+// { retry: false } turns off supabase-js's own retries of a failed read,
+// for a caller that already retries on its own schedule.
+export async function hydrate(client, table, filter, { retry } = {}) {
   let query = client.from(table).select('*');
   if (filter) query = query.eq(filter.column, filter.value);
+  if (retry === false) query = query.retry(false);
   const { data, error } = await query.single();
   if (error) throw error;
   return data;

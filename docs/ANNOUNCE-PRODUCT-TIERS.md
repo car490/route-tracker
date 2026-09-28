@@ -204,10 +204,13 @@ reasoning:
    across both Lite and Solo: which tier a device is in
    falls out of `gps_source`/`link_state`/whether
    `candidate_departure_ids` is populated, not a separate flow per mode.
-   Departures are cached client-side via the existing offline-first
-   pattern (`preloadAllRoutes()`/`localStore.js`) — no new caching
-   mechanism — each carrying its first stop's lat/lon and scheduled
-   `departure_time`.
+   Each departure carries its first stop's lat/lon and scheduled
+   `departure_time`. *(Corrected 2026-09-28: this said departures were
+   cached via the Driver PWA's `preloadAllRoutes()`/`localStore.js`; Solo
+   never used either and kept no copy at all until the power-cut work.
+   It now keeps its own offline copy of its settings, departures and
+   stops — `announce/src/soloOfflineCache.js`, see `docs/DECISIONS.md`
+   "Announce Solo through a power cut".)*
 2. **Idle loop**: while no journey is active, the tablet watches its own
    GPS and, for each cached candidate, checks two conditions together:
    - **Geofence** — is the vehicle within `terminus_radius_m` (new

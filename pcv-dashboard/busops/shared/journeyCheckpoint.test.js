@@ -1,4 +1,4 @@
-// src/journeyCheckpoint.test.js
+// shared/journeyCheckpoint.test.js
 //
 // A trip in progress is saved on the device as it runs, so a power cut
 // mid-route loses nothing already recorded and the trip can be picked up
@@ -156,6 +156,27 @@ describe('readCheckpoint', () => {
 
     storage.setItem(CHECKPOINT_KEY, JSON.stringify({ journeyId: 'j1', savedAt: T0.toISOString() }));
     expect(readCheckpoint({ storage, now: T0 }).status).toBe('none');
+  });
+});
+
+// Driver and Announce Solo each keep their own saved trip (a Solo tablet
+// and a Driver tablet are different devices, but the key keeps the two
+// apart on principle and in the dev 2-up demo, which runs both in one
+// browser profile).
+describe('separate keys', () => {
+  it('a recorder with its own key never reads or overwrites the default one', () => {
+    recorder().record({ stopStates: STOPS.map(upcoming), nextStopIndex: 0 });
+    const solo = createCheckpointRecorder({
+      journeyId: 'solo-1', launch: LAUNCH, storage, now: () => T0, key: 'solo.key',
+    });
+    expect(solo.previous).toBeNull();
+    solo.record({ stopStates: STOPS.map(upcoming), nextStopIndex: 2 });
+
+    expect(readCheckpoint({ storage, now: T0 }).checkpoint.journeyId).toBe('j1');
+    expect(readCheckpoint({ storage, now: T0, key: 'solo.key' }).checkpoint.journeyId).toBe('solo-1');
+    clearCheckpoint({ storage, key: 'solo.key' });
+    expect(readCheckpoint({ storage, now: T0, key: 'solo.key' }).status).toBe('none');
+    expect(readCheckpoint({ storage, now: T0 }).status).toBe('fresh');
   });
 });
 

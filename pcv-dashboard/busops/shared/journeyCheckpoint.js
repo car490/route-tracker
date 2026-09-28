@@ -1,6 +1,6 @@
-// src/journeyCheckpoint.js
+// shared/journeyCheckpoint.js
 //
-// BusOps Driver — saves the trip in progress on the device as it runs, so a
+// Saves the trip in progress on the device as it runs, so a
 // power cut mid-route (ignition off, flat tablet battery) loses nothing
 // already recorded, and the trip can be picked up again on the next boot
 // with or without signal (docs/HARDWARE.md "Power loss and first boot").
@@ -13,6 +13,10 @@
 // A checkpoint is resumable for 2 hours after it was last saved and only on
 // the same UK day (owner, 2026-09-28; the same 2 hours the sign uses for a
 // push it no longer trusts, announceDeviceFeed.js's STALE_PUSH_THRESHOLD_MS).
+//
+// Shared by the Driver PWA (driver/src/main.js) and Announce Solo
+// (announce/src/announceSoloAutopilot.js), each under its own storage key
+// (`key`, defaulting to the Driver's).
 // Older than that it is "stale": not resumed, but its recorded stops are
 // still handed back so main.js can queue them for upload rather than drop
 // them.
@@ -21,7 +25,7 @@
 // other credential. Pure, injectable storage/clock, never throws — same
 // conventions as localStore.js.
 
-import { buildStopTimeRows } from '../../shared/journeyStopTimes.js';
+import { buildStopTimeRows } from './journeyStopTimes.js';
 
 export const CHECKPOINT_KEY = 'busops.driver.journeyCheckpoint';
 export const CHECKPOINT_MAX_AGE_MS = 2 * 60 * 60 * 1000;
@@ -39,20 +43,20 @@ function isValid(c) {
 }
 
 // { status: 'none' | 'fresh' | 'stale', checkpoint }
-export function readCheckpoint({ storage = globalThis.localStorage, now = new Date() } = {}) {
+export function readCheckpoint({ storage = globalThis.localStorage, now = new Date(), key = CHECKPOINT_KEY } = {}) {
   let checkpoint = null;
   try {
-    const raw = storage.getItem(CHECKPOINT_KEY);
+    const raw = storage.getItem(key);
     if (raw) checkpoint = JSON.parse(raw);
   } catch (_) {
     checkpoint = undefined;
   }
   if (!checkpoint) {
-    if (checkpoint === undefined) clearCheckpoint({ storage });
+    if (checkpoint === undefined) clearCheckpoint({ storage, key });
     return { status: 'none', checkpoint: null };
   }
   if (!isValid(checkpoint)) {
-    clearCheckpoint({ storage });
+    clearCheckpoint({ storage, key });
     return { status: 'none', checkpoint: null };
   }
   const savedAt = new Date(checkpoint.savedAt);
@@ -61,9 +65,9 @@ export function readCheckpoint({ storage = globalThis.localStorage, now = new Da
   return { status: fresh ? 'fresh' : 'stale', checkpoint };
 }
 
-export function clearCheckpoint({ storage = globalThis.localStorage } = {}) {
+export function clearCheckpoint({ storage = globalThis.localStorage, key = CHECKPOINT_KEY } = {}) {
   try {
-    storage.removeItem(CHECKPOINT_KEY);
+    storage.removeItem(key);
   } catch (_) {}
 }
 
@@ -95,8 +99,9 @@ export function createCheckpointRecorder({
   journeyId, launch,
   storage = globalThis.localStorage,
   now = () => new Date(),
+  key = CHECKPOINT_KEY,
 }) {
-  const existing = readCheckpoint({ storage, now: now() }).checkpoint;
+  const existing = readCheckpoint({ storage, now: now(), key }).checkpoint;
   const sameJourney = existing?.journeyId === journeyId;
   const priorRows = sameJourney ? existing.stopRows : [];
   let lastWritten = null;
@@ -110,7 +115,7 @@ export function createCheckpointRecorder({
     const signature = JSON.stringify([nextStopIndex, stopRows]);
     if (signature === lastWritten) return;
     try {
-      storage.setItem(CHECKPOINT_KEY, JSON.stringify({
+      storage.setItem(key, JSON.stringify({
         journeyId, launch, stopRows, nextStopIndex, savedAt: now().toISOString(),
       }));
       lastWritten = signature;
@@ -121,6 +126,6 @@ export function createCheckpointRecorder({
     previous: existing && !sameJourney ? existing : null,
     record,
     finalRows,
-    clear: () => clearCheckpoint({ storage }),
+    clear: () => clearCheckpoint({ storage, key }),
   };
 }

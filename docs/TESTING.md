@@ -635,14 +635,31 @@ Only once part A passes. Use dev Supabase and a test journey.
 5. **End of shift:** complete every duty on a duty card, then restart the tablet.
    **Expect:** the duty card does not come back (the link has been removed from the device).
 
+**Announce Solo tablet** (dev Supabase, a Solo device commissioned for a test departure):
+
+6. **Trip carries on with no signal:** let Solo start the trip at the first stop and drive past
+   two stops. Turn WiFi/data **off**, cut the power, keep driving, restore power. **Expect:** the
+   sign comes back on its own and shows and says "The next stop is …" for the stop ahead, then
+   carries on normally. Finish the trip.
+7. Turn data back on. **Expect:** in the dashboard the journey is completed, with stop times for
+   **every** stop, including those before the power cut.
+8. **Starts with no signal:** with data **off**, restart the tablet at the first stop of a
+   departure due now. **Expect:** the trip starts as normal. Turn data on. **Expect:** the
+   journey appears in the dashboard as started, then completed at the end.
+9. **Revoked tablet:** run it once online, then with data off restart it (it runs from its copy).
+   Revoke it (`update announce_devices set revoked_at = now() where id = …` on dev), turn data
+   on. **Expect:** the sign goes dark within a few seconds and stays dark after a restart.
+
 ### C. Automated check (no tablet needed)
 
 ```sh
 cd pcv-dashboard/busops
 npm run verify:power-cut
+npm run verify:solo-power-cut
 ```
 
 Runs the real Driver app in headless Chromium through B1–B5 with simulated GPS and a local
-Supabase stand-in (nothing leaves the machine). Exit 0 all passed, 1 a check failed. Useful
+Supabase stand-in (nothing leaves the machine). `npm run verify:solo-power-cut` does the same
+for the Announce Solo sign (B6–B9, real `onboard.html`). Exit 0 all passed, 1 a check failed. Useful
 before and after any change to boot, the duty link or trip saving, but it is **not** a
 substitute for part A or B: it can't tell you whether a real tablet switches itself on.

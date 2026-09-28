@@ -13,7 +13,7 @@ import {
 import { sbFetch, rpc, fetchStopsForDeparture, fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyBranding, preloadAllRoutes, fetchActiveManualJourney, captureDutyLinkParams } from './supabaseApi.js';
 import { resolveBootAction, BOOT_ACTION } from './activeJourneyRecovery.js';
 import { clearDutyLink, isShiftComplete } from './dutyLinkStore.js';
-import { readCheckpoint, clearCheckpoint, createCheckpointRecorder, suggestedResumeIndex } from './journeyCheckpoint.js';
+import { readCheckpoint, clearCheckpoint, createCheckpointRecorder, suggestedResumeIndex } from '../../shared/journeyCheckpoint.js';
 import { announceApproachEvent, announceStopEvent } from './announceStopEvent.js';
 import { triggerDiversionAlert, clearDiversionAlert } from './diversionAlert.js';
 import { selectServiceManually } from './manualSelection.js';
