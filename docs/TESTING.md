@@ -591,6 +591,10 @@ What happens when the isolator cuts everything, the tablets' batteries go comple
 the ignition comes back. Background and options: `docs/HARDWARE.md` "Power loss and first boot".
 Do part A before anything else: parts B and C mean nothing if a device doesn't switch itself on.
 
+**Record results in the [Power-cut bench test checklist](https://claude.ai/code/artifact/d17b484d-cf48-4acb-8895-1e690b001ba0)**
+(a shared doc: the same steps as below, with tick boxes, a table per test and a Pass/Fail sign-off).
+This section stays the reference; if the two ever disagree, fix the doc to match this file.
+
 ### A. Bench test: does each device switch itself on? (hardware, no app needed)
 
 For **each** device: the Driver tablet, the Announce tablet, and the Bus Controller.
