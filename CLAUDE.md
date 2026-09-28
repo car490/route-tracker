@@ -172,7 +172,7 @@ npm run build   # vite build
 ```
 CI (`.github/workflows/ci.yml`) runs: `pcv-dashboard/busops` `npm test` + `npm run test:vitest`
 (PWA, both suites — see "Two independent test setups" above), `pcv-dashboard` lint,
-`pcv-dashboard` build — on every push and PR. Once those three jobs pass, a deploy job runs
+`pcv-dashboard` build — on every pull request and on pushes to `develop`/`master` (not other branch pushes, so a PR commit runs once; `tests/ciDeploy.test.js` "CI triggers"). Once those three jobs pass, a deploy job runs
 `wrangler deploy` from `pcv-dashboard/busops` to push the Driver PWA + Announce app to Cloudflare
 Workers: `deploy-driver-pwa-dev` on `develop` pushes (dev Supabase, `driver-dev.pcvtechnologies.co.uk`)
 and `deploy-driver-pwa-production` on `master` pushes (production Supabase,

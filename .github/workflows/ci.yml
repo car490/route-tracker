@@ -1,8 +1,11 @@
 name: CI
 
+# Pushes run CI only for the two branches that deploy; every other branch runs
+# through its pull request. Running on both for every branch ran each PR commit
+# twice (tests/ciDeploy.test.js, "CI triggers").
 on:
   push:
-    branches: ['**']
+    branches: [develop, master]
   pull_request:
 
 # Least privilege for the GITHUB_TOKEN: nothing in this workflow writes to the repo.

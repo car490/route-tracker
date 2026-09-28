@@ -98,8 +98,8 @@ The dashboard has its own Vitest suite:
 cd pcv-dashboard && npm test
 ```
 
-CI (`.github/workflows/ci.yml`) runs all of the above plus dashboard lint/build on every push
-and PR.
+CI (`.github/workflows/ci.yml`) runs all of the above plus dashboard lint/build on every pull
+request and on pushes to `develop` and `master`.
 
 ## Lint / build (dashboard only — the PWA has no build step)
 
