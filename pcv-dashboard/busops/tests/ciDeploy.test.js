@@ -22,6 +22,28 @@ function jobBlock(name) {
   return m[1];
 }
 
+// Triggers (2026-09-28). CI used to run on a push to any branch AND on every
+// pull_request update, so each commit on a PR branch ran twice; on a private
+// repo that doubles the Actions minutes spent. Pushes now run only for the two
+// branches that deploy; every other branch gets CI through its pull request.
+describe('CI triggers', () => {
+  const on = ci.match(/^on:\n([\s\S]*?)(?=^\S)/m)?.[1] ?? '';
+
+  test('push runs only for develop and master', () => {
+    expect(on).toMatch(/^  push:\n    branches: \[develop, master\]\n/m);
+    expect(on).not.toContain("'**'");
+  });
+
+  test('every pull request still runs CI', () => {
+    expect(on).toMatch(/^  pull_request:\s*$/m);
+  });
+
+  test('each deploy job still fires on a push to its own branch', () => {
+    expect(jobBlock('deploy-driver-pwa-dev')).toContain("if: github.ref == 'refs/heads/develop' && github.event_name == 'push'");
+    expect(jobBlock('deploy-driver-pwa-production')).toContain("if: github.ref == 'refs/heads/master' && github.event_name == 'push'");
+  });
+});
+
 describe.each([
   ['deploy-driver-pwa-dev', 'develop'],
   ['deploy-driver-pwa-production', 'master'],
