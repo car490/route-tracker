@@ -39,10 +39,26 @@ interface NaptanStop {
   stop_type: string; status: string; updated_at: string
 }
 
+// Constant-time bearer check: hash both sides to fixed-length digests, then
+// compare every byte, so response timing reveals nothing about how much of
+// the secret a guess got right (a plain !== returns at the first mismatch).
+async function tokenMatches(given: string, expected: string | undefined): Promise<boolean> {
+  if (!given || !expected) return false
+  const enc = new TextEncoder()
+  const [a, b] = await Promise.all([
+    crypto.subtle.digest('SHA-256', enc.encode(given)),
+    crypto.subtle.digest('SHA-256', enc.encode(expected)),
+  ])
+  const x = new Uint8Array(a), y = new Uint8Array(b)
+  let diff = 0
+  for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i]
+  return diff === 0
+}
+
 Deno.serve(async (req) => {
   // ── Auth ──────────────────────────────────────────────────────────────────
   const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
-  if (!token || token !== Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')) {
+  if (!(await tokenMatches(token, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')))) {
     return new Response('Unauthorized', { status: 401 })
   }
 

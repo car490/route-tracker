@@ -1,10 +1,13 @@
 // tests/brandTokens.test.js
 //
 // brand-tokens.css is the single source of truth for PCV Technologies'
-// brand colours and typeface (see docs/BRAND.md). manifest.json and the two
-// root HTML files' <meta name="theme-color"> / Google Fonts <link> are
-// static, with no build step, so they can't import the CSS token — this
-// guards them from drifting out of sync with it instead.
+// brand colours and typeface (see docs/BRAND.md). onboard.html's Google
+// Fonts <link> is static, with no build step, so it can't import the CSS
+// token — this guards it from drifting out of sync with it instead.
+//
+// The Driver PWA is a recorded exception (docs/DECISIONS.md "Driver PWA
+// display theme"): system font, no brand cyan, its own light/dark palette.
+// Its manifest/theme-color/font rules are guarded by driverPalette.test.js.
 
 import fs from 'fs';
 import path from 'path';
@@ -18,8 +21,6 @@ function readToken(name) {
   return match[1].trim();
 }
 
-const pcvCharcoal = readToken('--pcv-color-charcoal');
-
 // --pcv-font-sans's first (quoted) font name, Google-Fonts-URL-encoded, e.g.
 // "'Plus Jakarta Sans', ..." → "Plus+Jakarta+Sans".
 const pcvFontUrlName = readToken('--pcv-font-sans')
@@ -27,7 +28,6 @@ const pcvFontUrlName = readToken('--pcv-font-sans')
   .replace(/ /g, '+');
 
 describe.each([
-  ['driver/index.html', 'index.html'],
   ['announce/onboard.html', 'onboard.html'],
 ])('%s Google Fonts link matches brand-tokens.css', (relPath) => {
   const html = fs.readFileSync(path.join(root, relPath), 'utf8');
@@ -36,28 +36,6 @@ describe.each([
     const match = html.match(/<link href="(https:\/\/fonts\.googleapis\.com\/css2\?family=[^"]+)"/);
     expect(match).not.toBeNull();
     expect(match[1]).toContain(pcvFontUrlName);
-  });
-});
-
-describe('manifest.json colours match brand-tokens.css', () => {
-  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'driver', 'manifest.json'), 'utf8'));
-
-  test('theme_color matches --pcv-color-charcoal', () => {
-    expect(manifest.theme_color.toUpperCase()).toBe(pcvCharcoal.toUpperCase());
-  });
-
-  test('background_color matches --pcv-color-charcoal', () => {
-    expect(manifest.background_color.toUpperCase()).toBe(pcvCharcoal.toUpperCase());
-  });
-});
-
-describe('index.html theme-color meta matches brand-tokens.css', () => {
-  const html = fs.readFileSync(path.join(root, 'driver', 'index.html'), 'utf8');
-
-  test('meta theme-color matches --pcv-color-charcoal', () => {
-    const match = html.match(/<meta name="theme-color" content="([^"]+)"/);
-    expect(match).not.toBeNull();
-    expect(match[1].toUpperCase()).toBe(pcvCharcoal.toUpperCase());
   });
 });
 

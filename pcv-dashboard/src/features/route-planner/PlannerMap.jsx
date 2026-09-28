@@ -26,7 +26,8 @@ export default function PlannerMap({ stops, routeGeometry, pinDropMode, onMapCli
     }).addTo(map)
     mapRef.current = map
     return () => { map.remove(); mapRef.current = null }
-  }, [])
+    // Create the map once; a late-arriving hqLocation is handled by the recenter effect below.
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // HQ location loads asynchronously and can resolve after the map already
   // mounted with the generic default view — recenter once it arrives, but

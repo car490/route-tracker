@@ -412,3 +412,310 @@ describe('startSoloAutopilot', () => {
     expect(getCurrentPosition).toHaveBeenCalled(); // and is actually polling GPS, not stuck dormant
   });
 });
+
+// ── Power cut and no signal (docs/HARDWARE.md "Power loss and first boot") ──
+// Owner-approved 2026-09-28: Solo saves its trip as it runs and carries it
+// on after a restart from a GPS-picked stop (no driver to confirm one),
+// saying "The next stop is X" once; queues starts and uploads made with no
+// signal; and starts from an offline copy of its departures.
+
+import { readCheckpoint } from '../../shared/journeyCheckpoint.js';
+import { SOLO_CHECKPOINT_KEY } from './announceSoloAutopilot.js';
+import { QUEUE_KEY } from './soloTripQueue.js';
+import { saveCandidates, saveDepartureDetails } from './soloOfflineCache.js';
+import { ANNOUNCE_STATES } from '../../shared/announceStates.js';
+
+function memoryStorage() {
+  const data = new Map();
+  return {
+    getItem: (k) => (data.has(k) ? data.get(k) : null),
+    setItem: (k, v) => { data.set(k, String(v)); },
+    removeItem: (k) => { data.delete(k); },
+  };
+}
+
+// Three stops on a straight road, ~1.1 km apart.
+const ROUTE = [
+  { name: 'Depot', lat: 52.90, lon: -0.60, time: '08:00', stop_type: 'timing_point', timetable_stop_id: 'ts-1', stop_id: 'stop-1' },
+  { name: 'Market Place', lat: 52.91, lon: -0.60, time: '08:10', stop_type: 'timing_point', timetable_stop_id: 'ts-2', stop_id: 'stop-2' },
+  { name: 'College', lat: 52.92, lon: -0.60, time: '08:20', stop_type: 'timing_point', timetable_stop_id: 'ts-3', stop_id: 'stop-3' },
+];
+
+function seedSavedTrip(storage, { savedAt, nextStopIndex = 1, stopRows } = {}) {
+  storage.setItem(SOLO_CHECKPOINT_KEY, JSON.stringify({
+    journeyId: 'jrn-saved',
+    launch: { allStops: ROUTE, serviceCode: 'S125S', departureId: 'dep-1', startedAt: new Date(savedAt.getTime() - 15 * 60000).toISOString() },
+    stopRows: stopRows ?? [{ journey_id: 'jrn-saved', timetable_stop_id: 'ts-1', arrived_at: '2026-08-24T07:00:00.000Z', visit_status: 'visited' }],
+    nextStopIndex,
+    savedAt: savedAt.toISOString(),
+  }));
+}
+
+// A client whose requests all fail the way supabase-js reports no signal.
+function offlineClient() {
+  const fail = () => thenableOnly({ data: null, error: { message: 'TypeError: Failed to fetch', code: '' } });
+  const failing = () => {
+    const obj = { select: () => obj, in: () => obj, eq: () => obj, order: () => obj, then: (r) => r({ data: null, error: { message: 'TypeError: Failed to fetch', code: '' } }) };
+    return obj;
+  };
+  const upsert = vi.fn(fail);
+  return {
+    from: vi.fn((table) => (table === 'journey_stop_times' ? { upsert } : failing())),
+    rpc: vi.fn(fail),
+    journeyStopTimesUpsert: upsert,
+  };
+}
+
+const at = (lat, lon, accuracy = 10) => ({ coords: { latitude: lat, longitude: lon, accuracy } });
+
+describe('startSoloAutopilot — power cut and no signal', () => {
+  let storage;
+  beforeEach(() => {
+    vi.useFakeTimers();
+    storage = memoryStorage();
+    speakState.mockClear();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    startAnnounceGpsTracking.mockReset();
+  });
+
+  it('saves the trip on the tablet as it runs', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0));
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: vi.fn((ok) => ok(at(DEPOT.lat, DEPOT.lon))) } });
+    vi.stubGlobal('crypto', { randomUUID: () => 'client-generated-id' });
+    let onUpdate;
+    startAnnounceGpsTracking.mockImplementation((opts) => { onUpdate = opts.onUpdate; return { stop: vi.fn(), jumpToStop: vi.fn() }; });
+
+    startSoloAutopilot(makeClient(), BASE_DEVICE_ROW, { onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture: vi.fn(), onJourneyEnd: vi.fn() }, { storage });
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000);
+    await flush();
+
+    onUpdate({ atStop: { stopIndex: 0 }, approaching: null, nextStopIndex: 0, stopStates: [{ status: 'arrived', arrivedAt: new Date(2026, 7, 24, 8, 0, 30) }, { status: 'upcoming' }] });
+
+    const { status, checkpoint } = readCheckpoint({ storage, now: new Date(), key: SOLO_CHECKPOINT_KEY });
+    expect(status).toBe('fresh');
+    expect(checkpoint.journeyId).toBe('jrn-1');
+    expect(checkpoint.launch.departureId).toBe('dep-1');
+    expect(checkpoint.stopRows.map((r) => r.timetable_stop_id)).toEqual(['ts-1']);
+  });
+
+  it('carries on a saved trip after a restart — outside its wake window, with no signal — from the GPS-picked stop, saying the next stop once', async () => {
+    const now = new Date(2026, 7, 24, 12, 0, 0); // well outside dep-1's wake window: a trip in progress must still resume
+    vi.setSystemTime(now);
+    seedSavedTrip(storage, { savedAt: new Date(now.getTime() - 10 * 60000), nextStopIndex: 1 });
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: vi.fn((ok) => ok(at(52.915, -0.60))) } }); // between Market Place and College
+    const jumpToStop = vi.fn();
+    startAnnounceGpsTracking.mockImplementation(() => ({ stop: vi.fn(), jumpToStop }));
+
+    const client = offlineClient();
+    const onSchedule = vi.fn();
+    const onState = vi.fn();
+    startSoloAutopilot(client, BASE_DEVICE_ROW, { onSchedule, onState, onIdleNextDeparture: vi.fn(), onJourneyEnd: vi.fn(), onSleep: vi.fn() }, { storage });
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000);
+    await flush();
+
+    expect(startAnnounceGpsTracking).toHaveBeenCalledTimes(1);
+    expect(startAnnounceGpsTracking.mock.calls[0][0].initialStopIndex).toBe(2);
+    expect(jumpToStop).toHaveBeenCalledWith(2);
+    expect(onSchedule).toHaveBeenCalledWith(expect.objectContaining({ journeyId: 'jrn-saved', serviceCode: 'S125S' }));
+    expect(onState).toHaveBeenCalledWith(expect.objectContaining({
+      journeyId: 'jrn-saved', stateKey: ANNOUNCE_STATES.STOP_DEPARTURE,
+      vars: expect.objectContaining({ nextStopName: 'College' }),
+    }));
+    expect(speakState).toHaveBeenCalledTimes(1);
+    expect(speakState.mock.calls[0][0]).toBe(ANNOUNCE_STATES.STOP_DEPARTURE);
+    expect(client.rpc).not.toHaveBeenCalledWith('get_or_create_manual_journey', expect.anything());
+  });
+
+  it('keeps stops recorded before the power cut in the trip-end upload', async () => {
+    const now = new Date(2026, 7, 24, 12, 0, 0);
+    vi.setSystemTime(now);
+    seedSavedTrip(storage, { savedAt: new Date(now.getTime() - 10 * 60000), nextStopIndex: 1 });
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: vi.fn((ok) => ok(at(52.915, -0.60))) } });
+    let onUpdate;
+    startAnnounceGpsTracking.mockImplementation((opts) => { onUpdate = opts.onUpdate; return { stop: vi.fn(), jumpToStop: vi.fn() }; });
+
+    const client = makeClient();
+    startSoloAutopilot(client, BASE_DEVICE_ROW, { onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture: vi.fn(), onJourneyEnd: vi.fn(), onSleep: vi.fn() }, { storage });
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000);
+    await flush();
+
+    onUpdate({
+      atStop: { stopIndex: 2 }, approaching: null, nextStopIndex: 2,
+      stopStates: [{ status: 'not_tracked' }, { status: 'not_tracked' }, { status: 'arrived', arrivedAt: new Date(2026, 7, 24, 12, 5, 0) }],
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    await flush();
+
+    const [rows] = client.journeyStopTimesUpsert.mock.calls[0];
+    expect(rows.map((r) => [r.journey_id, r.timetable_stop_id])).toEqual([['jrn-saved', 'ts-1'], ['jrn-saved', 'ts-3']]);
+    expect(client.rpc).toHaveBeenCalledWith('complete_journey', { p_journey_id: 'jrn-saved' });
+    expect(readCheckpoint({ storage, now: new Date(), key: SOLO_CHECKPOINT_KEY }).status).toBe('none');
+  });
+
+  it('does not guess from a poor GPS reading; carries on once a good one arrives', async () => {
+    const now = new Date(2026, 7, 24, 12, 0, 0);
+    vi.setSystemTime(now);
+    seedSavedTrip(storage, { savedAt: new Date(now.getTime() - 10 * 60000) });
+    const getCurrentPosition = vi.fn((ok) => ok(at(52.915, -0.60, 400)));
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } });
+    startAnnounceGpsTracking.mockImplementation(() => ({ stop: vi.fn(), jumpToStop: vi.fn() }));
+
+    startSoloAutopilot(offlineClient(), BASE_DEVICE_ROW, { onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture: vi.fn(), onJourneyEnd: vi.fn(), onSleep: vi.fn() }, { storage });
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(startAnnounceGpsTracking).not.toHaveBeenCalled();
+
+    getCurrentPosition.mockImplementation((ok) => ok(at(52.915, -0.60, 10)));
+    await vi.advanceTimersByTimeAsync(5000);
+    await flush();
+    expect(startAnnounceGpsTracking).toHaveBeenCalledTimes(1);
+  });
+
+  it('a saved trip more than 2 hours old is not carried on: its stops upload, the journey is not completed', async () => {
+    const now = new Date(2026, 7, 24, 12, 0, 0);
+    vi.setSystemTime(now);
+    seedSavedTrip(storage, { savedAt: new Date(now.getTime() - 3 * 60 * 60000) });
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: vi.fn((ok) => ok(at(52.915, -0.60))) } });
+    startAnnounceGpsTracking.mockImplementation(() => ({ stop: vi.fn(), jumpToStop: vi.fn() }));
+
+    const client = makeClient();
+    startSoloAutopilot(client, BASE_DEVICE_ROW, { onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture: vi.fn(), onJourneyEnd: vi.fn(), onSleep: vi.fn() }, { storage });
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000);
+    await flush();
+
+    expect(startAnnounceGpsTracking).not.toHaveBeenCalled();
+    expect(client.journeyStopTimesUpsert).toHaveBeenCalledTimes(1);
+    expect(client.journeyStopTimesUpsert.mock.calls[0][0][0].journey_id).toBe('jrn-saved');
+    expect(client.rpc).not.toHaveBeenCalledWith('complete_journey', expect.anything());
+    expect(readCheckpoint({ storage, now, key: SOLO_CHECKPOINT_KEY }).status).toBe('none');
+  });
+
+  it('with no signal, starts from the offline copy of its departures, on a tablet-made journey id, and queues the start', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0));
+    const candidateRows = { candidates: [{
+      departureId: 'dep-1', serviceCode: 'S125S', firstStopLat: DEPOT.lat, firstStopLon: DEPOT.lon, departureTime: '08:00',
+      daysOfWeek: [1, 2, 3, 4, 5], schoolTermTime: false, removedDates: [], addedDates: [],
+    }], termDateRanges: [] };
+    saveCandidates(['dep-1'], candidateRows, { storage, now: new Date() });
+    saveDepartureDetails('dep-1', { serviceCode: 'S125S', allStops: ROUTE }, { storage, now: new Date() });
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: vi.fn((ok) => ok(at(DEPOT.lat, DEPOT.lon))) } });
+    vi.stubGlobal('crypto', { randomUUID: () => 'client-generated-id' });
+    startAnnounceGpsTracking.mockImplementation(() => ({ stop: vi.fn(), jumpToStop: vi.fn() }));
+
+    const onSchedule = vi.fn();
+    const onIdleNextDeparture = vi.fn();
+    startSoloAutopilot(offlineClient(), BASE_DEVICE_ROW, { onSchedule, onState: vi.fn(), onIdleNextDeparture, onJourneyEnd: vi.fn(), onSleep: vi.fn() }, { storage });
+    await flush();
+    expect(onIdleNextDeparture).toHaveBeenCalled(); // woke from the copy, not stuck retrying
+
+    await vi.advanceTimersByTimeAsync(5000);
+    await flush();
+
+    expect(onSchedule).toHaveBeenCalledWith(expect.objectContaining({ journeyId: 'client-generated-id' }));
+    const queued = JSON.parse(storage.getItem(QUEUE_KEY));
+    expect(queued).toEqual([{ type: 'start', journeyId: 'client-generated-id', departureId: 'dep-1' }]);
+  });
+
+  it('a failed trip-end upload is kept and sent on the next retry', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0));
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: vi.fn((ok) => ok(at(DEPOT.lat, DEPOT.lon))) } });
+    vi.stubGlobal('crypto', { randomUUID: () => 'client-generated-id' });
+    let onUpdate;
+    startAnnounceGpsTracking.mockImplementation((opts) => { onUpdate = opts.onUpdate; return { stop: vi.fn(), jumpToStop: vi.fn() }; });
+
+    const client = makeClient();
+    let uploadOnline = false;
+    client.journeyStopTimesUpsert.mockImplementation(() => thenableOnly(uploadOnline
+      ? { data: null, error: null }
+      : { data: null, error: { message: 'TypeError: Failed to fetch', code: '' } }));
+    startSoloAutopilot(client, BASE_DEVICE_ROW, { onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture: vi.fn(), onJourneyEnd: vi.fn(), onSleep: vi.fn() }, { storage });
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000);
+    await flush();
+
+    onUpdate({ atStop: { stopIndex: 1 }, approaching: null, nextStopIndex: 1, stopStates: [{ status: 'departed', arrivedAt: new Date() }, { status: 'arrived', arrivedAt: new Date() }] });
+    await flush();
+    expect(JSON.parse(storage.getItem(QUEUE_KEY))).toHaveLength(1);
+
+    uploadOnline = true;
+    await vi.advanceTimersByTimeAsync(60 * 1000);
+    await flush();
+    expect(JSON.parse(storage.getItem(QUEUE_KEY))).toEqual([]);
+    expect(client.rpc).toHaveBeenCalledWith('complete_journey', { p_journey_id: 'jrn-1' });
+  });
+});
+
+describe('startSoloAutopilot — slow network', () => {
+  let storage;
+  beforeEach(() => {
+    vi.useFakeTimers();
+    storage = memoryStorage();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    startAnnounceGpsTracking.mockReset();
+  });
+
+  // A departure's stops query that never answers (supabase-js retries a
+  // failed read for several seconds before giving up), while the candidate
+  // list answers normally.
+  function slowDetailsClient() {
+    const client = makeClient();
+    const base = client.from.getMockImplementation();
+    client.from.mockImplementation((table) => {
+      if (table !== 'schedule_view') return base(table);
+      const obj = {
+        select: () => obj, in: () => { obj.isCandidates = true; return obj; }, eq: () => obj, order: () => obj,
+        then: (resolve) => (obj.isCandidates ? resolve({ data: SCHEDULE_ROWS, error: null }) : undefined), // never resolves
+      };
+      return obj;
+    });
+    return client;
+  }
+
+  it('never starts a second journey for the same departure while the first is still being set up', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0));
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: vi.fn((ok) => ok(at(DEPOT.lat, DEPOT.lon))) } });
+    vi.stubGlobal('crypto', { randomUUID: () => 'client-generated-id' });
+    const tryAgain = vi.fn();
+    const client = slowDetailsClient();
+    client.rpc.mockImplementation(() => { tryAgain(); return thenableOnly({ data: [{ journey_id: 'jrn-1' }], error: null }); });
+    startAnnounceGpsTracking.mockImplementation(() => ({ stop: vi.fn(), jumpToStop: vi.fn() }));
+
+    startSoloAutopilot(client, BASE_DEVICE_ROW, { onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture: vi.fn(), onJourneyEnd: vi.fn() }, { storage });
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000); // first match: stuck fetching stops
+    await vi.advanceTimersByTimeAsync(5000); // second tick while still stuck
+    await vi.advanceTimersByTimeAsync(5000);
+    await flush();
+
+    const readsSent = client.from.mock.calls.filter(([t]) => t === 'schedule_view').length;
+    // One candidate-list read, one warm-up read, one stops read for the match: no second match.
+    expect(readsSent).toBeLessThanOrEqual(3);
+  });
+
+  it('starts at once from the saved copy of a departure\'s stops, without waiting on the network', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0));
+    saveDepartureDetails('dep-1', { serviceCode: 'S125S', allStops: ROUTE }, { storage, now: new Date() });
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: vi.fn((ok) => ok(at(DEPOT.lat, DEPOT.lon))) } });
+    vi.stubGlobal('crypto', { randomUUID: () => 'client-generated-id' });
+    startAnnounceGpsTracking.mockImplementation(() => ({ stop: vi.fn(), jumpToStop: vi.fn() }));
+    const onSchedule = vi.fn();
+
+    startSoloAutopilot(slowDetailsClient(), BASE_DEVICE_ROW, { onSchedule, onState: vi.fn(), onIdleNextDeparture: vi.fn(), onJourneyEnd: vi.fn() }, { storage });
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000);
+    await flush();
+
+    expect(onSchedule).toHaveBeenCalledTimes(1);
+    expect(onSchedule.mock.calls[0][0].stops.map((s) => s.name)).toEqual(['Depot', 'Market Place', 'College']);
+  });
+});

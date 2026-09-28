@@ -1,0 +1,12 @@
+# Installed to /etc/systemd/system/ by bootstrap-controller.sh. Runs the
+# health check every minute, starting two minutes after boot (time for the
+# server to come up first).
+[Unit]
+Description=Check the CoachMate onboard server every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+
+[Install]
+WantedBy=timers.target

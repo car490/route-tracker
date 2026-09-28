@@ -7,7 +7,7 @@
 // list narrowly, rule by rule, rather than swapping in a "recommended"
 // bundle wholesale.
 //
-// `npm run lint` pins --max-warnings to the current baseline (7, as of this
+// `npm run lint` pins --max-warnings to the current baseline (0, as of this
 // writing) as a ratchet: it fails if warnings increase, but doesn't require
 // the pre-existing backlog to be fixed before this lands. Lower that number
 // as warnings get cleaned up; never raise it silently.
@@ -16,7 +16,7 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import globals from 'globals'
 
 export default [
-  { ignores: ['dist/**'] },
+  { ignores: ['dist/**', 'dev-dist/**'] },
   {
     files: ['src/**/*.{js,jsx}'],
     languageOptions: {

@@ -35,18 +35,40 @@
 // one timing-point stop bypassed before rejoining) — a one-shot alert per
 // occurrence, not an ongoing mode, since there's no driver to clear it
 // either (see the deviation-tracking block in tryMatch's onUpdate below).
+//
+// Power cut and no signal (docs/HARDWARE.md "Power loss and first boot",
+// owner-approved 2026-09-28):
+//   - the trip is saved on the tablet as it runs (shared/journeyCheckpoint.js,
+//     own key); after a restart a saved trip under 2 hours old from today is
+//     carried on — even outside the wake window — from the stop one GPS
+//     reading puts it at (soloResumeStop.js; no driver to confirm one), and
+//     the sign shows and says "The next stop is X" once
+//   - starts and trip-end uploads go through an upload queue kept on the
+//     tablet (soloTripQueue.js); a start with no signal runs on a journey id
+//     made on the tablet, like the Driver PWA's offline manual start
+//   - the departure list and each departure's stops are kept as an offline
+//     copy (soloOfflineCache.js) so matching works with no signal
 
 import { startAnnounceGpsTracking } from './announceGps.js';
 import {
   findScheduleMatch, findTestingScheduleMatch, isJourneyComplete, isWithinDepartureWakeWindow,
   describeConfigUpdate,
-} from './scheduleAutopilot.js';
+} from '../../shared/scheduleAutopilot.js';
 import { shiftStopTimes } from '../../shared/scheduleTimeShift.js';
-import { buildStopTimeRows } from '../../shared/journeyStopTimes.js';
 import {
   ANNOUNCE_STATES, DEVIATION_STOP_STATUS, resolveApproachOrArrivalState,
 } from '../../shared/announceStates.js';
 import { speakState } from './announceSpeech.js';
+import { readCheckpoint, clearCheckpoint, createCheckpointRecorder } from '../../shared/journeyCheckpoint.js';
+import { pickResumeStop } from './soloResumeStop.js';
+import { createSoloTripQueue } from './soloTripQueue.js';
+import { saveCandidates, loadCandidates, saveDepartureDetails, loadDepartureDetails } from './soloOfflineCache.js';
+
+// Solo's own saved-trip key — see shared/journeyCheckpoint.js.
+export const SOLO_CHECKPOINT_KEY = 'busops.announce.solo.journeyCheckpoint';
+// How often queued starts/uploads are retried, and how often the departure
+// list is re-read while running from the offline copy.
+const QUEUE_RETRY_MS = 60 * 1000;
 
 const IDLE_POLL_MS = 5000; // own-GPS check interval while no journey is active
 // Boot-time candidate fetch retry — matches announceDeviceFeed.js's
@@ -91,7 +113,18 @@ function stripIndicator(name) {
 // by type (added + removed) since isCandidateRunningOn needs both.
 async function fetchCandidateDepartures(client, departureIds) {
   if (!departureIds?.length) return { candidates: [], termDateRanges: [] };
-  const [scheduleResult, exceptionsResult, termDatesResult] = await Promise.all([
+  let scheduleResult, exceptionsResult, termDatesResult;
+  try {
+    [scheduleResult, exceptionsResult, termDatesResult] = await fetchCandidateTables(client, departureIds);
+  } catch (_) {
+    return null;
+  }
+  if (scheduleResult.error || !scheduleResult.data) return null;
+  return buildCandidates(departureIds, scheduleResult, exceptionsResult, termDatesResult);
+}
+
+function fetchCandidateTables(client, departureIds) {
+  return Promise.all([
     client
       .from('schedule_view')
       .select('departure_id, service_code, lat, lon, scheduled_time, sequence, days_of_week, school_term_time')
@@ -103,8 +136,9 @@ async function fetchCandidateDepartures(client, departureIds) {
       .in('timetable_departure_id', departureIds),
     client.from('term_dates').select('start_date, end_date'),
   ]);
-  if (scheduleResult.error || !scheduleResult.data) return null;
+}
 
+function buildCandidates(departureIds, scheduleResult, exceptionsResult, termDatesResult) {
   const exceptionsByDeparture = new Map();
   for (const row of exceptionsResult.data ?? []) {
     if (!exceptionsByDeparture.has(row.timetable_departure_id)) {
@@ -139,11 +173,16 @@ async function fetchCandidateDepartures(client, departureIds) {
 }
 
 async function fetchDepartureDetails(client, departureId) {
-  const { data, error } = await client
-    .from('schedule_view')
-    .select('service_code, display_name, lat, lon, scheduled_time, stop_type, timetable_stop_id, stop_id, sequence')
-    .eq('departure_id', departureId)
-    .order('sequence');
+  let data, error;
+  try {
+    ({ data, error } = await client
+      .from('schedule_view')
+      .select('service_code, display_name, lat, lon, scheduled_time, stop_type, timetable_stop_id, stop_id, sequence')
+      .eq('departure_id', departureId)
+      .order('sequence'));
+  } catch (err) {
+    error = err;
+  }
   if (error || !data?.length) return null;
   return {
     serviceCode: data[0].service_code,
@@ -172,7 +211,7 @@ function msUntilNextOccurrence(departureTime, now) {
   return diff;
 }
 
-export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onState, onIdleNextDeparture, onJourneyEnd, onSleep, onGpsSourceChanged }) {
+export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onState, onIdleNextDeparture, onJourneyEnd, onSleep, onGpsSourceChanged }, { storage = globalThis.localStorage } = {}) {
   // Live reference, not a frozen snapshot — applyConfigUpdate() below
   // replaces it in place, and tryMatch()/reportNextDeparture() always read
   // whatever it currently points to, so a dashboard edit (testing_mode,
@@ -196,6 +235,30 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
   // silently never call onSleep at boot. null guarantees the first real
   // determination, whichever way it goes, always fires its callback once.
   let isAwake = null;
+
+  const queue = createSoloTripQueue({ client, storage });
+  const flushQueue = () => { queue.flush().catch(() => {}); };
+
+  // Stop times of a saved trip that won't be carried on: uploaded, but the
+  // journey is not marked complete (same rule as the Driver PWA).
+  function queueUnfinishedTrip(checkpoint) {
+    if (!checkpoint?.stopRows?.length) return;
+    queue.enqueueTrip({ journeyId: checkpoint.journeyId, stopRows: checkpoint.stopRows, completeJourney: false });
+  }
+
+  // A trip saved when the power went. Carried on by tryResume() from the
+  // idle loop once a usable GPS reading places it on the route; given up
+  // (its stops queued) if it passes its 2-hour window first.
+  let pendingResume = null;
+  {
+    const saved = readCheckpoint({ storage, key: SOLO_CHECKPOINT_KEY });
+    if (saved.status === 'stale') {
+      queueUnfinishedTrip(saved.checkpoint);
+      clearCheckpoint({ storage, key: SOLO_CHECKPOINT_KEY });
+    } else if (saved.status === 'fresh') {
+      pendingResume = saved.checkpoint;
+    }
+  }
 
   // One entry per distinct service among this device's candidates, not one
   // merged soonest-overall time — a device commissioned for two real
@@ -235,7 +298,10 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
   // ending mid-route must not blank the sign out from under real
   // passengers; only ever affects the idle state either side of one.
   function applyWakeState() {
-    if (activeJourney) return;
+    // A saved trip waiting to be carried on is a trip in progress: leave the
+    // screen alone until it resumes (onSchedule switches the sign on) or is
+    // given up.
+    if (activeJourney || pendingResume) return;
     const awake = isWithinDepartureWakeWindow(
       new Date(), candidates, deviceRow.match_window_before_min, deviceRow.match_window_after_min, termDateRanges
     );
@@ -245,16 +311,72 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     else onSleep?.();
   }
 
-  async function refreshCandidates() {
-    const result = await fetchCandidateDepartures(client, deviceRow.candidate_departure_ids ?? []);
-    if (result === null) {
-      setTimeout(refreshCandidates, BOOT_FETCH_RETRY_MS);
-      return;
-    }
+  function useCandidates(result) {
     candidates = result.candidates;
     termDateRanges = result.termDateRanges;
     applyWakeState(); // first real determination of awake/asleep, now that candidates are actually loaded
     if (isAwake) reportNextDeparture();
+  }
+
+  // Live first. With no signal, the offline copy (if this device has one for
+  // the same departures) stands in, and the live read is retried less often.
+  async function refreshCandidates() {
+    const ids = deviceRow.candidate_departure_ids ?? [];
+    const result = await fetchCandidateDepartures(client, ids);
+    if (result === null) {
+      const copy = candidates.length ? null : loadCandidates(ids, { storage });
+      if (copy) useCandidates(copy);
+      setTimeout(refreshCandidates, candidates.length ? QUEUE_RETRY_MS : BOOT_FETCH_RETRY_MS);
+      return;
+    }
+    saveCandidates(ids, result, { storage });
+    useCandidates(result);
+    warmDepartureCopies(result.candidates);
+  }
+
+  // Keeps every candidate's stops on the tablet so a departure can be
+  // started with no signal. Best-effort, one at a time.
+  async function warmDepartureCopies(list) {
+    for (const candidate of list) await refreshDepartureCopy(candidate.departureId);
+  }
+
+  // The saved copy first, so a match starts at once even with no signal
+  // (supabase-js retries a failed read for several seconds before giving
+  // up); the copy is refreshed from the server in the background, and on
+  // every candidate refresh (warmDepartureCopies). No copy yet: live.
+  async function refreshDepartureCopy(departureId) {
+    const details = await fetchDepartureDetails(client, departureId);
+    if (details) saveDepartureDetails(departureId, details, { storage });
+    return details;
+  }
+
+  async function getDepartureDetails(departureId) {
+    const copy = loadDepartureDetails(departureId, { storage });
+    if (copy) {
+      refreshDepartureCopy(departureId).catch(() => {});
+      return copy;
+    }
+    return refreshDepartureCopy(departureId);
+  }
+
+  // Tries to register a new journey with the server; with no signal the
+  // start is queued and the journey runs on the tablet-made id meanwhile.
+  async function startJourneyOnServer(departureId, journeyId) {
+    try {
+      const { data: created, error } = await client.rpc('get_or_create_manual_journey', {
+        p_timetable_departure_id: departureId,
+        p_journey_id: journeyId,
+      });
+      if (!error) {
+        const resolvedId = created?.[0]?.journey_id ?? journeyId;
+        const { error: startError } = await client.rpc('start_journey', { p_journey_id: resolvedId });
+        if (!startError) return resolvedId;
+        queue.enqueueStart({ journeyId: resolvedId, departureId });
+        return resolvedId;
+      }
+    } catch (_) {}
+    queue.enqueueStart({ journeyId, departureId });
+    return journeyId;
   }
 
   // Applies a fresh announce_devices row read after a live config change
@@ -274,32 +396,16 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
 
   function completeActiveJourney() {
     if (!activeJourney) return;
-    const { journeyId, tracker, allStops } = activeJourney;
+    const { journeyId, tracker, recorder } = activeJourney;
     tracker.stop();
     // Same table/shape/idempotency the Driver PWA's completeTrip() already
-    // uses (see shared/journeyStopTimes.js) -- upsert with ignoreDuplicates
-    // is the supabase-js equivalent of that call's Prefer:
-    // resolution=ignore-duplicates, safe against journey_stop_times'
-    // (journey_id, timetable_stop_id) unique index if this ever fires twice.
-    // Unlike the Driver PWA, there's no offline retry queue for this yet --
-    // a failed upload here is only logged, not queued -- Solo has no
-    // equivalent of localStore.js's enqueuePendingTrip today.
-    const stopRows = buildStopTimeRows(journeyId, latestStopStates, allStops);
-    if (stopRows.length) {
-      Promise.resolve(
-        client.from('journey_stop_times').upsert(stopRows, { onConflict: 'journey_id,timetable_stop_id', ignoreDuplicates: true })
-      ).catch((err) => console.error('announceSoloAutopilot: journey_stop_times upload failed', err));
-    }
-    // Promise.resolve(...) adopts the vendored supabase-js query builder into
-    // a real native Promise before calling .catch() -- the builder itself is
-    // thenable (awaiting it elsewhere in this file works fine) but is not an
-    // actual Promise instance, so it has no .catch() of its own. Confirmed
-    // live, 2026-09-01: calling .catch() on it directly threw
-    // "client.rpc(...).catch is not a function" in a real browser, silently
-    // breaking journey completion (the RPC error never actually needed
-    // catching in practice, but the throw happened before the RPC call even
-    // went out).
-    Promise.resolve(client.rpc('complete_journey', { p_journey_id: journeyId })).catch(() => {});
+    // uses (see shared/journeyStopTimes.js), sent through the upload queue
+    // (soloTripQueue.js: upsert with ignoreDuplicates, then complete_journey)
+    // so a failed send is kept and retried instead of only logged. Includes
+    // any stops recorded before a power cut (the recorder's saved rows).
+    queue.enqueueTrip({ journeyId, stopRows: recorder.finalRows(latestStopStates), completeJourney: true });
+    recorder.clear();
+    flushQueue();
     activeJourney = null;
     // Hides the now-stale #onboard-sign and clears its reveal timers — same
     // onJourneyEnd() the base/Lite tiers already call on their own
@@ -333,8 +439,22 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     }, POST_JOURNEY_HOLD_MS);
   }
 
+  // True while a match is being set up (stops read, journey registered).
+  // Without it the next 5 s idle tick could match the same departure again
+  // and start a second journey — likely on a slow or missing connection.
+  let matching = false;
+
   async function tryMatch(lat, lon) {
-    if (activeJourney || !candidates.length) return;
+    if (activeJourney || matching || !candidates.length) return;
+    matching = true;
+    try {
+      await matchAndStart(lat, lon);
+    } finally {
+      matching = false;
+    }
+  }
+
+  async function matchAndStart(lat, lon) {
     const now = new Date();
     let match = findScheduleMatch({
       candidates, lat, lon, now,
@@ -362,17 +482,54 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     }
     if (!match) return;
 
-    const details = await fetchDepartureDetails(client, match.departureId);
+    const details = await getDepartureDetails(match.departureId);
     if (!details) return; // near-miss costs nothing — stays idle, tries again next tick
     if (shiftMinutes) details.allStops = shiftStopTimes(details.allStops, shiftMinutes);
 
-    const journeyId = crypto.randomUUID();
-    const { data: created } = await client.rpc('get_or_create_manual_journey', {
-      p_timetable_departure_id: match.departureId,
-      p_journey_id: journeyId,
+    const resolvedId = await startJourneyOnServer(match.departureId, crypto.randomUUID());
+    beginTracking({
+      journeyId: resolvedId,
+      departureId: match.departureId,
+      serviceCode: details.serviceCode,
+      allStops: details.allStops,
+      startedAt: new Date(),
+      initialStopIndex: 0,
+      resumed: false,
     });
-    const resolvedId = created?.[0]?.journey_id ?? journeyId;
-    await client.rpc('start_journey', { p_journey_id: resolvedId });
+  }
+
+  // Carries on a saved trip once one GPS reading places it on the route.
+  // A poor or off-route reading just waits for the next idle tick.
+  function tryResume(position) {
+    if (!pendingResume || activeJourney) return;
+    const saved = pendingResume;
+    if (readCheckpoint({ storage, key: SOLO_CHECKPOINT_KEY }).status !== 'fresh') {
+      pendingResume = null;
+      queueUnfinishedTrip(saved);
+      clearCheckpoint({ storage, key: SOLO_CHECKPOINT_KEY });
+      flushQueue();
+      return;
+    }
+    const { allStops, serviceCode, departureId, startedAt } = saved.launch;
+    const stopIndex = pickResumeStop({ allStops, fromIndex: saved.nextStopIndex, position });
+    if (stopIndex === null) return;
+    pendingResume = null;
+    beginTracking({
+      journeyId: saved.journeyId,
+      departureId,
+      serviceCode,
+      allStops,
+      startedAt: new Date(startedAt),
+      initialStopIndex: stopIndex,
+      resumed: true,
+    });
+  }
+
+  // Everything from "the journey is under way" on, shared by a fresh match
+  // and a carried-on saved trip. A resumed trip past its first stop opens
+  // on "The next stop is X" (shown and said once) instead of Start of Route.
+  function beginTracking({ journeyId: resolvedId, departureId, serviceCode, allStops, startedAt, initialStopIndex, resumed }) {
+    const details = { serviceCode, allStops };
 
     // Forwarded to speakState's ids everywhere below, purely so a coverage-
     // gap alert (Phase 3, "never synthesize" -- shared/announcementCoverage.js)
@@ -397,10 +554,41 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     // Start of Route — fires once, before GPS tracking starts, same as the
     // Driver device's equivalent call in main.js. Every stop from here on
     // (including the first) gets its own normal arrival announcement off
-    // the atStop edge below.
+    // the atStop edge below. A trip carried on after a power cut, past its
+    // first stop, opens on "The next stop is X" instead — the sign and the
+    // audio change together (PSV(AI)R), and passengers hear the sign is
+    // working again.
     const routeStartVars = { serviceCode: details.serviceCode, destination: stripIndicator(lastStop.name) };
-    onState({ type: 'state', ts: Date.now(), journeyId: resolvedId, stateKey: ANNOUNCE_STATES.ROUTE_START, vars: routeStartVars, earlyWait: null });
-    speakState(ANNOUNCE_STATES.ROUTE_START, routeStartVars, { serviceCode: details.serviceCode, destination: lastStop.name, ...announceContext });
+    let lastState;
+    if (resumed && initialStopIndex > 0) {
+      const nextStop = details.allStops[initialStopIndex];
+      const resumeVars = { ...routeStartVars, nextStopName: stripIndicator(nextStop.name) };
+      lastState = { stateKey: ANNOUNCE_STATES.STOP_DEPARTURE, vars: resumeVars };
+      onState({ type: 'state', ts: Date.now(), journeyId: resolvedId, ...lastState, earlyWait: null });
+      speakState(ANNOUNCE_STATES.STOP_DEPARTURE, resumeVars, {
+        serviceCode: details.serviceCode, destination: lastStop.name, nextStopId: nextStop.stop_id, ...announceContext,
+      });
+    } else {
+      lastState = { stateKey: ANNOUNCE_STATES.ROUTE_START, vars: routeStartVars };
+      onState({ type: 'state', ts: Date.now(), journeyId: resolvedId, stateKey: ANNOUNCE_STATES.ROUTE_START, vars: routeStartVars, earlyWait: null });
+      speakState(ANNOUNCE_STATES.ROUTE_START, routeStartVars, { serviceCode: details.serviceCode, destination: lastStop.name, ...announceContext });
+    }
+
+    // Saves the trip on the tablet as it runs (see file header). A saved
+    // trip for a different journey is being replaced: its stops are queued
+    // first.
+    const recorder = createCheckpointRecorder({
+      journeyId: resolvedId,
+      launch: { allStops: details.allStops, serviceCode: details.serviceCode, departureId, startedAt: startedAt.toISOString() },
+      storage,
+      key: SOLO_CHECKPOINT_KEY,
+    });
+    if (recorder.previous) {
+      queueUnfinishedTrip(recorder.previous);
+      flushQueue();
+    }
+    let lastNextStopIndex = initialStopIndex;
+    recorder.record({ stopStates: [], nextStopIndex: initialStopIndex });
 
     let lastAnnouncedStopIdx = null;
     // Mirrors lastAnnouncedStopIdx for the approaching edge — without this,
@@ -410,14 +598,15 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     // equivalent Lite-tier handling.
     let lastAnnouncedApproachIdx = null;
     const announcedDetourStops = new Set(); // one-shot per stop — see file header
-    let lastState = { stateKey: ANNOUNCE_STATES.ROUTE_START, vars: routeStartVars };
 
-    const startedAt = new Date();
     latestStopStates = []; // fresh per journey -- see completeActiveJourney's use of this
     const tracker = startAnnounceGpsTracking({
       schedule: details.allStops,
+      initialStopIndex,
       onUpdate: (state) => {
         latestStopStates = state.stopStates ?? latestStopStates;
+        if (Number.isInteger(state.nextStopIndex)) lastNextStopIndex = state.nextStopIndex;
+        recorder.record({ stopStates: latestStopStates, nextStopIndex: lastNextStopIndex });
         const isFinal = !!(state.atStop && state.atStop.stopIndex === details.allStops.length - 1);
 
         // Auto-detected diversion (PSVAIR Regulation 10) — the only trigger
@@ -506,15 +695,32 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     // approach/forward-match detection at nextStopIndex=0 permanently. Found
     // live 2026-09-04: this is why a whole multi-hour Solo journey produced
     // no announcements past the initial ROUTE_START.
-    tracker.jumpToStop(0);
-    activeJourney = { journeyId: resolvedId, startedAt, tracker, allStops: details.allStops };
+    // A carried-on trip is confirmed at the stop the GPS reading put it on
+    // (soloResumeStop.js), for the same reason.
+    tracker.jumpToStop(initialStopIndex);
+    activeJourney = { journeyId: resolvedId, startedAt, tracker, allStops: details.allStops, recorder };
   }
 
   refreshCandidates();
+  flushQueue();
+  const queueTimer = setInterval(() => { if (queue.pending()) flushQueue(); }, QUEUE_RETRY_MS);
+  const onOnline = () => flushQueue();
+  globalThis.addEventListener?.('online', onOnline);
 
   const idleTimer = setInterval(() => {
     applyWakeState(); // catches a wake window opening/closing since the last tick — see its own comment
-    if (activeJourney || !navigator.geolocation || !isAwake) return;
+    if (activeJourney || !navigator.geolocation) return;
+    // A saved trip waiting to be carried on is checked every tick, whatever
+    // the wake window says — the trip is already under way.
+    if (pendingResume) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => tryResume({ lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy }),
+        () => tryResume(null), // no fix: still lets an expired saved trip be given up
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+      );
+      return;
+    }
+    if (!isAwake) return;
     // Stay fully dormant (no geolocation call at all — no battery/data use)
     // outside every candidate's own wake window. A device with no
     // candidates configured at all never wakes — see
@@ -530,6 +736,8 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
   return {
     stop: () => {
       clearInterval(idleTimer);
+      clearInterval(queueTimer);
+      globalThis.removeEventListener?.('online', onOnline);
       activeJourney?.tracker?.stop();
     },
     refreshCandidates,

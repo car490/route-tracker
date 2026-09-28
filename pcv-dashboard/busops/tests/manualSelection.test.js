@@ -28,8 +28,9 @@ function mockFetchImplementation(overrides = {}) {
   return jest.fn(async (url) => {
     const urlStr = String(url);
     if (urlStr.includes('/rpc/')) {
+      if (overrides.rpcNetworkError) throw new TypeError('Failed to fetch');
       if (overrides.rpcError) {
-        return { ok: false, json: async () => ({ message: overrides.rpcError }) };
+        return { ok: false, status: overrides.rpcStatus, json: async () => ({ message: overrides.rpcError }) };
       }
       // returns table(...) -> PostgREST responds with an array of rows.
       return { ok: true, json: async () => overrides.rpcResult ?? [{ journey_id: 'jrn-manual-001' }] };
@@ -163,5 +164,35 @@ describe('selectServiceManually', () => {
     // the server's answer must win over the client-generated one in that case.
     expect(result.journeyId).toBe('jrn-manual-001');
     expect(result.journeyId).not.toBe(body.p_journey_id);
+  });
+
+  // Automatic mode (src/autostart/) opts in to rejectRefusal: a start the
+  // server answered and refused (e.g. the departure is cancelled today) must
+  // not start tracking by itself. The manual picker keeps today's behaviour.
+  describe('rejectRefusal (automatic mode)', () => {
+    test('default (manual picker): a server refusal is still queued, unchanged', async () => {
+      global.fetch = mockFetchImplementation({ rpcError: 'service does not run on 2026-09-28', rpcStatus: 400 });
+      await expect(selectServiceManually(DEPARTURE_ID, 'S116S', 'x', 'veh-1')).resolves.toBeDefined();
+      expect(getPendingJourneyStarts()).toHaveLength(1);
+    });
+
+    test('with rejectRefusal, a server refusal is passed back and nothing is queued', async () => {
+      global.fetch = mockFetchImplementation({ rpcError: 'service does not run on 2026-09-28', rpcStatus: 400 });
+      await expect(selectServiceManually(DEPARTURE_ID, 'S116S', 'x', 'veh-1', { rejectRefusal: true }))
+        .rejects.toThrow(/does not run/);
+      expect(getPendingJourneyStarts()).toEqual([]);
+    });
+
+    test('with rejectRefusal, a dead network is still queued so automatic mode works offline', async () => {
+      global.fetch = mockFetchImplementation({ rpcNetworkError: true });
+      await expect(selectServiceManually(DEPARTURE_ID, 'S116S', 'x', 'veh-1', { rejectRefusal: true })).resolves.toBeDefined();
+      expect(getPendingJourneyStarts()).toHaveLength(1);
+    });
+
+    test('with rejectRefusal, a failure with no HTTP status is treated as unknown and queued', async () => {
+      global.fetch = mockFetchImplementation({ rpcError: 'boom' });
+      await expect(selectServiceManually(DEPARTURE_ID, 'S116S', 'x', 'veh-1', { rejectRefusal: true })).resolves.toBeDefined();
+      expect(getPendingJourneyStarts()).toHaveLength(1);
+    });
   });
 });

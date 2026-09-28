@@ -24,6 +24,7 @@ Step-by-step instructions for testing every component of the RouteTracker platfo
 16. [Test: End-to-end (dashboard + PWA together)](#16-test-end-to-end-dashboard--pwa-together)
 17. [Test: BusOps Announce Lite / Solo](#17-test-busops-announce-lite--solo)
 18. [Resetting test data](#18-resetting-test-data)
+19. [Test: Power cut and first boot (all devices)](#19-test-power-cut-and-first-boot-all-devices)
 
 ---
 
@@ -319,6 +320,37 @@ Chrome DevTools can simulate a GPS position so you can test arrival detection wi
 1. Click the ⏭ button next to a future stop in the list
 2. The tracker jumps to that stop as the next expected stop
 
+### Test automatic mode (no duty card)
+**Quick automated check first:** `npm run verify:autostart` (from `pcv-dashboard/busops/`) runs the real
+app in headless Chromium with simulated GPS and a local stand-in for Supabase (no network, no data
+touched): auto-start after the countdown and a drive through every stop to trip complete, Not now,
+Change service, a server refusal, and a duty-card link. About 2 minutes; exit 0 all passed, 1 a check
+failed. The manual steps below are for a real device against dev Supabase.
+
+Automatic mode (`driver/src/autostart/`, `docs/DECISIONS.md` "Driver automatic mode") runs on the
+waiting ("No duty assigned") screen: a device with a commissioned vehicle and no `?duties=` link. It
+checks GPS every 5 seconds and offers a Local Bus departure that runs today when the vehicle is within
+150 m of its first stop, from 15 minutes before to 30 minutes after its time.
+
+1. Open **http://localhost:8080/?debug** (debug lets you test at any time of day: the timetable is
+   shifted to now, the same as a Solo device's `testing_mode`). Without `?debug`, set your computer's
+   clock or pick a departure due within the window.
+2. Commission a vehicle if asked. The waiting screen should say *"Your service starts automatically
+   when you are at its first stop."*
+3. In DevTools **Sensors**, set the location to a departure's first stop
+4. Within ~5 seconds an overlay appears: **Starting automatically**, the service and its departure,
+   and **Starting in 10 seconds** counting down, with **Start now**, **Change service**, **Not now**
+5. Let it reach zero: the journey starts exactly as the manual Start button would (tracker screen,
+   announcements if PSVAIR, Controller feed)
+6. Repeat and check each button:
+   - **Start now** starts at once
+   - **Not now** closes it, and the same departure is not offered again today
+   - **Change service** opens the manual picker with that service already selected
+7. A departure that isn't running today (for example cancelled via a service exception) is refused by
+   the server: the overlay says *"Couldn't start … Choose the service yourself."* and nothing starts.
+   Offline, it starts anyway and the start is queued, the same as the manual picker.
+8. With a duty-card link (`?duties=`), automatic mode must never appear
+
 ---
 
 ## 14. Test: Driver PWA — debug mode
@@ -550,3 +582,100 @@ delete from vehicles;
 ```
 
 > **Do not delete from `routes`, `timetables`, or `timetable_stops`** — re-seeding the 106 stops requires re-running `seed.sql` in full.
+
+---
+
+## 19. Test: Power cut and first boot (all devices)
+
+What happens when the isolator cuts everything, the tablets' batteries go completely flat, and
+the ignition comes back. Background and options: `docs/HARDWARE.md` "Power loss and first boot".
+Do part A before anything else: parts B and C mean nothing if a device doesn't switch itself on.
+
+**Record results in the [Power-cut bench test checklist](https://claude.ai/code/artifact/d17b484d-cf48-4acb-8895-1e690b001ba0)**
+(a shared doc: the same steps as below, with tick boxes, a table per test and a Pass/Fail sign-off).
+This section stays the reference; if the two ever disagree, fix the doc to match this file.
+
+### A. Bench test: does each device switch itself on? (hardware, no app needed)
+
+For **each** device: the Driver tablet, the Announce tablet, and the Bus Controller.
+
+1. Charge fully, then set it up exactly as fitted (Fully Kiosk installed and set up, same cable
+   and charger or PD module).
+2. **Tablets:** unplug and leave the screen on (Fully keeps it on) until the battery is
+   completely flat and the tablet switches itself off. Leave it off for at least 30 minutes.
+   **Controller:** it has no battery; just cut its supply.
+3. Restore power the way the ignition would: supply on, **nobody touches the device**.
+4. Record, from the moment power returns:
+
+   | Device | Model | Started by itself? (Y/N) | What it showed instead, if N | Time to Android/OS | Time to app on screen |
+   |---|---|---|---|---|---|
+   | Driver tablet | | | | | |
+   | Announce tablet | | | | | |
+   | Bus Controller | MeLE Quieter4C | | | | |
+
+5. **Controller only** (after `bootstrap-controller.sh` and one restart —
+   `mele-server/DEPLOY.md` §0):
+   1. **BIOS:** set "Restore on AC power loss" (or similar) to **Power On**; record the exact
+      menu path in `mele-server/DEPLOY.md` §0 step 8.
+   2. **Read-only disk is on:** `findmnt /` shows FSTYPE `overlay`. Create a test file
+      (`touch ~/probe`), cut and restore power: it must be gone.
+   3. **Watchdog:** `sudo wdctl` shows a device and a 30 s timeout. Freeze the box on purpose
+      (`echo c | sudo tee /proc/sysrq-trigger`, which crashes the kernel): it must restart by
+      itself within about a minute. If `wdctl` finds nothing, record it in `docs/HARDWARE.md` §1.
+   4. **Hung server:** `sudo kill -STOP $(pgrep -f 'node server.mjs')`. Within 2 minutes the
+      health check must restart it (`journalctl -u coachmate-healthcheck` says so, and
+      `curl -k https://localhost:8080/api/schedule` answers again).
+   5. **Update script:** `update-controller.sh`, then `sudo reboot`; the new commit must be
+      running (`git -C ~/route-tracker log -1`). This also confirms the chroot has network.
+   6. **20 cuts:** cut and restore power 20 times in a row, some mid-boot. Note any boot that
+      fails, stops for a disk check, or comes up without the hotspot or `coachmate-onboard`.
+6. If a tablet shows a "charging" screen or stays off, **stop and report it**. The fix is a
+   hardware choice (`docs/HARDWARE.md` lists the options), not something the app can solve.
+   Don't unlock the bootloader to work around it.
+
+### B. On the real tablets: does the app pick up where it left off?
+
+Only once part A passes. Use dev Supabase and a test journey.
+
+1. **Duty card survives:** open a duty-card link on the Driver tablet. Pull the power until the
+   tablet switches off, restore it. **Expect:** the same duty card, without re-opening the link.
+2. **Trip carries on with no signal:** start the trip and drive (or walk the GPS simulator)
+   past two stops. Turn mobile data and WiFi **off**, then cut the power. Restore it.
+   **Expect:** "Carry on your trip" with the stop the vehicle was heading for already selected.
+   Tap Start, finish the trip. **Expect:** "Trip Ended … saved on this device".
+3. Turn data back on. **Expect:** in the dashboard, the journey is completed and has stop times
+   for **every** stop, including the two reached before the power cut.
+4. **Old trip not offered:** start a trip, cut power, wait more than 2 hours, restore.
+   **Expect:** the normal waiting screen or duty card, not "Carry on your trip". The stops it
+   reached still show in the dashboard, and the journey is **not** marked complete.
+5. **End of shift:** complete every duty on a duty card, then restart the tablet.
+   **Expect:** the duty card does not come back (the link has been removed from the device).
+
+**Announce Solo tablet** (dev Supabase, a Solo device commissioned for a test departure):
+
+6. **Trip carries on with no signal:** let Solo start the trip at the first stop and drive past
+   two stops. Turn WiFi/data **off**, cut the power, keep driving, restore power. **Expect:** the
+   sign comes back on its own and shows and says "The next stop is …" for the stop ahead, then
+   carries on normally. Finish the trip.
+7. Turn data back on. **Expect:** in the dashboard the journey is completed, with stop times for
+   **every** stop, including those before the power cut.
+8. **Starts with no signal:** with data **off**, restart the tablet at the first stop of a
+   departure due now. **Expect:** the trip starts as normal. Turn data on. **Expect:** the
+   journey appears in the dashboard as started, then completed at the end.
+9. **Revoked tablet:** run it once online, then with data off restart it (it runs from its copy).
+   Revoke it (`update announce_devices set revoked_at = now() where id = …` on dev), turn data
+   on. **Expect:** the sign goes dark within a few seconds and stays dark after a restart.
+
+### C. Automated check (no tablet needed)
+
+```sh
+cd pcv-dashboard/busops
+npm run verify:power-cut
+npm run verify:solo-power-cut
+```
+
+Runs the real Driver app in headless Chromium through B1–B5 with simulated GPS and a local
+Supabase stand-in (nothing leaves the machine). `npm run verify:solo-power-cut` does the same
+for the Announce Solo sign (B6–B9, real `onboard.html`). Exit 0 all passed, 1 a check failed. Useful
+before and after any change to boot, the duty link or trip saving, but it is **not** a
+substitute for part A or B: it can't tell you whether a real tablet switches itself on.

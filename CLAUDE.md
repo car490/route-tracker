@@ -30,11 +30,14 @@ Supabase schema lives at `supabase/schema.sql`. `graphhopper/` and `scripts/` ar
 used by more than one surface. `pcv-dashboard/busops/shared/` holds what BusOps' two surfaces
 (Driver, Announce) genuinely share with each other — **corrected 2026-09-17, this had drifted
 from icons/`brand-tokens.css` only**: it's now also the GPS/schedule-matching core
-(`gps.js`, `geofence.js`, `engine.js`, `scheduleTimeShift.js`, `geo.js`) and the announcement
+(`gps.js`, `geofence.js`, `engine.js`, `scheduleTimeShift.js`, `geo.js`, and since 2026-09-27
+`scheduleAutopilot.js`, the geofence + time departure matcher shared by Announce Solo and the
+Driver's automatic mode) and the announcement
 stack (`announceStates.js`, `announcementAudio.js`, `announcementCoverage.js`,
 `deviceStateSync.js`, `logger.js`, `escapeHtml.js`) — real cross-surface use, not
 folder guesswork: Announce Solo's autopilot (`announceSoloAutopilot.js`) imports
-`gps.js`/`geofence.js`/`scheduleTimeShift.js` directly, and `onboard.js` reads announcement
+`gps.js`/`geofence.js`/`scheduleTimeShift.js` directly, and both keep a trip in progress on the
+device through a power cut with the same `journeyCheckpoint.js`, and `onboard.js` reads announcement
 state through the same `announceStates.js` Driver uses. `lib/` (Leaflet) and `audio/` (PSVAIR
 clips) remain driver-only, living under `pcv-dashboard/busops/driver/`.
 
@@ -67,7 +70,7 @@ pcv-dashboard/                  # PCV Dashboard — Vercel app root
     │   │                         # stack, not just icons/brand-tokens.css (see above)
     │   ├── icons/
     │   ├── brand-tokens.css
-    │   ├── gps.js, geofence.js, engine.js, scheduleTimeShift.js, geo.js
+    │   ├── gps.js, geofence.js, engine.js, scheduleTimeShift.js, geo.js, journeyCheckpoint.js, scheduleAutopilot.js
     │   └── announceStates.js, announcementAudio.js, announcementCoverage.js,
     │       deviceStateSync.js, logger.js, escapeHtml.js
     ├── driver/                  # BusOps Driver (the PWA)
@@ -164,7 +167,7 @@ cd pcv-dashboard && npm test
 ### Lint / build (dashboard only — the PWA has no build step)
 ```sh
 cd pcv-dashboard
-npm run lint    # eslint, ratcheted at --max-warnings 7 (see pcv-dashboard/eslint.config.js)
+npm run lint    # eslint, ratcheted at --max-warnings 0 (see pcv-dashboard/eslint.config.js)
 npm run build   # vite build
 ```
 CI (`.github/workflows/ci.yml`) runs: `pcv-dashboard/busops` `npm test` + `npm run test:vitest`
@@ -188,6 +191,29 @@ testing timing, announcements, and the onboard display end-to-end without being 
 vehicle. `demo.html` is a separate, fully scripted/fake visual simulation (no real app code)
 used for quick client-facing demos.
 
+```sh
+npm run verify:autostart           # headless pass/fail check of the Driver's automatic mode (~2 min)
+```
+Unlike the demos, this is a check, not a show: it runs the real Driver app with simulated GPS and a
+local Supabase stand-in (no network, nothing written anywhere) through auto-start, a drive to trip
+complete, Not now, Change service, a server refusal and a duty-card link. Exit 0 all passed, 1 a
+check failed. Not part of CI (it needs Chromium and takes about 2 minutes).
+
+```sh
+npm run verify:power-cut           # headless pass/fail check of the Driver after a power cut (~1 min)
+```
+Same approach: a trip part-way through, the page closed and reopened at the bare start URL (sessionStorage
+gone, localStorage kept — what a restart looks like), with no signal. Checks the trip is offered back and
+every stop time uploads on reconnect, the duty card survives a restart, and a saved trip older than 2 hours
+is not offered but still uploads. Not part of CI either.
+
+```sh
+npm run verify:solo-power-cut      # the same for the Announce Solo sign (~1 min)
+```
+Real `onboard.html` with Realtime refused: a trip carried on after a power cut with no signal ("The next
+stop is …"), a departure started with no signal from the offline copy, and a revoked device going dark.
+`ONLY=<scenario>` runs one, `DEBUG_PAGES=1` prints the tablet's console.
+
 ### Measure the real sign on the real tablet (read-only)
 ```sh
 npm run measure:announce-solo      # from pcv-dashboard/busops/ — needs the tablet on USB (adb)
@@ -203,20 +229,21 @@ checks the bar and the brand mark. Output goes to `scripts/tablet-captures/` (gi
 failed, 2 could not measure. `--cdp-port <port>` attaches to an existing DevTools port with no adb (how it is
 tested: `npm run verify:tablet` in `scripts/announce-replica`).
 
-### PSVAIR announcement audio (Bus Controller's clip generator)
+### PSVAIR announcement audio for the Bus Controller
 ```sh
-AZURE_SPEECH_KEY=... AZURE_SPEECH_REGION=... npm run generate:audio
+npm run export:controller-clips            # from pcv-dashboard/busops; production by default
+npm run export:controller-clips -- --dev   # dev; add --dry-run to print the plan and write nothing
 ```
-Run from `pcv-dashboard/busops/`. Predates the server-side clip pipeline (see "PSVAIR
-announcement audio" under Architecture below), which is now what generates clips for the Driver
-PWA and Announce Solo automatically via a DB trigger + cron + Edge Function — no manual step
-required for those two tiers. **This script is still genuinely necessary, indefinitely, for a
-third consumer**: it's the only thing that produces `busops/driver/audio/announcements/`, which
-the Bus Controller (`mele-server/audioPlayer.mjs`) plays from local disk, having no live-fetch
-path of its own (see "PSVAIR announcement audio" under Architecture). Re-run this and commit the
-result after any stop rename or route change that affects a Controller-served vehicle — nothing
-currently automates or reminds anyone to do so (a real process gap, `docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md`
-Phase 4). Not part of CI; also useful for auditioning a wording change locally before it ships.
+The Bus Controller (`mele-server/audioPlayer.mjs`) plays clips from local disk only
+(`busops/driver/audio/announcements/`), having no live-fetch path of its own. As of 2026-09-24
+(`docs/ANNOUNCE-VOICE-PLAN.md` step 5) that folder is filled by **exporting** the live pipeline's
+clips (`scripts/controller-clips/export.mjs`), so the Controller plays exactly what the Driver PWA
+and Announce Solo play, including the ElevenLabs "Ben" voice. It downloads only changed clips for
+stops a timetable uses, refuses unexpected keys as file paths, and lists files no longer needed
+rather than deleting them. Re-run it and commit the result after stop/route changes that affect a
+Controller-served vehicle; nothing automates that yet (`docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md` Phase 4).
+The older `npm run generate:audio` (local Azure synthesis) still exists but refuses to run once the
+folder holds exported clips in another voice, so it can't put Azure clips back over Ben.
 
 ### Release (version bump across PWA + dashboard together)
 ```sh
@@ -237,7 +264,7 @@ See "Release / versioning" below.
 create table public.my_table ( ... );
 
 grant select on public.my_table to anon;
-grant all    on public.my_table to authenticated;
+grant select, insert, update, delete on public.my_table to authenticated;
 
 alter table public.my_table enable row level security;
 
@@ -253,10 +280,16 @@ create table public.my_table ( ... );
 
 grant select on public.my_table to anon;
 grant insert on public.my_table to anon;
-grant all    on public.my_table to authenticated;
+grant select, insert, update, delete on public.my_table to authenticated;
 ```
 
 Always follow GRANTs with the appropriate RLS policy.
+
+**Never `grant all` to `anon`/`authenticated`** — list the DML verbs. `all` includes TRUNCATE
+(which RLS does not gate), MAINTAIN (incl. LOCK TABLE), TRIGGER and REFERENCES; these were revoked
+schema-wide on 2026-09-24 (`migration_revoke_table_admin_privileges.sql`, also the last block of
+`schema.sql`), and a per-table `grant all` puts them straight back. `supabase/tests/revoke_table_admin_privileges.sql`
+fails if any client role holds them again.
 
 **If any Edge Function (service-role) code will read/write the table, grant `service_role`
 explicitly too** — don't rely on it having implicit access. Found 2026-09-15 while shipping the
@@ -397,6 +430,30 @@ ES module with no circular imports; `gps.js` and `main.js` are the layers with s
 picking a service manually when there's no active scheduled duty. `diversionAlert.js` handles
 driver-triggered diversion alerts, wired into both the PWA and the onboard sign.
 
+**Display theme** (`driver/src/theme/`, decided 2026-09-27 — see `docs/DECISIONS.md`
+"Display theme"): light and dark palettes, both defined only in the two token blocks at the top
+of `driver/style.css` and measured by `tests/driverPalette.test.js`. Auto (the default) picks
+light between sunrise and sunset from the GPS position (`sunTimes.js`, on-device, offline);
+the bottom-right button pins Light or Dark. The Driver PWA uses the system font and no brand
+cyan — a Driver-only exception; don't reintroduce `brand-tokens.css`, Google Fonts or a colour
+literal outside those blocks (the test fails).
+
+**Screen scroll** (`driver/src/screens/scrollOnShow.js`, 2026-09-27): each of the six top-level
+screens opens scrolled to the top, and so does the visible one when the driver returns to the
+app. It watches the screens' `hidden` attribute, so any show path is covered; a new screen in
+`index.html` must be added to `SCREEN_IDS` (`tests/driverScreens.test.js` fails otherwise).
+Tracker tabs and inner scroll boxes (the stop list's centring) are deliberately left alone.
+
+**Automatic mode** (`driver/src/autostart/`, 2026-09-27, `docs/DECISIONS.md` "Driver automatic
+mode"): a third way to start a journey, beside the duty card and the manual picker. On the waiting
+(no duty) screen only, it matches the vehicle's GPS against every Local Bus departure running today
+with the same matcher Announce Solo uses (`shared/scheduleAutopilot.js`), shows a 10-second
+countdown (Start now / Change service / Not now) and then starts through `launchManualResult()`,
+the same path as the manual Start button. Never set up with a duty card (`?duties=`). It passes
+`rejectRefusal: true` to `selectServiceManually()` so a start the server refuses (e.g. cancelled
+today) is not started by itself; offline starts still queue. `tests/driverAutoStart.test.js` guards
+the `main.js` wiring.
+
 **OSRM/directions must always use scheduled stop coordinates, never the live GPS position** —
 this keeps route drawing and turn-by-turn stable regardless of GPS drift.
 
@@ -408,7 +465,10 @@ file: `localStore.js` caches the last successful `schedule_view` results
 isn't blocked either — `manualSelection.js` always generates the journey ID client-side and
 queues a failed `get_or_create_manual_journey`/`start_journey` call via
 `enqueuePendingJourneyStart` (also in `localStore.js`) for `main.js`'s
-`flushPendingJourneyStarts()` to retry on reconnect. See the offline-fallback test flow in
+`flushPendingJourneyStarts()` to retry on reconnect. A trip in progress is also saved on the
+device as it runs (`shared/journeyCheckpoint.js`), so after a power cut it is offered back at boot with no
+signal needed and the stops already reached still upload; the duty-card link is kept until the end of
+the shift (`dutyLinkStore.js`) — see `docs/DECISIONS.md` "Trip in progress through a power cut". See the offline-fallback test flow in
 `docs/TESTING.md`.
 
 `busops/driver/src/schedule.json` (regenerated by `scripts/generate-schedule.mjs`, still
@@ -486,7 +546,7 @@ doc for the phase-by-phase history; this section only summarizes the resulting a
   `generate-announcement-clip` Edge Function, `shared/announcementAudio.js`'s `clipKeysFor()`, and
   `scripts/generate-announcement-audio.mjs`'s own `slug()` — keep them in sync by hand.
 
-**A third, separate playback path — the Bus Controller, permanently on the local generator:**
+**A third, separate playback path — the Bus Controller, on local files** (filled by `npm run export:controller-clips` since 2026-09-24; the local generator described below is superseded for it, see Commands):
 `mele-server/audioPlayer.mjs` (Controller-side, see "Onboard passenger sign" below) plays the same
 clips from **local disk only** — `busops/driver/audio/announcements/`, cloned onto the Controller
 as part of its own `git clone` of this repo (`mele-server/DEPLOY.md`). The Controller deliberately
@@ -520,7 +580,11 @@ no `schedule_view` queries. It's a pure renderer, driven only by what the Driver
 `/sign-feed` connection): a `{type:'schedule', ...}` message once per journey start (stops,
 service code, branding), then `{type:'state', ...}` messages as the journey progresses. Stays
 blank until an authenticated push connection delivers a schedule — there's no `?journey=` URL
-param or depot-WiFi sync step anymore. Two named display profiles exist (`PANEL_PROFILES` in
+param or depot-WiFi sync step anymore. The Controller's system disk is **read-only** once
+`bootstrap-controller.sh` has run (overlayroot, 2026-09-28 — power cuts can't damage it): update it
+with `mele-server/update-controller.sh`, and make any other lasting change with the read-only disk
+switched off (`mele-server/DEPLOY.md` "Updating the Controller"); anything written at runtime,
+logs included, lives in RAM. Two named display profiles exist (`PANEL_PROFILES` in
 `busops/announce/src/panelSizing.js`, commissioned via `?panel-profile=`): **Bar** (28" ultra-wide
 destination-board panel, not yet built — see `docs/onboard-widescreen-layout.md`) and **Lite** (the LEVIRTU 14"
 Android tablet, lit area measured 289 × 180 mm — the display in use). The Dell Pro P2426H `monitor` profile was

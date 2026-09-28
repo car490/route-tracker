@@ -26,6 +26,7 @@ import { SUPABASE_URL, SUPABASE_KEY } from '../../driver/src/config.js';
 import { startSoloAutopilot } from './announceSoloAutopilot.js';
 import { resolveModeSwitch, shouldSelfHeal } from './announceLiteMode.js';
 import { hydrate, subscribeToChanges, startHeartbeat } from '../../shared/deviceStateSync.js';
+import { saveDeviceRow, loadDeviceRow, clearOfflineCache, resolveOfflineBoot } from './soloOfflineCache.js';
 
 const HEARTBEAT_INTERVAL_MS = 30000;
 // Self-heal watchdog: a Solo-commissioned device (candidate_departure_ids
@@ -111,6 +112,9 @@ export function connectAnnounceDeviceFeed(deviceToken, { onSchedule, onState, on
   let subscription = null;
   let heartbeat = null;
   let deviceId = null;
+  // True while Solo is running from the offline copy of this device's
+  // settings because the server couldn't be reached at startup (see start()).
+  let runningFromCopy = false;
 
   // Self-heal watchdog state — only meaningful while mode === 'driver-device'.
   let liteWatchdog = null;
@@ -209,19 +213,51 @@ export function connectAnnounceDeviceFeed(deviceToken, { onSchedule, onState, on
     else applyPushedRow(row);
   }
 
+  // This device's own settings couldn't be read. With no answer from the
+  // server (no signal — e.g. restarting after a power cut), a Solo tablet
+  // starts from its offline copy (soloOfflineCache.js) and keeps retrying in
+  // the background. A server answering "no row for you" (revoked) deletes
+  // the copy and stops a Solo that was running from it. Anything else just
+  // retries, as before.
+  function handleStartFailure(error) {
+    const action = resolveOfflineBoot({ error, cachedRow: loadDeviceRow() });
+    if (action === 'drop-copy') {
+      clearOfflineCache();
+      if (runningFromCopy) {
+        console.warn('announceDeviceFeed: server refused this device — stopping the offline copy');
+        soloHandle?.stop();
+        soloHandle = null;
+        mode = null;
+        runningFromCopy = false;
+        onSleep?.();
+      }
+    } else if (action === 'start-from-copy' && !mode) {
+      console.warn('announceDeviceFeed: no signal — starting Solo from the offline copy of this device\'s settings');
+      const cachedRow = loadDeviceRow();
+      deviceId = cachedRow.id;
+      runningFromCopy = true;
+      startSolo(cachedRow);
+    } else {
+      console.warn('announceDeviceFeed: could not read own announce_devices row — retrying', error);
+    }
+  }
+
   async function start() {
     // device_self RLS policy scopes this to exactly this device's own row —
     // no filter needed, there is only ever one possible match.
     let data;
     try {
-      data = await hydrate(client, 'announce_devices');
+      // No library retries: this loop retries every 3 s itself, and with no
+      // signal the offline copy should take over straight away.
+      data = await hydrate(client, 'announce_devices', undefined, { retry: false });
     } catch (error) {
-      console.warn('announceDeviceFeed: could not read own announce_devices row — retrying', error);
+      handleStartFailure(error);
       setTimeout(start, 3000);
       return;
     }
 
     deviceId = data.id;
+    saveDeviceRow(data);
 
     // Fire-and-forget — the idle screen's own logo/name fallback (see
     // onboard.js's initIdleScreen()) already covers the case where this is
@@ -230,8 +266,16 @@ export function connectAnnounceDeviceFeed(deviceToken, { onSchedule, onState, on
     // mode branch below), since both tiers share the same idle screen.
     fetchCompanyBranding(client, data.company_id).then((branding) => onIdleBranding?.(branding));
 
-    if (data.gps_source === 'internal') startSolo(data);
-    else startLite(data);
+    if (runningFromCopy) {
+      // Already running from the copy: move onto the live settings the same
+      // way a live change arrives (config update, or a mode switch).
+      runningFromCopy = false;
+      handleRowChange(data);
+    } else if (data.gps_source === 'internal') {
+      startSolo(data);
+    } else {
+      startLite(data);
+    }
 
     // Previously subscribed only in Lite mode, and previously only
     // console.error'd a dead channel with no recovery (CHANNEL_ERROR/

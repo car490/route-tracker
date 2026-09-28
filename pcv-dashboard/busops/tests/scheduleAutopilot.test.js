@@ -10,8 +10,8 @@
 
 import {
   findScheduleMatch, findTestingScheduleMatch, isJourneyComplete, isWithinDepartureWakeWindow,
-  describeConfigUpdate,
-} from '../announce/src/scheduleAutopilot.js';
+  describeConfigUpdate, isRunningOn,
+} from '../shared/scheduleAutopilot.js';
 
 // Bus depot terminus — both an outbound and a return service happen to
 // start/end here, per the shared-terminus test below.
@@ -285,5 +285,38 @@ describe('isWithinDepartureWakeWindow', () => {
   it('a non-school_term_time candidate ignores term_dates entirely, even if today is outside every range', () => {
     const candidates = [dep('08:00')];
     expect(isWithinDepartureWakeWindow(MONDAY_MORNING(8, 0), candidates, 10, 30, [])).toBe(true);
+  });
+});
+
+// Exported 2026-09-27 for the Driver PWA's automatic mode, which matches
+// against every departure the company runs, so it must drop the ones not
+// running today before matching (Solo gets the same effect from its wake
+// window). Same rule as isWithinDepartureWakeWindow, so the two can't drift.
+describe('isRunningOn', () => {
+  const MONDAY = new Date(2026, 8, 28, 7, 30); // Mon 28 Sep 2026, local time
+  const SUNDAY = new Date(2026, 8, 27, 7, 30);
+  const weekdays = { daysOfWeek: [1, 2, 3, 4, 5] };
+
+  it('runs on a listed ISO day of week, not on an unlisted one', () => {
+    expect(isRunningOn(weekdays, MONDAY)).toBe(true);
+    expect(isRunningOn(weekdays, SUNDAY)).toBe(false);
+  });
+
+  it('a removed date wins over the day of week, an added date over everything', () => {
+    expect(isRunningOn({ ...weekdays, removedDates: ['2026-09-28'] }, MONDAY)).toBe(false);
+    expect(isRunningOn({ ...weekdays, addedDates: ['2026-09-27'] }, SUNDAY)).toBe(true);
+  });
+
+  it('a term-time-only departure runs only inside a term date range', () => {
+    const termOnly = { ...weekdays, schoolTermTime: true };
+    expect(isRunningOn(termOnly, MONDAY, [{ start_date: '2026-09-01', end_date: '2026-10-23' }])).toBe(true);
+    expect(isRunningOn(termOnly, MONDAY, [{ start_date: '2026-10-26', end_date: '2026-12-18' }])).toBe(false);
+    expect(isRunningOn(termOnly, MONDAY, [])).toBe(false);
+  });
+
+  it('agrees with isWithinDepartureWakeWindow on whether a departure runs today', () => {
+    const cand = { ...weekdays, departureTime: '07:40' };
+    expect(isWithinDepartureWakeWindow(MONDAY, [cand], 15, 30)).toBe(isRunningOn(cand, MONDAY));
+    expect(isWithinDepartureWakeWindow(SUNDAY, [cand], 15, 30)).toBe(isRunningOn(cand, SUNDAY));
   });
 });

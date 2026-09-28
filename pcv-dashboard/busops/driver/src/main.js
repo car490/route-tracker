@@ -10,13 +10,21 @@ import {
   setAnnouncementsEnabled, onAnnouncementChange, announceState,
   isMuted, setMuted,
 } from './announcements.js';
-import { sbFetch, rpc, fetchStopsForDeparture, fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyName, preloadAllRoutes, fetchActiveManualJourney, captureDutyLinkParams } from './supabaseApi.js';
+import { sbFetch, rpc, fetchStopsForDeparture, fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyBranding, preloadAllRoutes, fetchActiveManualJourney, captureDutyLinkParams } from './supabaseApi.js';
 import { resolveBootAction, BOOT_ACTION } from './activeJourneyRecovery.js';
+import { clearDutyLink, isShiftComplete } from './dutyLinkStore.js';
+import { readCheckpoint, clearCheckpoint, createCheckpointRecorder, suggestedResumeIndex } from '../../shared/journeyCheckpoint.js';
 import { announceApproachEvent, announceStopEvent } from './announceStopEvent.js';
 import { triggerDiversionAlert, clearDiversionAlert } from './diversionAlert.js';
 import { selectServiceManually } from './manualSelection.js';
 import { checkAnnouncementCoverage, describeMissingAudio } from './journeyAnnouncementPreflight.js';
 import { getStoredVehicle, storeVehicle } from './vehicleSetup.js';
+import { initTheme } from './theme/themeController.js';
+import { initBrandLogo } from './brandLogo.js';
+import { initScrollOnShow } from './screens/scrollOnShow.js';
+import { initAutoStart, getBrowserPosition } from './autostart/autoStartController.js';
+import { createAutoStartOverlay } from './autostart/autoStartOverlay.js';
+import { fetchCandidateData } from './autostart/candidates.js';
 import {
   captureAnnounceSetup, connectAnnounceLink, disconnectAnnounceLink,
   broadcastState, broadcastSchedule,
@@ -91,12 +99,18 @@ async function postStopTimeRows(jId, rows) {
 // (src/localStore.js's queue) — called once at startup and again on every
 // 'online' event (see init() below). Silent on failure (no alert, no
 // throw): a trip just stays queued for the next attempt, indefinitely.
+//
+// An entry queued with completeJourney: false is a trip that was never
+// finished (a saved trip past its 2-hour resume window, or one replaced by
+// a different trip starting on this device — see queueUnfinishedTrip
+// below): its stop times are uploaded so nothing recorded is lost, but the
+// journey is not marked complete.
 async function flushPendingTrips() {
   for (const trip of getPendingTrips()) {
     try {
       const uploadResult = await postStopTimeRows(trip.journeyId, trip.stopRows);
       if (!uploadResult.ok) throw new Error(`stop times ${uploadResult.status}`);
-      await rpc('complete_journey', { p_journey_id: trip.journeyId });
+      if (trip.completeJourney !== false) await rpc('complete_journey', { p_journey_id: trip.journeyId });
       removePendingTrip(trip.id);
       log('info', `Synced queued trip ${trip.journeyId} (${trip.stopRows.length} stop time(s))`);
     } catch (err) {
@@ -104,6 +118,14 @@ async function flushPendingTrips() {
       log('warn', `Queued trip ${trip.journeyId} still can't sync: ${err.message}`);
     }
   }
+}
+
+// Queues the stop times of a saved trip that will not be resumed (see
+// flushPendingTrips above). Nothing to queue if no stop was reached.
+function queueUnfinishedTrip(checkpoint) {
+  if (!checkpoint?.stopRows?.length) return;
+  enqueuePendingTrip({ journeyId: checkpoint.journeyId, stopRows: checkpoint.stopRows, completeJourney: false });
+  log('warn', `Saved trip ${checkpoint.journeyId} not resumed — ${checkpoint.stopRows.length} stop time(s) queued for upload`);
 }
 
 // Retries every journey that was started manually (src/manualSelection.js)
@@ -234,8 +256,7 @@ function runAnnouncementPreflight({ allStops, serviceCode, destination, journeyI
 function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex, serviceCode, servicePeriod, psvairEnabled, accentColor, primaryColor, onComplete }) {
   const myTrackerId = ++activeTrackerId; // see this var's own comment — race guard for completeTrip()'s delayed disconnect
   document.getElementById('picker').hidden  = true;
-  document.getElementById('tracker').hidden = false;
-  document.getElementById('route-header').scrollIntoView();
+  document.getElementById('tracker').hidden = false; // opens at the top: screens/scrollOnShow.js
 
   // No-op on any device not commissioned with a Controller target (see
   // announceLink.js) — safe to call unconditionally, including on the
@@ -316,6 +337,25 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
   }
 
   log('info', `Started: ${serviceCode}${servicePeriod ? ' ' + servicePeriod : ''} from "${allStops[initialStopIndex].name}"`);
+
+  // Saves this trip on the device as it runs, so a power cut loses nothing
+  // already recorded and the trip can be carried on after a restart (see
+  // journeyCheckpoint.js, and init()'s RESUME_CHECKPOINT). Picks up the
+  // stops already recorded when this is the same trip being carried on. A
+  // saved trip for a different journey is being replaced: its stop times
+  // are queued for upload first. No journey id means nothing to upload, so
+  // nothing is saved.
+  const checkpoint = journeyId
+    ? createCheckpointRecorder({
+        journeyId,
+        launch: { allStops, driverId, vehicleId, serviceCode, servicePeriod, psvairEnabled, accentColor, primaryColor },
+      })
+    : null;
+  if (checkpoint?.previous) {
+    queueUnfinishedTrip(checkpoint.previous);
+    flushPendingTrips().catch(() => {});
+  }
+  checkpoint?.record({ stopStates: [], nextStopIndex: initialStopIndex });
 
   // ── PSVAIR 2026 announcements ─────────────────────────────────────────────
   // In-scope local bus services get a live audio + on-screen announcement of
@@ -552,7 +592,8 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
     onUpdate: ({ timing, nextStopIndex, speedMps, distanceToNextM, stopStates, earlyWait, atStop, approaching, departedStopIndex, lat, lon }) => {
       stopStatesRef = stopStates;
       lastStopIdx = nextStopIndex;
-      if (lat !== undefined) { lastLat = lat; lastLon = lon; }
+      checkpoint?.record({ stopStates, nextStopIndex });
+      if (lat !== undefined) { lastLat = lat; lastLon = lon; displayTheme?.setLocation(lat, lon); }
 
       // PSVAIR event 2 — approaching (fires once per stop off gps.js's
       // stopStates 'approaching' status, the same signal the stop list and
@@ -775,7 +816,8 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
     };
 
     if (journeyId) {
-      const stopRows = buildStopTimeRows(journeyId, stopStatesRef, allStops);
+      // Includes any stops recorded before a power cut (journeyCheckpoint.js).
+      const stopRows = checkpoint ? checkpoint.finalRows(stopStatesRef) : buildStopTimeRows(journeyId, stopStatesRef, allStops);
       let completed = false;
       try {
         const uploadResult = await postStopTimeRows(journeyId, stopRows);
@@ -789,10 +831,12 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
       }
 
       if (completed) {
+        checkpoint?.clear();
         log('info', `Uploaded ${stopRows.length} stop time(s)`);
         showTripCompleteBanner(finish);
       } else {
         enqueuePendingTrip({ journeyId, stopRows });
+        checkpoint?.clear();
         showInfoBanner({
           title: 'Trip Ended',
           body: `${stopRows.length} stop time(s) saved on this device and will sync automatically once back in signal — no action needed.`,
@@ -850,6 +894,11 @@ async function initDutyCard(journeyIds) {
 }
 
 export function renderDutyCard(duties, journeyIds) {
+  // End of shift: the duty link is kept through a restart only until every
+  // duty on the card is done (dutyLinkStore.js), so remove it now. The card
+  // itself still shows, all ticked, until the page is next loaded.
+  if (isShiftComplete(duties)) clearDutyLink();
+
   document.getElementById('duty-card').hidden = false;
   document.getElementById('picker').hidden    = true;
   document.getElementById('tracker').hidden   = true;
@@ -996,6 +1045,63 @@ async function launchDutyRoute(duties, idx, journeyIds) {
   };
 }
 
+// ── Carry on a trip saved on this device (power cut) ─────────────────────────
+// See journeyCheckpoint.js. Everything needed is in the saved trip itself,
+// so this works with no signal. Same stop-confirm #picker screen and same
+// trust level as the other resume paths below: the stop the vehicle was
+// heading for is pre-selected, but the driver confirms it. The journey is
+// already started (or its start is already queued), so no start_journey
+// call and no second announcement pre-flight.
+//
+// "Not this trip" keeps the saved trip and carries on with the normal boot
+// (onDecline): starting the same journey again later picks its saved stops
+// up, and starting a different one queues them for upload first (runTracker).
+function resumeSavedTrip(saved, { onDecline, onComplete }) {
+  const { launch } = saved;
+  const subtitle = document.querySelector('#picker .picker-subtitle');
+  const backBtn = document.getElementById('picker-back-btn');
+  const defaultSubtitle = subtitle.textContent;
+  const defaultBack = backBtn.textContent;
+  const restoreLabels = () => {
+    subtitle.textContent = defaultSubtitle;
+    backBtn.textContent = defaultBack;
+  };
+
+  document.getElementById('no-duty-card').hidden = true;
+  document.getElementById('duty-card').hidden    = true;
+  document.getElementById('picker').hidden       = false;
+  backBtn.hidden = false;
+  subtitle.textContent = 'Carry on your trip';
+  backBtn.textContent = '\u2190 Not this trip';
+
+  const stopSelect = document.getElementById('stop-select');
+  stopSelect.innerHTML = '';
+  launch.allStops.forEach((stop, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `${stop.time}  ${stop.name}`;
+    stopSelect.appendChild(opt);
+  });
+  stopSelect.value = String(suggestedResumeIndex(saved));
+  document.getElementById('testing-time-field').hidden = true;
+
+  backBtn.onclick = () => {
+    restoreLabels();
+    document.getElementById('picker').hidden = true;
+    backBtn.hidden = true;
+    onDecline();
+  };
+
+  document.getElementById('start-btn').onclick = async () => {
+    const initialStopIndex = parseInt(stopSelect.value, 10) || 0;
+    restoreLabels();
+    backBtn.hidden = true;
+    await acquireWakeLock();
+    log('info', `Carrying on saved trip ${saved.journeyId} from stop ${initialStopIndex}`);
+    runTracker({ ...launch, journeyId: saved.journeyId, initialStopIndex, onComplete });
+  };
+}
+
 // ── Manual-selection active-journey recovery ──────────────────────────────────
 // See activeJourneyRecovery.js's header comment for the full rationale.
 // Reuses the same stop-confirm #picker screen as launchDutyRoute() above
@@ -1084,6 +1190,15 @@ function showNoDutyCard() {
   document.getElementById('vehicle-setup').hidden = true;
   document.getElementById('tracker').hidden       = true;
   document.getElementById('ndc-vehicle-label').textContent = getStoredVehicle()?.label || '(none)';
+
+  // Automatic mode (src/autostart/) watches for a departure whenever this
+  // waiting screen is showing: after a journey ends, after backing out of
+  // the manual picker, or on boot. No-ops in duty-card mode (autoStart null).
+  if (autoStart) {
+    autoStart.journeyEnded();
+    autoStart.resume();
+    autoStart.start();
+  }
 }
 
 // ── Vehicle setup (one-time per device — which vehicle is this?) ──────────────
@@ -1217,11 +1332,21 @@ function initManualSelection() {
     }
   }
 
-  document.getElementById('ndc-manual-btn').onclick = () => {
+  // Also used by automatic mode's "Change service", preselecting the
+  // departure it had matched so the driver only has to adjust it.
+  async function open(preselect = null) {
     document.getElementById('no-duty-card').hidden  = true;
     document.getElementById('manual-picker').hidden = false;
-    loadServices();
-  };
+    await loadServices();
+    if (preselect && services[preselect.serviceCode]) {
+      serviceSelect.value = preselect.serviceCode;
+      populatePeriods();
+      if (services[preselect.serviceCode][preselect.period]) periodSelect.value = preselect.period;
+      updateTestingDepartureTime();
+    }
+  }
+
+  document.getElementById('ndc-manual-btn').onclick = () => open();
 
   document.getElementById('manual-back-btn').onclick = () => {
     document.getElementById('manual-picker').hidden = true;
@@ -1241,21 +1366,7 @@ function initManualSelection() {
         result.allStops = shiftStopTimes(result.allStops, minutesFromNow(result.allStops[0].time));
       }
 
-      document.getElementById('manual-picker').hidden = true;
-      await acquireWakeLock();
-
-      if (result.psvairEnabled) {
-        runAnnouncementPreflight({
-          allStops: result.allStops,
-          serviceCode: result.serviceCode,
-          destination: result.allStops[result.allStops.length - 1].name,
-          journeyId: result.journeyId,
-          vehicleId: result.vehicleId,
-          driverId: result.driverId,
-        });
-      }
-
-      runTracker(result);
+      await launchManualResult(result);
     } catch (err) {
       console.error('Manual service selection failed:', err);
       alert(`Couldn't start this service:\n${err.message}`);
@@ -1263,9 +1374,64 @@ function initManualSelection() {
       startBtn.disabled = false;
     }
   };
+
+  return { open };
+}
+
+// The one launch path for a service started without a duty card, whether
+// the driver tapped Start in the manual picker or automatic mode started it
+// (startAutomaticJourney below): same wake lock, announcement preflight and
+// tracker, so both behave identically downstream.
+async function launchManualResult(result) {
+  document.getElementById('manual-picker').hidden = true;
+  document.getElementById('no-duty-card').hidden  = true;
+  await acquireWakeLock();
+
+  if (result.psvairEnabled) {
+    runAnnouncementPreflight({
+      allStops: result.allStops,
+      serviceCode: result.serviceCode,
+      destination: result.allStops[result.allStops.length - 1].name,
+      journeyId: result.journeyId,
+      vehicleId: result.vehicleId,
+      driverId: result.driverId,
+    });
+  }
+
+  runTracker(result);
+}
+
+// ── Automatic mode ────────────────────────────────────────────────────────────
+// See src/autostart/autoStartController.js and docs/DECISIONS.md "Driver
+// automatic mode". Starts exactly what the manual picker would have started
+// for this departure; shiftMinutes is only ever non-zero in ?debug testing.
+async function startAutomaticJourney(candidate, { shiftMinutes }) {
+  const vehicleId = getStoredVehicle()?.id;
+  const period = `${candidate.label} (${candidate.departureTime})`;
+  const result = await selectServiceManually(candidate.departureId, candidate.serviceCode, period, vehicleId, {
+    onComplete: showNoDutyCard,
+    rejectRefusal: true, // a departure the server says isn't running today is never started by itself
+  });
+  if (shiftMinutes && result.allStops.length) {
+    result.allStops = shiftStopTimes(result.allStops, shiftMinutes);
+  }
+  await launchManualResult(result);
+}
+
+async function fetchJson(path) {
+  const res = await sbFetch(path);
+  if (!res.ok) throw new Error(`${path.split('?')[0]} ${res.status}`);
+  return res.json();
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
+
+// Display theme (src/theme/): Auto follows sunrise/sunset, using the live GPS
+// position once tracking supplies one (runTracker's onUpdate above).
+let displayTheme = null;
+
+// Automatic mode (src/autostart/): only without a duty card; see init().
+let autoStart = null;
 
 async function init() {
   // One-time capture of the duty-card bearer token (`?token=`) and journey
@@ -1278,11 +1444,31 @@ async function init() {
   // inlined further down where the old `dutiesParam` read used to live.
   const dutiesParam = captureDutyLinkParams();
 
+  // A trip saved on this device when the power went (journeyCheckpoint.js).
+  // Local-only. One past its 2-hour resume window isn't offered, but its
+  // stop times are queued before the flush below so they still upload.
+  const saved = readCheckpoint();
+  if (saved.status === 'stale') {
+    queueUnfinishedTrip(saved.checkpoint);
+    clearCheckpoint();
+  }
+  const freshCheckpoint = saved.status === 'fresh' ? saved.checkpoint : null;
+
+  // Local-only (no network), so safe straight after the capture above.
+  displayTheme = initTheme({
+    button: document.getElementById('theme-toggle'),
+    metaThemeColor: document.querySelector('meta[name="theme-color"]'),
+  });
+
+  // Every screen opens scrolled to the top, and so does the visible one when
+  // the driver comes back to the app. Local-only, like the theme above.
+  initScrollOnShow();
+
   // Retries any trip(s) that failed to reach Supabase at completion time on
   // a previous visit (src/localStore.js's queue) — covers the app being
   // reopened after sitting offline overnight. Also re-attempted on every
   // 'online' event below, for a mid-session reconnect. Best-effort/silent,
-  // same treatment as fetchCompanyName() just below.
+  // same treatment as initBrandLogo() just below.
   flushPendingTrips().catch(() => {});
   flushPendingJourneyStarts().catch(() => {});
   window.addEventListener('online', () => {
@@ -1296,20 +1482,16 @@ async function init() {
   // whose stops were never cached has nothing to fall back to if Supabase
   // is unreachable at start time, even though the journey itself can still
   // start via the pending-start queue above). Best-effort/non-blocking,
-  // same treatment as fetchCompanyName() just below — never delays showing
+  // same treatment as initBrandLogo() just below — never delays showing
   // the actual functional screens.
   preloadAllRoutes().catch(() => {});
 
-  // Real operator name for the picker/duty-card screens' brand heading —
-  // best-effort and non-blocking (doesn't delay showing the actual
-  // functional screens below); on failure (e.g. offline before any cache
-  // exists) the generic "BusOps Driver" default already in index.html stands.
-  fetchCompanyName()
-    .then(name => {
-      if (!name) return;
-      document.querySelectorAll('.picker-brand, .ndc-brand').forEach(el => { el.textContent = name; });
-    })
-    .catch(() => {});
+  // Operator's logo (or name, when it has none) for the picker/duty-card
+  // screens' brand heading — see brandLogo.js. Best-effort and non-blocking
+  // (doesn't delay showing the functional screens below); a cached logo
+  // shows at once, and with neither cache nor network the generic
+  // "BusOps Driver" default already in index.html stands.
+  initBrandLogo({ fetchBranding: fetchCompanyBranding }).catch(() => {});
 
   // Dedicated tablet mount, not a driver's own phone — keep the screen awake
   // from boot (duty-card/picker screens included), not just once tracking
@@ -1317,8 +1499,28 @@ async function init() {
   // Wake Lock API failure rather than "haven't pressed Start yet".
   acquireWakeLock();
 
-  initManualSelection();
+  const manualSelection = initManualSelection();
   const vehicleSetup = initVehicleSetup();
+
+  // Automatic mode: without a duty card, the waiting screen starts the
+  // departure the vehicle is at by itself (10 s countdown, Start now /
+  // Change service / Not now). A duty card is ops' explicit assignment and
+  // always wins, so there it is never set up.
+  if (!dutiesParam) {
+    autoStart = initAutoStart({
+      loadCandidates: () => fetchCandidateData({ fetchJson }),
+      getPosition: () => getBrowserPosition(),
+      ui: createAutoStartOverlay(document),
+      onStart: startAutomaticJourney,
+      onChange: (candidate) => manualSelection.open({
+        serviceCode: candidate.serviceCode,
+        period: `${candidate.label} (${candidate.departureTime})`,
+      }),
+      isActive: () => !document.getElementById('no-duty-card').hidden,
+      testing: DEBUG,
+    });
+    document.getElementById('ndc-auto-note').hidden = false;
+  }
   document.getElementById('ndc-change-vehicle-btn').onclick = () => vehicleSetup.show();
 
   // One-time commissioning step for the Driver -> Controller push feed (see
@@ -1334,36 +1536,64 @@ async function init() {
   // A failed lookup (offline, RLS hiccup) is treated the same as "none
   // found" — falls through to the existing no-duty screen, same as before
   // this feature existed, rather than blocking boot on it.
-  let activeJourney = null;
-  if (!dutiesParam && storedVehicle) {
-    activeJourney = await fetchActiveManualJourney(storedVehicle.id).catch(() => null);
-  }
-
-  const bootAction = resolveBootAction({
-    dutiesParam,
-    storedVehicleId: storedVehicle?.id ?? null,
-    activeJourney,
-  });
-
-  switch (bootAction) {
-    case BOOT_ACTION.DUTY_CARD: {
-      // A duty card already carries its own ops-assigned vehicle per
-      // journey — vehicle commissioning is only for the manual-selection
-      // path below.
-      const journeyIds = dutiesParam.split(',').map(s => s.trim()).filter(Boolean);
-      await initDutyCard(journeyIds);
-      break;
+  // Skipped when a saved trip is being offered: that wins anyway, and the
+  // lookup would only delay the screen (or time out with no signal).
+  const bootWithoutCheckpoint = async () => {
+    let activeJourney = null;
+    if (!dutiesParam && storedVehicle) {
+      activeJourney = await fetchActiveManualJourney(storedVehicle.id).catch(() => null);
     }
-    case BOOT_ACTION.RESUME_ACTIVE:
-      await resumeActiveManualJourney(activeJourney);
-      break;
-    case BOOT_ACTION.NO_DUTY:
-      showNoDutyCard();
-      break;
-    case BOOT_ACTION.VEHICLE_SETUP:
-    default:
-      vehicleSetup.show();
-      break;
+    await runBootAction(resolveBootAction({
+      dutiesParam,
+      storedVehicleId: storedVehicle?.id ?? null,
+      activeJourney,
+    }), activeJourney);
+  };
+
+  const runBootAction = async (bootAction, activeJourney = null) => {
+    switch (bootAction) {
+      case BOOT_ACTION.RESUME_CHECKPOINT:
+        resumeSavedTrip(freshCheckpoint, {
+          onDecline: () => { bootWithoutCheckpoint().catch(console.error); },
+          onComplete: () => {
+            if (dutiesParam) {
+              initDutyCard(dutiesParam.split(',').map(s => s.trim()).filter(Boolean)).catch(console.error);
+            } else {
+              showNoDutyCard();
+            }
+          },
+        });
+        break;
+      case BOOT_ACTION.DUTY_CARD: {
+        // A duty card already carries its own ops-assigned vehicle per
+        // journey — vehicle commissioning is only for the manual-selection
+        // path below.
+        const journeyIds = dutiesParam.split(',').map(s => s.trim()).filter(Boolean);
+        await initDutyCard(journeyIds);
+        break;
+      }
+      case BOOT_ACTION.RESUME_ACTIVE:
+        await resumeActiveManualJourney(activeJourney);
+        break;
+      case BOOT_ACTION.NO_DUTY:
+        showNoDutyCard();
+        break;
+      case BOOT_ACTION.VEHICLE_SETUP:
+      default:
+        vehicleSetup.show();
+        break;
+    }
+  };
+
+  if (freshCheckpoint) {
+    await runBootAction(resolveBootAction({
+      dutiesParam,
+      storedVehicleId: storedVehicle?.id ?? null,
+      activeJourney: null,
+      checkpoint: freshCheckpoint,
+    }));
+  } else {
+    await bootWithoutCheckpoint();
   }
 }
 

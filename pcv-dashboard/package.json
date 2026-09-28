@@ -1,7 +1,7 @@
 {
   "name": "coachmate-dashboard",
   "private": true,
-  "version": "2.2.11",
+  "version": "2.3.0",
   "type": "module",
   "engines": {
     "node": ">=20.19.0"
@@ -11,7 +11,7 @@
     "dev:safe": "node ./scripts/dev-safe.mjs",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint . --max-warnings 7",
+    "lint": "eslint . --max-warnings 0",
     "test": "vitest run"
   },
   "dependencies": {

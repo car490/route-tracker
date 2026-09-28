@@ -9,10 +9,14 @@
     "demo:2up:duty": "node ../../scripts/demo-2up.mjs duty",
     "demo:2up:manual": "node ../../scripts/demo-2up.mjs manual",
     "generate:audio": "node ../../scripts/generate-announcement-audio.mjs",
+    "export:controller-clips": "node ../../scripts/controller-clips/export.mjs",
     "demo:announce-push": "node ../../scripts/demo-announce-push.mjs",
     "demo:announce-solo": "node ../../scripts/demo-announce-solo.mjs",
+    "verify:autostart": "node ../../scripts/verify-driver-autostart.mjs",
     "review:announce-solo": "node ../../scripts/review-announce-solo.mjs",
-    "measure:announce-solo": "node ../../scripts/measure-announce-solo.mjs"
+    "measure:announce-solo": "node ../../scripts/measure-announce-solo.mjs",
+    "verify:power-cut": "node ../../scripts/verify-driver-power-cut.mjs",
+    "verify:solo-power-cut": "node ../../scripts/verify-announce-solo-power-cut.mjs"
   },
   "dependencies": {
     "ws": "^8.21.3"

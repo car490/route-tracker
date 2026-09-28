@@ -10,7 +10,7 @@
 // registration failure today.
 import { SUPABASE_URL, SUPABASE_KEY } from './driver/src/config.js';
 
-const CACHE_NAME = 'busops-driver-v2.2.11';
+const CACHE_NAME = 'busops-driver-v2.3.0';
 
 const STATIC_ASSETS = [
   './',
@@ -33,7 +33,10 @@ const STATIC_ASSETS = [
   './announce/src/announceDeviceSetup.js',
   './announce/src/announceGps.js',
   './announce/src/announceSoloAutopilot.js',
-  './announce/src/scheduleAutopilot.js',
+  './announce/src/soloResumeStop.js',
+  './announce/src/soloTripQueue.js',
+  './announce/src/soloOfflineCache.js',
+  './shared/scheduleAutopilot.js',
   './driver/src/announcements.js',
   './driver/src/directions.js',
   './shared/engine.js',
@@ -46,10 +49,35 @@ const STATIC_ASSETS = [
   './driver/src/config.js',
   './driver/src/schedule.json',
   './driver/src/supabaseApi.js',
+  // The rest of the import closure of main.js (tests/serviceWorkerPrecache.test.js).
+  './driver/src/localStore.js',
+  './driver/src/announceLink.js',
+  './driver/src/activeJourneyRecovery.js',
+  './driver/src/dutyLinkStore.js',
+  './driver/src/announceStopEvent.js',
+  './driver/src/diversionAlert.js',
+  './driver/src/journeyAnnouncementPreflight.js',
+  './driver/src/brandLogo.js',
+  './shared/escapeHtml.js',
+  './shared/journeyStopTimes.js',
+  './shared/journeyCheckpoint.js',
+  './shared/scheduleTimeShift.js',
+  './shared/announceStates.js',
+  './shared/announcementAudio.js',
+  './shared/announcementCoverage.js',
   './driver/src/manualSelection.js',
   './driver/src/vehicleSetup.js',
   './driver/src/announceDeviceLink.js',
   './driver/src/announceDeviceLinkApi.js',
+  './driver/src/theme/themeController.js',
+  './driver/src/theme/resolveTheme.js',
+  './driver/src/theme/themePreference.js',
+  './driver/src/theme/sunTimes.js',
+  './driver/src/screens/scrollOnShow.js',
+  './driver/src/autostart/autoStartController.js',
+  './driver/src/autostart/autoStartState.js',
+  './driver/src/autostart/autoStartOverlay.js',
+  './driver/src/autostart/candidates.js',
 ];
 
 const TILE_CACHE = [

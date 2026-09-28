@@ -38,7 +38,15 @@ import { enqueuePendingJourneyStart } from './localStore.js';
 // preloadAllRoutes() (called from main.js's init(), see supabaseApi.js)
 // does proactively for every valid route as soon as the device is online,
 // not just lazily on first manual visit.
-export async function selectServiceManually(departureId, serviceCode, servicePeriod, vehicleId, { onComplete = () => {} } = {}) {
+//
+// rejectRefusal (automatic mode only, src/autostart/): a start the server
+// answered and refused (an HTTP 4xx, e.g. "service does not run on ...",
+// a departure cancelled today) is thrown instead of queued, so automatic
+// mode never starts tracking a service by itself that the server has said
+// isn't running. A failure with no answer (dead network) is still queued,
+// so automatic mode works offline the same as the manual picker. The manual
+// picker leaves it off: the driver chose that service deliberately.
+export async function selectServiceManually(departureId, serviceCode, servicePeriod, vehicleId, { onComplete = () => {}, rejectRefusal = false } = {}) {
   if (!departureId) {
     throw new Error(`No departure selected for ${serviceCode} / ${servicePeriod}`);
   }
@@ -62,6 +70,7 @@ export async function selectServiceManually(departureId, serviceCode, servicePer
     await rpc('start_journey', { p_journey_id: resolvedId });
     liveJourneyId = resolvedId;
   } catch (err) {
+    if (rejectRefusal && err.status >= 400 && err.status < 500) throw err;
     // Supabase unreachable (or some other failure) — queue both RPC calls
     // for main.js's flushPendingJourneyStarts() to retry on reconnect, and
     // carry on using the locally-generated id so tracking/the Controller

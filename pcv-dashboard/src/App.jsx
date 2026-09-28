@@ -8,6 +8,7 @@ import Overview from './features/overview/Overview'
 import EmployeesPage from './features/employees/EmployeesPage'
 import VehiclesPage from './features/vehicles/VehiclesPage'
 import AnnounceDeviceLinkPage from './features/vehicles/AnnounceDeviceLinkPage'
+import AnnouncementClipsPage from './features/announcement-clips/AnnouncementClipsPage'
 import RoutesPage from './features/routes/RoutesPage'
 import JourneysPage from './features/journeys/JourneysPage'
 import SchedulePage from './features/schedule/SchedulePage'
@@ -65,7 +66,9 @@ export default function App() {
       mounted = false
       subscription.unsubscribe()
     }
-  }, [])
+    // Subscribe to auth changes once per mount; re-running on a new `navigate`
+    // identity would tear down and re-create the Supabase auth listener.
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (session === undefined) {
     return <div className="app-loading">Loading…</div>
@@ -97,6 +100,7 @@ export default function App() {
         <Route path="employees" element={<EmployeesPage />} />
         <Route path="vehicles" element={<VehiclesPage />} />
         <Route path="announce-devices" element={<AnnounceDeviceLinkPage />} />
+        <Route path="announcement-clips" element={<AnnouncementClipsPage />} />
         <Route path="journeys" element={<JourneysPage />} />
         <Route path="duty-cards" element={<DutyCardsPage />} />
         <Route path="route-planner" element={<RoutePlannerPage />} />

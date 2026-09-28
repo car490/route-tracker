@@ -51,8 +51,16 @@ export default async function handler(req, res) {
   const { data: company } = await supabase.from('companies').select('id').eq('id', company_id).maybeSingle()
   if (!company) return res.status(403).json({ error: 'company_id is not accessible' })
   if (device_id) {
-    const { data: device } = await supabase.from('announce_devices').select('id').eq('id', device_id).maybeSingle()
+    const { data: device } = await supabase.from('announce_devices').select('id')
+      .eq('id', device_id).eq('company_id', company_id).maybeSingle()
     if (!device) return res.status(403).json({ error: 'device_id is not accessible' })
+  }
+  // vehicle_id becomes a signed claim that scopes what the sign may read, so it
+  // must belong to the same company too, not just be any UUID the caller sends.
+  if (vehicle_id) {
+    const { data: vehicle } = await supabase.from('vehicles').select('id')
+      .eq('id', vehicle_id).eq('company_id', company_id).maybeSingle()
+    if (!vehicle) return res.status(403).json({ error: 'vehicle_id is not accessible' })
   }
 
   const secret = process.env.SUPABASE_JWT_SECRET

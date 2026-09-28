@@ -248,6 +248,12 @@ create table stops (
   -- directly via SQL for specific problem stops (no admin UI yet — flagged
   -- as a follow-up, see memory).
   announcement_name   text,
+  -- Speech-only name (e.g. a pronunciation respelling like "Haze-bruh" for
+  -- Happisburgh). Never shown on the sign; used verbatim by the clip enqueue
+  -- triggers when set. Clip keys still come from display_name(). See
+  -- migration_stops_spoken_name.sql.
+  spoken_name         text        constraint stops_spoken_name_not_blank
+                                  check (spoken_name is null or length(trim(spoken_name)) > 0),
   created_at          timestamptz not null default now()
 );
 
@@ -323,6 +329,9 @@ create table if not exists public.app_config (
 );
 
 alter table public.app_config enable row level security;
+-- The clip drain Edge Function reads the daily cap (migration_announce_voice_safeguards.sql).
+revoke insert, update, delete, truncate on public.app_config from service_role;
+grant select on public.app_config to service_role;
 
 
 -- ── Journey types lookup ──────────────────────────────────────────────────────
@@ -335,15 +344,15 @@ create table journey_types (
 );
 
 grant select on public.journey_types to anon;
-grant all    on public.journey_types to authenticated;
+grant select on public.journey_types to authenticated;  -- read-only: see migration_security_hardening_phase0.sql
 
 alter table public.journey_types enable row level security;
 
 create policy "anon_read" on public.journey_types
   for select to anon using (true);
 
-create policy "auth_all" on public.journey_types
-  for all to authenticated using (true) with check (true);
+create policy "auth_read" on public.journey_types
+  for select to authenticated using (true);
 
 
 -- ── Term dates ────────────────────────────────────────────────────────────────
@@ -365,15 +374,15 @@ create table term_dates (
 );
 
 grant select on public.term_dates to anon;
-grant all    on public.term_dates to authenticated;
+grant select on public.term_dates to authenticated;  -- read-only: see migration_security_hardening_phase0.sql
 
 alter table public.term_dates enable row level security;
 
 create policy "anon_read" on public.term_dates
   for select to anon using (true);
 
-create policy "auth_all" on public.term_dates
-  for all to authenticated using (true) with check (true);
+create policy "auth_read" on public.term_dates
+  for select to authenticated using (true);
 
 
 -- ── Routes ────────────────────────────────────────────────────────────────────
@@ -786,71 +795,9 @@ $$;
 
 grant execute on function is_journey_in_progress(uuid) to anon;
 
--- Signs a driver duty-card JWT directly in Postgres via pgcrypto, rather than
--- relying on a separately-deployed Edge Function. Output is structurally
--- identical to the old Edge Function's JWT and is read by is_jwt_journey_allowed().
-create extension if not exists pgcrypto;
-
-create or replace function public.generate_duty_token(
-  p_journey_ids  uuid[],
-  p_driver_name  text,
-  p_driver_id    uuid
-) returns text
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  -- HS256 JWT header is a fixed constant
-  v_header      text := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9';
-  v_payload     jsonb;
-  v_payload_b64 text;
-  v_input       text;
-  v_sig         text;
-  v_now         bigint;
-  v_secret      text;
-begin
-  if auth.role() is distinct from 'authenticated' then
-    raise exception 'Unauthorized';
-  end if;
-
-  v_now    := extract(epoch from clock_timestamp())::bigint;
-  v_secret := current_setting('app.settings.jwt_secret', true);
-
-  if v_secret is null or v_secret = '' then
-    raise exception 'JWT secret unavailable';
-  end if;
-
-  v_payload := jsonb_build_object(
-    'iss',         'supabase',
-    'role',        'anon',
-    'driver_name', coalesce(p_driver_name, 'Driver'),
-    'driver_id',   p_driver_id,
-    'journey_ids', coalesce(
-                     (select jsonb_agg(elem::text) from unnest(p_journey_ids) as elem),
-                     '[]'::jsonb
-                   ),
-    'iat',         v_now,
-    'exp',         v_now + 86400
-  );
-
-  -- base64url-encode payload (remove newlines pgcrypto adds, swap +/ → -_)
-  v_payload_b64 := replace(replace(replace(
-    replace(encode(convert_to(v_payload::text, 'UTF8'), 'base64'), chr(10), ''),
-    '+', '-'), '/', '_'), '=', '');
-
-  v_input := v_header || '.' || v_payload_b64;
-
-  -- HMAC-SHA256, then base64url-encode the signature
-  v_sig := replace(replace(replace(
-    replace(encode(hmac(convert_to(v_input, 'UTF8'), convert_to(v_secret, 'UTF8'), 'sha256'), 'base64'), chr(10), ''),
-    '+', '-'), '/', '_'), '=', '');
-
-  return v_input || '.' || v_sig;
-end;
-$$;
-
-grant execute on function public.generate_duty_token(uuid[], text, uuid) to authenticated;
+-- generate_duty_token() was removed (migration_security_hardening_phase0.sql): it signed
+-- JWTs for arbitrary journey_ids with no ownership check. Duty tokens are minted by
+-- pcv-dashboard/api/sign-token.js, which validates every id through the caller's RLS.
 
 -- Returns true when the current JWT either carries no journey_ids claim (legacy anon key)
 -- or when j_id appears in the claim. Scopes driver tokens to their own journeys only.
@@ -1404,8 +1351,14 @@ create table public.announcement_clips (
   storage_path text not null,
   hash         text not null,         -- same '<voice>|<text>' hash as today's generator
   text         text not null,
-  voice        text not null,
-  rendered_at  timestamptz not null default now()
+  voice        text not null,         -- 'en-GB-RyanNeural', or 'elevenlabs:<voice id>' for Ben
+  rendered_at  timestamptz not null default now(),
+  -- Source indicator (migration_announcement_clip_source.sql); null for clips
+  -- rendered before it.
+  model          text,
+  voice_settings jsonb,
+  loudness_lufs  numeric(5,2),
+  true_peak_db   numeric(5,2)
 );
 
 grant select on public.announcement_clips to anon;
@@ -1440,13 +1393,133 @@ create table public.announcement_clip_jobs (
   key          text not null,
   text         text not null,
   voice        text not null,
-  requested_at timestamptz not null default now()
+  requested_at timestamptz not null default now(),
+  -- Retry cap (migration_announcement_clip_source.sql): the drain stops
+  -- retrying after MAX_JOB_ATTEMPTS failures, so credits can't loop away.
+  attempts        int not null default 0,
+  last_error      text,
+  last_attempt_at timestamptz
 );
 
 create index announcement_clip_jobs_key_idx on public.announcement_clip_jobs (key);
 
 revoke all on public.announcement_clip_jobs from anon, authenticated;
 grant all on public.announcement_clip_jobs to service_role;
+
+-- ElevenLabs usage log (migration_announce_voice_safeguards.sql): one row per
+-- successful call, so the drain can enforce app_config 'elevenlabs_daily_char_cap'
+-- (default 6000 in code if unset; '0' pauses Ben rendering). Service role only.
+create table public.elevenlabs_usage (
+  id         bigint generated always as identity primary key,
+  key        text        not null,
+  chars      int         not null check (chars > 0),
+  created_at timestamptz not null default now()
+);
+create index elevenlabs_usage_created_at_idx on public.elevenlabs_usage (created_at);
+
+revoke all on public.elevenlabs_usage from anon, authenticated;
+grant select, insert on public.elevenlabs_usage to service_role;
+alter table public.elevenlabs_usage enable row level security;
+
+-- Review of Ben clips from the dashboard (migration_announcement_clip_review.sql).
+-- A review approves one version (hash) of a clip; a re-render shows as unreviewed again.
+create table public.announcement_clip_reviews (
+  id          bigint generated always as identity primary key,
+  key         text        not null,
+  hash        text        not null,
+  reviewed_by uuid        not null references public.employees(id),
+  reviewed_at timestamptz not null default now()
+);
+create index announcement_clip_reviews_key_hash_idx on public.announcement_clip_reviews (key, hash);
+
+-- Read and written only through the two functions below.
+revoke all on public.announcement_clip_reviews from anon, authenticated;
+grant select on public.announcement_clip_reviews to service_role;
+alter table public.announcement_clip_reviews enable row level security;
+
+-- Everything the "Announcement Clips" dashboard page shows, in one call:
+-- Ben clips with their review state, queue items needing attention, and
+-- today's ElevenLabs character use against the cap. Ops roles only.
+create or replace function public.announcement_voice_status()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_day_start timestamptz := date_trunc('day', now() at time zone 'utc') at time zone 'utc';
+begin
+  if coalesce(public.current_employee_role(), '') not in ('super_user', 'ops_manager') then
+    raise exception 'Only an ops manager or super user can review announcement clips';
+  end if;
+
+  return jsonb_build_object(
+    'voice', (select value from public.app_config where key = 'announcement_voice'),
+    'usage', jsonb_build_object(
+      'today_chars', (select coalesce(sum(chars), 0) from public.elevenlabs_usage where created_at >= v_day_start),
+      'month_chars', (select coalesce(sum(chars), 0) from public.elevenlabs_usage
+                      where created_at >= date_trunc('month', now() at time zone 'utc') at time zone 'utc'),
+      'cap',         (select value from public.app_config where key = 'elevenlabs_daily_char_cap')
+    ),
+    'clips', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'key', c.key, 'text', c.text, 'storage_path', c.storage_path, 'hash', c.hash,
+               'rendered_at', c.rendered_at, 'loudness_lufs', c.loudness_lufs, 'true_peak_db', c.true_peak_db,
+               'reviewed', r.reviewed_at is not null, 'reviewed_at', r.reviewed_at, 'reviewed_by', r.reviewer)
+             order by (r.reviewed_at is not null), c.rendered_at desc)
+      from public.announcement_clips c
+      left join lateral (
+        select rv.reviewed_at, e.name as reviewer
+        from public.announcement_clip_reviews rv
+        join public.employees e on e.id = rv.reviewed_by
+        where rv.key = c.key and rv.hash = c.hash
+        order by rv.reviewed_at desc limit 1
+      ) r on true
+      where c.voice like 'elevenlabs:%'
+    ), '[]'::jsonb),
+    'attention', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'key', j.key, 'text', j.text, 'voice', j.voice, 'attempts', j.attempts,
+               'last_error', j.last_error, 'last_attempt_at', j.last_attempt_at)
+             order by j.last_attempt_at desc)
+      from public.announcement_clip_jobs j
+      where j.last_error is not null
+    ), '[]'::jsonb)
+  );
+end;
+$$;
+
+revoke execute on function public.announcement_voice_status() from public, anon;
+grant execute on function public.announcement_voice_status() to authenticated;
+
+-- Approve the current version of one Ben clip. Refuses an old version (the
+-- hash must match what's stored now), a non-Ben clip, and non-ops users.
+create or replace function public.review_announcement_clip(p_key text, p_hash text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_employee uuid;
+begin
+  if coalesce(public.current_employee_role(), '') not in ('super_user', 'ops_manager') then
+    raise exception 'Only an ops manager or super user can review announcement clips';
+  end if;
+  select id into v_employee from public.employees where auth_user_id = auth.uid() limit 1;
+
+  if not exists (select 1 from public.announcement_clips
+                 where key = p_key and hash = p_hash and voice like 'elevenlabs:%') then
+    raise exception 'This clip has changed since the page was loaded (or is not a Ben clip); reload and listen again';
+  end if;
+
+  insert into public.announcement_clip_reviews (key, hash, reviewed_by) values (p_key, p_hash, v_employee);
+end;
+$$;
+
+revoke execute on function public.review_announcement_clip(text, text) from public, anon;
+grant execute on function public.review_announcement_clip(text, text) to authenticated;
 
 alter table public.announcement_clip_jobs enable row level security;
 
@@ -1518,13 +1591,19 @@ $$;
 -- from shared/announcementAudio.js (see
 -- migration_announcement_service_clips_from_timetables.sql).
 
--- Mirrors stripSpeechAnnotations() in shared/announcementAudio.js.
+-- Strips parentheticals like stripSpeechAnnotations() in shared/announcementAudio.js
+-- (which only builds keys), then adds a space after a comma followed by a
+-- letter so "Boston,College" is spoken with a pause
+-- (migration_announcement_speech_comma_space.sql). Clip keys are unaffected:
+-- the slug ignores punctuation and spaces.
 create or replace function public.announcement_speech_name(p_name text)
 returns text
 language sql
 immutable
 as $$
-  select regexp_replace(p_name, '\s*\([^)]*\)', '', 'g')
+  select regexp_replace(
+           regexp_replace(p_name, '\s*\([^)]*\)', '', 'g'),
+           ',([A-Za-z])', ', \1', 'g')
 $$;
 
 -- Mirrors slug() in shared/announcementAudio.js.
@@ -1567,10 +1646,10 @@ begin
   select distinct
     public.announcement_service_clip_key(last_stop.service_code, last_stop.dest),
     'This is ' || public.article_for(last_stop.service_code) || ' ' || last_stop.service_code
-      || ' to ' || public.announcement_speech_name(last_stop.dest) || '.',
+      || ' to ' || coalesce(last_stop.spoken, public.announcement_speech_name(last_stop.dest)) || '.',
     v_voice
   from (
-    select distinct on (t.id) r.service_code, public.display_name(s.*) as dest
+    select distinct on (t.id) r.service_code, public.display_name(s.*) as dest, s.spoken_name as spoken
     from public.timetables t
     join public.routes r           on r.id = t.route_id
     join public.timetable_stops ts on ts.timetable_id = t.id
@@ -1583,7 +1662,40 @@ begin
 end;
 $$;
 
-revoke execute on function public.enqueue_service_clips_for_timetables(uuid[]) from public;
+revoke execute on function public.enqueue_service_clips_for_timetables(uuid[]) from public, anon, authenticated;
+
+-- approach/departure wording in one place (migration_announce_voice_safeguards.sql).
+-- p_only_missing: queue only keys with no clip (and no pending job) in the
+-- current voice, so routine timetable saves don't flood the queue.
+create or replace function public.enqueue_stop_clips(p_stop_ids uuid[], p_only_missing boolean)
+returns void
+language plpgsql
+security definer
+as $$
+declare
+  v_voice text;
+begin
+  select coalesce((select value from public.app_config where key = 'announcement_voice'), 'en-GB-RyanNeural')
+    into v_voice;
+
+  insert into public.announcement_clip_jobs (key, text, voice)
+  select k.key, k.text, v_voice
+  from (
+    select s.id, coalesce(s.spoken_name, public.announcement_speech_name(public.display_name(s.*))) as name
+    from public.stops s
+    where s.id = any(p_stop_ids)
+  ) st
+  cross join lateral (values
+    ('approach/'  || st.id, 'This is '          || st.name || '.'),
+    ('departure/' || st.id, 'The next stop is ' || st.name || '.')
+  ) as k(key, text)
+  where not p_only_missing
+     or (not exists (select 1 from public.announcement_clips c where c.key = k.key and c.voice = v_voice)
+         and not exists (select 1 from public.announcement_clip_jobs j where j.key = k.key and j.voice = v_voice));
+end;
+$$;
+
+revoke execute on function public.enqueue_stop_clips(uuid[], boolean) from public, anon, authenticated;
 
 -- Enqueue trigger: stops (approach/<id>, departure/<id>, plus ROUTE_START for
 -- every timetable this stop ends). Fires on insert and on update of the three
@@ -1595,18 +1707,9 @@ language plpgsql
 security definer
 as $$
 declare
-  v_name  text;
-  v_voice text;
-  v_ids   uuid[];
+  v_ids uuid[];
 begin
-  v_name := public.announcement_speech_name(display_name(NEW));
-  select coalesce((select value from public.app_config where key = 'announcement_voice'), 'en-GB-RyanNeural')
-    into v_voice;
-
-  insert into public.announcement_clip_jobs (key, text, voice)
-  values
-    ('approach/' || NEW.id,  'This is ' || v_name || '.', v_voice),
-    ('departure/' || NEW.id, 'The next stop is ' || v_name || '.', v_voice);
+  perform public.enqueue_stop_clips(array[NEW.id], false);
 
   -- Every timetable this stop currently ends (its ROUTE_START clip names it).
   select array_agg(t.id) into v_ids
@@ -1623,7 +1726,7 @@ end;
 $$;
 
 create trigger trg_announcement_clip_enqueue_on_stop_change
-  after insert or update of announcement_name, name, atco_code
+  after insert or update of announcement_name, name, atco_code, spoken_name
   on public.stops
   for each row
   execute function public.fn_announcement_clip_enqueue_on_stop_change();
@@ -1633,7 +1736,7 @@ create trigger trg_announcement_clip_enqueue_on_stop_change
 -- which anon/authenticated inherit as members of PUBLIC regardless of any
 -- per-role grant -- confirmed via information_schema.role_routine_grants
 -- that PUBLIC held this grant until revoked explicitly here.
-revoke execute on function public.fn_announcement_clip_enqueue_on_stop_change() from public;
+revoke execute on function public.fn_announcement_clip_enqueue_on_stop_change() from public, anon, authenticated;
 
 -- Enqueue trigger: routes. A service_code change renames every one of the
 -- route's ROUTE_START clips. A new route has no timetables yet, so insert
@@ -1673,25 +1776,31 @@ language plpgsql
 security definer
 as $$
 declare
-  v_ids uuid[];
+  v_ids   uuid[];
+  v_stops uuid[];
 begin
   if TG_OP = 'INSERT' then
     select array_agg(distinct timetable_id) into v_ids from new_rows;
+    select array_agg(distinct stop_id) into v_stops from new_rows;
   elsif TG_OP = 'DELETE' then
     select array_agg(distinct timetable_id) into v_ids from old_rows;
   else
     select array_agg(distinct timetable_id) into v_ids
     from (select timetable_id from new_rows union select timetable_id from old_rows) changed;
+    select array_agg(distinct stop_id) into v_stops from new_rows;
   end if;
 
   if v_ids is not null then
     perform public.enqueue_service_clips_for_timetables(v_ids);
   end if;
+  if v_stops is not null then
+    perform public.enqueue_stop_clips(v_stops, true);
+  end if;
   return null;
 end;
 $$;
 
-revoke execute on function public.fn_announcement_clip_enqueue_on_timetable_stops_change() from public;
+revoke execute on function public.fn_announcement_clip_enqueue_on_timetable_stops_change() from public, anon, authenticated;
 
 create trigger trg_announcement_clip_enqueue_on_timetable_stops_insert
   after insert on public.timetable_stops
@@ -2100,7 +2209,7 @@ create policy "announcement_coverage_gap_anon_insert"
   on public.announcement_coverage_gap
   for insert
   to anon
-  with check (true);
+  with check (is_jwt_journey_allowed(journey_id));
 
 -- ── Views ─────────────────────────────────────────────────────────────────────
 -- Returns one row per (departure × stop).
@@ -2341,18 +2450,15 @@ create policy "company_all" on journey_stop_times
     journey_id in (select id from journeys where company_id = current_company_id())
   );
 
--- Stops: any authenticated user can read, insert, or update
--- TODO: restore super_user_insert / super_user_update policies for production
+-- Stops: any authenticated user can read; only ops employees can insert; no client-side
+-- UPDATE (NaPTAN import / announcement_name edits use service_role or SQL).
+-- Known gap: stops are global, so an ops user of any company can still insert one.
 create policy "auth_read" on stops
   for select to authenticated using (true);
 
-create policy "auth_insert" on stops
+create policy "ops_insert" on stops
   for insert to authenticated
-  with check (true);
-
-create policy "auth_update" on stops
-  for update to authenticated
-  using (true);
+  with check (current_employee_role() in ('super_user', 'ops_manager'));
 
 
 -- Employee contacts: ops users can manage contacts for employees in their own company
@@ -2528,3 +2634,30 @@ create policy "operator_assets_delete" on storage.objects
     and current_employee_role() in ('super_user', 'ops_manager')
   );
 
+-- ── RPC exposure (migration_security_hardening_phase0.sql) ────────────────────
+-- Postgres grants EXECUTE to PUBLIC by default, which anon inherits, exposing these
+-- through /rest/v1/rpc. The trigger fn is never meant to be called directly; the two
+-- RLS helpers are only needed by authenticated policies (no anon policy uses them).
+revoke execute on function public.fn_naptan_import_on_county_change() from public, anon, authenticated;
+revoke execute on function public.current_company_id()    from public, anon;
+revoke execute on function public.current_employee_role() from public, anon;
+grant  execute on function public.current_company_id()    to authenticated, service_role;
+grant  execute on function public.current_employee_role() to authenticated, service_role;
+
+-- ── companies: anon reads branding columns only (migration_security_hardening_phase1.sql)
+-- Must follow "grant select on all tables in schema public to anon" above.
+-- The Driver PWA and Announce sign read name/logo/colours; licence number,
+-- Companies House number, email and address stay dashboard-only.
+revoke select on public.companies from anon;
+grant select (id, name, logo_path, primary_color, accent_color) on public.companies to anon;
+
+-- ── Table-admin privileges: keep this block LAST ─────────────────────────────
+-- The "grant all" statements above (and Supabase's own default privileges)
+-- also hand anon/authenticated table-admin privileges no app uses: TRUNCATE
+-- (bypasses RLS), MAINTAIN (incl. LOCK TABLE), TRIGGER, REFERENCES. Take them
+-- back after every grant has run, and for future tables too.
+-- See migration_revoke_table_admin_privileges.sql.
+revoke truncate, references, trigger, maintain
+  on all tables in schema public from anon, authenticated;
+alter default privileges for role postgres in schema public
+  revoke truncate, references, trigger, maintain on tables from anon, authenticated;

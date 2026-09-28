@@ -129,7 +129,7 @@ export default function RoutePlannerPage() {
     setTimetableId('')
     setStops([])
     setDepartures([])
-  }, [routeId])
+  }, [routeId, setStops])
 
   useEffect(() => {
     if (!timetableId || timetableId === '__new__') {
@@ -164,7 +164,8 @@ export default function RoutePlannerPage() {
       if (loaded.length > 0) setFitKey(k => (k ?? 0) + 1)
     })
     return () => { cancelled = true }
-  }, [timetableId])
+    // handleInvertFrom is recreated every render; listing it would refetch the timetable each render.
+  }, [timetableId, setStops, setFitKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Auto-hide setup cards ─────────────────────────────────────────────────────
 

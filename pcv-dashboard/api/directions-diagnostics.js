@@ -1,3 +1,5 @@
+import { authenticate } from './_auth.js'
+
 function firstNonEmptyEntry(candidates) {
   for (const [key, value] of candidates) {
     if (typeof value === 'string' && value.trim().length > 0) {
@@ -10,6 +12,11 @@ function firstNonEmptyEntry(candidates) {
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  // Reveals which env vars are set and the upstream host, and fires a probe at it.
+  if (!(await authenticate(req))) {
+    return res.status(401).json({ error: 'Unauthorized' })
   }
 
   const urlEntry = firstNonEmptyEntry([

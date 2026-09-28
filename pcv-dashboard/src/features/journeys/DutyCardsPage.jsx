@@ -93,7 +93,8 @@ export default function DutyCardsPage() {
   const [editSaving,   setEditSaving]   = useState(false)
   const [editError,    setEditError]    = useState('')
 
-  useEffect(() => { load(weekStart) }, [])
+  // Initial load only: the week-nav handlers call load() themselves.
+  useEffect(() => { load(weekStart) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     async function loadStatic() {

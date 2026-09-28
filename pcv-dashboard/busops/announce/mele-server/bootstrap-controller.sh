@@ -12,11 +12,27 @@
 #     client role, no second USB dongle — §1/§3 of HARDWARE.md)
 #   - installs the coachmate-onboard systemd service with a freshly
 #     generated DRIVER_PUSH_TOKEN
+#   - hardens the box against sudden power loss (docs/HARDWARE.md "Sudden
+#     power loss / ignition-off"): hardware watchdog, logs in RAM, services
+#     restarted whenever they stop, a 1-minute health check, and — last —
+#     a read-only system disk (config/overlayroot.conf) from the next boot.
+#     Once that is on, update with update-controller.sh; to re-run this
+#     script, switch it off first (DEPLOY.md "Updating the Controller").
 #
 # What this does NOT do (do these once a display is actually connected):
 #   - kiosk browser setup (mele-server/DEPLOY.md §5, Option B)
 #   - idle-screen branding commissioning (DEPLOY.md "Idle screen branding")
 set -euo pipefail
+
+# With the read-only disk on, everything this script changes would only be
+# written to RAM and vanish at the next power-off.
+if [ "$(findmnt -n -o FSTYPE /)" = "overlay" ]; then
+  echo "ERROR: overlayroot is on (the system disk is read-only), so nothing this"
+  echo "script changes would survive a restart. To update the code, use"
+  echo "update-controller.sh. To re-run setup, switch the read-only disk off"
+  echo "first — see mele-server/DEPLOY.md \"Updating the Controller\"."
+  exit 1
+fi
 
 REPO_URL="https://github.com/car490/route-tracker.git"
 REPO_DIR="$HOME/route-tracker"
@@ -53,7 +69,7 @@ if ! command -v node >/dev/null 2>&1; then
   curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
   sudo apt-get install -y nodejs
 fi
-sudo apt-get install -y hostapd dnsmasq
+sudo apt-get install -y hostapd dnsmasq overlayroot
 sudo systemctl unmask hostapd
 sudo systemctl stop hostapd dnsmasq || true
 
@@ -66,7 +82,7 @@ else
   git clone -b "$REPO_BRANCH" "$REPO_URL" "$REPO_DIR"
 fi
 cd "$REPO_DIR/pcv-dashboard/busops/announce/mele-server"
-npm install --omit=dev
+npm ci --omit=dev   # exact versions from package-lock.json
 
 echo "== 4. Static IP for $WIFI_IFACE (systemd-networkd, bypasses netplan/wpa_supplicant) =="
 sudo tee /etc/systemd/network/10-coachmate-ap.network >/dev/null <<EOF
@@ -141,10 +157,42 @@ fi
 sudo systemctl daemon-reload
 sudo systemctl enable --now coachmate-onboard
 
+echo "== 8. Power-cut hardening: watchdog, logs in RAM, restarts, health check =="
+# Drop-ins layer the restart rule (and, for coachmate-onboard, its RAM
+# directory) over whichever unit is installed, without rewriting it — an
+# existing coachmate-onboard unit keeps its push token and TLS lines, and a
+# hand-installed kiosk unit keeps its URL.
+sudo install -D -m 0644 config/coachmate-onboard-hardening.conf /etc/systemd/system/coachmate-onboard.service.d/hardening.conf
+sudo install -D -m 0644 config/coachmate-kiosk-hardening.conf /etc/systemd/system/coachmate-kiosk.service.d/hardening.conf
+sudo install -D -m 0644 config/coachmate-watchdog.conf /etc/systemd/system.conf.d/coachmate-watchdog.conf
+sudo install -D -m 0644 config/coachmate-journald.conf /etc/systemd/journald.conf.d/coachmate-volatile.conf
+sudo install -D -m 0755 config/coachmate-healthcheck.sh /usr/local/bin/coachmate-healthcheck
+sudo install -D -m 0644 config/coachmate-healthcheck.service /etc/systemd/system/coachmate-healthcheck.service
+sudo install -D -m 0644 config/coachmate-healthcheck.timer /etc/systemd/system/coachmate-healthcheck.timer
+sudo systemctl daemon-reload
+sudo systemctl restart systemd-journald
+sudo systemctl restart coachmate-onboard
+sudo systemctl enable --now coachmate-healthcheck.timer
+if [ -e /dev/watchdog ]; then
+  echo "  Hardware watchdog found (/dev/watchdog) — active from the next boot. Check with: sudo wdctl"
+else
+  echo "  WARNING: no /dev/watchdog — this board's watchdog isn't available, so a"
+  echo "  frozen box will NOT restart itself. Record this in docs/HARDWARE.md §1."
+fi
+
+echo "== 9. Read-only system disk (from the next boot) =="
+# Last, deliberately: everything above is written to the real disk first.
+sudo install -D -m 0644 config/overlayroot.conf /etc/overlayroot.local.conf
+echo "  From the next boot the system disk is read-only: nothing written while"
+echo "  the Controller runs survives a restart, so a power cut can't damage it."
+echo "  Update the code with ./update-controller.sh from now on."
+
 echo "== Done =="
 echo "AP SSID: $AP_SSID  (device joins as: http://$AP_IP:8080/)"
+echo "Restart now to switch the read-only disk on: sudo reboot"
 echo "Check status with:"
-echo "  systemctl status hostapd dnsmasq coachmate-onboard"
+echo "  systemctl status hostapd dnsmasq coachmate-onboard coachmate-healthcheck.timer"
+echo "  findmnt /          # FSTYPE 'overlay' = read-only disk is on"
 echo "  journalctl -u coachmate-onboard -f"
 echo ""
 echo "First unit off the line? Run bench-test-ap.sh next — it's the one"

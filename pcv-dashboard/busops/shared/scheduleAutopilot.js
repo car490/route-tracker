@@ -1,12 +1,16 @@
 /**
- * BusOps Announce Solo — schedule-autopilot idle-loop matcher.
+ * Schedule-autopilot matcher, shared by BusOps Announce Solo
+ * (announce/src/announceSoloAutopilot.js) and the Driver PWA's automatic
+ * mode, so both surfaces decide "which departure is this?" the same way.
+ * Moved here from announce/src/ 2026-09-27 (see docs/DECISIONS.md "Shared
+ * journey-tracking core").
  * Pure — no side effects, no I/O, no Supabase/GPS access of its own — same
  * treatment as shared/geofence.js/engine.js. See docs/ANNOUNCE-PRODUCT-TIERS.md's
  * "Schedule-autopilot" section (built for Phil Haines Travel's two-route
  * case, where no route shares a start/end point with any other service —
  * that non-overlap is what makes this lightweight approach safe).
  */
-import { haversine } from '../../shared/geo.js';
+import { haversine } from './geo.js';
 
 function minutesFromScheduled(departureTime, now) {
   const [h, m] = departureTime.split(':').map(Number);
@@ -180,6 +184,23 @@ function isCandidateRunningOn(candidate, dateStr, isoDow, termDateRanges) {
   if (!candidate.daysOfWeek?.includes(isoDow)) return false;
   if (candidate.schoolTermTime && !isWithinAnyTermRange(dateStr, termDateRanges)) return false;
   return true;
+}
+
+/**
+ * Whether a candidate departure runs on now's local calendar day (days of
+ * week, school term time, added/removed service exceptions). The Driver
+ * PWA's automatic mode matches against every departure the company runs, so
+ * it filters with this before findScheduleMatch; Solo gets the same effect
+ * from isWithinDepartureWakeWindow below, which uses the same predicate.
+ *
+ * @param {{daysOfWeek: number[], schoolTermTime?: boolean, removedDates?: string[], addedDates?: string[]}} candidate
+ * @param {Date} now
+ * @param {Array<{start_date: string, end_date: string}>} [termDateRanges]
+ * @returns {boolean}
+ */
+export function isRunningOn(candidate, now, termDateRanges = []) {
+  const isoDow = now.getDay() === 0 ? 7 : now.getDay();
+  return isCandidateRunningOn(candidate, localDateString(now), isoDow, termDateRanges);
 }
 
 /**

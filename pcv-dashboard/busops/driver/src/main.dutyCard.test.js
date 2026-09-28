@@ -20,6 +20,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { renderDutyCard } from './main.js';
+import { saveDutyLink, loadDutyLink } from './dutyLinkStore.js';
 
 document.body.innerHTML = `
   <div id="duty-card"></div>
@@ -85,5 +86,28 @@ describe('renderDutyCard — HTML escaping', () => {
     expect(routes.textContent).toContain('Watch for roadworks');
     expect(document.getElementById('duty-card').hidden).toBe(false);
     expect(document.getElementById('dc-driver-name').textContent).toBe('Jane Doe');
+  });
+});
+
+// The duty link is kept through a restart only until the end of the shift
+// (dutyLinkStore.js). Every duty completed is the end of the shift, so the
+// token is removed from the device there.
+describe('renderDutyCard — end of shift', () => {
+  it('clears the stored duty link once every duty on the card is completed', () => {
+    saveDutyLink({ token: 't', duties: 'journey-1,journey-2' });
+    renderDutyCard([
+      makeDuty({ status: 'completed' }),
+      makeDuty({ journey_id: 'journey-2', status: 'completed' }),
+    ], ['journey-1', 'journey-2']);
+    expect(loadDutyLink()).toBeNull();
+  });
+
+  it('keeps the stored duty link while any duty is still to run', () => {
+    saveDutyLink({ token: 't', duties: 'journey-1,journey-2' });
+    renderDutyCard([
+      makeDuty({ status: 'completed' }),
+      makeDuty({ journey_id: 'journey-2', status: 'scheduled' }),
+    ], ['journey-1', 'journey-2']);
+    expect(loadDutyLink()).toEqual({ token: 't', duties: 'journey-1,journey-2' });
   });
 });

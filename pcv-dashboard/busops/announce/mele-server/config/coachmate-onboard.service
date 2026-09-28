@@ -5,10 +5,17 @@ Description=CoachMate onboard display server
 Type=simple
 WorkingDirectory=/home/mele/route-tracker/pcv-dashboard/busops/announce/mele-server
 ExecStart=/usr/bin/node server.mjs
-Restart=on-failure
+# always, not on-failure: restarted whenever it stops, for any reason. A hung
+# (still running) process is caught by coachmate-healthcheck.timer.
+Restart=always
 RestartSec=3
 User=mele
 Environment=PORT=8080
+# The system disk is read-only (overlayroot.conf); the diagnostic schedule
+# copy goes to this service's own RAM directory, /run/coachmate, created by
+# systemd at each start (scheduleCachePath.mjs).
+RuntimeDirectory=coachmate
+Environment=SCHEDULE_CACHE_PATH=/run/coachmate/schedule-cache.json
 
 [Install]
 WantedBy=multi-user.target
