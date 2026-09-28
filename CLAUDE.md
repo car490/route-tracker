@@ -10,7 +10,7 @@ Supabase backend:
 
 | Surface | Path | Stack | Deploys to |
 |---|---|---|---|
-| Driver PWA (BusOps Driver) | `pcv-dashboard/busops/driver/` (`index.html`, `src/`) | Vanilla JS, ES modules, no build step | GitHub Pages today (still the live production target); migrating to Cloudflare Workers — `driver-dev.pcvtechnologies.co.uk` (dev Supabase, `deploy-driver-pwa-dev` job, every push to `develop`) and `driver.pcvtechnologies.co.uk` (production Supabase, `deploy-driver-pwa-production` job, every push to `master`) are separate CI jobs in `.github/workflows/ci.yml` (split from one combined `deploy-driver-pwa` job so `develop` pushes stop hitting production Supabase — see commit `7edb0d3`), both gated on tests passing; GitHub Pages is still what serves production until someone explicitly switches it |
+| Driver PWA (BusOps Driver) | `pcv-dashboard/busops/driver/` (`index.html`, `src/`) | Vanilla JS, ES modules, no build step | Cloudflare Workers: `driver.pcvtechnologies.co.uk` is production (production Supabase, `deploy-driver-pwa-production` job, every push to `master`) and `driver-dev.pcvtechnologies.co.uk` is dev (dev Supabase, `deploy-driver-pwa-dev` job, every push to `develop`) — separate CI jobs in `.github/workflows/ci.yml` (split from one combined `deploy-driver-pwa` job so `develop` pushes stop hitting production Supabase — see commit `7edb0d3`), both gated on tests passing. Every Driver/Announce link the dashboard builds points here (`PWA_BASE` in `pcv-dashboard/src/shared/supabase.js`, since 2026-08-25). GitHub Pages is **not** a production host: it still publishes from `master` as a leftover, but nothing links to it — don't point a device at it |
 | Ops dashboard (PCV Dashboard) | `pcv-dashboard/` | React + Vite | Vercel, auto on push |
 | Onboard passenger sign (BusOps Announce) | `pcv-dashboard/busops/announce/` (`onboard.html`, `src/onboard.js`); Controller-side setup in `mele-server/` | Vanilla JS + Node (WebSocket relay, no GPS/DB access) | Bus Controller box (see `docs/HARDWARE.md`) + HDMI display, see `mele-server/DEPLOY.md` |
 
@@ -155,7 +155,7 @@ npx vitest run driver/src/geofence.test.js
 
 `tests/staticDeployPaths.test.js` guards `driver/manifest.json` and both
 `driver/index.html`/`announce/onboard.html`'s service-worker registration against hardcoded
-subpaths (e.g. `/route-tracker/`) — this matters because the PWA is moving from a GitHub Pages
+subpaths (e.g. `/route-tracker/`) — this matters because the PWA moved from a GitHub Pages
 subpath to owning its own origin (`driver.pcvtechnologies.co.uk`); don't reintroduce an absolute or
 subpath-prefixed registration.
 
@@ -360,7 +360,7 @@ for the whole fleet — set directly via SQL, no admin UI (same precedent as
 | Layer | Develop | Production |
 |---|---|---|
 | **Dashboard** | Vercel preview URL (auto on every push to `develop`) | `route-tracker-iota.vercel.app` (auto on merge to `master`) |
-| **PWA** | Local server (`pcv-dashboard/busops/server.js`) — hits dev Supabase automatically | GitHub Pages (deploy from `master`); Cloudflare Workers migration in progress, see Project overview |
+| **PWA** | Local server (`pcv-dashboard/busops/server.js`) — hits dev Supabase automatically | Cloudflare Workers `driver.pcvtechnologies.co.uk` (CI deploy from `master`); dev deploys to `driver-dev.pcvtechnologies.co.uk` from `develop`. Not GitHub Pages, see Project overview |
 | **Supabase** | `cgcbfgceputvdvhzrgio` (`route-tracker-dev`) | `nwhayupsvcelyiwltdqo` (production) |
 
 ### Environment switching

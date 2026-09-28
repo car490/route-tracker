@@ -2,7 +2,7 @@
 // (Option A — a WiFi-client display, none currently deployed) or from a
 // kiosk browser running locally on the box itself (Option B — HDMI display,
 // see DEPLOY.md). Three jobs: serve the onboard app's static files (the
-// display can't reach GitHub Pages from an isolated hotspot, and has no
+// display can't reach the hosted app from an isolated hotspot, and has no
 // browser of its own in Option B), serve the schedule cache written by the
 // announce relay's onSchedule callback (see writeScheduleCache below)
 // whenever the Driver device pushes a fresh one, and play PSVAIR
@@ -46,7 +46,7 @@ if (!DRIVER_PUSH_TOKEN) {
 }
 
 // TLS is required, not optional: the Driver PWA is always served over
-// HTTPS (GitHub Pages today, driver.pcvtechnologies.co.uk eventually), and mobile
+// HTTPS (driver.pcvtechnologies.co.uk, Cloudflare Workers), and mobile
 // WebView (unlike desktop Chrome, which only warns) throws a synchronous
 // SecurityError on `new WebSocket('ws://...')` from an HTTPS page — the
 // connection is never even attempted, no exception in the codebase catches

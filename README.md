@@ -5,7 +5,7 @@ dashboard. Three deployable surfaces share one Supabase backend:
 
 | Surface | Path | Stack | Deploys to |
 |---|---|---|---|
-| **BusOps Driver** (driver PWA) | `pcv-dashboard/busops/driver/` | Vanilla JS, ES modules, no build step | GitHub Pages today (live production); migrating to Cloudflare Workers (`driver.pcvtechnologies.co.uk`), auto-deployed from `develop` |
+| **BusOps Driver** (driver PWA) | `pcv-dashboard/busops/driver/` | Vanilla JS, ES modules, no build step | Cloudflare Workers: `driver.pcvtechnologies.co.uk` (production, from `master`) and `driver-dev.pcvtechnologies.co.uk` (dev, from `develop`), deployed by CI |
 | **PCV Dashboard** (ops back office) | `pcv-dashboard/` | React + Vite | Vercel, auto on push |
 | **BusOps Announce** (onboard passenger sign) | `pcv-dashboard/busops/announce/` + `mele-server/` | Vanilla JS + Node (WebSocket relay) | Bus Controller box + HDMI display |
 

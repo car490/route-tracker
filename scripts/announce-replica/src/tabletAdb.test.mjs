@@ -104,7 +104,7 @@ describe('findWebviewSocketNames — is the WebView exposing DevTools?', () => {
 describe('pickSignTarget — which open page is the sign?', () => {
   const page = (url, extra = {}) => ({ type: 'page', url, webSocketDebuggerUrl: 'ws://x/1', ...extra });
 
-  test('a plain onboard.html page (local server, GitHub Pages)', () => {
+  test('a plain onboard.html page (local server or hosted)', () => {
     assert.equal(pickSignTarget([page('http://127.0.0.1:8080/announce/onboard.html')]).url, 'http://127.0.0.1:8080/announce/onboard.html');
   });
 
