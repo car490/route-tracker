@@ -20,6 +20,7 @@
 // surface).
 
 export const BOOT_ACTION = Object.freeze({
+  RESUME_CHECKPOINT: 'resume-saved-trip',
   DUTY_CARD:      'duty-card',
   VEHICLE_SETUP:  'vehicle-setup',
   RESUME_ACTIVE:  'resume-active-journey',
@@ -34,6 +35,10 @@ export const BOOT_ACTION = Object.freeze({
 // if none/not found/lookup failed (a failed lookup is treated as "none" by
 // the caller, not surfaced here — this function only sees the resolved
 // value).
+// checkpoint: a fresh trip saved on this device (journeyCheckpoint.js's
+// readCheckpoint(), status 'fresh'), or null. It is the trip that was
+// running when the power went, so it wins over everything, duty card
+// included, and needs no network.
 // now: injectable clock for tests.
 //
 // Only a journey started today (UK date) is resumed. One left 'in_progress'
@@ -41,7 +46,8 @@ export const BOOT_ACTION = Object.freeze({
 // never reached its last stop), not interrupted by a reload — resuming it
 // put the driver on an old trip's "select a starting stop" screen instead
 // of "No duty assigned". Owner's cut-off, 2026-09-27: end of the day.
-export function resolveBootAction({ dutiesParam, storedVehicleId, activeJourney, now = new Date() }) {
+export function resolveBootAction({ dutiesParam, storedVehicleId, activeJourney, checkpoint = null, now = new Date() }) {
+  if (checkpoint) return BOOT_ACTION.RESUME_CHECKPOINT;
   if (dutiesParam) return BOOT_ACTION.DUTY_CARD;
   if (!storedVehicleId) return BOOT_ACTION.VEHICLE_SETUP;
   if (activeJourney && startedToday(activeJourney.started_at, now)) return BOOT_ACTION.RESUME_ACTIVE;

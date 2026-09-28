@@ -14,7 +14,8 @@
     "demo:announce-solo": "node ../../scripts/demo-announce-solo.mjs",
     "verify:autostart": "node ../../scripts/verify-driver-autostart.mjs",
     "review:announce-solo": "node ../../scripts/review-announce-solo.mjs",
-    "measure:announce-solo": "node ../../scripts/measure-announce-solo.mjs"
+    "measure:announce-solo": "node ../../scripts/measure-announce-solo.mjs",
+    "verify:power-cut": "node ../../scripts/verify-driver-power-cut.mjs"
   },
   "dependencies": {
     "ws": "^8.21.3"
