@@ -12,6 +12,7 @@ import {
 } from './announcements.js';
 import { sbFetch, rpc, fetchStopsForDeparture, fetchAvailableServices, fetchLocalBusVehicles, fetchCompanyBranding, preloadAllRoutes, fetchActiveManualJourney, captureDutyLinkParams } from './supabaseApi.js';
 import { resolveBootAction, BOOT_ACTION } from './activeJourneyRecovery.js';
+import { clearDutyLink, isShiftComplete } from './dutyLinkStore.js';
 import { announceApproachEvent, announceStopEvent } from './announceStopEvent.js';
 import { triggerDiversionAlert, clearDiversionAlert } from './diversionAlert.js';
 import { selectServiceManually } from './manualSelection.js';
@@ -855,6 +856,11 @@ async function initDutyCard(journeyIds) {
 }
 
 export function renderDutyCard(duties, journeyIds) {
+  // End of shift: the duty link is kept through a restart only until every
+  // duty on the card is done (dutyLinkStore.js), so remove it now. The card
+  // itself still shows, all ticked, until the page is next loaded.
+  if (isShiftComplete(duties)) clearDutyLink();
+
   document.getElementById('duty-card').hidden = false;
   document.getElementById('picker').hidden    = true;
   document.getElementById('tracker').hidden   = true;

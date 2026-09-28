@@ -50,6 +50,7 @@ const STATIC_ASSETS = [
   './driver/src/localStore.js',
   './driver/src/announceLink.js',
   './driver/src/activeJourneyRecovery.js',
+  './driver/src/dutyLinkStore.js',
   './driver/src/announceStopEvent.js',
   './driver/src/diversionAlert.js',
   './driver/src/journeyAnnouncementPreflight.js',

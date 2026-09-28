@@ -1,37 +1,31 @@
 import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
 import { getCachedServices, setCachedServices, getCachedStops, setCachedStops } from './localStore.js';
-
-// sessionStorage keys for the one-time duty-link capture below — cleared
-// when the tab closes (unlike announceLink.js's localStorage-backed
-// STORAGE_URL_KEY/STORAGE_TOKEN_KEY, which are meant to survive across
-// sessions on a commissioned device) so a driver's per-shift token doesn't
-// linger on a shared/kiosk device. See captureDutyLinkParams() below.
-const DUTY_TOKEN_KEY = 'dutyLinkToken';
-const DUTY_IDS_KEY = 'dutyLinkIds';
+import { saveDutyLink, loadDutyLink, migrateLegacyDutyLink } from './dutyLinkStore.js';
 
 // Driver token is read lazily (not at module load) so this module has no
 // top-level `window` access — it can be imported from a non-browser
 // context (e.g. Jest, which runs in Node) without throwing. Prefers the
-// sessionStorage copy captureDutyLinkParams() stashes on first load (see
-// below) — falls back to the raw URL for any caller that never went
-// through that capture step (e.g. tests calling sbFetch directly).
+// copy captureDutyLinkParams() stores on first load (see below, and
+// dutyLinkStore.js for how long it is kept) — falls back to the raw URL for
+// any caller that never went through that capture step (e.g. tests calling
+// sbFetch directly).
 function driverToken() {
   if (typeof window === 'undefined') return null;
-  try {
-    const stored = sessionStorage.getItem(DUTY_TOKEN_KEY);
-    if (stored) return stored;
-  } catch (_) {}
+  const stored = loadDutyLink()?.token;
+  if (stored) return stored;
   return new URLSearchParams(window.location.search).get('token');
 }
 
 // One-time capture of the duty-card bearer token (`?token=`) and journey
-// id list (`?duties=`) out of the URL and into sessionStorage, then strips
+// id list (`?duties=`) out of the URL and into dutyLinkStore.js, then strips
 // both from the visible URL via history.replaceState — the token no longer
 // sits exposed in the address bar/browser history/shared-screen for the
 // rest of the session. Mirrors announceLink.js's captureAnnounceSetup()
-// one-time-capture-into-storage pattern, but sessionStorage rather than
-// localStorage: this credential is scoped to a single shift, not a
-// permanently-commissioned device.
+// one-time-capture-into-storage pattern, but bounded: this credential is
+// scoped to a single shift, not a permanently-commissioned device, so the
+// store drops it at token expiry, the end of the UK day, or the last duty
+// completing. It outlives a restart so a power cut doesn't lose the duty
+// card (it used to be sessionStorage, which a restart wiped).
 //
 // Must run before any network call goes through sbFetch()/driverToken()
 // above — main.js's init() calls this as its very first statement, ahead
@@ -40,29 +34,23 @@ function driverToken() {
 //
 // dutiesParam is persisted here too (not just the token) because it's
 // otherwise only ever read once, straight off the URL, in main.js — if the
-// URL has already been stripped by a previous capture, a same-tab reload
+// URL has already been stripped by a previous capture, a reload or restart
 // would lose it and strand the driver with no duty. Returns the duties
-// value (freshly captured, or the previously-captured one from
-// sessionStorage on a later call where the URL no longer carries it) so
-// main.js can use it exactly like the old inline URL read.
+// value (freshly captured, or the previously-captured one on a later call
+// where the URL no longer carries it) so main.js can use it exactly like
+// the old inline URL read.
 export function captureDutyLinkParams(params = new URLSearchParams(window.location.search)) {
   const token = params.get('token');
   const duties = params.get('duties');
-  try {
-    if (token) sessionStorage.setItem(DUTY_TOKEN_KEY, token);
-    if (duties) sessionStorage.setItem(DUTY_IDS_KEY, duties);
-  } catch (_) {}
+  migrateLegacyDutyLink();
+  if (token || duties) saveDutyLink({ token, duties });
   if (token || duties) {
     params.delete('token');
     params.delete('duties');
     const qs = params.toString();
     window.history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : '') + window.location.hash);
   }
-  try {
-    return duties || sessionStorage.getItem(DUTY_IDS_KEY);
-  } catch (_) {
-    return duties;
-  }
+  return duties || loadDutyLink()?.duties || null;
 }
 
 export async function sbFetch(path, opts = {}) {
