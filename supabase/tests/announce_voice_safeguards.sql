@@ -40,6 +40,18 @@ begin
   raise notice 'PASS: daily cap config';
 end $$;
 
+-- 2b. The drain's used-stops check reads timetable_stops. Production gives
+--     service_role no default privileges, so this needs its own grant
+--     (migration_timetable_stops_service_role_select.sql; the first production
+--     Ben run failed every job without it, 2026-09-28).
+do $$
+begin
+  if not has_table_privilege('service_role', 'public.timetable_stops', 'SELECT') then
+    raise exception 'FAIL: service_role cannot read timetable_stops (used-stops check)';
+  end if;
+  raise notice 'PASS: drain can read timetable_stops';
+end $$;
+
 -- 3. Adding a stop to a timetable queues its approach/departure clips when it
 --    has no clip in the current voice, and doesn't when it already has one.
 do $$

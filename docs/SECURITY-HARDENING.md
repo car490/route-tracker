@@ -44,6 +44,16 @@ Hetzner VPS), so each step is mapped onto what actually exists below.
 | 18 | **Dev-only drift:** `enqueue_service_clips_for_timetables` and its trigger function were revoked from PUBLIC only, so dev's default privileges left them callable by anon/authenticated | Low | **Live** 2026-09-24 (same migration, applied on both) |
 | 19 | **Prod-only drift:** an Edge Function `generate-duty-token`, in no repo file and called by nothing, signed a 24-hour anon duty JWT for any `journey_ids` a logged-in user sent, with no ownership check (the Edge twin of #1) | High | **Live** 2026-09-24 (deleted from production with the owner's approval; source kept in git history, last in `b3f2741`) |
 
+## Production migration history does not list three live migrations
+Found 2026-09-28 while releasing v2.3.0. `migration_security_hardening_phase0.sql`,
+`migration_revoke_table_admin_privileges.sql` and `migration_security_hardening_phase1.sql` are
+**live on production** (checked against the real objects: the dropped policies and old
+`link_announce_device(uuid, uuid)` are gone, anon has no `companies` select or `truncate`), but
+they were run as plain SQL, so production's `supabase_migrations` history does not list them.
+Don't re-apply them to "fix" the history; the files in `supabase/` and this ledger are the audit
+trail. Apply future production migrations with the Supabase MCP `apply_migration` tool so the
+history stays complete (the six v2.3.0 voice migrations were applied that way).
+
 ## Step 3 (supply chain): on develop (#83)
 `.github/workflows/ci.yml` now has a `supply-chain` job (npm audit at high+, Trivy vuln + secret
 scan at HIGH/CRITICAL) that both deploy jobs wait on. Third-party actions are pinned to commit
