@@ -198,9 +198,13 @@ The whole power chain (§9) sits downstream of the master isolator switch
 simply disappears. Worth being precise about which component this
 actually threatens:
 
-- **Driver tablet, interior display, any future PA amp** — not really at
-  risk. The tablet has its own battery; the display and amp have no
-  persistent writable storage, they just go dark/silent.
+- **Interior display, any future PA amp** — not at risk. No persistent
+  writable storage; they just go dark/silent.
+- **Driver tablet and Announce tablet** — no corruption risk, but a real
+  risk of **not switching back on**. (This line used to say the tablets
+  were "not really at risk" because they have their own battery. That
+  only holds while the battery has charge. Corrected 2026-09-28.) See
+  "Power loss and first boot" below.
 - **Bus Controller** — the real risk. It's a full computer with a live
   root filesystem. "No microSD, ever" above already flags unclean-shutdown
   corruption as a reason to avoid SD cards, but that alone only reduces
@@ -227,6 +231,43 @@ Recommended layered approach, cheapest/most-important first:
    one — not yet confirmed) — cheap, orthogonal to corruption, means a
    hang triggers an auto-reboot rather than needing a physical
    power-cycle.
+
+### Power loss and first boot
+
+Added 2026-09-28. The case: the isolator cuts everything, the vehicle
+stands long enough for the tablets' batteries to go completely flat, then
+the ignition comes back. Three things have to happen in order, and only
+the last one is software:
+
+1. **The device switches itself on when power returns.**
+   - **Android tablets (Driver, Announce):** many consumer tablets with a
+     completely flat battery show a "charging" screen when power arrives
+     instead of starting Android, and only start when someone holds the
+     power button. **Not yet tested on any of our tablets.** This is the
+     biggest open risk here, because nothing below matters until it's
+     solved (bench test: `docs/TESTING.md` §19, part A). If a tablet fails
+     it, the options are, safest first:
+     1. keep the tablets on a small permanent fused supply so the battery
+        never goes flat (sized against the vehicle battery's standing
+        drain);
+     2. use the vehicle-telematics tablet class already reopened in §14
+        (genuine ignition sense, starts with the ignition);
+     3. change the bootloader so it starts on charge. **Not recommended:**
+        it needs an unlocked bootloader, which weakens the device's
+        security.
+   - **Bus Controller (MeLE):** only starts by itself if the BIOS is set
+     to power on when AC returns. Not yet in `mele-server/DEPLOY.md`;
+     check it's available and set it (bench test §19 part A).
+2. **The app opens by itself once the device has booted.** Both tablets'
+   Fully Kiosk settings have `launchOnBoot: true`
+   (`driver/cab-device/` and `announce/cab-device/fully-auto-settings.json`);
+   the Controller's two systemd services are enabled at boot.
+3. **The app picks up where it left off.** Driver: the duty card is kept
+   until the end of the shift, and a trip part-way through is saved on the
+   device and offered back with no signal needed (`docs/DECISIONS.md` "Duty-card
+   link through a power cut" and "Trip in progress through a power cut").
+   Announce Solo mid-trip resume and Controller filesystem hardening are
+   planned (Slices 3 and 4), not built.
 
 ---
 
