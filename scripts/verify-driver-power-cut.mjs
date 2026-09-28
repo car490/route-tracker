@@ -33,7 +33,7 @@ const require = createRequire(BUSOPS + 'package.json');
 const { chromium } = require('playwright');
 const { handleRequest } = require(BUSOPS + 'server.js');
 
-const CHECKPOINT_KEY = 'busops.driver.journeyCheckpoint'; // driver/src/journeyCheckpoint.js
+const CHECKPOINT_KEY = 'busops.driver.journeyCheckpoint'; // shared/journeyCheckpoint.js
 const DUTY_LINK_KEY = 'busops.driver.dutyLink';           // driver/src/dutyLinkStore.js
 
 const pad = (n) => String(n).padStart(2, '0');

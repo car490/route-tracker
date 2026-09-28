@@ -266,8 +266,12 @@ the last one is software:
    until the end of the shift, and a trip part-way through is saved on the
    device and offered back with no signal needed (`docs/DECISIONS.md` "Duty-card
    link through a power cut" and "Trip in progress through a power cut").
-   Announce Solo mid-trip resume and Controller filesystem hardening are
-   planned (Slices 3 and 4), not built.
+   Announce Solo does the same without a driver: it starts from an offline
+   copy of its settings and departures, and carries a saved trip on from
+   where one GPS reading puts it (`docs/DECISIONS.md` "Announce Solo
+   through a power cut"). A paired (Lite) tablet waits for its Driver to
+   re-push the trip. Controller filesystem hardening is planned (Slice 4),
+   not built.
 
 ---
 

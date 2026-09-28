@@ -9,11 +9,7 @@
 // heartbeat", and "should I reconnect" without device-specific logic.
 
 import {
-  hasRowChanged,
-  computeBackoffDelayMs,
-  isHeartbeatDue,
-  shouldReconnect,
-  deriveConnectionState,
+  hasRowChanged, computeBackoffDelayMs, isHeartbeatDue, shouldReconnect, deriveConnectionState, hydrate,
 } from '../shared/deviceStateSync.js';
 
 describe('hasRowChanged', () => {
@@ -126,5 +122,44 @@ describe('deriveConnectionState', () => {
 
   it('maps an unrecognized status to degraded rather than throwing', () => {
     expect(deriveConnectionState('SOMETHING_NEW')).toBe('degraded');
+  });
+});
+
+// Reads a device's own row once. { retry: false } turns off supabase-js's
+// own retries of a failed read (several seconds with no signal) for a
+// caller that already retries on its own schedule — announceDeviceFeed.js,
+// so a Solo tablet restarting with no signal falls back to its offline copy
+// straight away instead of after the library gives up.
+describe('hydrate', () => {
+  function queryStub(result) {
+    const q = {
+      select: jest.fn(() => q), eq: jest.fn(() => q), retry: jest.fn(() => q),
+      single: jest.fn(() => Promise.resolve(result)),
+    };
+    return q;
+  }
+
+  it('returns the row', async () => {
+    const q = queryStub({ data: { id: 'd1' }, error: null });
+    await expect(hydrate({ from: () => q }, 'announce_devices')).resolves.toEqual({ id: 'd1' });
+    expect(q.retry).not.toHaveBeenCalled();
+  });
+
+  it('throws the error when the read fails', async () => {
+    const error = { message: 'Failed to fetch', code: '' };
+    const q = queryStub({ data: null, error });
+    await expect(hydrate({ from: () => q }, 'announce_devices')).rejects.toBe(error);
+  });
+
+  it('applies a filter when given one', async () => {
+    const q = queryStub({ data: { id: 'd1' }, error: null });
+    await hydrate({ from: () => q }, 'announce_devices', { column: 'id', value: 'd1' });
+    expect(q.eq).toHaveBeenCalledWith('id', 'd1');
+  });
+
+  it('turns off the library\'s own retries when asked', async () => {
+    const q = queryStub({ data: { id: 'd1' }, error: null });
+    await hydrate({ from: () => q }, 'announce_devices', undefined, { retry: false });
+    expect(q.retry).toHaveBeenCalledWith(false);
   });
 });

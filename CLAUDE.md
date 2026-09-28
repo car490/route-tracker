@@ -36,7 +36,8 @@ Driver's automatic mode) and the announcement
 stack (`announceStates.js`, `announcementAudio.js`, `announcementCoverage.js`,
 `deviceStateSync.js`, `logger.js`, `escapeHtml.js`) — real cross-surface use, not
 folder guesswork: Announce Solo's autopilot (`announceSoloAutopilot.js`) imports
-`gps.js`/`geofence.js`/`scheduleTimeShift.js` directly, and `onboard.js` reads announcement
+`gps.js`/`geofence.js`/`scheduleTimeShift.js` directly, and both keep a trip in progress on the
+device through a power cut with the same `journeyCheckpoint.js`, and `onboard.js` reads announcement
 state through the same `announceStates.js` Driver uses. `lib/` (Leaflet) and `audio/` (PSVAIR
 clips) remain driver-only, living under `pcv-dashboard/busops/driver/`.
 
@@ -69,7 +70,7 @@ pcv-dashboard/                  # PCV Dashboard — Vercel app root
     │   │                         # stack, not just icons/brand-tokens.css (see above)
     │   ├── icons/
     │   ├── brand-tokens.css
-    │   ├── gps.js, geofence.js, engine.js, scheduleTimeShift.js, geo.js, scheduleAutopilot.js
+    │   ├── gps.js, geofence.js, engine.js, scheduleTimeShift.js, geo.js, journeyCheckpoint.js, scheduleAutopilot.js
     │   └── announceStates.js, announcementAudio.js, announcementCoverage.js,
     │       deviceStateSync.js, logger.js, escapeHtml.js
     ├── driver/                  # BusOps Driver (the PWA)
@@ -205,6 +206,13 @@ Same approach: a trip part-way through, the page closed and reopened at the bare
 gone, localStorage kept — what a restart looks like), with no signal. Checks the trip is offered back and
 every stop time uploads on reconnect, the duty card survives a restart, and a saved trip older than 2 hours
 is not offered but still uploads. Not part of CI either.
+
+```sh
+npm run verify:solo-power-cut      # the same for the Announce Solo sign (~1 min)
+```
+Real `onboard.html` with Realtime refused: a trip carried on after a power cut with no signal ("The next
+stop is …"), a departure started with no signal from the offline copy, and a revoked device going dark.
+`ONLY=<scenario>` runs one, `DEBUG_PAGES=1` prints the tablet's console.
 
 ### Measure the real sign on the real tablet (read-only)
 ```sh
@@ -458,7 +466,7 @@ isn't blocked either — `manualSelection.js` always generates the journey ID cl
 queues a failed `get_or_create_manual_journey`/`start_journey` call via
 `enqueuePendingJourneyStart` (also in `localStore.js`) for `main.js`'s
 `flushPendingJourneyStarts()` to retry on reconnect. A trip in progress is also saved on the
-device as it runs (`journeyCheckpoint.js`), so after a power cut it is offered back at boot with no
+device as it runs (`shared/journeyCheckpoint.js`), so after a power cut it is offered back at boot with no
 signal needed and the stops already reached still upload; the duty-card link is kept until the end of
 the shift (`dutyLinkStore.js`) — see `docs/DECISIONS.md` "Trip in progress through a power cut". See the offline-fallback test flow in
 `docs/TESTING.md`.
