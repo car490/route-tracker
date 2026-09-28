@@ -580,7 +580,11 @@ no `schedule_view` queries. It's a pure renderer, driven only by what the Driver
 `/sign-feed` connection): a `{type:'schedule', ...}` message once per journey start (stops,
 service code, branding), then `{type:'state', ...}` messages as the journey progresses. Stays
 blank until an authenticated push connection delivers a schedule — there's no `?journey=` URL
-param or depot-WiFi sync step anymore. Two named display profiles exist (`PANEL_PROFILES` in
+param or depot-WiFi sync step anymore. The Controller's system disk is **read-only** once
+`bootstrap-controller.sh` has run (overlayroot, 2026-09-28 — power cuts can't damage it): update it
+with `mele-server/update-controller.sh`, and make any other lasting change with the read-only disk
+switched off (`mele-server/DEPLOY.md` "Updating the Controller"); anything written at runtime,
+logs included, lives in RAM. Two named display profiles exist (`PANEL_PROFILES` in
 `busops/announce/src/panelSizing.js`, commissioned via `?panel-profile=`): **Bar** (28" ultra-wide
 destination-board panel, not yet built — see `docs/onboard-widescreen-layout.md`) and **Lite** (the LEVIRTU 14"
 Android tablet, lit area measured 289 × 180 mm — the display in use). The Dell Pro P2426H `monitor` profile was

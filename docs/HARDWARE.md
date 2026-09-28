@@ -232,6 +232,30 @@ Recommended layered approach, cheapest/most-important first:
    hang triggers an auto-reboot rather than needing a physical
    power-cycle.
 
+**Status, 2026-09-28 (owner-approved, built in `mele-server/`, not yet
+proven on the box):**
+- (1) **Built** — `config/overlayroot.conf`, switched on by
+  `bootstrap-controller.sh` as its last step. Updates go through
+  `update-controller.sh` (writable for the update alone); any other lasting
+  change needs it switched off first (`mele-server/DEPLOY.md` "Updating the
+  Controller").
+- (2) **Decided against (owner)**: no writable partition. Nothing the
+  Controller writes at runtime needs to survive — its schedule copy is
+  diagnostic only (the sign always waits for the Driver to re-push) and now
+  lives in RAM (`/run/coachmate/`); logs are kept in RAM too
+  (`config/coachmate-journald.conf`) and are lost at a power cut. Avoids
+  re-flashing the Controller in service.
+- (3) Unchanged — optional, not speced.
+- (4) **Built, chip not yet confirmed** — `config/coachmate-watchdog.conf`
+  (`RuntimeWatchdogSec=30s`); the setup script warns if there is no
+  `/dev/watchdog`. Plus services restarted whenever they stop
+  (`Restart=always`, via drop-ins so existing units keep their token/TLS/URL
+  lines) and a 1-minute health check that restarts a hung
+  `coachmate-onboard` (`config/coachmate-healthcheck.*`).
+- **Also needed, manual:** BIOS "Restore on AC Power Loss" → Power On
+  (`mele-server/DEPLOY.md` §0 step 8), menu path not yet recorded.
+- Proven only by the bench test, `docs/TESTING.md` §19 part A.
+
 ### Power loss and first boot
 
 Added 2026-09-28. The case: the isolator cuts everything, the vehicle
@@ -270,8 +294,9 @@ the last one is software:
    copy of its settings and departures, and carries a saved trip on from
    where one GPS reading puts it (`docs/DECISIONS.md` "Announce Solo
    through a power cut"). A paired (Lite) tablet waits for its Driver to
-   re-push the trip. Controller filesystem hardening is planned (Slice 4),
-   not built.
+   re-push the trip. The Controller's own disk is protected by a read-only
+   system disk, a hardware watchdog and service restarts (above,
+   "Sudden power loss / ignition-off").
 
 ---
 

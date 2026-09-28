@@ -1,0 +1,8 @@
+# Installed to /etc/systemd/system/ by bootstrap-controller.sh; started by
+# coachmate-healthcheck.timer. See config/coachmate-healthcheck.sh.
+[Unit]
+Description=CoachMate onboard server health check
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/coachmate-healthcheck

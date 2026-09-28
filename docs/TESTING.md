@@ -609,10 +609,22 @@ For **each** device: the Driver tablet, the Announce tablet, and the Bus Control
    | Announce tablet | | | | | |
    | Bus Controller | MeLE Quieter4C | | | | |
 
-5. **Controller only:** first look in the BIOS for "Restore on AC power loss" (or similar) and
-   set it to **Power On**; note the exact menu path so it can go into `mele-server/DEPLOY.md`.
-   Then cut and restore power 20 times in a row and note any boot that fails or needs a disk
-   check.
+5. **Controller only** (after `bootstrap-controller.sh` and one restart —
+   `mele-server/DEPLOY.md` §0):
+   1. **BIOS:** set "Restore on AC power loss" (or similar) to **Power On**; record the exact
+      menu path in `mele-server/DEPLOY.md` §0 step 8.
+   2. **Read-only disk is on:** `findmnt /` shows FSTYPE `overlay`. Create a test file
+      (`touch ~/probe`), cut and restore power: it must be gone.
+   3. **Watchdog:** `sudo wdctl` shows a device and a 30 s timeout. Freeze the box on purpose
+      (`echo c | sudo tee /proc/sysrq-trigger`, which crashes the kernel): it must restart by
+      itself within about a minute. If `wdctl` finds nothing, record it in `docs/HARDWARE.md` §1.
+   4. **Hung server:** `sudo kill -STOP $(pgrep -f 'node server.mjs')`. Within 2 minutes the
+      health check must restart it (`journalctl -u coachmate-healthcheck` says so, and
+      `curl -k https://localhost:8080/api/schedule` answers again).
+   5. **Update script:** `update-controller.sh`, then `sudo reboot`; the new commit must be
+      running (`git -C ~/route-tracker log -1`). This also confirms the chroot has network.
+   6. **20 cuts:** cut and restore power 20 times in a row, some mid-boot. Note any boot that
+      fails, stops for a disk check, or comes up without the hotspot or `coachmate-onboard`.
 6. If a tablet shows a "charging" screen or stays off, **stop and report it**. The fix is a
    hardware choice (`docs/HARDWARE.md` lists the options), not something the app can solve.
    Don't unlock the bootloader to work around it.

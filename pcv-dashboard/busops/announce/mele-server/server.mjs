@@ -22,6 +22,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { attachAnnounceRelay } from './announceRelay.mjs';
 import { createAudioPlayer } from './audioPlayer.mjs';
+import { resolveScheduleCachePath } from './scheduleCachePath.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // mele-server/ sits at busops/announce/mele-server/; REPO_ROOT is busops/ itself
@@ -31,7 +32,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // them against the served URL, to /shared/... and /service-worker.js —
 // paths that only exist under busops/, not busops/announce/.
 const REPO_ROOT = path.join(__dirname, '../..');
-const CACHE_PATH = path.join(__dirname, 'schedule-cache.json');
+// On the Controller this is in RAM (the system disk is read-only there) —
+// see scheduleCachePath.mjs.
+const CACHE_PATH = resolveScheduleCachePath(process.env, __dirname);
 const PORT = Number(process.env.PORT) || 8080;
 // Shared secret for the /driver-push and /sign-feed WebSocket endpoints
 // (see announceRelay.mjs) — set via the systemd unit's Environment= line.

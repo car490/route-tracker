@@ -154,7 +154,23 @@ Ethernet + SSH from a laptop).
    `DRIVER_PUSH_TOKEN`. It prints the AP passphrase and the push token once
    — record both, they aren't stored anywhere else. Safe to re-run; it
    leaves an already-configured hostapd/token alone rather than rotating
-   them on every run.
+   them on every run. **It also hardens the box against power cuts** (step
+   8–9 of the script; `docs/HARDWARE.md` "Sudden power loss / ignition-off"):
+   hardware watchdog, logs in RAM, services restarted whenever they stop, a
+   1-minute health check, and — from the next boot — a **read-only system
+   disk**. Do the rest of this file's one-off setup (TLS certificate §6,
+   branding logo, kiosk unit §5) *before* that first reboot, or with the
+   read-only disk switched off — see "Updating the Controller" below.
+8. **Set the BIOS to power on by itself.** The isolator cuts power with no
+   warning, and the ignition restores it; the Controller must start without
+   anyone pressing its button. With a monitor and keyboard attached, enter
+   the BIOS at power-on (usually **Del** or **F7** on MeLE boards), find
+   **"Restore on AC Power Loss"** (often under *Chipset* or *Power*; also
+   called "State After G3" or "AC Power Recovery") and set it to **Power On**.
+   Save, then prove it: cut and restore power at the supply, touch nothing,
+   and it should boot. **Record the exact menu path here** the first time
+   it's done — it isn't confirmed for this board yet. Then run the full
+   power-cut bench test, `docs/TESTING.md` §19 part A.
 
 ## 1. GPS — not needed on the Controller
 
@@ -531,17 +547,58 @@ and the connection hasn't dropped — the Driver PWA doesn't currently expose
 a manual "resend schedule" action. Ending and restarting the trip is the
 only way to force it right now.
 
+## Updating the Controller
+
+Once `bootstrap-controller.sh` has run and the box has restarted, its system
+disk is **read-only**: everything written while it runs goes to RAM and is
+gone at the next power-off, so a power cut can never leave the disk
+half-written (`config/overlayroot.conf`). That changes how you update it and
+how you make any other lasting change.
+
+**Updating the code** — over SSH, as `mele`:
+```bash
+~/route-tracker/pcv-dashboard/busops/announce/mele-server/update-controller.sh   # optional: a branch name, default develop
+sudo reboot
+```
+It makes the real disk writable for the update alone (`overlayroot-chroot`),
+fast-forwards the repo, runs `npm ci`, and leaves the disk read-only again.
+The new version runs from the next boot.
+
+**Any other lasting change** — re-running `bootstrap-controller.sh` (a
+release that changes a file under `config/`), generating the TLS certificate
+(§6), copying the branding logo, installing or editing the kiosk unit (§5),
+changing hostapd — must be made with the read-only disk **off**. A change
+made while it is on looks fine until the next restart, then vanishes.
+```bash
+sudo overlayroot-chroot rm /etc/overlayroot.local.conf   # switch it off (for the next boot)
+sudo reboot
+# ... make the change ...
+./bootstrap-controller.sh    # switches it back on as its last step (or: sudo install -m 0644 config/overlayroot.conf /etc/overlayroot.local.conf)
+sudo reboot
+```
+`bootstrap-controller.sh` refuses to run while the disk is read-only, so it
+can't be run by mistake with its changes going nowhere.
+
+**Logs are kept in RAM** (`config/coachmate-journald.conf`): anything from
+before a power cut is gone. Read them with `journalctl` while the box is
+still running.
+
 ## Verifying it's working
 ```bash
+findmnt /                                   # FSTYPE 'overlay' = the read-only disk is on
+sudo wdctl                                  # the hardware watchdog is present and armed (timeout 30s)
+systemctl list-timers coachmate-healthcheck.timer   # the 1-minute health check is scheduled
 curl http://192.168.4.1:8080/api/schedule   # from another device on the hotspot (diagnostic only — onboard.js doesn't poll this)
 curl http://localhost:8080/api/schedule     # from the Controller itself (Option B/kiosk)
 journalctl -u coachmate-onboard -f          # tail the server's logs
 systemctl status coachmate-kiosk            # Option B only — confirm the kiosk browser is running
 journalctl -u coachmate-kiosk -f            # Option B only — tail Chromium's (or cage's) logs
 ```
-`/api/schedule` returns `[]` until either a Driver has pushed a schedule
-since this boot, or a previous push's disk cache exists — that's expected
-before anyone has started a journey today, not a fault.
+`/api/schedule` returns `[]` until a Driver has pushed a schedule since this
+boot — that's expected before anyone has started a journey today, not a
+fault. (Its copy lives in RAM, `/run/coachmate/`, so it never survives a
+restart; it is diagnostic only — the sign always waits for the Driver to push
+again.)
 
 For announcement audio (§7), `journalctl -u coachmate-onboard -f` also
 surfaces `[audioPlayer]` warnings for a missing clip or failed playback —
