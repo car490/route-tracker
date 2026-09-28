@@ -487,6 +487,11 @@ PSVAIR requirement it's a hard "never" now, not a quality nice-to-have. Announce
 **pre-rendered Azure Neural TTS clips**, generated and distributed automatically by a server-side
 pipeline (design + full rollout/status ledger: `docs/ANNOUNCEMENT-AUDIO-SYNC-PLAN.md` — read that
 doc for the phase-by-phase history; this section only summarizes the resulting architecture).
+**Voice (2026-09-28, v2.3.0):** production renders with the ElevenLabs "Ben" voice
+(`app_config.announcement_voice = 'elevenlabs:…'`) through the same pipeline; dev stays on Azure except when testing. Ben
+clips are levelled to −21 LUFS, never overwritten by another voice, and rendered only for stops a timetable uses, under a
+daily character cap. Design, switch procedure and how to undo it: `docs/ANNOUNCE-VOICE-PLAN.md`. The Azure details below
+still describe the pipeline and dev.
 
 **Generation is automatic, no manual step for a normal stop/route change:**
 - A DB trigger on `stops` (insert, or update of `announcement_name`/`name`/`atco_code`) and
