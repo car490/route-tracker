@@ -208,10 +208,11 @@ describe('fetchCompanyBranding', () => {
 // See docs/SECURITY_FIXES_2026-09-17.md Item 4(a): the duty-card bearer
 // token used to live in the URL query string for the whole session, re-read
 // from window.location.search on every request. captureDutyLinkParams()
-// moves it into sessionStorage (per-tab, cleared on tab close — unlike
-// announceLink.js's localStorage-backed captureAnnounceSetup, which is
-// deliberately durable across sessions for a commissioned device) and
-// strips it from the visible URL.
+// moves it out of the URL into driver/src/dutyLinkStore.js and strips it
+// from the visible URL. That store was sessionStorage until 2026-09-28; it
+// is now localStorage bounded to the shift (token expiry / end of UK day /
+// last duty completed), so a power cut that restarts the tablet no longer
+// drops the duty card. dutyLinkStore.test.js covers the expiry rules.
 describe('captureDutyLinkParams', () => {
   const originalFetch = global.fetch;
 
@@ -224,12 +225,29 @@ describe('captureDutyLinkParams', () => {
     global.fetch = originalFetch;
   });
 
-  test('captures token and duties into sessionStorage and returns the duties value', () => {
+  test('captures token and duties into the shift-bounded store and returns the duties value', () => {
     window.history.pushState(null, '', '/?token=abc123&duties=j1,j2');
     const result = captureDutyLinkParams();
-    expect(sessionStorage.getItem('dutyLinkToken')).toBe('abc123');
-    expect(sessionStorage.getItem('dutyLinkIds')).toBe('j1,j2');
+    expect(JSON.parse(localStorage.getItem('busops.driver.dutyLink'))).toMatchObject({ token: 'abc123', duties: 'j1,j2' });
+    expect(sessionStorage.getItem('dutyLinkToken')).toBeNull();
     expect(result).toBe('j1,j2');
+  });
+
+  test('the duty card survives a restart (sessionStorage wiped, URL bare)', () => {
+    window.history.pushState(null, '', '/?token=abc123&duties=j1,j2');
+    captureDutyLinkParams();
+
+    sessionStorage.clear();
+    window.history.pushState(null, '', '/');
+    expect(captureDutyLinkParams()).toBe('j1,j2');
+  });
+
+  test('carries over a link held in the old sessionStorage keys (tablet mid-shift when this ships)', () => {
+    sessionStorage.setItem('dutyLinkToken', 'legacy-token');
+    sessionStorage.setItem('dutyLinkIds', 'j7');
+    window.history.pushState(null, '', '/');
+    expect(captureDutyLinkParams()).toBe('j7');
+    expect(sessionStorage.getItem('dutyLinkToken')).toBeNull();
   });
 
   test('strips token and duties from the visible URL after capture', () => {
@@ -252,20 +270,21 @@ describe('captureDutyLinkParams', () => {
     captureDutyLinkParams();
 
     // Simulate the reload: URL no longer carries token/duties (already
-    // stripped), sessionStorage from the first call above is left intact
-    // (no sessionStorage.clear() between these two calls, deliberately).
+    // stripped), the stored link from the first call above is left intact.
     window.history.pushState(null, '', '/');
     const result = captureDutyLinkParams();
     expect(result).toBe('j1,j2');
   });
 
-  test('sbFetch sends the sessionStorage-backed token even once the URL no longer carries it', async () => {
+  test('sbFetch sends the stored token even once the URL no longer carries it', async () => {
     window.history.pushState(null, '', '/?token=captured-token&duties=j1');
     captureDutyLinkParams();
 
     // URL changes again with no token — a real same-tab reload, or simply
-    // main.js's own history.replaceState call, would look like this.
+    // main.js's own history.replaceState call, would look like this. The
+    // session is wiped too, as a power-cut restart would.
     window.history.pushState(null, '', '/');
+    sessionStorage.clear();
 
     global.fetch = jest.fn(async () => ({ ok: true, json: async () => [] }));
     await sbFetch('/rest/v1/some_table');

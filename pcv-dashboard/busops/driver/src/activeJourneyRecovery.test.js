@@ -71,6 +71,34 @@ describe('resolveBootAction', () => {
   });
 });
 
+// A trip saved on this device (journeyCheckpoint.js) is the trip that was
+// running when the power went, so it comes before everything else: before
+// the duty card, before vehicle setup, before the server lookup — and it
+// needs no signal.
+describe('resolveBootAction — saved trip on this device', () => {
+  const checkpoint = { journeyId: 'j-saved' };
+
+  it('resumes a fresh saved trip ahead of a duty card', () => {
+    expect(resolveBootAction({
+      dutiesParam: 'j1,j2', storedVehicleId: 'veh-1', activeJourney: null, checkpoint, now: NOW,
+    })).toBe(BOOT_ACTION.RESUME_CHECKPOINT);
+  });
+
+  it('resumes a fresh saved trip ahead of the server lookup and with no vehicle stored', () => {
+    expect(resolveBootAction({
+      dutiesParam: null, storedVehicleId: null,
+      activeJourney: { journey_id: 'j-active', started_at: '2026-09-27T06:30:00Z' },
+      checkpoint, now: NOW,
+    })).toBe(BOOT_ACTION.RESUME_CHECKPOINT);
+  });
+
+  it('falls back to the existing order when there is no fresh saved trip', () => {
+    expect(resolveBootAction({
+      dutiesParam: 'j1', storedVehicleId: 'veh-1', activeJourney: null, checkpoint: null, now: NOW,
+    })).toBe(BOOT_ACTION.DUTY_CARD);
+  });
+});
+
 describe('startedToday', () => {
   it('uses the UK date, not UTC: 23:30 UTC in summer is already tomorrow in London', () => {
     expect(startedToday('2026-09-26T23:30:00Z', NOW)).toBe(true);

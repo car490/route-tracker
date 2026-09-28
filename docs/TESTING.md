@@ -24,6 +24,7 @@ Step-by-step instructions for testing every component of the RouteTracker platfo
 16. [Test: End-to-end (dashboard + PWA together)](#16-test-end-to-end-dashboard--pwa-together)
 17. [Test: BusOps Announce Lite / Solo](#17-test-busops-announce-lite--solo)
 18. [Resetting test data](#18-resetting-test-data)
+19. [Test: Power cut and first boot (all devices)](#19-test-power-cut-and-first-boot-all-devices)
 
 ---
 
@@ -581,3 +582,67 @@ delete from vehicles;
 ```
 
 > **Do not delete from `routes`, `timetables`, or `timetable_stops`** — re-seeding the 106 stops requires re-running `seed.sql` in full.
+
+---
+
+## 19. Test: Power cut and first boot (all devices)
+
+What happens when the isolator cuts everything, the tablets' batteries go completely flat, and
+the ignition comes back. Background and options: `docs/HARDWARE.md` "Power loss and first boot".
+Do part A before anything else: parts B and C mean nothing if a device doesn't switch itself on.
+
+### A. Bench test: does each device switch itself on? (hardware, no app needed)
+
+For **each** device: the Driver tablet, the Announce tablet, and the Bus Controller.
+
+1. Charge fully, then set it up exactly as fitted (Fully Kiosk installed and set up, same cable
+   and charger or PD module).
+2. **Tablets:** unplug and leave the screen on (Fully keeps it on) until the battery is
+   completely flat and the tablet switches itself off. Leave it off for at least 30 minutes.
+   **Controller:** it has no battery; just cut its supply.
+3. Restore power the way the ignition would: supply on, **nobody touches the device**.
+4. Record, from the moment power returns:
+
+   | Device | Model | Started by itself? (Y/N) | What it showed instead, if N | Time to Android/OS | Time to app on screen |
+   |---|---|---|---|---|---|
+   | Driver tablet | | | | | |
+   | Announce tablet | | | | | |
+   | Bus Controller | MeLE Quieter4C | | | | |
+
+5. **Controller only:** first look in the BIOS for "Restore on AC power loss" (or similar) and
+   set it to **Power On**; note the exact menu path so it can go into `mele-server/DEPLOY.md`.
+   Then cut and restore power 20 times in a row and note any boot that fails or needs a disk
+   check.
+6. If a tablet shows a "charging" screen or stays off, **stop and report it**. The fix is a
+   hardware choice (`docs/HARDWARE.md` lists the options), not something the app can solve.
+   Don't unlock the bootloader to work around it.
+
+### B. On the real tablets: does the app pick up where it left off?
+
+Only once part A passes. Use dev Supabase and a test journey.
+
+1. **Duty card survives:** open a duty-card link on the Driver tablet. Pull the power until the
+   tablet switches off, restore it. **Expect:** the same duty card, without re-opening the link.
+2. **Trip carries on with no signal:** start the trip and drive (or walk the GPS simulator)
+   past two stops. Turn mobile data and WiFi **off**, then cut the power. Restore it.
+   **Expect:** "Carry on your trip" with the stop the vehicle was heading for already selected.
+   Tap Start, finish the trip. **Expect:** "Trip Ended … saved on this device".
+3. Turn data back on. **Expect:** in the dashboard, the journey is completed and has stop times
+   for **every** stop, including the two reached before the power cut.
+4. **Old trip not offered:** start a trip, cut power, wait more than 2 hours, restore.
+   **Expect:** the normal waiting screen or duty card, not "Carry on your trip". The stops it
+   reached still show in the dashboard, and the journey is **not** marked complete.
+5. **End of shift:** complete every duty on a duty card, then restart the tablet.
+   **Expect:** the duty card does not come back (the link has been removed from the device).
+
+### C. Automated check (no tablet needed)
+
+```sh
+cd pcv-dashboard/busops
+npm run verify:power-cut
+```
+
+Runs the real Driver app in headless Chromium through B1–B5 with simulated GPS and a local
+Supabase stand-in (nothing leaves the machine). Exit 0 all passed, 1 a check failed. Useful
+before and after any change to boot, the duty link or trip saving, but it is **not** a
+substitute for part A or B: it can't tell you whether a real tablet switches itself on.
