@@ -56,17 +56,17 @@ https://<production PWA host>/driver/
 No query param needed. Every cab unit is pinned to this exact same URL;
 nothing per-device or per-vehicle in it.
 
-The `/driver/` path is required, not optional, on the Cloudflare Workers
-deploy (`driver.pcvtechnologies.co.uk` — see Project overview in `CLAUDE.md`
-for GitHub Pages vs. Workers status): it's a static-assets Worker with no
-`server.js`-style aliasing of bare `/` to `driver/index.html`, so the bare
-production root 404s. On the old GitHub Pages deploy the driver app lived at
-repo root, so the bare production URL worked there — don't reuse that
-shortcut once a device is pointed at the Workers host.
+The production host is `driver.pcvtechnologies.co.uk` (Cloudflare Workers,
+see Project overview in `CLAUDE.md`); GitHub Pages is no longer used. Pin the
+full `/driver/` path: it's a static-assets Worker with no `server.js`-style
+aliasing of bare `/` to `driver/index.html`. A `_redirects` rule (2026-09-01)
+sends bare `/` to `/driver/`, but nothing tests it, so don't let a kiosk
+depend on it.
 
 No backend config needed: opening the production URL already resolves to
 the production Supabase project via the hostname check in
-`driver/src/config.js` (only `localhost`/`127.0.0.1` switch to dev).
+`driver/src/config.js` (only `localhost`, `127.0.0.1` and
+`driver-dev.pcvtechnologies.co.uk` switch to dev).
 
 ## Device setup (Fully Kiosk Browser — the actual approach in use)
 

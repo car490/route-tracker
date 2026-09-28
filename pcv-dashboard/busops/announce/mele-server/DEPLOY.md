@@ -416,8 +416,8 @@ least a schedule message. See `mele-server/announceRelay.mjs` and
 `src/announceLink.js`.
 
 **TLS is required, not optional — `wss://`, never `ws://`.** The Driver PWA
-is always served over HTTPS (GitHub Pages today, `driver.pcvtechnologies.co.uk`
-eventually), and Android WebView (unlike desktop Chrome, which only warns)
+is always served over HTTPS (`driver.pcvtechnologies.co.uk`, Cloudflare Workers),
+and Android WebView (unlike desktop Chrome, which only warns)
 throws a synchronous `SecurityError` on `new WebSocket('ws://...')` from an
 HTTPS page — the connection is never even attempted. This isn't a
 theoretical concern: it's the actual reason a real commissioned device can
