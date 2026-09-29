@@ -5,6 +5,7 @@ import { getCompanyId } from '../../shared/company'
 import {
   STATUS_LABEL, todayStr, depLabel, journeyActionsFor, routeOptionsFor, timetableOptionsFor,
   friendlySaveError, resetJourney, deleteJourney, signedDriverLink,
+  UPLOAD_PROBLEMS_EMBED, openUploadProblem, uploadProblemText,
 } from './journeyActions.js'
 import './mobileJourneys.css'
 
@@ -57,7 +58,8 @@ export default function MobileJourneysPage() {
           *,
           departure:timetable_departures(departure_time, timetable_id, timetable:timetables(name, direction, route:routes(id, service_code, single_journey))),
           driver:employees(name),
-          vehicle:vehicles(registration)
+          vehicle:vehicles(registration),
+          ${UPLOAD_PROBLEMS_EMBED}
         `)
         .eq('journey_date', d)
         .abortSignal(AbortSignal.timeout(LOAD_TIMEOUT_MS))
@@ -270,6 +272,7 @@ export default function MobileJourneysPage() {
             const actions = journeyActionsFor(j.status)
             const busy = busyId === j.id
             const tt = j.departure?.timetable
+            const problem = openUploadProblem(j)
             return (
               <li key={j.id} className="mj-card">
                 <div className="mj-card-top">
@@ -281,6 +284,11 @@ export default function MobileJourneysPage() {
                 <div className="mj-card-meta">
                   {j.driver?.name ?? 'No driver'} · {j.vehicle?.registration ?? 'No vehicle'}
                 </div>
+                {problem && (
+                  <div className="mj-message mj-message--error" role="alert">
+                    <strong>Stop times not saved.</strong> {uploadProblemText(problem)}
+                  </div>
+                )}
                 <div className="mj-actions">
                   {actions.run && (
                     <button type="button" className="mj-btn mj-btn--primary" onClick={() => handleRun(j)} disabled={busy}>Run</button>

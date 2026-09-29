@@ -2,7 +2,36 @@ import { describe, it, expect, vi } from 'vitest'
 import {
   todayStr, depLabel, journeyActionsFor, routeOptionsFor, timetableOptionsFor,
   friendlySaveError, resetJourney, deleteJourney, driverLink, signedDriverLink,
+  UPLOAD_PROBLEMS_EMBED, openUploadProblem, uploadProblemText,
 } from './journeyActions.js'
+
+// A device reports when the server refused its stop times
+// (supabase/migration_stop_time_upload_problem.sql); both journeys pages show
+// the open one until a later upload is accepted.
+describe('stop-time upload problems', () => {
+  it('embeds the problems with the journey', () => {
+    expect(UPLOAD_PROBLEMS_EMBED).toMatch(/^upload_problems:stop_time_upload_problem\(/)
+    expect(UPLOAD_PROBLEMS_EMBED).toMatch(/resolved_at/)
+  })
+
+  it('finds the open problem, ignoring resolved ones', () => {
+    const open = { http_status: 401, reason: 'x', row_count: 3, resolved_at: null }
+    expect(openUploadProblem({ upload_problems: [{ resolved_at: '2026-09-29T12:00:00Z' }, open] })).toBe(open)
+    expect(openUploadProblem({ upload_problems: [{ resolved_at: '2026-09-29T12:00:00Z' }] })).toBeNull()
+    expect(openUploadProblem({})).toBeNull()
+  })
+
+  it('explains it in plain English, using the server message from a raw error body', () => {
+    expect(uploadProblemText({
+      source: 'driver', row_count: 23,
+      reason: '{"code":"42501","details":null,"hint":null,"message":"Journey abc is not in progress"}',
+    })).toBe('The Driver app could not save 23 stop times: the server refused them (Journey abc is not in progress). They are kept on the device and will upload once the problem is fixed.')
+    expect(uploadProblemText({ source: 'solo', row_count: 1, reason: 'Journey abc is not in progress' }))
+      .toBe('The Announce Solo sign could not save 1 stop time: the server refused it (Journey abc is not in progress). It is kept on the device and will upload once the problem is fixed.')
+    expect(uploadProblemText({ source: 'driver', row_count: 2, reason: '' }))
+      .toBe('The Driver app could not save 2 stop times: the server refused them. They are kept on the device and will upload once the problem is fixed.')
+  })
+})
 
 const route116 = { id: 'r1', service_code: 'S116S' }
 const route125 = { id: 'r2', service_code: 'S125S' }

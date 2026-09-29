@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { supabase, PWA_BASE } from '../../shared/supabase'
 import { getCompanyId } from '../../shared/company'
 import Modal from '../../shared/components/Modal'
 import { buildJourneyReportHtml } from './journeyReportHtml.js'
 import {
   todayStr, depLabel, routeOptionsFor, timetableOptionsFor, friendlySaveError, resetJourney as resetJourneyRpc,
+  UPLOAD_PROBLEMS_EMBED, openUploadProblem, uploadProblemText,
 } from './journeyActions.js'
 import { Link } from 'react-router-dom'
 
@@ -47,7 +48,8 @@ export default function JourneysPage() {
         *,
         departure:timetable_departures(departure_time, timetable_id, timetable:timetables(name, direction, route:routes(id, service_code, single_journey))),
         driver:employees(name),
-        vehicle:vehicles(registration)
+        vehicle:vehicles(registration),
+        ${UPLOAD_PROBLEMS_EMBED}
       `)
       .eq('journey_date', date)
       .order('created_at')
@@ -331,8 +333,11 @@ export default function JourneysPage() {
                 </tr>
               </thead>
               <tbody>
-                {journeys.map(j => (
-                  <tr key={j.id}>
+                {journeys.map(j => {
+                  const problem = openUploadProblem(j)
+                  return (
+                  <Fragment key={j.id}>
+                  <tr>
                     <td>
                       <span style={{ fontWeight: 600, color: 'var(--navy-brand)' }}>
                         {j.departure?.timetable?.route?.service_code ?? '—'}
@@ -380,7 +385,16 @@ export default function JourneysPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  {problem && (
+                    <tr>
+                      <td colSpan={6} role="alert" className="row-alert">
+                        <strong>Stop times not saved.</strong> {uploadProblemText(problem)}
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
+                  )
+                })}
               </tbody>
             </table>
           )}

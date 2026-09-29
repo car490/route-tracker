@@ -92,6 +92,17 @@ export function markPendingTripAttempt(id, storage = globalThis.localStorage) {
   setPendingTrips(trips, storage);
 }
 
+// Set once the office has been told the server refused this trip's stop
+// times (stopTimesUpload.js's reportUploadProblem), so later retries that are
+// refused the same way don't report it again. The trip is still retried.
+export function markPendingTripRefusalReported(id, storage = globalThis.localStorage) {
+  const trips = getPendingTrips(storage);
+  const trip = trips.find(t => t.id === id);
+  if (!trip) return;
+  trip.refusalReported = true;
+  setPendingTrips(trips, storage);
+}
+
 // ── Pending journey-start queue ──────────────────────────────────────────
 // Mirror of the pending-trip queue above, for the other end of a journey:
 // a manual-selection start that couldn't reach Supabase at all (see

@@ -635,6 +635,8 @@ tr:hover td { background: #F5F7FA; }
 .badge-blue   { background: #E0F5FB; color: #0283A3; }
 .badge-gray   { background: #EEF0F3; color: #6B7B8D; }
 .badge-red    { background: #FEE8E8; color: #C53030; }
+/* A full-width warning row under a table row (e.g. stop times not saved). */
+.row-alert    { background: #FEE8E8; color: #8E1B1B; font-size: 13px; }
 .badge-amber  { background: #FEF3E6; color: #A05A10; }
 
 /* ── Empty / Error ─────────────────────────────────────────── */

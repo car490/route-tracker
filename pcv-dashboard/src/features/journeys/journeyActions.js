@@ -105,3 +105,34 @@ export async function signedDriverLink({ supabase, fetchImpl = fetch, pwaBase, j
   if (!body.token) return { error: 'No token returned' }
   return { url: driverLink(pwaBase, journey.id, body.token), error: null }
 }
+
+// ── Stop-time upload problems ──────────────────────────────────────────────
+// A Driver PWA or Announce Solo device reports when the server refused a
+// trip's stop times (supabase/migration_stop_time_upload_problem.sql). The
+// device keeps the trip and retries; an accepted upload marks the problem
+// resolved. Both journeys pages embed the problems and show the open one.
+export const UPLOAD_PROBLEMS_EMBED =
+  'upload_problems:stop_time_upload_problem(source, http_status, reason, row_count, reported_at, resolved_at)'
+
+export function openUploadProblem(journey) {
+  return (journey?.upload_problems ?? []).find(p => !p.resolved_at) ?? null
+}
+
+// The Driver sends the raw error body; pull the server's message out of it.
+function serverMessage(reason) {
+  if (!reason) return ''
+  try {
+    const parsed = JSON.parse(reason)
+    if (parsed && typeof parsed.message === 'string') return parsed.message
+  } catch { /* not JSON: already a plain message */ }
+  return reason
+}
+
+export function uploadProblemText(problem) {
+  const device = problem.source === 'solo' ? 'The Announce Solo sign' : 'The Driver app'
+  const one = problem.row_count === 1
+  const message = serverMessage(problem.reason)
+  return `${device} could not save ${problem.row_count} stop ${one ? 'time' : 'times'}: `
+    + `the server refused ${one ? 'it' : 'them'}${message ? ` (${message})` : ''}. `
+    + `${one ? 'It is' : 'They are'} kept on the device and will upload once the problem is fixed.`
+}

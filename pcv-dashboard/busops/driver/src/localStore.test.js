@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   getCachedServices, setCachedServices,
   getCachedStops, setCachedStops,
-  getPendingTrips, enqueuePendingTrip, removePendingTrip, markPendingTripAttempt,
+  getPendingTrips, enqueuePendingTrip, removePendingTrip, markPendingTripAttempt, markPendingTripRefusalReported,
   getPendingJourneyStarts, enqueuePendingJourneyStart, removePendingJourneyStart, markPendingJourneyStartAttempt,
 } from './localStore.js';
 
@@ -99,6 +99,15 @@ describe('pending trip queue', () => {
   it('markPendingTripAttempt on an unknown id is a no-op', () => {
     const storage = fakeStorage();
     expect(() => markPendingTripAttempt('nonexistent', storage)).not.toThrow();
+  });
+
+  it('markPendingTripRefusalReported flags the trip so ops is told only once', () => {
+    const storage = fakeStorage();
+    const idA = enqueuePendingTrip({ journeyId: 'j-1', stopRows: [] }, storage);
+    enqueuePendingTrip({ journeyId: 'j-2', stopRows: [] }, storage);
+    markPendingTripRefusalReported(idA, storage);
+    expect(getPendingTrips(storage).map(t => Boolean(t.refusalReported))).toEqual([true, false]);
+    expect(() => markPendingTripRefusalReported('nonexistent', storage)).not.toThrow();
   });
 });
 
