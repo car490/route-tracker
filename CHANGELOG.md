@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.3.4] - 2026-09-29
+
+**A refused stop-time upload now tells the driver and the office**
+
+- feat: for ten weeks every stop-time upload was refused and nobody knew. A refusal (the
+  server answered no, as opposed to no signal) now shows the driver "Stop times not accepted …
+  Please tell the office." instead of "will sync automatically", and the Driver PWA or Announce
+  Solo reports it once (`report_stop_time_upload_problem()`). Both dashboard Journeys pages show
+  "Stop times not saved." on that journey, with the server's reason, until a later upload is
+  accepted. The trip stays queued on the device and is still retried, so nothing is lost.
+  Database: `supabase/migration_stop_time_upload_problem.sql`, applied to dev and production
+  before this release.
+
 ## [2.3.3] - 2026-09-29
 
 **Driver: the No duty assigned screen leads with automatic start**
