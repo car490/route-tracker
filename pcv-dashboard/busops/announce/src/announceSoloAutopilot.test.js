@@ -272,7 +272,15 @@ describe('startSoloAutopilot', () => {
     expect(jumpToStop).toHaveBeenCalledWith(0);
   });
 
-  it('does not poll GPS at all outside the wake window around its candidate departures, and shows the sleep screen instead of idle branding', async () => {
+  // Owner decision 2026-09-29, after the first live run: outside the wake
+  // window the Solo shows the idle screen (branding) with NO next-departure
+  // line, not a blank screen. The screen now follows the tablet's power
+  // (stay awake while powered), so a blank page was a lit white panel that
+  // looked broken, and the page could never switch a sleeping screen back on
+  // anyway (a wake lock only keeps a screen on). No departure line outside
+  // the window because reportNextDeparture() works from time of day only and
+  // would promise a departure on a day with no service.
+  it('does not poll GPS at all outside the wake window, and shows idle branding with no next-departure line', async () => {
     vi.setSystemTime(new Date(2026, 7, 24, 12, 0, 0)); // Monday noon — well outside dep-1's 07:45-08:30 window
     const getCurrentPosition = vi.fn();
     vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } });
@@ -286,14 +294,12 @@ describe('startSoloAutopilot', () => {
     await vi.advanceTimersByTimeAsync(5000);
 
     expect(getCurrentPosition).not.toHaveBeenCalled();
-    // The fix under test: previously the idle screen (branding, next-
-    // departure caption) stayed shown around the clock regardless of the
-    // window — only GPS polling was gated. Now the screen itself sleeps too.
-    expect(onSleep).toHaveBeenCalledTimes(1);
-    expect(onIdleNextDeparture).not.toHaveBeenCalled();
+    expect(onIdleNextDeparture).toHaveBeenCalledTimes(1);
+    expect(onIdleNextDeparture).toHaveBeenCalledWith(null);
+    expect(onSleep).not.toHaveBeenCalled();
   });
 
-  it('does not poll GPS at all when no candidate departures are configured, and shows the sleep screen', async () => {
+  it('does not poll GPS at all when no candidate departures are configured, and shows idle branding with no next-departure line', async () => {
     vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0)); // would be inside dep-1's window, if it were configured
     const getCurrentPosition = vi.fn();
     vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } });
@@ -309,11 +315,12 @@ describe('startSoloAutopilot', () => {
     await vi.advanceTimersByTimeAsync(5000);
 
     expect(getCurrentPosition).not.toHaveBeenCalled();
-    expect(onSleep).toHaveBeenCalledTimes(1);
-    expect(onIdleNextDeparture).not.toHaveBeenCalled();
+    expect(onIdleNextDeparture).toHaveBeenCalledTimes(1);
+    expect(onIdleNextDeparture).toHaveBeenCalledWith(null);
+    expect(onSleep).not.toHaveBeenCalled();
   });
 
-  it('wakes (shows idle branding, starts polling) the instant a candidate\'s wake window opens, with no restart needed', async () => {
+  it('adds the next-departure line and starts polling the instant a candidate\'s wake window opens, with no restart needed', async () => {
     vi.setSystemTime(new Date(2026, 7, 24, 7, 44, 57)); // Monday 07:44:57 — 3s before dep-1's window opens (08:00 - 15min), so one 5s idle tick crosses it
     const getCurrentPosition = vi.fn((success) => success({ coords: { latitude: DEPOT.lat, longitude: DEPOT.lon } }));
     vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } });
@@ -324,15 +331,19 @@ describe('startSoloAutopilot', () => {
     startSoloAutopilot(client, BASE_DEVICE_ROW, { onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture, onJourneyEnd: vi.fn(), onSleep });
     await flush();
 
-    expect(onSleep).toHaveBeenCalledTimes(1); // asleep at boot, 3s before the window
+    // 3s before the window: idle branding, no departure line, no GPS.
+    expect(onIdleNextDeparture).toHaveBeenCalledTimes(1);
+    expect(onIdleNextDeparture).toHaveBeenLastCalledWith(null);
     expect(getCurrentPosition).not.toHaveBeenCalled();
 
     // Crosses 07:45 on this tick — the idle loop's own applyWakeState()
     // check should catch it without anything else restarting the device.
     await vi.advanceTimersByTimeAsync(5000);
 
-    expect(onIdleNextDeparture).toHaveBeenCalledTimes(1); // woke up, showed idle branding
+    expect(onIdleNextDeparture).toHaveBeenCalledTimes(2);
+    expect(onIdleNextDeparture.mock.lastCall[0]).toEqual([expect.objectContaining({ serviceCode: expect.any(String) })]);
     expect(getCurrentPosition).toHaveBeenCalledTimes(1); // and started polling GPS the same tick
+    expect(onSleep).not.toHaveBeenCalled();
   });
 
   it('speaks the approach announcement once per stop, not on every GPS tick — first beta test feedback', async () => {

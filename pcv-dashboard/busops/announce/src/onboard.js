@@ -163,12 +163,10 @@ async function acquireWakeLock() {
     });
   } catch (_) { /* best-effort */ }
 }
-// Solo only (see showSleepScreen()) — lets the OS actually blank the panel
-// once released, rather than leaving it lit-but-blank. Provisioning must
-// cooperate for this to matter physically: the kiosk profile's own
-// keepScreenOn setting has to be off, and the OS screen-timeout short
-// enough to blank promptly — see announce/cab-device/fully-auto-settings.json
-// and setup-solo-device.sh.
+// Only showSleepScreen() calls this (a revoked device). A wake lock can keep
+// a screen on but never switch a sleeping one back on, so since 2026-09-29
+// the Solo's screen follows the tablet's power instead (setup-solo-device.sh)
+// and it shows the idle screen between departures rather than sleeping.
 async function releaseWakeLock() {
   shouldStayAwake = false;
   if (!wakeLock) return;
@@ -638,19 +636,13 @@ export function showNextDeparture(nextDepartures) {
   positionBrand();
 }
 
-// Solo only — fully blank screen (no branding, no logo, no next-departure
-// caption, not even the small corner brand mark) outside the wake window
-// around this device's own candidate departures, AND releases the wake
-// lock so the OS can actually blank the physical panel (see
-// releaseWakeLock's own comment) — not just the on-screen content.
-// Previously only GPS *polling* was gated by the window
-// (announceSoloAutopilot.js's idleTimer) — the idle screen itself, and the
-// screen's actual power state, stayed lit around the clock regardless,
-// which made no sense for a device that only runs a school-run twice a
-// day. Never called while a journey is actually active —
-// announceSoloAutopilot.js's applyWakeState() guards that, a window ending
-// mid-route must not blank the sign (or the screen) out from under real
-// passengers.
+// Fully blank screen (no branding, no logo, no next-departure caption, not
+// even the small corner brand mark), and releases the wake lock. Since
+// 2026-09-29 only for a Solo the server has revoked while it was running
+// from its offline copy (announceDeviceFeed.js). Outside a departure window
+// a Solo now shows the idle screen with no departure line instead
+// (announceSoloAutopilot.js's showIdleForWakeState): blank looked broken on
+// a screen that stays lit while powered.
 export function showSleepScreen() {
   el('onboard-idle').hidden = true;
   el('onboard-sign').hidden = true;
