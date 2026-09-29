@@ -572,7 +572,7 @@ earlier draft.**
   `timetable_departure_id`/day — resolves to the same `journeys` row
   (`get_or_create_manual_journey`'s existing dedupe), and **both devices
   independently attempt to write arrival times for the same stops**. The
-  table's `ignore-duplicates` upsert means whichever device's GPS detects a
+  `record_journey_stop_times()` skipping stops already stored means whichever device's GPS detects a
   given stop and uploads first silently wins that row; the other device's
   timestamp for that stop is dropped, not merged or flagged — a per-stop
   race, not a crash. Accepted as-is for the first real install (2026-09-22,

@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.3.2] - 2026-09-29
+
+**Stop times are saved again (Driver PWA and Announce Solo)**
+
+- fix: no arrival time had been stored on production since 14 July (dev: since 1 September).
+  The Driver PWA's `resolution=ignore-duplicates` POST to `journey_stop_times` is refused for
+  anon (HTTP 401, 42501), and Announce Solo's upsert didn't match the table's partial unique
+  index (42P10); both kept the trip queued on the device and retried it forever. Both now call a
+  new anon-only RPC, `record_journey_stop_times(p_journey_id, p_rows)`
+  (`supabase/migration_record_journey_stop_times.sql`), which checks the duty token and that the
+  journey is in progress, stores every row under that journey, and skips stops already stored,
+  so a retry is safe. Trips already queued on a device upload on their next retry.
+  Production database: migration applied before this release deployed.
+
 ## [2.3.1] - 2026-09-29
 
 **Announce Solo: shows its idle screen between departures; fixes from the first live run**
