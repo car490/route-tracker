@@ -58,6 +58,7 @@ const STATIC_ASSETS = [
   './driver/src/diversionAlert.js',
   './driver/src/journeyAnnouncementPreflight.js',
   './driver/src/brandLogo.js',
+  './driver/src/stopTimesUpload.js',
   './shared/escapeHtml.js',
   './shared/journeyStopTimes.js',
   './shared/journeyCheckpoint.js',

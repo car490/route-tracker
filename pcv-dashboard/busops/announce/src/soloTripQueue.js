@@ -28,8 +28,6 @@
 
 export const QUEUE_KEY = 'busops.announce.solo.queue';
 
-const STOP_TIMES_CONFLICT = { onConflict: 'journey_id,timetable_stop_id', ignoreDuplicates: true };
-
 // Storage first; memory when storage throws or is missing. Corrupt stored
 // data reads as an empty queue.
 function createStore(storage, key) {
@@ -76,7 +74,10 @@ async function sendOp(client, op) {
     return resolvedId;
   }
   if (op.stopRows?.length) {
-    await send(client.from('journey_stop_times').upsert(op.stopRows, STOP_TIMES_CONFLICT));
+    // record_journey_stop_times() skips rows already stored, so a retry after
+    // a failed complete_journey is safe. Not a direct upsert: anon may not
+    // write the table that way (supabase/migration_record_journey_stop_times.sql).
+    await send(client.rpc('record_journey_stop_times', { p_journey_id: op.journeyId, p_rows: op.stopRows }));
   }
   if (op.completeJourney) {
     await send(client.rpc('complete_journey', { p_journey_id: op.journeyId }));

@@ -73,7 +73,7 @@ export function clearCheckpoint({ storage = globalThis.localStorage, key = CHECK
 
 // Stops recorded before the power cut come first and win: a stop recorded
 // twice keeps its first (real) arrival time, the same row the server's
-// ignore-duplicates upload would have kept.
+// record_journey_stop_times() would have kept.
 export function mergeStopRows(savedRows, newRows) {
   const byStop = new Map();
   for (const row of [...(savedRows ?? []), ...(newRows ?? [])]) {

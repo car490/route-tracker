@@ -94,25 +94,26 @@ function thenableOnly(value) {
 }
 
 function makeClient() {
-  // journeyStopTimesUpsert is a stable spy across every client.from('journey_stop_times')
-  // call on this client instance, exposed on the returned object so tests
-  // can assert on it directly without reaching into client.from.mock.results.
-  const journeyStopTimesUpsert = vi.fn(() => thenableOnly({ data: null, error: null }));
+  // recordStopTimes is a stable spy for every rpc('record_journey_stop_times')
+  // call on this client instance, called as (p_rows, p_journey_id) and exposed
+  // on the returned object so tests can assert on it directly. A direct write
+  // to journey_stop_times is refused for anon, so the stub has no table for it.
+  const recordStopTimes = vi.fn(() => thenableOnly({ data: null, error: null }));
   return {
     from: vi.fn((table) => {
       if (table === 'schedule_view') return chainable(SCHEDULE_ROWS);
       if (table === 'service_exceptions') return chainable([]);
       if (table === 'term_dates') return chainable([]);
-      if (table === 'journey_stop_times') return { upsert: journeyStopTimesUpsert };
       throw new Error(`unexpected table in test stub: ${table}`);
     }),
-    rpc: vi.fn((name) => {
+    rpc: vi.fn((name, args) => {
+      if (name === 'record_journey_stop_times') return recordStopTimes(args.p_rows, args.p_journey_id);
       if (name === 'get_or_create_manual_journey') {
         return thenableOnly({ data: [{ journey_id: 'jrn-1' }], error: null });
       }
       return thenableOnly({ data: null, error: null });
     }),
-    journeyStopTimesUpsert,
+    recordStopTimes,
   };
 }
 
@@ -231,13 +232,13 @@ describe('startSoloAutopilot', () => {
     });
     await flush();
 
-    expect(client.journeyStopTimesUpsert).toHaveBeenCalledTimes(1);
-    const [rows, options] = client.journeyStopTimesUpsert.mock.calls[0];
+    expect(client.recordStopTimes).toHaveBeenCalledTimes(1);
+    const [rows, journeyId] = client.recordStopTimes.mock.calls[0];
     expect(rows).toEqual([
       { journey_id: 'jrn-1', timetable_stop_id: 'ts-1', arrived_at: new Date(2026, 7, 24, 8, 0, 30).toISOString(), visit_status: 'visited' },
       { journey_id: 'jrn-1', timetable_stop_id: 'ts-2', arrived_at: arrivedAt.toISOString(), visit_status: 'visited' },
     ]);
-    expect(options).toEqual({ onConflict: 'journey_id,timetable_stop_id', ignoreDuplicates: true });
+    expect(journeyId).toBe('jrn-1');
   });
 
   it('confirms the vehicle at stop 0 immediately on match, so tracking never freezes waiting for the tighter 50m street-stop geofence', async () => {
@@ -469,11 +470,11 @@ function offlineClient() {
     const obj = { select: () => obj, in: () => obj, eq: () => obj, order: () => obj, then: (r) => r({ data: null, error: { message: 'TypeError: Failed to fetch', code: '' } }) };
     return obj;
   };
-  const upsert = vi.fn(fail);
+  const recordStopTimes = vi.fn(fail);
   return {
-    from: vi.fn((table) => (table === 'journey_stop_times' ? { upsert } : failing())),
-    rpc: vi.fn(fail),
-    journeyStopTimesUpsert: upsert,
+    from: vi.fn(() => failing()),
+    rpc: vi.fn((name, args) => (name === 'record_journey_stop_times' ? recordStopTimes(args.p_rows, args.p_journey_id) : fail())),
+    recordStopTimes,
   };
 }
 
@@ -563,7 +564,7 @@ describe('startSoloAutopilot — power cut and no signal', () => {
     await vi.advanceTimersByTimeAsync(0);
     await flush();
 
-    const [rows] = client.journeyStopTimesUpsert.mock.calls[0];
+    const [rows] = client.recordStopTimes.mock.calls[0];
     expect(rows.map((r) => [r.journey_id, r.timetable_stop_id])).toEqual([['jrn-saved', 'ts-1'], ['jrn-saved', 'ts-3']]);
     expect(client.rpc).toHaveBeenCalledWith('complete_journey', { p_journey_id: 'jrn-saved' });
     expect(readCheckpoint({ storage, now: new Date(), key: SOLO_CHECKPOINT_KEY }).status).toBe('none');
@@ -602,8 +603,8 @@ describe('startSoloAutopilot — power cut and no signal', () => {
     await flush();
 
     expect(startAnnounceGpsTracking).not.toHaveBeenCalled();
-    expect(client.journeyStopTimesUpsert).toHaveBeenCalledTimes(1);
-    expect(client.journeyStopTimesUpsert.mock.calls[0][0][0].journey_id).toBe('jrn-saved');
+    expect(client.recordStopTimes).toHaveBeenCalledTimes(1);
+    expect(client.recordStopTimes.mock.calls[0][0][0].journey_id).toBe('jrn-saved');
     expect(client.rpc).not.toHaveBeenCalledWith('complete_journey', expect.anything());
     expect(readCheckpoint({ storage, now, key: SOLO_CHECKPOINT_KEY }).status).toBe('none');
   });
@@ -643,7 +644,7 @@ describe('startSoloAutopilot — power cut and no signal', () => {
 
     const client = makeClient();
     let uploadOnline = false;
-    client.journeyStopTimesUpsert.mockImplementation(() => thenableOnly(uploadOnline
+    client.recordStopTimes.mockImplementation(() => thenableOnly(uploadOnline
       ? { data: null, error: null }
       : { data: null, error: { message: 'TypeError: Failed to fetch', code: '' } }));
     startSoloAutopilot(client, BASE_DEVICE_ROW, { onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture: vi.fn(), onJourneyEnd: vi.fn(), onSleep: vi.fn() }, { storage });

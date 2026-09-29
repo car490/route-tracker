@@ -32,12 +32,10 @@ function makeClient({ online = true, resolvedId = null } = {}) {
       }
       return thenable({ data: null, error: null });
     }),
-    from: vi.fn(() => ({
-      upsert: vi.fn((rows, opts) => {
-        calls.push({ name: 'upsert', rows, opts });
-        return thenable(state.online ? { data: null, error: null } : { data: null, error: { message: 'Failed to fetch' } });
-      }),
-    })),
+    // Stop times go through record_journey_stop_times() only: a direct
+    // write to journey_stop_times is refused for anon (see
+    // supabase/migration_record_journey_stop_times.sql).
+    from: vi.fn(() => { throw new Error('unexpected direct table write'); }),
   };
   return { client, calls, state };
 }
@@ -56,9 +54,9 @@ describe('createSoloTripQueue', () => {
 
     await queue.flush();
 
-    expect(calls.map((c) => c.name)).toEqual(['get_or_create_manual_journey', 'start_journey', 'upsert', 'complete_journey']);
+    expect(calls.map((c) => c.name)).toEqual(['get_or_create_manual_journey', 'start_journey', 'record_journey_stop_times', 'complete_journey']);
     expect(calls[0].args).toEqual({ p_timetable_departure_id: 'dep-1', p_journey_id: 'local-1' });
-    expect(calls[2].opts).toEqual({ onConflict: 'journey_id,timetable_stop_id', ignoreDuplicates: true });
+    expect(calls[2].args).toEqual({ p_journey_id: 'local-1', p_rows: [row('local-1', 'ts-1')] });
     expect(queue.pending()).toBe(0);
   });
 
@@ -85,7 +83,7 @@ describe('createSoloTripQueue', () => {
     const afterRestart = createSoloTripQueue({ client, storage });
     expect(afterRestart.pending()).toBe(1);
     await afterRestart.flush();
-    expect(calls.map((c) => c.name)).toEqual(['upsert', 'complete_journey']);
+    expect(calls.map((c) => c.name)).toEqual(['record_journey_stop_times', 'complete_journey']);
   });
 
   it('uploads an unfinished trip\'s stop times without marking the journey complete', async () => {
@@ -93,7 +91,7 @@ describe('createSoloTripQueue', () => {
     const queue = createSoloTripQueue({ client, storage });
     queue.enqueueTrip({ journeyId: 'j1', stopRows: [row('j1', 'ts-1')], completeJourney: false });
     await queue.flush();
-    expect(calls.map((c) => c.name)).toEqual(['upsert']);
+    expect(calls.map((c) => c.name)).toEqual(['record_journey_stop_times']);
   });
 
   it('skips the upload when no stop was reached, but still completes the journey', async () => {
@@ -115,7 +113,7 @@ describe('createSoloTripQueue', () => {
     await queue.flush();
 
     expect(calls[1].args).toEqual({ p_journey_id: 'server-9' });
-    expect(calls[2].rows).toEqual([row('server-9', 'ts-1')]);
+    expect(calls[2].args).toEqual({ p_journey_id: 'server-9', p_rows: [row('server-9', 'ts-1')] });
     expect(calls[3].args).toEqual({ p_journey_id: 'server-9' });
   });
 
@@ -154,7 +152,7 @@ describe('createSoloTripQueue', () => {
     expect(() => queue.enqueueTrip({ journeyId: 'j1', stopRows: [row('j1', 'ts-1')], completeJourney: true })).not.toThrow();
     expect(queue.pending()).toBe(1);
     await queue.flush();
-    expect(calls.map((c) => c.name)).toEqual(['upsert', 'complete_journey']);
+    expect(calls.map((c) => c.name)).toEqual(['record_journey_stop_times', 'complete_journey']);
     expect(queue.pending()).toBe(0);
   });
 

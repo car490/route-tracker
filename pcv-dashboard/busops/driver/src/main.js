@@ -1,6 +1,7 @@
 import { escapeHtml } from '../../shared/escapeHtml.js';
 import { startGpsTracking } from '../../shared/gps.js';
 import { buildStopTimeRows } from '../../shared/journeyStopTimes.js';
+import { uploadStopTimes } from './stopTimesUpload.js';
 import { shiftStopTimes, minutesFromNow } from '../../shared/scheduleTimeShift.js';
 import { updateUi, renderLog, setOnStopJump } from './ui.js';
 import { initMap, updateMapPosition, invalidateSize } from './map.js';
@@ -75,24 +76,9 @@ function stripIndicator(name) {
 
 // ── Stop time upload ──────────────────────────────────────────────────────────
 
-// resolution=ignore-duplicates makes this safe to call more than once for
-// the same rows: journey_stop_times has a unique index on
-// (journey_id, timetable_stop_id) (supabase/schema.sql), so a row that
-// already landed from an earlier attempt is silently skipped rather than
-// erroring. Needed because a queued trip (see enqueuePendingTrip below) may
-// retry a POST whose rows already succeeded once, if the failure that
-// queued it actually happened on the complete_journey call that follows.
-async function postStopTimeRows(jId, rows) {
-  log('info', `Upload payload (${rows.length} rows): ${JSON.stringify(rows)}`);
-  if (!rows.length) return { ok: true, count: 0 };
-  const res = await sbFetch('/rest/v1/journey_stop_times', {
-    method: 'POST',
-    headers: { 'Prefer': 'return=minimal,resolution=ignore-duplicates' },
-    body: JSON.stringify(rows),
-  });
-  const responseBody = res.ok ? '' : await res.text().catch(() => '(could not read response)');
-  if (!res.ok) log('error', `Upload failed HTTP ${res.status}: ${responseBody}`);
-  return { ok: res.ok, status: res.status, count: rows.length, responseBody };
+// Safe to call more than once for the same rows (see stopTimesUpload.js).
+function postStopTimeRows(jId, rows) {
+  return uploadStopTimes(sbFetch, jId, rows);
 }
 
 // Retries every trip that failed to reach Supabase at completeTrip() time
