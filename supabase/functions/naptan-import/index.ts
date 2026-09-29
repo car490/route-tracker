@@ -10,8 +10,11 @@
  *      Body: { mode: "refresh" }
  *      Re-imports all counties from the companies table, keeping data current.
  *
- * Required Edge Function secrets (set in Supabase Dashboard → Edge Functions → Secrets):
- *   OPENCAGE_API_KEY   — https://opencagedata.com (free tier is sufficient)
+ * Which stops: each county in companies.service_counties maps to its NaPTAN ATCO
+ * area code (../_shared/naptanAreas.mjs; Lincolnshire = 270) and the DfT API is
+ * asked for just those areas. No geocoding service or API key (OpenCage county
+ * bounding boxes were removed 2026-09-29). An unknown county stops the run with
+ * a message saying how to add it.
  *
  * Secured by the CALLER_AUTH_TOKEN Edge Function secret (../_shared/callerAuth.mjs),
  * shared with generate-announcement-clip: the caller's Bearer token must equal it.
@@ -29,19 +32,18 @@
  * write access to naptan_stops (migration_naptan_import_service_role.sql).
  *
  * Each run's status (active/inactive/etc.) is taken from the source Status
- * field, and any previously-active stop within the run's bbox that's missing
- * from the feed entirely (record deleted at the source, not just flagged
- * non-active) is swept to status='removed' — see fetchExistingActiveAtcoCodes().
+ * field, and any previously-active stop in the run's areas (by ATCO prefix)
+ * that's missing from the feed entirely (record deleted at the source, not just
+ * flagged non-active) is swept to status='removed' — see
+ * fetchExistingActiveAtcoCodes(). Stops in other areas are left untouched.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { isAuthorizedCaller } from '../_shared/callerAuth.mjs'
+import { areaCodesForCounties, naptanCsvUrl, stopFromNaptanRow, unknownCountiesMessage } from '../_shared/naptanAreas.mjs'
 
-const NAPTAN_URL  = 'https://naptan.api.dft.gov.uk/v1/access-nodes?dataFormat=csv'
-const BUS_TYPES   = new Set(['BCT', 'BCS', 'BCQ', 'BCP'])
 const BATCH_SIZE  = 500
 
-interface BBox { latMin: number; latMax: number; lonMin: number; lonMax: number }
 interface NaptanStop {
   atco_code: string; naptan_code: string | null; common_name: string
   locality_name: string | null; street: string | null; indicator: string | null
@@ -77,7 +79,6 @@ Deno.serve(async (req) => {
 
 async function runImport(mode: string, counties: string[]) {
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
-  const opencageKey = Deno.env.get('OPENCAGE_API_KEY')!
 
   // Resolve target counties
   let targetCounties = counties
@@ -92,22 +93,21 @@ async function runImport(mode: string, counties: string[]) {
   }
   if (!targetCounties.length) throw new Error('No counties to import')
 
-  console.log(`naptan-import [${mode}]: ${targetCounties.join(', ')}`)
+  // Counties -> NaPTAN ATCO area codes (no geocoding)
+  const { codes: areaCodes, unknown } = areaCodesForCounties(targetCounties)
+  if (unknown.length) throw new Error(unknownCountiesMessage(unknown))
+  console.log(`naptan-import [${mode}]: ${targetCounties.join(', ')} -> areas ${areaCodes.join(', ')}`)
 
-  // Geocode each county to a bbox
-  const bboxes = await Promise.all(targetCounties.map(c => geocodeCounty(c, opencageKey)))
-  const bbox   = mergeBboxes(bboxes)
-  console.log(`Merged bbox: lat ${bbox.latMin}–${bbox.latMax}, lon ${bbox.lonMin}–${bbox.lonMax}`)
-
-  // Stream NAPTAN CSV and filter to bbox
-  const stops = await streamNaptanCsv(bbox)
+  // Stream just those areas' NaPTAN CSV
+  const stops = await streamNaptanCsv(areaCodes)
   console.log(`Filtered to ${stops.length} stops`)
+  if (!stops.length) throw new Error(`NaPTAN returned no bus stops for areas ${areaCodes.join(', ')}`)
 
   // Snapshot which currently-active stops already exist in this area — used
   // below to detect stops that have dropped out of the feed entirely (as
   // opposed to still being present but flagged non-active, which the real
   // Status value on each row already covers).
-  const existingCodes = await fetchExistingActiveAtcoCodes(supabase, bbox)
+  const existingCodes = await fetchExistingActiveAtcoCodes(supabase, areaCodes)
 
   // Upsert in batches
   for (let i = 0; i < stops.length; i += BATCH_SIZE) {
@@ -137,66 +137,36 @@ async function runImport(mode: string, counties: string[]) {
 
 async function fetchExistingActiveAtcoCodes(
   supabase: ReturnType<typeof createClient>,
-  bbox: BBox,
+  areaCodes: string[],
 ): Promise<string[]> {
   const PAGE_SIZE = 1000
   const codes: string[] = []
-  let from = 0
 
-  for (;;) {
-    const { data, error } = await supabase
-      .from('naptan_stops')
-      .select('atco_code')
-      .eq('status', 'active')
-      .gte('lat', bbox.latMin).lte('lat', bbox.latMax)
-      .gte('lon', bbox.lonMin).lte('lon', bbox.lonMax)
-      .range(from, from + PAGE_SIZE - 1)
-    if (error) throw new Error(`Failed to read existing naptan_stops: ${error.message}`)
+  for (const area of areaCodes) {  // three-digit codes, checked by naptanCsvUrl()
+    let from = 0
+    for (;;) {
+      const { data, error } = await supabase
+        .from('naptan_stops')
+        .select('atco_code')
+        .eq('status', 'active')
+        .like('atco_code', `${area}%`)
+        .order('atco_code')
+        .range(from, from + PAGE_SIZE - 1)
+      if (error) throw new Error(`Failed to read existing naptan_stops: ${error.message}`)
 
-    codes.push(...(data ?? []).map((r: { atco_code: string }) => r.atco_code))
-    if (!data || data.length < PAGE_SIZE) break
-    from += PAGE_SIZE
+      codes.push(...(data ?? []).map((r: { atco_code: string }) => r.atco_code))
+      if (!data || data.length < PAGE_SIZE) break
+      from += PAGE_SIZE
+    }
   }
 
   return codes
 }
 
-// ── OpenCage geocoding ─────────────────────────────────────────────────────────
-
-async function geocodeCounty(county: string, apiKey: string): Promise<BBox> {
-  const url  = `https://api.opencagedata.com/geocode/v1/json?q=${encodeURIComponent(county + ', UK')}&key=${apiKey}&limit=1&no_annotations=1`
-  const res  = await fetch(url, { headers: { 'User-Agent': 'RouteTracker/1.0' } })
-  const json = await res.json()
-
-  const bounds = json.results?.[0]?.bounds
-  if (!bounds) {
-    // OpenCage's own status says why (e.g. 401 invalid/missing key, 402 quota).
-    // Never include the request URL here: it carries the API key.
-    const why = json.status ? `OpenCage ${json.status.code}: ${json.status.message}` : `HTTP ${res.status}`
-    throw new Error(`OpenCage returned no bounds for "${county}" (${why})`)
-  }
-
-  return {
-    latMin: bounds.southwest.lat,
-    latMax: bounds.northeast.lat,
-    lonMin: bounds.southwest.lng,
-    lonMax: bounds.northeast.lng,
-  }
-}
-
-function mergeBboxes(bboxes: BBox[]): BBox {
-  return {
-    latMin: Math.min(...bboxes.map(b => b.latMin)),
-    latMax: Math.max(...bboxes.map(b => b.latMax)),
-    lonMin: Math.min(...bboxes.map(b => b.lonMin)),
-    lonMax: Math.max(...bboxes.map(b => b.lonMax)),
-  }
-}
-
 // ── NAPTAN CSV streaming ───────────────────────────────────────────────────────
 
-async function streamNaptanCsv(bbox: BBox): Promise<NaptanStop[]> {
-  const res = await fetch(NAPTAN_URL, {
+async function streamNaptanCsv(areaCodes: string[]): Promise<NaptanStop[]> {
+  const res = await fetch(naptanCsvUrl(areaCodes), {
     headers: { 'Accept-Encoding': 'gzip, deflate', 'User-Agent': 'RouteTracker/1.0' },
   })
   if (!res.ok) throw new Error(`NAPTAN API returned ${res.status}`)
@@ -206,43 +176,26 @@ async function streamNaptanCsv(bbox: BBox): Promise<NaptanStop[]> {
   let   buffer  = ''
   const decoder = new TextDecoder()
 
+  const handleLine = (line: string) => {
+    if (!line.trim()) return
+    if (!headers) { headers = parseCsv(line); return }
+
+    const cols: Record<string, string> = {}
+    parseCsv(line).forEach((v, i) => { cols[headers![i]] = v })
+
+    const stop = stopFromNaptanRow(cols, areaCodes, new Date().toISOString())
+    if (stop) stops.push(stop)
+  }
+
   for await (const chunk of res.body as AsyncIterable<Uint8Array>) {
     buffer += decoder.decode(chunk, { stream: true })
     const lines = buffer.split('\n')
     buffer = lines.pop() ?? ''
-
-    for (const line of lines) {
-      if (!line.trim()) continue
-
-      if (!headers) { headers = parseCsv(line); continue }
-
-      const cols: Record<string, string> = {}
-      parseCsv(line).forEach((v, i) => { cols[headers![i]] = v })
-
-      const status   = (cols['Status'] ?? '').toLowerCase()
-      const stopType = cols['StopType'] ?? ''
-      if (!BUS_TYPES.has(stopType)) continue
-
-      const lat = parseFloat(cols['Latitude'])
-      const lon = parseFloat(cols['Longitude'])
-      if (!lat || !lon) continue
-      if (lat < bbox.latMin || lat > bbox.latMax || lon < bbox.lonMin || lon > bbox.lonMax) continue
-
-      stops.push({
-        atco_code:    cols['ATCOCode'] || cols['AtcoCode'] || '',
-        naptan_code:  cols['NaptanCode'] || null,
-        common_name:  cols['CommonName'] || '',
-        locality_name: cols['LocalityName'] || null,
-        street:       cols['Street'] || null,
-        indicator:    cols['Indicator'] || null,
-        bearing:      cols['Bearing'] || null,
-        lat, lon,
-        stop_type:    stopType,
-        status:       status || 'active',
-        updated_at:   new Date().toISOString(),
-      })
-    }
+    lines.forEach(handleLine)
   }
+  // The last row has no trailing newline; without this it was dropped, and
+  // the sweep would then mark that stop 'removed' on every run.
+  handleLine(buffer + decoder.decode())
 
   return stops
 }

@@ -60,7 +60,8 @@ create table companies (
   noc_code                  char(4)     unique,
   -- Logo stored in Supabase Storage bucket 'operator-assets' at path {company_id}/logo.*
   logo_path                 text,
-  -- County names used to build the NAPTAN import bounding box via OpenCage.
+  -- County names; each maps to its NaPTAN ATCO area code for the NaPTAN import
+  -- (supabase/functions/_shared/naptanAreas.mjs; no geocoding since 2026-09-29).
   -- Multiple counties supported for operators whose routes cross county lines.
   service_counties          text[]      not null default '{}',
   -- Multi-tenant branding ("The Wrap")
