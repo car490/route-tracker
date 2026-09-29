@@ -106,7 +106,7 @@ select * from (
   select 'column_grant', table_name || '.' || column_name || ':' || grantee,
          string_agg(privilege_type, ',' order by privilege_type)
   from information_schema.column_privileges
-  where table_schema = 'public' and grantee in ('anon', 'authenticated')
+  where table_schema = 'public' and grantee in ('anon', 'authenticated', 'service_role')
     and not exists (
       select 1 from information_schema.role_table_grants g
       where g.table_schema = 'public' and g.table_name = column_privileges.table_name

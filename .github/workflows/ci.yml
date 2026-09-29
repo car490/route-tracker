@@ -30,9 +30,9 @@ jobs:
       - run: npm run test:vitest
         working-directory: pcv-dashboard/busops
       # Announcement voice (Ben) shared logic: levelling, render rules, ElevenLabs request, secret scan;
-      # Controller clip export; dev/production database parity comparison (scripts/db-drift).
+      # Edge Function caller check; Controller clip export; dev/production database parity (scripts/db-drift).
       # Plain node:test, no dependencies; see docs/ANNOUNCE-VOICE-PLAN.md.
-      - run: node --test supabase/functions/_shared/announce-voice/*.test.mjs scripts/controller-clips/*.test.mjs scripts/db-drift/*.test.mjs
+      - run: node --test supabase/functions/_shared/*.test.mjs supabase/functions/_shared/announce-voice/*.test.mjs scripts/controller-clips/*.test.mjs scripts/db-drift/*.test.mjs
 
   dashboard-lint:
     name: Dashboard — lint

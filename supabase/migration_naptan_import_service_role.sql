@@ -1,0 +1,13 @@
+-- NaPTAN import: service_role may read companies.service_counties (2026-09-29).
+-- Idempotent; apply to dev, then production.
+--
+-- The naptan-import Edge Function's weekly refresh (cron naptan-weekly-refresh,
+-- body {"mode":"refresh"}) reads companies.service_counties with the function's
+-- own service-role key. service_role had no rights on companies on production
+-- (and, since migration_dev_prod_parity.sql, on dev), so once the function's
+-- caller check was fixed the refresh would have failed with "permission
+-- denied for table companies". Column-level, not the whole table: the refresh
+-- needs nothing else (licence number, email, address stay out of reach).
+-- naptan_stops already grants service_role all it needs.
+-- Verified by supabase/tests/naptan_import_access.sql.
+grant select (service_counties) on public.companies to service_role;

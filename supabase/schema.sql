@@ -2927,6 +2927,10 @@ end $$;
 -- the revoke above also removed these column grants.
 grant select (id, name, logo_path, primary_color, accent_color) on public.companies to anon;
 
+-- naptan-import's weekly refresh reads service_counties with the service-role
+-- key (migration_naptan_import_service_role.sql); nothing else on companies.
+grant select (service_counties) on public.companies to service_role;
+
 -- Sequences (the identity columns of announcement_clip_reviews and
 -- elevenlabs_usage): authenticated only, as on production. Identity inserts
 -- by service_role don't need sequence rights.
