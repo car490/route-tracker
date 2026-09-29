@@ -213,7 +213,7 @@ process.on('SIGTERM', shutdown);
     console.log('Click through the duty card, pick the first stop');
     console.log('("Weston, adj The Chequers PH") as the starting point, and hit Start.');
   } else {
-    console.log('Click "Select a service manually", choose');
+    console.log('Click "Select a journey", choose');
     console.log(`Service: ${MANUAL_SERVICE}, Period: the one starting "${MANUAL_PERIOD}", then hit Start.`);
   }
   console.log('\nWaiting for the journey to start…');

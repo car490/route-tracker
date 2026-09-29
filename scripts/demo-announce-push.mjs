@@ -229,7 +229,7 @@ process.on('SIGTERM', shutdown);
   ]);
 
   console.log('\nThree windows are open.');
-  console.log('LEFT        (driver PWA):    click "Select a service manually", choose');
+  console.log('LEFT        (driver PWA):    click "Select a journey", choose');
   console.log(`                             Service: ${MANUAL_SERVICE}, Period: ${MANUAL_PERIOD}, then hit Start.`);
   console.log('TOP RIGHT    (Announce, Bar):   nothing to click — both connect to the pushed');
   console.log('BOTTOM RIGHT (Announce, Lite):  feed on their own and wake once the driver hits Start.');

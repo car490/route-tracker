@@ -93,4 +93,5 @@ test('the waiting screen puts automatic start first, then "Or", then picking by 
   expect(note.querySelector('.ndc-or').textContent.trim()).toBe('Or');
   expect(body.textContent.trim()).toBe("Tap below to select one of today's journeys.");
   expect(note.compareDocumentPosition(body) & 4 /* DOCUMENT_POSITION_FOLLOWING */).toBeTruthy();
+  expect(doc.getElementById('ndc-manual-btn').textContent.trim()).toBe('Select a journey');
 });
