@@ -1,7 +1,7 @@
 import { escapeHtml } from '../../shared/escapeHtml.js';
 import { startGpsTracking } from '../../shared/gps.js';
 import { buildStopTimeRows } from '../../shared/journeyStopTimes.js';
-import { uploadStopTimes } from './stopTimesUpload.js';
+import { uploadStopTimes, isRefusal, reportUploadProblem } from './stopTimesUpload.js';
 import { shiftStopTimes, minutesFromNow } from '../../shared/scheduleTimeShift.js';
 import { updateUi, renderLog, setOnStopJump } from './ui.js';
 import { initMap, updateMapPosition, invalidateSize } from './map.js';
@@ -34,7 +34,7 @@ import {
 import { ANNOUNCE_STATES, resolveApproachOrArrivalState } from '../../shared/announceStates.js';
 import { fetchLinkedAnnounceDeviceId, pushAnnounceDeviceState, endAnnounceDeviceJourney } from './announceDeviceLinkApi.js';
 import {
-  enqueuePendingTrip, getPendingTrips, removePendingTrip, markPendingTripAttempt,
+  enqueuePendingTrip, getPendingTrips, removePendingTrip, markPendingTripAttempt, markPendingTripRefusalReported,
   getPendingJourneyStarts, removePendingJourneyStart, markPendingJourneyStartAttempt,
 } from './localStore.js';
 
@@ -95,7 +95,17 @@ async function flushPendingTrips() {
   for (const trip of getPendingTrips()) {
     try {
       const uploadResult = await postStopTimeRows(trip.journeyId, trip.stopRows);
-      if (!uploadResult.ok) throw new Error(`stop times ${uploadResult.status}`);
+      if (!uploadResult.ok) {
+        // Refused (not just no signal): tell the office once; keep retrying.
+        if (isRefusal(uploadResult.status) && !trip.refusalReported) {
+          const reported = await reportUploadProblem(sbFetch, {
+            journeyId: trip.journeyId, httpStatus: uploadResult.status,
+            reason: uploadResult.responseBody, rowCount: trip.stopRows.length,
+          });
+          if (reported) markPendingTripRefusalReported(trip.id);
+        }
+        throw new Error(`stop times ${uploadResult.status}`);
+      }
       if (trip.completeJourney !== false) await rpc('complete_journey', { p_journey_id: trip.journeyId });
       removePendingTrip(trip.id);
       log('info', `Synced queued trip ${trip.journeyId} (${trip.stopRows.length} stop time(s))`);
@@ -192,6 +202,8 @@ function greetingPrefix() {
 // shown right after the terminus arrival announcement).
 const TRIP_COMPLETE_AUTO_DISMISS_MS = 8000;
 const PENDING_SYNC_AUTO_DISMISS_MS = 10000;
+// Longer: this one asks the driver to do something.
+const REFUSED_UPLOAD_AUTO_DISMISS_MS = 30000;
 
 function showInfoBanner({ title, body, durationMs, onDismiss }) {
   const overlay = document.getElementById('trip-complete-overlay');
@@ -805,9 +817,11 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
       // Includes any stops recorded before a power cut (journeyCheckpoint.js).
       const stopRows = checkpoint ? checkpoint.finalRows(stopStatesRef) : buildStopTimeRows(journeyId, stopStatesRef, allStops);
       let completed = false;
+      let refusal = null; // the server answered and said no, as opposed to no signal
       try {
         const uploadResult = await postStopTimeRows(journeyId, stopRows);
         if (!uploadResult.ok) {
+          if (isRefusal(uploadResult.status)) refusal = { httpStatus: uploadResult.status, reason: uploadResult.responseBody };
           throw new Error(`stop times upload failed: HTTP ${uploadResult.status} ${uploadResult.responseBody || ''}`);
         }
         await rpc('complete_journey', { p_journey_id: journeyId });
@@ -820,6 +834,20 @@ function runTracker({ allStops, journeyId, driverId, vehicleId, initialStopIndex
         checkpoint?.clear();
         log('info', `Uploaded ${stopRows.length} stop time(s)`);
         showTripCompleteBanner(finish);
+      } else if (refusal) {
+        // Kept and retried like any queued trip, but retrying won't help on
+        // its own: the driver is asked to tell the office, and the office is
+        // warned directly (the dashboard's Journeys page).
+        const pendingId = enqueuePendingTrip({ journeyId, stopRows });
+        checkpoint?.clear();
+        reportUploadProblem(sbFetch, { journeyId, ...refusal, rowCount: stopRows.length })
+          .then((reported) => { if (reported) markPendingTripRefusalReported(pendingId); });
+        showInfoBanner({
+          title: 'Stop times not accepted',
+          body: `The server did not accept this trip's ${stopRows.length} stop time(s). They are kept on this device. Please tell the office.`,
+          durationMs: REFUSED_UPLOAD_AUTO_DISMISS_MS,
+          onDismiss: finish,
+        });
       } else {
         enqueuePendingTrip({ journeyId, stopRows });
         checkpoint?.clear();

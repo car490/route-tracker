@@ -156,6 +156,39 @@ describe('createSoloTripQueue', () => {
     expect(queue.pending()).toBe(0);
   });
 
+  it('a refused upload is reported to ops once, and the trip stays queued', async () => {
+    const { client, calls } = makeClient();
+    client.rpc.mockImplementation((name, args) => {
+      calls.push({ name, args });
+      if (name === 'record_journey_stop_times') {
+        return thenable({ data: null, error: { message: 'Journey j1 is not in progress', code: '42501' }, status: 401 });
+      }
+      return thenable({ data: null, error: null, status: 204 });
+    });
+    const queue = createSoloTripQueue({ client, storage });
+    queue.enqueueTrip({ journeyId: 'j1', stopRows: [row('j1', 'ts-1'), row('j1', 'ts-2')], completeJourney: true });
+
+    await queue.flush();
+    await queue.flush();
+
+    const reports = calls.filter((c) => c.name === 'report_stop_time_upload_problem');
+    expect(reports).toHaveLength(1);
+    expect(reports[0].args).toEqual({
+      p_journey_id: 'j1', p_source: 'solo', p_http_status: 401, p_reason: 'Journey j1 is not in progress', p_row_count: 2,
+    });
+    expect(calls.filter((c) => c.name === 'complete_journey')).toHaveLength(0);
+    expect(queue.pending()).toBe(1);
+  });
+
+  it('no signal is not reported (it is not a refusal)', async () => {
+    const { client, calls } = makeClient({ online: false });
+    const queue = createSoloTripQueue({ client, storage });
+    queue.enqueueTrip({ journeyId: 'j1', stopRows: [row('j1', 'ts-1')], completeJourney: true });
+    await queue.flush();
+    expect(calls.map((c) => c.name)).toEqual(['record_journey_stop_times']);
+    expect(queue.pending()).toBe(1);
+  });
+
   it('works with no storage at all', async () => {
     const { client, calls } = makeClient();
     const queue = createSoloTripQueue({ client, storage: undefined });

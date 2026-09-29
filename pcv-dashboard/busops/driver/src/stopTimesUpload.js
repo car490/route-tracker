@@ -16,6 +16,8 @@
 
 import { log } from '../../shared/logger.js';
 
+export { isRefusal } from '../../shared/uploadRefusal.js';
+
 export async function uploadStopTimes(fetchFn, journeyId, rows) {
   log('info', `Upload payload (${rows.length} rows): ${JSON.stringify(rows)}`);
   if (!rows.length) return { ok: true, count: 0 };
@@ -26,4 +28,28 @@ export async function uploadStopTimes(fetchFn, journeyId, rows) {
   const responseBody = res.ok ? '' : await res.text().catch(() => '(could not read response)');
   if (!res.ok) log('error', `Upload failed HTTP ${res.status}: ${responseBody}`);
   return { ok: res.ok, status: res.status, count: rows.length, responseBody };
+}
+
+// Tells ops the server refused this trip's stop times
+// (supabase/migration_stop_time_upload_problem.sql): the dashboard's Journeys
+// page shows it until a later upload is accepted. Never throws; resolves true
+// if the report was taken.
+export async function reportUploadProblem(fetchFn, { journeyId, httpStatus, reason, rowCount }) {
+  try {
+    const res = await fetchFn('/rest/v1/rpc/report_stop_time_upload_problem', {
+      method: 'POST',
+      body: JSON.stringify({
+        p_journey_id: journeyId,
+        p_source: 'driver',
+        p_http_status: httpStatus ?? null,
+        p_reason: String(reason ?? '').slice(0, 500),
+        p_row_count: rowCount ?? 0,
+      }),
+    });
+    if (!res.ok) log('warn', `Could not report the refused upload to the office: HTTP ${res.status}`);
+    return res.ok;
+  } catch (err) {
+    log('warn', `Could not report the refused upload to the office: ${err.message}`);
+    return false;
+  }
 }

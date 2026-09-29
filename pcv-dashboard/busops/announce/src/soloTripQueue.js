@@ -26,6 +26,8 @@
 // used at all (blocked, full), the queue carries on in memory for this
 // session rather than dropping what it was given.
 
+import { isRefusal } from '../../shared/uploadRefusal.js';
+
 export const QUEUE_KEY = 'busops.announce.solo.queue';
 
 // Storage first; memory when storage throws or is missing. Corrupt stored
@@ -57,9 +59,14 @@ function createStore(storage, key) {
 
 // supabase-js reports a failed request as { error } rather than throwing,
 // but a network failure can also throw — either counts as "not sent".
+// The HTTP status rides on the error so a refusal can be told from no signal.
 async function send(promiseLike) {
-  const { data, error } = await promiseLike;
-  if (error) throw new Error(error.message ?? 'request failed');
+  const { data, error, status } = await promiseLike;
+  if (error) {
+    const err = new Error(error.message ?? 'request failed');
+    err.status = status;
+    throw err;
+  }
   return data;
 }
 
@@ -77,7 +84,12 @@ async function sendOp(client, op) {
     // record_journey_stop_times() skips rows already stored, so a retry after
     // a failed complete_journey is safe. Not a direct upsert: anon may not
     // write the table that way (supabase/migration_record_journey_stop_times.sql).
-    await send(client.rpc('record_journey_stop_times', { p_journey_id: op.journeyId, p_rows: op.stopRows }));
+    try {
+      await send(client.rpc('record_journey_stop_times', { p_journey_id: op.journeyId, p_rows: op.stopRows }));
+    } catch (err) {
+      err.stopTimes = true;
+      throw err;
+    }
   }
   if (op.completeJourney) {
     await send(client.rpc('complete_journey', { p_journey_id: op.journeyId }));
@@ -101,6 +113,26 @@ export function createSoloTripQueue({ client, storage = globalThis.localStorage,
     store.write([...store.read(), op]);
   }
 
+  // The server refused this trip's stop times: tell ops once
+  // (supabase/migration_stop_time_upload_problem.sql; the dashboard's
+  // Journeys page shows it). The trip stays queued and is still retried.
+  async function reportRefusal(op, err) {
+    try {
+      await send(client.rpc('report_stop_time_upload_problem', {
+        p_journey_id: op.journeyId,
+        p_source: 'solo',
+        p_http_status: err.status,
+        p_reason: String(err.message ?? '').slice(0, 500),
+        p_row_count: op.stopRows.length,
+      }));
+      const [first, ...rest] = store.read();
+      if (first === undefined) return;
+      store.write([{ ...first, refusalReported: true }, ...rest]);
+    } catch (reportErr) {
+      console.warn('soloTripQueue: could not report the refused upload', op.journeyId, reportErr?.message);
+    }
+  }
+
   async function drain() {
     for (;;) {
       const ops = store.read();
@@ -111,6 +143,7 @@ export function createSoloTripQueue({ client, storage = globalThis.localStorage,
         resolvedId = await sendOp(client, op);
       } catch (err) {
         console.warn('soloTripQueue: still cannot send, kept for later', op.type, op.journeyId, err?.message);
+        if (err?.stopTimes && isRefusal(err.status) && !op.refusalReported) await reportRefusal(op, err);
         return;
       }
       let rest = store.read().slice(1);
