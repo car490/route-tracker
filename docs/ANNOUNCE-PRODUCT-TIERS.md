@@ -677,6 +677,10 @@ schedule/window concepts the fixes were about to add a fifth and sixth to.
   the panel lit permanently regardless of what the web app does), and
   `setup-solo-device.sh` now sets a short OS-level `screen_off_timeout`
   (60s) so the release actually blanks the panel promptly.
+  **Superseded 2026-09-29** (`docs/DECISIONS.md` "Solo screen power"): a
+  wake lock can't switch a sleeping screen back on, so on the first live run
+  the Solo stayed dark. The screen now follows the tablet's power and shows
+  the idle screen (no departure line) between departures.
 - **Simplification: `announce_device_active_windows` dropped entirely**,
   not kept alongside the fixes above. That admin-configured day/time table
   hand-duplicated data that already lives on the timetable itself —

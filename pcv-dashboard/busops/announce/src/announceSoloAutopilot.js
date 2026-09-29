@@ -307,8 +307,20 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     );
     if (awake === isAwake) return;
     isAwake = awake;
-    if (awake) reportNextDeparture();
-    else onSleep?.();
+    showIdleForWakeState();
+  }
+
+  // Outside the window: the idle screen (branding) with no next-departure
+  // line, not a blank screen (owner, 2026-09-29, after the first live run).
+  // The screen now follows the tablet's power, so a blank page was a lit
+  // white panel that looked broken, and a page can't switch a sleeping
+  // screen back on anyway (a wake lock only keeps one on). No departure line
+  // because reportNextDeparture() works from time of day only and would
+  // promise one on a day with no service. onSleep (blank) is now only for a
+  // device the server has revoked (announceDeviceFeed.js).
+  function showIdleForWakeState() {
+    if (isAwake) reportNextDeparture();
+    else onIdleNextDeparture?.(null);
   }
 
   function useCandidates(result) {
@@ -434,8 +446,7 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
       isAwake = isWithinDepartureWakeWindow(
         new Date(), candidates, deviceRow.match_window_before_min, deviceRow.match_window_after_min, termDateRanges
       );
-      if (isAwake) reportNextDeparture();
-      else onSleep?.();
+      showIdleForWakeState();
     }, POST_JOURNEY_HOLD_MS);
   }
 
