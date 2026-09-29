@@ -5,23 +5,17 @@
  * Usage:
  *   SUPABASE_URL=https://<ref>.supabase.co \
  *   SUPABASE_SERVICE_KEY=<service-role-key> \
- *   OPENCAGE_API_KEY=<opencage-key> \
  *   node supabase/scripts/import-naptan.js
  *
  * The service role key bypasses RLS for bulk upsert. Get it from:
  *   Supabase Dashboard → Settings → API → service_role (secret)
  *
- * The OpenCage API key is used to geocode the county names stored in
- * companies.service_counties into a bounding box. Free tier (2,500 req/day)
- * is sufficient. Get a key at https://opencagedata.com
- *
- * The bounding box is derived at runtime from the company's service_counties
- * field — no hardcoded coordinates. Add counties to that field if routes
- * expand into neighbouring areas.
- *
- * For scheduled services (Local Bus, Schools) stops are snapped to the nearest
- * NAPTAN stop within the coverage area. Excursions and Private Hire use
- * OpenCage geocoding for freeform destinations and do not require NAPTAN.
+ * Which stops: each county in companies.service_counties maps to its NaPTAN
+ * ATCO area code (supabase/functions/_shared/naptanAreas.mjs, shared with the
+ * naptan-import Edge Function; Lincolnshire = 270) and only those areas are
+ * downloaded. No geocoding service or API key (OpenCage county bounding boxes
+ * were removed 2026-09-29). Add counties to that field if routes expand into
+ * neighbouring areas; an unknown county stops the run with how to add it.
  *
  * Bus stop types imported (rail, ferry, tram excluded):
  *   BCT  On-street Bus/Coach/Tram stop
@@ -32,8 +26,8 @@
  * Run when service_counties changes, or periodically to pick up NAPTAN updates.
  *
  * Each run's status (active/inactive/etc.) is taken from the source Status
- * field, and any previously-active stop in the covered area that's missing
- * from the feed entirely (record deleted at the source, not just flagged
+ * field, and any previously-active stop in the covered areas (by ATCO prefix)
+ * that's missing from the feed entirely (record deleted at the source, not just flagged
  * non-active) is swept to status='removed' — see markRemovedBatched().
  */
 
@@ -42,15 +36,15 @@
 const https    = require('https')
 const zlib     = require('zlib')
 const readline = require('readline')
+// Plain ES module with no imports; Node 22 require()s it directly.
+const { areaCodesForCounties, naptanCsvUrl, stopFromNaptanRow, unknownCountiesMessage } =
+  require('../functions/_shared/naptanAreas.mjs')
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 
 const SUPABASE_URL  = process.env.SUPABASE_URL
 const SUPABASE_KEY  = process.env.SUPABASE_SERVICE_KEY
-const OPENCAGE_KEY  = process.env.OPENCAGE_API_KEY
 
-const BUS_STOP_TYPES = new Set(['BCT', 'BCS', 'BCQ', 'BCP'])
-const NAPTAN_URL     = 'https://naptan.api.dft.gov.uk/v1/access-nodes?dataFormat=csv'
 const BATCH_SIZE     = 500
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -58,7 +52,6 @@ const BATCH_SIZE     = 500
 async function main() {
   if (!SUPABASE_URL)  { console.error('ERROR: SUPABASE_URL env var is required.');         process.exit(1) }
   if (!SUPABASE_KEY)  { console.error('ERROR: SUPABASE_SERVICE_KEY env var is required.'); process.exit(1) }
-  if (!OPENCAGE_KEY)  { console.error('ERROR: OPENCAGE_API_KEY env var is required.');     process.exit(1) }
 
   // 1. Read service counties from the companies table
   console.log('Reading service counties from database...')
@@ -69,25 +62,21 @@ async function main() {
   }
   console.log(`  Counties: ${counties.join(', ')}`)
 
-  // 2. Geocode each county to a bounding box via OpenCage
-  console.log('Geocoding counties via OpenCage...')
-  const bboxes = []
-  for (const county of counties) {
-    const bbox = await geocodeCounty(county)
-    console.log(`  ${county}: lat ${bbox.latMin.toFixed(4)}–${bbox.latMax.toFixed(4)}, lon ${bbox.lonMin.toFixed(4)}–${bbox.lonMax.toFixed(4)}`)
-    bboxes.push(bbox)
+  // 2. Counties -> NaPTAN ATCO area codes (no geocoding)
+  const { codes: areaCodes, unknown } = areaCodesForCounties(counties)
+  if (unknown.length) {
+    console.error(`ERROR: ${unknownCountiesMessage(unknown)}`)
+    process.exit(1)
   }
-  const bbox = mergeBboxes(bboxes)
-  console.log(`  Merged bbox: lat ${bbox.latMin.toFixed(4)}–${bbox.latMax.toFixed(4)}, lon ${bbox.lonMin.toFixed(4)}–${bbox.lonMax.toFixed(4)}`)
+  console.log(`  NaPTAN areas: ${areaCodes.join(', ')}`)
 
-  // 3. Download and filter NAPTAN data
+  // 3. Download just those areas' NAPTAN data
   console.log('\nDownloading NAPTAN data from DfT...')
-  console.log('(This may take a minute — full GB CSV is ~150 MB)\n')
-  const stops = await streamNaptanCsv(bbox)
+  const stops = await streamNaptanCsv(areaCodes)
   console.log(`\nFiltered to ${stops.length} bus stops (any status)`)
 
   if (!stops.length) {
-    console.error('No stops found — check service_counties and OpenCage result')
+    console.error(`No stops found for NaPTAN areas ${areaCodes.join(', ')} — check service_counties`)
     process.exit(1)
   }
 
@@ -96,7 +85,7 @@ async function main() {
   //    (as opposed to still being present but flagged non-active, which the
   //    real Status value passed through above already covers).
   console.log('Checking for existing stops in this area...')
-  const existingCodes = await fetchExistingActiveAtcoCodes(bbox)
+  const existingCodes = await fetchExistingActiveAtcoCodes(areaCodes)
 
   // 5. Upsert to Supabase
   console.log('Upserting to naptan_stops...')
@@ -152,61 +141,11 @@ function fetchServiceCounties() {
   })
 }
 
-// ── OpenCage geocoding ────────────────────────────────────────────────────────
-
-function geocodeCounty(countyName) {
-  return new Promise((resolve, reject) => {
-    const query = encodeURIComponent(`${countyName}, UK`)
-    const path  = `/geocode/v1/json?q=${query}&key=${OPENCAGE_KEY}&limit=1&no_annotations=1`
-
-    const options = {
-      hostname: 'api.opencagedata.com',
-      path,
-      method:   'GET',
-      headers:  { 'User-Agent': 'RouteTracker/1.0' },
-    }
-
-    const req = https.request(options, res => {
-      let data = ''
-      res.on('data', chunk => { data += chunk })
-      res.on('end', () => {
-        if (res.statusCode !== 200) {
-          reject(new Error(`OpenCage error (HTTP ${res.statusCode}) for "${countyName}": ${data}`))
-          return
-        }
-        const json = JSON.parse(data)
-        const result = json.results?.[0]
-        if (!result?.bounds) {
-          reject(new Error(`OpenCage returned no bounds for "${countyName}"`))
-          return
-        }
-        resolve({
-          latMin: result.bounds.southwest.lat,
-          latMax: result.bounds.northeast.lat,
-          lonMin: result.bounds.southwest.lng,
-          lonMax: result.bounds.northeast.lng,
-        })
-      })
-    })
-    req.on('error', reject)
-    req.end()
-  })
-}
-
-function mergeBboxes(bboxes) {
-  return {
-    latMin: Math.min(...bboxes.map(b => b.latMin)),
-    latMax: Math.max(...bboxes.map(b => b.latMax)),
-    lonMin: Math.min(...bboxes.map(b => b.lonMin)),
-    lonMax: Math.max(...bboxes.map(b => b.lonMax)),
-  }
-}
-
 // ── NAPTAN CSV download + parse ───────────────────────────────────────────────
 
-function streamNaptanCsv(bbox) {
+function streamNaptanCsv(areaCodes) {
   return new Promise((resolve, reject) => {
-    const url     = new URL(NAPTAN_URL)
+    const url     = new URL(naptanCsvUrl(areaCodes))
     const options = {
       hostname: url.hostname,
       path:     url.pathname + url.search,
@@ -245,29 +184,9 @@ function streamNaptanCsv(bbox) {
         const row      = {}
         headers.forEach((h, i) => { row[h] = cols[i] ?? '' })
 
-        const status   = (row['Status'] || '').toLowerCase()
-        const stopType = row['StopType'] || ''
-        if (!BUS_STOP_TYPES.has(stopType))   { skipped++; return }
-
-        const lat = parseFloat(row['Latitude'])
-        const lon = parseFloat(row['Longitude'])
-        if (!lat || !lon)                                                           { skipped++; return }
-        if (lat < bbox.latMin || lat > bbox.latMax || lon < bbox.lonMin || lon > bbox.lonMax) { skipped++; return }
-
-        stops.push({
-          atco_code:     row['ATCOCode'] || row['AtcoCode'] || '',
-          naptan_code:   row['NaptanCode'] || null,
-          common_name:   row['CommonName'] || '',
-          locality_name: row['LocalityName'] || null,
-          street:        row['Street'] || null,
-          indicator:     row['Indicator'] || null,
-          bearing:       row['Bearing'] || null,
-          lat,
-          lon,
-          stop_type:     stopType,
-          status:        status || 'active',
-          updated_at:    new Date().toISOString(),
-        })
+        const stop = stopFromNaptanRow(row, areaCodes, new Date().toISOString())
+        if (stop) stops.push(stop)
+        else skipped++
       })
 
       rl.on('close', () => {
@@ -284,19 +203,17 @@ function streamNaptanCsv(bbox) {
 
 // ── Existing-stops snapshot (for the removal sweep) ───────────────────────────
 
-function fetchExistingActiveAtcoCodes(bbox) {
+function fetchExistingActiveAtcoCodes(areaCodes) {
   const PAGE_SIZE = 1000
 
-  function fetchPage(offset) {
+  function fetchPage(area, offset) {
     return new Promise((resolve, reject) => {
       const url = new URL(`${SUPABASE_URL}/rest/v1/naptan_stops`)
       url.search = [
         'select=atco_code',
         'status=eq.active',
-        `lat=gte.${bbox.latMin}`,
-        `lat=lte.${bbox.latMax}`,
-        `lon=gte.${bbox.lonMin}`,
-        `lon=lte.${bbox.lonMax}`,
+        `atco_code=like.${area}*`,  // three-digit code, checked by naptanCsvUrl()
+        'order=atco_code',
       ].join('&')
 
       const options = {
@@ -328,12 +245,14 @@ function fetchExistingActiveAtcoCodes(bbox) {
 
   return (async () => {
     const codes = []
-    let offset = 0
-    for (;;) {
-      const rows = await fetchPage(offset)
-      codes.push(...rows.map(r => r.atco_code))
-      if (rows.length < PAGE_SIZE) break
-      offset += PAGE_SIZE
+    for (const area of areaCodes) {
+      let offset = 0
+      for (;;) {
+        const rows = await fetchPage(area, offset)
+        codes.push(...rows.map(r => r.atco_code))
+        if (rows.length < PAGE_SIZE) break
+        offset += PAGE_SIZE
+      }
     }
     return codes
   })()
