@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.3.1] - 2026-09-29
+
+**Announce Solo: shows its idle screen between departures; fixes from the first live run**
+
+- fix(announce): between departures the Solo shows the idle screen (operator branding, no
+  next-departure line) instead of a blank page. The old design blanked the screen and relied on
+  the page to switch it back on near a departure, which a wake lock can't do, so on the first
+  live run the Solo stayed dark until the power button was pressed. The screen now follows the
+  tablet's power: on while powered, on again when ignition power returns, off after 10 minutes
+  on battery (`setup-solo-device.sh`, `fully-auto-settings.json`; `docs/DECISIONS.md`
+  "Solo screen power"). The next-departure line still shows inside the wake window.
+- fix(db): the clip pipeline can read `timetable_stops` on production (already applied
+  2026-09-28; the first production Ben run failed without it).
+- ci: CI runs on pull requests and on pushes to `develop`/`master` only, so each PR commit
+  runs once (halves Actions minutes ahead of making the repo private).
+- docs: the production Driver/Announce host is Cloudflare Workers
+  (`driver.pcvtechnologies.co.uk`), not GitHub Pages; v2.3.0 voice switch procedure and how to
+  undo it; production migration-history note.
 ## [2.3.0] - 2026-09-28
 
 **ElevenLabs "Ben" announcement voice, Driver automatic mode and display theme, power-cut recovery, security hardening**

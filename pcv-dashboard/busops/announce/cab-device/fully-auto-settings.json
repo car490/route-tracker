@@ -385,7 +385,7 @@
   "volumeLicenseKey": "",
   "volumeLimits": "",
   "waitInternetOnReload": false,
-  "wakeupOnPowerConnect": false,
+  "wakeupOnPowerConnect": true,
   "webHostFilter": false,
   "webOverlayGravity": "0",
   "webOverlayUrl": "",

@@ -1420,6 +1420,9 @@ create index elevenlabs_usage_created_at_idx on public.elevenlabs_usage (created
 revoke all on public.elevenlabs_usage from anon, authenticated;
 grant select, insert on public.elevenlabs_usage to service_role;
 alter table public.elevenlabs_usage enable row level security;
+-- The drain renders Ben only for stops a timetable uses, so it reads timetable_stops
+-- (migration_timetable_stops_service_role_select.sql; production has no service_role default privileges).
+grant select on public.timetable_stops to service_role;
 
 -- Review of Ben clips from the dashboard (migration_announcement_clip_review.sql).
 -- A review approves one version (hash) of a clip; a re-render shows as unreviewed again.

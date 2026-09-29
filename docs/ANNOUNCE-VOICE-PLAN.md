@@ -90,6 +90,30 @@ existing Azure clips (measured first), so switching voices doesn't change how lo
 5. Review page and Controller export. **Done on dev**: "Announcement Clips" page in the PCV Dashboard (John chose it over a local page) with approve-by-version and an audit log; `npm run export:controller-clips` (dry-run tested against dev and production); the old Azure generator refuses to overwrite exported clips.
 6. Rollout: style is settled (style 0, same as dev) and the key is shared (one key on both projects), so no audition; licence and listing check recorded;
    dev run, then listen on the tablet; production switch; `docs/DECISIONS.md` entry.
+   **Production switched to Ben 2026-09-28 with release v2.3.0** (John: voice already auditioned, including hard phrases; no other
+   production users yet, first vehicle out 2026-09-29). Done as below.
+
+## Production switch procedure (as run 2026-09-28)
+1. Apply the six migrations with the Supabase MCP `apply_migration` tool so production's migration history lists them:
+   `stops_spoken_name`, `announcement_clip_source`, `announcement_clip_drain_timeout`, `announce_voice_safeguards`,
+   `announcement_clip_review`, then, **after step 4**, `announcement_speech_comma_space`. It re-queues about 250 clips in whatever
+   voice is set when it runs, so running it after the switch renders them once, in Ben, not in Azure and then in Ben.
+2. Deploy `generate-announcement-clip` from `develop` (entry point plus the five `_shared/announce-voice/*.mjs` files).
+   Confirm the next cron drain returns 200 with the new reply fields (`protected`, `stale`, `unused`, `capped`, `deferred`).
+3. `ELEVENLABS_API_KEY` set as an Edge Function secret (owner).
+4. `insert into app_config (key, value) values ('announcement_voice', 'elevenlabs:eUlIljct4YrEQRcEqrii') on conflict (key) do update set value = excluded.value;`
+5. Queue the clips routes use: `select enqueue_stop_clips((select array_agg(distinct stop_id) from timetable_stops), true);`,
+   `select enqueue_service_clips_for_timetables((select array_agg(id) from timetables));`, and re-insert `terminus` and
+   `diversion` from `announcement_clips` with the Ben voice.
+6. Watch `net._http_response` and the Announcement Clips page. Production 2026-09-28: 214 clips, 8,240 characters (every key renders
+   separately, so the 4,904-character budget above, counted per distinct sentence, was low). At 3 per 5 minutes and a 6,000
+   daily cap, a full run takes about 6 hours and may finish after 00:00 UTC when the cap resets.
+7. Export the clips for the Bus Controller (`npm run export:controller-clips`) and commit, for any Controller-served vehicle.
+
+**Undoing it.** Setting `announcement_voice` back to Azure is not enough: a Ben clip is never replaced by another voice, and an
+out-of-date Ben clip is flagged, not re-rendered. To go back: set the voice to `en-GB-RyanNeural`, delete the Ben rows
+(`delete from announcement_clips where voice like 'elevenlabs:%'`, and their objects in the `announcement-audio` bucket), then
+re-queue with step 5's calls (they queue in the current voice).
 
 ## Not in scope
 - Wiring `fixed_output_level` into playback (Annex A).

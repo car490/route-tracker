@@ -116,22 +116,28 @@ echo "==> Granting OS-level permissions non-interactively..."
 "$ADB" shell pm grant "$PKG" android.permission.ACCESS_FINE_LOCATION || true
 "$ADB" shell pm grant "$PKG" android.permission.ACCESS_COARSE_LOCATION || true
 
-echo "==> Setting a short OS-level screen-off timeout (Solo's screen-power design)..."
-# fully-auto-settings.json's keepScreenOn was flipped from true to false
-# 2026-09-04 -- the app-level "always on" flag it used to set would keep
-# this panel lit permanently regardless of what the web app does, defeating
-# Solo's whole "dark except near departure" design (see
-# docs/ANNOUNCE-PRODUCT-TIERS.md). onboard.js's own Screen Wake Lock
-# (navigator.wakeLock) is now the sole authority: it holds the screen on
-# while Solo is awake/tracking a journey and explicitly releases it
-# otherwise. For that release to actually blank the panel (not just leave
-# it lit-but-blank), Android's own screen-off timeout must be short enough
-# to kick in promptly once released -- 60s here, well under Solo's shortest
-# real wake gap. Harmless for a Lite (paired) device on this same script/
-# settings template too: Lite never releases the wake lock, so its screen
-# stays on continuously via the JS API alone, same practical result as
-# keepScreenOn used to give it.
-"$ADB" shell settings put system screen_off_timeout 60000
+echo "==> Screen follows the power: on while powered, off a while after power goes..."
+# Owner decision 2026-09-29, after the first live run (docs/DECISIONS.md
+# "Solo screen power"). The earlier design (2026-09-04) let the screen go
+# dark between departures, with a 60s timeout, and relied on the page's
+# Screen Wake Lock to bring it back near a departure. It never could: a wake
+# lock only keeps a screen on, it can't switch a sleeping one back on, so on
+# the first run the Solo stayed dark until someone pressed the power button.
+# Now:
+#   - Android keeps the screen on while the tablet has power (mains, USB or
+#     wireless = 7), i.e. while the vehicle's ignition supply is live;
+#   - fully-auto-settings.json's wakeupOnPowerConnect switches it on when
+#     power returns; keepScreenOn stays off, so on battery alone it isn't
+#     held on;
+#   - on battery the screen goes off after 10 minutes: long enough that an
+#     engine switched off mid-route doesn't blank the sign, short enough that
+#     a parked bus goes dark and saves the battery.
+# Between departures the page shows the idle screen (branding, no departure
+# line), not a blank page (announceSoloAutopilot.js's showIdleForWakeState).
+# Also right for a Lite (paired) device on this same script: it never
+# released the wake lock anyway.
+"$ADB" shell settings put global stay_on_while_plugged_in 7
+"$ADB" shell settings put system screen_off_timeout 600000
 
 echo "==> Suppressing boot-time nags (\"Finish setting up your device\","
 echo "    \"Set a screen lock\")..."
