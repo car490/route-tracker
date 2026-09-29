@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.3.3] - 2026-09-29
+
+**Driver: the No duty assigned screen leads with automatic start**
+
+- feat(driver): letting the device start the journey is the recommended action, so the
+  waiting screen now says it first: "The journey tracking will start automatically when you
+  are at the first stop.", then "Or", then "Tap below to select one of today's journeys." The
+  button reads "Select a journey" (was "Select a service manually"). A device opened from a
+  duty-card link, where automatic mode is never on, shows only the second part.
+
 ## [2.3.2] - 2026-09-29
 
 **Stop times are saved again (Driver PWA and Announce Solo)**
