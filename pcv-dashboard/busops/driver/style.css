@@ -472,6 +472,13 @@ body {
   line-height: 1.5;
 }
 
+.ndc-or {
+  margin-top: 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
 .ndc-secondary-btn {
   background: transparent;
   color: var(--accent);

@@ -48,10 +48,15 @@
       <div class="ndc-brand">BusOps Driver</div>
       <div class="ndc-icon">&#128204;</div>
       <div class="ndc-title">No duty assigned</div>
-      <div class="ndc-body">Tap below to select today's service.</div>
-      <!-- Shown when automatic mode is on (main.js init(), src/autostart/). -->
-      <div id="ndc-auto-note" class="ndc-auto-note" hidden>Your service starts automatically when you are at its first stop.</div>
-      <button id="ndc-manual-btn" class="ndc-secondary-btn">Select a service manually</button>
+      <!-- Shown when automatic mode is on (main.js init(), src/autostart/).
+           Letting the device start the journey is the recommended action, so
+           it comes first; the "Or" hides with it in duty-card mode. -->
+      <div id="ndc-auto-note" hidden>
+        <div class="ndc-auto-note">The journey tracking will start automatically when you are at the first stop.</div>
+        <div class="ndc-or">Or</div>
+      </div>
+      <div class="ndc-body">Tap below to select one of today's journeys.</div>
+      <button id="ndc-manual-btn" class="ndc-secondary-btn">Select a journey</button>
       <div class="ndc-vehicle-info">
         Vehicle: <span id="ndc-vehicle-label"></span>
         <button id="ndc-change-vehicle-btn" class="ndc-link-btn">Change</button>
@@ -223,7 +228,7 @@
         </div>
       </div>
       <div class="footer-controls">
-        <p id="app-version">v2.3.2</p>
+        <p id="app-version">v2.3.3</p>
         <button id="theme-toggle" type="button">&#9680; Auto</button>
       </div>
     </footer>

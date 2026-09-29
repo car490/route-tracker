@@ -20,7 +20,7 @@ The manual service/run picker this relies on already ships on `develop`
 — it's the same fallback used whenever a driver has no pre-assigned duty, not
 anything cab-device-specific. Opening the plain production URL with no
 `?duties=` link lands on the "No duty assigned" screen, which has a
-**"Select a service manually"** button; tapping it reveals the service/run
+**"Select a journey"** button; tapping it reveals the service/run
 picker. That's the one tap a cab-device driver needs — pick service, pick
 run, tap Start.
 
@@ -299,7 +299,7 @@ cached assets").
 
 ## Possible follow-up (not built)
 
-The "No duty assigned" wording and the extra "Select a service manually" tap
+The "No duty assigned" wording and the extra "Select a journey" tap
 are copy/flow written for a driver's own phone that's missing its link — a
 cab device never has a link to be missing. If that one tap ever turns out to
 be a real problem in practice, a `?kiosk=1`-style URL param that skips

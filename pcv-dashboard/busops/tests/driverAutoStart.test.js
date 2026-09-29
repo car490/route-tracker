@@ -77,6 +77,21 @@ test('the waiting screen says automatic start is on, only when it is', () => {
   const note = doc.getElementById('ndc-auto-note');
   expect(note).not.toBeNull();
   expect(note.hidden).toBe(true);
-  expect(note.textContent).toMatch(/starts automatically/i);
+  expect(note.textContent).toMatch(/The journey tracking will start automatically when you are at the first stop/);
   expect(fnBody('init')).toMatch(/document\.getElementById\('ndc-auto-note'\)\.hidden = false;/);
+});
+
+// Owner, 2026-09-29: letting the device start the journey is the
+// recommended action, so it is said first; picking by hand is the "Or".
+// The "Or" sits inside the note so it hides with it (duty-card mode, where
+// automatic mode is never on).
+test('the waiting screen puts automatic start first, then "Or", then picking by hand', () => {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const screen = doc.getElementById('no-duty-card');
+  const note = doc.getElementById('ndc-auto-note');
+  const body = screen.querySelector('.ndc-body');
+  expect(note.querySelector('.ndc-or').textContent.trim()).toBe('Or');
+  expect(body.textContent.trim()).toBe("Tap below to select one of today's journeys.");
+  expect(note.compareDocumentPosition(body) & 4 /* DOCUMENT_POSITION_FOLLOWING */).toBeTruthy();
+  expect(doc.getElementById('ndc-manual-btn').textContent.trim()).toBe('Select a journey');
 });
