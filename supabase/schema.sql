@@ -167,6 +167,10 @@ create unique index employee_contacts_one_primary
   on employee_contacts (employee_id)
   where is_primary = true;
 
+-- Foreign keys the dashboard filters on (migration_dev_prod_parity.sql).
+create index if not exists employees_company_id_idx on employees (company_id);
+create index if not exists employee_contacts_employee_id_idx on employee_contacts (employee_id);
+
 
 -- ── Employee availability ─────────────────────────────────────────────────────
 -- One row per time window per working day.
@@ -2764,6 +2768,76 @@ create policy "operator_assets_delete" on storage.objects
     and current_employee_role() in ('super_user', 'ops_manager')
   );
 
+-- ── NaPTAN import on a new service county (migration_naptan_trigger.sql) ──────
+-- Adding a county to companies.service_counties queues an import of that
+-- county's stops through the naptan-import Edge Function (pg_net). Needs the
+-- per-environment vault secret naptan_import_token and app_config.supabase_url;
+-- without them it warns and the county is still saved. body must be jsonb
+-- (migration_dev_prod_parity.sql: a text body made every county change fail).
+create or replace function public.fn_naptan_import_on_county_change()
+returns trigger
+language plpgsql
+security definer
+as $$
+declare
+  _new_counties  text[];
+  _token         text;
+  _url           text;
+begin
+  -- Find counties added (in NEW but not in OLD)
+  select array_agg(c) into _new_counties
+  from unnest(NEW.service_counties) c
+  where c <> all(OLD.service_counties);
+
+  -- Nothing added — nothing to do
+  if _new_counties is null or array_length(_new_counties, 1) = 0 then
+    return NEW;
+  end if;
+
+  -- Read service role key from vault
+  select decrypted_secret into _token
+  from vault.decrypted_secrets
+  where name = 'naptan_import_token'
+  limit 1;
+
+  if _token is null then
+    raise warning 'naptan_import_token not found in vault — new counties not imported automatically. Run import-naptan.js manually.';
+    return NEW;
+  end if;
+
+  select value into _url from public.app_config where key = 'supabase_url';
+
+  if _url is null then
+    raise warning 'app_config.supabase_url not set — new counties not imported automatically. Run import-naptan.js manually.';
+    return NEW;
+  end if;
+
+  -- Fire-and-forget async HTTP call via pg_net
+  perform net.http_post(
+    url     => _url || '/functions/v1/naptan-import',
+    headers => jsonb_build_object(
+      'Content-Type',  'application/json',
+      'Authorization', 'Bearer ' || _token
+    ),
+    body    => jsonb_build_object(
+      'counties', _new_counties,
+      'mode',     'add'
+    )
+  );
+
+  raise notice 'NAPTAN import triggered for counties: %', _new_counties;
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_naptan_import_on_county_change on public.companies;
+create trigger trg_naptan_import_on_county_change
+  after update of service_counties
+  on public.companies
+  for each row
+  when (NEW.service_counties <> OLD.service_counties)
+  execute function public.fn_naptan_import_on_county_change();
+
 -- ── RPC exposure (migration_security_hardening_phase0.sql) ────────────────────
 -- Postgres grants EXECUTE to PUBLIC by default, which anon inherits, exposing these
 -- through /rest/v1/rpc. The trigger fn is never meant to be called directly; the two
@@ -2780,6 +2854,116 @@ grant  execute on function public.current_employee_role() to authenticated, serv
 -- Companies House number, email and address stay dashboard-only.
 revoke select on public.companies from anon;
 grant select (id, name, logo_path, primary_color, accent_color) on public.companies to anon;
+
+-- ── Client-role access: identical on dev and production (migration_dev_prod_parity.sql)
+-- Overrides the broad grants above with the agreed per-table rights; the
+-- companies branding-column grant above is re-applied inside this block.
+-- Dev let anon insert/update/delete on almost every table and gave
+-- service_role everything, through dev's wider default privileges; production
+-- did not. A change tested on dev could then be refused on production (or,
+-- as with the Edge Function grants in CLAUDE.md, the reverse gap was hidden).
+-- Every public table's rights for anon, authenticated and service_role are set
+-- here explicitly to production's. RLS still decides which rows.
+-- A public table missing from this list stops the migration, so nothing is
+-- left on whatever an environment happened to have.
+do $$
+declare
+  r        record;
+  missing  text;
+begin
+  create temporary table parity_grants (tbl text primary key, anon text, authed text, service text) on commit drop;
+  insert into parity_grants values
+    ('announce_devices',          'select',                'select, insert, update, delete', null),
+    ('announcement_clip_jobs',    null,                    null,                             'all'),
+    ('announcement_clip_reviews', null,                    null,                             'select'),
+    ('announcement_clips',        'select',                'select, insert, update, delete', 'all'),
+    ('announcement_coverage_gap', 'select, insert',        'select, insert, update, delete', null),
+    ('app_config',                null,                    null,                             'select'),
+    ('companies',                 null,                    'select, insert, update, delete', null),
+    ('diversion_alert_event',     'select, insert, update','select, insert, update, delete', null),
+    ('drivers_hours_rules',       'select',                'select, insert, update, delete', null),
+    ('elevenlabs_usage',          null,                    null,                             'select, insert'),
+    ('employee_availability',     'select',                'select, insert, update, delete', null),
+    ('employee_contacts',         'select',                'select, insert, update, delete', null),
+    ('employees',                 'select',                'select, insert, update, delete', null),
+    ('journey_events',            'select, insert',        'select, insert, update, delete', null),
+    ('journey_stop_times',        'select, insert',        'select, insert, update, delete', null),
+    ('journey_types',             'select',                'select',                         null),
+    ('journey_waypoints',         'select',                'select, insert, update, delete', null),
+    ('journeys',                  'select',                'select, insert, update, delete', null),
+    ('naptan_stops',              'select',                'select, insert, update, delete', 'all'),
+    ('routes',                    'select',                'select, insert, update, delete', null),
+    ('schedule_view',             'select',                'select, insert, update, delete', null),
+    ('service_exceptions',        'select',                'select, insert, update, delete', null),
+    ('stop_time_upload_problem',  null,                    'select',                         null),
+    ('stops',                     'select',                'select, insert, update, delete', null),
+    ('term_dates',                'select',                'select',                         null),
+    ('timetable_departures',      'select',                'select, insert, update, delete', null),
+    ('timetable_stops',           'select',                'select, insert, update, delete', 'select'),
+    ('timetables',                'select',                'select, insert, update, delete', null),
+    ('vehicle_audio_config',      'select',                'select, insert, update, delete', null),
+    ('vehicles',                  'select',                'select, insert, update, delete', null);
+
+  select string_agg(c.relname, ', ' order by c.relname) into missing
+  from pg_class c
+  where c.relnamespace = 'public'::regnamespace
+    and c.relkind in ('r', 'v', 'm', 'p')
+    and not exists (select 1 from pg_depend d where d.objid = c.oid and d.deptype = 'e')
+    and c.relname not in (select tbl from parity_grants);
+  if missing is not null then
+    raise exception 'dev/prod parity: no agreed access for public table(s) %; add them to this list', missing;
+  end if;
+
+  for r in select * from parity_grants loop
+    continue when to_regclass('public.' || r.tbl) is null;
+    execute format('revoke all on public.%I from anon, authenticated, service_role', r.tbl);
+    if r.anon    is not null then execute format('grant %s on public.%I to anon',          r.anon,    r.tbl); end if;
+    if r.authed  is not null then execute format('grant %s on public.%I to authenticated', r.authed,  r.tbl); end if;
+    if r.service is not null then execute format('grant %s on public.%I to service_role',  r.service, r.tbl); end if;
+  end loop;
+end $$;
+
+-- anon reads branding columns only (migration_security_hardening_phase1.sql);
+-- the revoke above also removed these column grants.
+grant select (id, name, logo_path, primary_color, accent_color) on public.companies to anon;
+
+-- Sequences (the identity columns of announcement_clip_reviews and
+-- elevenlabs_usage): authenticated only, as on production. Identity inserts
+-- by service_role don't need sequence rights.
+do $$
+declare
+  s record;
+begin
+  for s in select relname from pg_class where relnamespace = 'public'::regnamespace and relkind = 'S' loop
+    execute format('revoke all on sequence public.%I from anon, authenticated, service_role', s.relname);
+    execute format('grant usage, select, update on sequence public.%I to authenticated', s.relname);
+  end loop;
+end $$;
+
+-- Default rights for tables/functions created later.
+-- What production gives a new object created by a migration (as postgres):
+-- tables: anon read, authenticated read/write, service_role nothing until
+-- granted explicitly; sequences: authenticated only; functions: the Postgres
+-- default (EXECUTE to PUBLIC, revoked per function where needed). Dev's wider
+-- defaults are what let its tables drift. (Supabase's own supabase_admin
+-- defaults can't be changed from here; they only affect objects Supabase
+-- itself creates — see scripts/db-drift/expected-differences.json.)
+alter default privileges for role postgres in schema public
+  revoke all on tables from anon, authenticated, service_role;
+alter default privileges for role postgres in schema public
+  grant select on tables to anon;
+alter default privileges for role postgres in schema public
+  grant select, insert, update, delete on tables to authenticated;
+
+alter default privileges for role postgres in schema public
+  revoke all on sequences from anon, authenticated, service_role;
+alter default privileges for role postgres in schema public
+  grant usage, select, update on sequences to authenticated;
+
+alter default privileges for role postgres in schema public
+  revoke all on functions from anon, authenticated, service_role;
+alter default privileges for role postgres in schema public
+  grant execute on functions to public;
 
 -- ── Table-admin privileges: keep this block LAST ─────────────────────────────
 -- The "grant all" statements above (and Supabase's own default privileges)
