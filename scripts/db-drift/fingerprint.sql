@@ -27,7 +27,9 @@ rels as (
 roles(r) as (values ('anon'), ('authenticated'), ('service_role'))
 select * from (
   -- Tables and views
-  select 'relation' as kind, relname as name,
+  -- name/kind cast to text: relname is type name (63-byte limit), which would
+  -- otherwise become the column type and truncate longer names into duplicates.
+  select 'relation'::text as kind, relname::text as name,
          case relkind when 'r' then 'table' when 'p' then 'table' when 'v' then 'view' else 'matview' end
          || case when relkind in ('r', 'p') then ' rls=' || relrowsecurity || ' force=' || relforcerowsecurity else '' end as detail
   from rels
