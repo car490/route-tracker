@@ -9,7 +9,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { uploadStopTimes } from './stopTimesUpload.js';
+import { uploadStopTimes, isRefusal, reportUploadProblem } from './stopTimesUpload.js';
 
 const row = (ts) => ({ journey_id: 'j-1', timetable_stop_id: ts, arrived_at: '2026-09-29T07:00:00.000Z', visit_status: 'visited' });
 
@@ -54,5 +54,56 @@ describe('uploadStopTimes', () => {
     const main = readFileSync(new URL('./main.js', import.meta.url), 'utf8');
     expect(main).not.toContain('/rest/v1/journey_stop_times');
     expect(main).not.toContain('resolution=ignore-duplicates');
+  });
+
+  // main.js runs init() on import and needs the whole page, so its wiring is
+  // checked at source level (same approach as tests/driverAutoStart.test.js).
+  it('main.js tells the driver and the office when an upload is refused, at trip end and on retry', () => {
+    const main = readFileSync(new URL('./main.js', import.meta.url), 'utf8');
+    const fn = (name) => {
+      const start = main.indexOf(`function ${name}(`);
+      const next = main.indexOf('\nfunction ', start + 1);
+      return main.slice(start, next === -1 ? undefined : next);
+    };
+    const flush = fn('flushPendingTrips');
+    expect(flush).toMatch(/isRefusal\(uploadResult\.status\)/);
+    expect(flush).toMatch(/!trip\.refusalReported/);
+    expect(flush).toMatch(/reportUploadProblem\(sbFetch,/);
+    expect(flush).toMatch(/markPendingTripRefusalReported\(trip\.id\)/);
+
+    expect(main).toMatch(/title: 'Stop times not accepted'/);
+    expect(main).toMatch(/Please tell the office\./);
+    expect(main).toMatch(/markPendingTripRefusalReported\(pendingId\)/);
+  });
+});
+
+// A refusal is the server answering "no" — retrying the same request won't
+// change that, so someone has to be told. No signal, a timeout, rate limiting
+// or a server fault are temporary: the queue just tries again later.
+describe('isRefusal', () => {
+  it.each([400, 401, 403, 404, 409, 422])('HTTP %i is a refusal', (status) => {
+    expect(isRefusal(status)).toBe(true);
+  });
+  it.each([undefined, null, 0, 200, 408, 429, 500, 502, 503])('%s is not (temporary, or not an answer)', (status) => {
+    expect(isRefusal(status)).toBe(false);
+  });
+});
+
+describe('reportUploadProblem', () => {
+  it('tells ops through report_stop_time_upload_problem', async () => {
+    const fetchFn = vi.fn(async () => response(204));
+    await reportUploadProblem(fetchFn, { journeyId: 'j-1', httpStatus: 401, reason: 'not in progress', rowCount: 23 });
+    const [path, opts] = fetchFn.mock.calls[0];
+    expect(path).toBe('/rest/v1/rpc/report_stop_time_upload_problem');
+    expect(JSON.parse(opts.body)).toEqual({
+      p_journey_id: 'j-1', p_source: 'driver', p_http_status: 401, p_reason: 'not in progress', p_row_count: 23,
+    });
+  });
+
+  it('never throws, whatever happens to the report', async () => {
+    await expect(reportUploadProblem(vi.fn(async () => { throw new TypeError('Failed to fetch'); }),
+      { journeyId: 'j-1', httpStatus: 401, reason: '', rowCount: 1 })).resolves.toBe(false);
+    await expect(reportUploadProblem(vi.fn(async () => response(401)),
+      { journeyId: 'j-1', httpStatus: 401, reason: '', rowCount: 1 })).resolves.toBe(false);
   });
 });

@@ -61,6 +61,7 @@ const STATIC_ASSETS = [
   './driver/src/stopTimesUpload.js',
   './shared/escapeHtml.js',
   './shared/journeyStopTimes.js',
+  './shared/uploadRefusal.js',
   './shared/journeyCheckpoint.js',
   './shared/scheduleTimeShift.js',
   './shared/announceStates.js',

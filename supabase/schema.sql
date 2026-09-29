@@ -932,6 +932,12 @@ begin
   on conflict (journey_id, timetable_stop_id) where timetable_stop_id is not null do nothing;
 
   get diagnostics v_count = row_count;
+
+  -- An accepted upload resolves any open stop_time_upload_problem (below).
+  update public.stop_time_upload_problem
+     set resolved_at = now()
+   where journey_id = p_journey_id and resolved_at is null;
+
   return v_count;
 end;
 $$;
@@ -2260,6 +2266,80 @@ create policy "announcement_coverage_gap_anon_insert"
   for insert
   to anon
   with check (is_jwt_journey_allowed(journey_id));
+
+-- stop_time_upload_problem: a device reports when the server refused a trip's
+-- stop times; the dashboard's Journeys pages show it until a later upload is
+-- accepted (record_journey_stop_times() resolves it). Devices write only
+-- through report_stop_time_upload_problem(). See
+-- migration_stop_time_upload_problem.sql (2026-09-29).
+create table public.stop_time_upload_problem (
+  id          uuid        primary key default gen_random_uuid(),
+  journey_id  uuid        not null references public.journeys(id) on delete cascade,
+  company_id  uuid        not null references public.companies(id) on delete cascade,
+  source      text        not null check (source in ('driver', 'solo')),
+  http_status integer,
+  reason      text        not null default '' check (char_length(reason) <= 500),
+  row_count   integer     not null default 0 check (row_count >= 0),
+  reported_at timestamptz not null default now(),
+  resolved_at timestamptz
+);
+
+create unique index if not exists stop_time_upload_problem_open_unique
+  on public.stop_time_upload_problem (journey_id) where resolved_at is null;
+create index if not exists stop_time_upload_problem_company_idx
+  on public.stop_time_upload_problem (company_id, reported_at);
+
+-- Revoke first: this schema's default privileges would otherwise hand anon
+-- SELECT and authenticated ALL (incl. TRUNCATE, which RLS doesn't gate).
+revoke all on public.stop_time_upload_problem from anon, authenticated;
+grant select on public.stop_time_upload_problem to authenticated;
+
+alter table public.stop_time_upload_problem enable row level security;
+
+drop policy if exists "company_select" on public.stop_time_upload_problem;
+create policy "company_select" on public.stop_time_upload_problem
+  for select to authenticated
+  using (company_id = current_company_id());
+
+-- Called by the Driver PWA and Announce Solo (anon) when an upload of a
+-- trip's stop times is refused. Same entitlement check as the other
+-- anon-callable journey RPCs, first. A journey id that doesn't exist records
+-- nothing.
+create or replace function public.report_stop_time_upload_problem(
+  p_journey_id  uuid,
+  p_source      text,
+  p_http_status integer,
+  p_reason      text,
+  p_row_count   integer
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $
+begin
+  if not public.is_jwt_journey_allowed(p_journey_id) then
+    raise exception 'This duty token does not cover journey %', p_journey_id using errcode = 'insufficient_privilege';
+  end if;
+  if p_source is null or p_source not in ('driver', 'solo') then
+    raise exception 'p_source must be driver or solo' using errcode = 'invalid_parameter_value';
+  end if;
+
+  insert into public.stop_time_upload_problem (journey_id, company_id, source, http_status, reason, row_count)
+  select j.id, j.company_id, p_source, p_http_status, left(coalesce(p_reason, ''), 500), greatest(coalesce(p_row_count, 0), 0)
+    from public.journeys j
+   where j.id = p_journey_id
+  on conflict (journey_id) where resolved_at is null do update
+     set source      = excluded.source,
+         http_status = excluded.http_status,
+         reason      = excluded.reason,
+         row_count   = excluded.row_count,
+         reported_at = now();
+end;
+$;
+
+revoke execute on function public.report_stop_time_upload_problem(uuid, text, integer, text, integer) from public, authenticated;
+grant execute on function public.report_stop_time_upload_problem(uuid, text, integer, text, integer) to anon;
 
 -- ── Views ─────────────────────────────────────────────────────────────────────
 -- Returns one row per (departure × stop).
