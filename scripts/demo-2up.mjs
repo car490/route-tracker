@@ -21,7 +21,7 @@
 //   duty    Driver already has an assigned duty card (the PSVAIR demo
 //           journey). PWA opens straight to the duty card.
 //   manual  No duty card assigned. PWA opens to the "No duty assigned"
-//           screen; you click "Select a service manually" and pick it
+//           screen; you click "Select a journey" and pick it
 //           yourself. The BusOps Announce window is already pointed at the
 //           journey this will resolve to (get_or_create_manual_journey is
 //           keyed on departure + date, so the id is known up front even
@@ -351,7 +351,7 @@ process.on('SIGTERM', shutdown);
     console.log('                     ("Weston, adj The Chequers PH") as the starting point,');
     console.log('                     and hit Start.');
   } else {
-    console.log('LEFT  (driver PWA):  click "Select a service manually", choose');
+    console.log('LEFT  (driver PWA):  click "Select a journey", choose');
     console.log(`                     Service: ${MANUAL_SERVICE}, Period: the one starting "${MANUAL_PERIOD}"`);
     console.log('                     (label now includes the departure time, e.g. "Morning Outbound (08:15)"),');
     console.log('                     then hit Start. Must resolve to the same departure as');
