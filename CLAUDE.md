@@ -296,7 +296,8 @@ explicitly too** — don't rely on it having implicit access. Found 2026-09-15 w
 announcement-clip pipeline: production's `public` schema has no `pg_default_acl` entry for
 `service_role` at all (confirmed via `pg_default_acl`), while dev's does — so a brand-new table
 on production gets **zero** service_role access until explicitly granted, while the identical
-table on dev "just works" via dev's default privileges. A service-role client hitting this gets a
+table on dev "just works" via dev's default privileges. (Since 2026-09-29 dev's default privileges match production's, so a
+missing `service_role` grant now fails on dev first — see "Supabase: dev and production must match".) A service-role client hitting this gets a
 genuine Postgres `permission denied for table` error, not an RLS deny (RLS/bypass is never even
 reached). Production's existing convention has always been per-table explicit `service_role`
 grants (e.g. `naptan_stops`) — this wasn't a regression, just a rule that hadn't been written
@@ -323,6 +324,41 @@ body's first statement) for any new anon-callable RPC that mutates a row by id. 
 a single leaked/compromised device token can be revoked without rotating the shared JWT secret
 for the whole fleet — set directly via SQL, no admin UI (same precedent as
 `stops.announcement_name`).
+
+---
+
+## Supabase: dev and production must match
+
+**Dev and production have the same database structure and the same access rules; only a
+developer's local database may differ.** Row data and `app_config` values (e.g. the announcement
+voice) may differ between them; tables, columns, constraints, indexes, functions, triggers, RLS
+policies, grants and default privileges may not. Found 2026-09-29: drift had hidden two
+production-only bugs (every employee delete silently skipped; every service-county change
+rejected) and let dev accept anon inserts/updates/deletes production refuses — so dev testing
+proved nothing about production. Fixed on both by `supabase/migration_dev_prod_parity.sql`.
+
+- **Every schema change goes through a migration file applied to both** (dev first, then
+  production) — never a hand edit in one project's dashboard/SQL editor.
+- **Check before every release** (and after any migration):
+  ```sh
+  SUPABASE_ACCESS_TOKEN=<personal access token> node scripts/db-drift/check.mjs
+  ```
+  Read-only (a catalog fingerprint, `scripts/db-drift/fingerprint.sql`, sent with
+  `read_only: true` through the Management API); exit 0 match, 1 drift (listed), 2 could not
+  run. The token is a personal access token set in your shell for that command only — never
+  commit it. `--save <dir>` keeps both fingerprints; `--from-json dev.json prod.json` compares
+  saved ones offline.
+- **An accepted difference** goes in `scripts/db-drift/expected-differences.json` with its
+  reason (today: Supabase's own `supabase_admin` default privileges on dev, and the index-advisor
+  extensions on production). Keep that list short; the check reports entries that no longer
+  match anything.
+- **A new public table must be added to the access list** in `migration_dev_prod_parity.sql`'s
+  pattern (anon / authenticated / service_role rights set explicitly); the parity test
+  `supabase/tests/dev_prod_parity.sql` fails if anon can write anywhere beyond the five
+  device-facing inserts/updates it names.
+- Default privileges (what a new table gets before its own GRANTs) are now production's on both:
+  anon SELECT, authenticated SELECT/INSERT/UPDATE/DELETE, **service_role nothing** — so the
+  "grant `service_role` explicitly" rule above now fails on dev too, not just on production.
 
 ---
 
@@ -395,6 +431,9 @@ together on the `develop` → `master` merge. Source of truth is the root
 `VERSION` file. As of this writing `master` is several dozen commits behind `develop`
 (last released v1.4.0) — check `git log origin/master..origin/develop` before assuming
 what's live matches what's in the working tree.
+- Before merging `develop` → `master`, run `node scripts/db-drift/check.mjs` (see "Supabase:
+  dev and production must match") and apply any pending migration to production; release
+  only when it exits 0.
 - When merging `develop` → `master`, run `node scripts/release.mjs <major|minor|patch>`.
   This bumps `VERSION`, `pcv-dashboard/package.json`, `busops/service-worker.js`'s
   `CACHE_NAME`, and the version footer in `busops/driver/index.html`, and stamps a new

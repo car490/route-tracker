@@ -13,11 +13,20 @@
  * Required Edge Function secrets (set in Supabase Dashboard → Edge Functions → Secrets):
  *   OPENCAGE_API_KEY   — https://opencagedata.com (free tier is sufficient)
  *
- * The function is secured by comparing the Authorization Bearer token against
- * SUPABASE_SERVICE_ROLE_KEY, which is automatically available in Edge Functions.
+ * Secured by the CALLER_AUTH_TOKEN Edge Function secret (../_shared/callerAuth.mjs),
+ * shared with generate-announcement-clip: the caller's Bearer token must equal it.
+ * Both callers send the vault secret naptan_import_token (a legacy service_role
+ * JWT, which the verify_jwt gateway accepts); CALLER_AUTH_TOKEN holds the same
+ * value. Until 2026-09-29 this compared against SUPABASE_SERVICE_ROLE_KEY, which
+ * has moved to the sb_secret_ format on these projects, so every call got 401.
  *
- * One-time DB setup per environment (run in SQL editor, not in migrations):
- *   select vault.create_secret('<service_role_key>', 'naptan_import_token');
+ * One-time setup per environment, if not already done for generate-announcement-clip:
+ *   select vault.create_secret('<legacy service_role JWT>', 'naptan_import_token');
+ *   supabase secrets set CALLER_AUTH_TOKEN=<the same legacy service_role JWT>
+ *
+ * Database access uses this function's own SUPABASE_SERVICE_ROLE_KEY, never the
+ * caller's token. service_role needs SELECT on companies.service_counties (refresh) and
+ * write access to naptan_stops (migration_naptan_import_service_role.sql).
  *
  * Each run's status (active/inactive/etc.) is taken from the source Status
  * field, and any previously-active stop within the run's bbox that's missing
@@ -26,6 +35,7 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { isAuthorizedCaller } from '../_shared/callerAuth.mjs'
 
 const NAPTAN_URL  = 'https://naptan.api.dft.gov.uk/v1/access-nodes?dataFormat=csv'
 const BUS_TYPES   = new Set(['BCT', 'BCS', 'BCQ', 'BCP'])
@@ -39,26 +49,9 @@ interface NaptanStop {
   stop_type: string; status: string; updated_at: string
 }
 
-// Constant-time bearer check: hash both sides to fixed-length digests, then
-// compare every byte, so response timing reveals nothing about how much of
-// the secret a guess got right (a plain !== returns at the first mismatch).
-async function tokenMatches(given: string, expected: string | undefined): Promise<boolean> {
-  if (!given || !expected) return false
-  const enc = new TextEncoder()
-  const [a, b] = await Promise.all([
-    crypto.subtle.digest('SHA-256', enc.encode(given)),
-    crypto.subtle.digest('SHA-256', enc.encode(expected)),
-  ])
-  const x = new Uint8Array(a), y = new Uint8Array(b)
-  let diff = 0
-  for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i]
-  return diff === 0
-}
-
 Deno.serve(async (req) => {
   // ── Auth ──────────────────────────────────────────────────────────────────
-  const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
-  if (!(await tokenMatches(token, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')))) {
+  if (!(await isAuthorizedCaller(req.headers.get('Authorization'), (k) => Deno.env.get(k)))) {
     return new Response('Unauthorized', { status: 401 })
   }
 
@@ -67,7 +60,11 @@ Deno.serve(async (req) => {
   const counties: string[] = body.counties ?? []
 
   // ── Kick off import in background, respond immediately ───────────────────
-  const task = runImport(mode, counties, token)
+  // The caller has already had its 202, so a failure is only visible in the
+  // function's logs: log it rather than leave an unhandled rejection.
+  const task = runImport(mode, counties).catch((err) => {
+    console.error(`naptan-import [${mode}] failed: ${err instanceof Error ? err.message : err}`)
+  })
   EdgeRuntime.waitUntil(task)
 
   return new Response(
@@ -78,8 +75,8 @@ Deno.serve(async (req) => {
 
 // ── Main import logic ─────────────────────────────────────────────────────────
 
-async function runImport(mode: string, counties: string[], serviceKey: string) {
-  const supabase = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey)
+async function runImport(mode: string, counties: string[]) {
+  const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
   const opencageKey = Deno.env.get('OPENCAGE_API_KEY')!
 
   // Resolve target counties
@@ -172,7 +169,12 @@ async function geocodeCounty(county: string, apiKey: string): Promise<BBox> {
   const json = await res.json()
 
   const bounds = json.results?.[0]?.bounds
-  if (!bounds) throw new Error(`OpenCage returned no bounds for "${county}"`)
+  if (!bounds) {
+    // OpenCage's own status says why (e.g. 401 invalid/missing key, 402 quota).
+    // Never include the request URL here: it carries the API key.
+    const why = json.status ? `OpenCage ${json.status.code}: ${json.status.message}` : `HTTP ${res.status}`
+    throw new Error(`OpenCage returned no bounds for "${county}" (${why})`)
+  }
 
   return {
     latMin: bounds.southwest.lat,
