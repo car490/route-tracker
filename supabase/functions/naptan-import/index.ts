@@ -176,23 +176,26 @@ async function streamNaptanCsv(areaCodes: string[]): Promise<NaptanStop[]> {
   let   buffer  = ''
   const decoder = new TextDecoder()
 
+  const handleLine = (line: string) => {
+    if (!line.trim()) return
+    if (!headers) { headers = parseCsv(line); return }
+
+    const cols: Record<string, string> = {}
+    parseCsv(line).forEach((v, i) => { cols[headers![i]] = v })
+
+    const stop = stopFromNaptanRow(cols, areaCodes, new Date().toISOString())
+    if (stop) stops.push(stop)
+  }
+
   for await (const chunk of res.body as AsyncIterable<Uint8Array>) {
     buffer += decoder.decode(chunk, { stream: true })
     const lines = buffer.split('\n')
     buffer = lines.pop() ?? ''
-
-    for (const line of lines) {
-      if (!line.trim()) continue
-
-      if (!headers) { headers = parseCsv(line); continue }
-
-      const cols: Record<string, string> = {}
-      parseCsv(line).forEach((v, i) => { cols[headers![i]] = v })
-
-      const stop = stopFromNaptanRow(cols, areaCodes, new Date().toISOString())
-      if (stop) stops.push(stop)
-    }
+    lines.forEach(handleLine)
   }
+  // The last row has no trailing newline; without this it was dropped, and
+  // the sweep would then mark that stop 'removed' on every run.
+  handleLine(buffer + decoder.decode())
 
   return stops
 }
