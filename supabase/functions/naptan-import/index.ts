@@ -25,7 +25,7 @@
  *   supabase secrets set CALLER_AUTH_TOKEN=<the same legacy service_role JWT>
  *
  * Database access uses this function's own SUPABASE_SERVICE_ROLE_KEY, never the
- * caller's token. service_role needs SELECT on companies (refresh mode) and
+ * caller's token. service_role needs SELECT on companies.service_counties (refresh) and
  * write access to naptan_stops (migration_naptan_import_service_role.sql).
  *
  * Each run's status (active/inactive/etc.) is taken from the source Status
