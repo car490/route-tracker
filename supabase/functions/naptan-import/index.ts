@@ -169,7 +169,12 @@ async function geocodeCounty(county: string, apiKey: string): Promise<BBox> {
   const json = await res.json()
 
   const bounds = json.results?.[0]?.bounds
-  if (!bounds) throw new Error(`OpenCage returned no bounds for "${county}"`)
+  if (!bounds) {
+    // OpenCage's own status says why (e.g. 401 invalid/missing key, 402 quota).
+    // Never include the request URL here: it carries the API key.
+    const why = json.status ? `OpenCage ${json.status.code}: ${json.status.message}` : `HTTP ${res.status}`
+    throw new Error(`OpenCage returned no bounds for "${county}" (${why})`)
+  }
 
   return {
     latMin: bounds.southwest.lat,
