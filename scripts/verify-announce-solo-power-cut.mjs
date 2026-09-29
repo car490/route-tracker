@@ -97,16 +97,13 @@ async function openContext(browser, base) {
       const fn = url.split('/rpc/')[1].split('?')[0];
       const body = req.postDataJSON();
       seen.rpcs.push({ fn, body });
+      if (fn === 'record_journey_stop_times') { seen.stopTimes.push(...body.p_rows); return json(body.p_rows.length); }
       if (fn === 'get_or_create_manual_journey') return json([{ journey_id: net.journeyId ?? body.p_journey_id }]);
       return json(null);
     }
     if (url.includes('/rest/v1/announce_devices')) {
       if (net.revoked) return json({ code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned', details: 'The result contains 0 rows' }, 406);
       return json(DEVICE_ROW);
-    }
-    if (url.includes('/rest/v1/journey_stop_times') && req.method() === 'POST') {
-      seen.stopTimes.push(...req.postDataJSON());
-      return route.fulfill({ status: 201, body: '' });
     }
     if (url.includes('/rest/v1/schedule_view')) return json(ROWS);
     if (url.includes('/rest/v1/companies')) return json({ name: 'Test Coaches', logo_path: null, accent_color: null });

@@ -94,11 +94,8 @@ async function openContext(browser, base, { seed = null } = {}) {
       }
       if (fn === 'start_journey') { net.dutyStatus = 'in_progress'; return json(true); }
       if (fn === 'complete_journey') { net.dutyStatus = 'completed'; return json(true); }
+      if (fn === 'record_journey_stop_times') { const { p_rows } = req.postDataJSON(); seen.stopTimes.push(...p_rows); return json(p_rows.length); }
       return json([]);
-    }
-    if (url.includes('/rest/v1/journey_stop_times') && req.method() === 'POST') {
-      seen.stopTimes.push(...req.postDataJSON());
-      return route.fulfill({ status: 201, body: '' });
     }
     if (url.includes('/rest/v1/schedule_view')) {
       if (url.includes('departure_id=eq.dep-1')) return json(ROWS);

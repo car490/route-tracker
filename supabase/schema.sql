@@ -892,6 +892,53 @@ $$;
 
 grant execute on function complete_journey(uuid) to anon;
 
+-- Called by the driver PWA and Announce Solo (anon) to save a trip's arrival
+-- times — the only way they write journey_stop_times. A direct insert with
+-- "skip duplicates" is refused for anon (it has no read policy on the table),
+-- and the unique index below is partial, so neither app's old direct write
+-- ever worked. Makes the same checks as the anon_insert policy, first; rows
+-- are always stored under p_journey_id; a stop already stored is skipped, so
+-- a retried upload is safe. Returns how many rows were newly stored. See
+-- migration_record_journey_stop_times.sql (2026-09-29).
+create or replace function public.record_journey_stop_times(p_journey_id uuid, p_rows jsonb)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_count integer;
+begin
+  if not public.is_jwt_journey_allowed(p_journey_id) then
+    raise exception 'This duty token does not cover journey %', p_journey_id using errcode = 'insufficient_privilege';
+  end if;
+  if not public.is_journey_in_progress(p_journey_id) then
+    raise exception 'Journey % is not in progress', p_journey_id using errcode = 'insufficient_privilege';
+  end if;
+  if p_rows is null or jsonb_typeof(p_rows) <> 'array' then
+    raise exception 'p_rows must be a JSON array' using errcode = 'invalid_parameter_value';
+  end if;
+  if jsonb_array_length(p_rows) > 500 then
+    raise exception 'Too many stop times in one call (% > 500)', jsonb_array_length(p_rows) using errcode = 'invalid_parameter_value';
+  end if;
+
+  insert into public.journey_stop_times (journey_id, timetable_stop_id, arrived_at, visit_status)
+  select p_journey_id,
+         (r->>'timetable_stop_id')::uuid,
+         (r->>'arrived_at')::timestamptz,
+         coalesce(r->>'visit_status', 'visited')
+    from jsonb_array_elements(p_rows) as r
+   where nullif(r->>'timetable_stop_id', '') is not null
+  on conflict (journey_id, timetable_stop_id) where timetable_stop_id is not null do nothing;
+
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+revoke execute on function public.record_journey_stop_times(uuid, jsonb) from public, authenticated;
+grant execute on function public.record_journey_stop_times(uuid, jsonb) to anon;
+
 -- Called by the dashboard (authenticated) to reset a journey back to
 -- Scheduled — clears its GPS track, incidents and stop times and the
 -- start/complete timestamps in one transaction, so a dropped connection can't

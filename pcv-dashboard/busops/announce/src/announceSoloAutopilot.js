@@ -412,7 +412,7 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     tracker.stop();
     // Same table/shape/idempotency the Driver PWA's completeTrip() already
     // uses (see shared/journeyStopTimes.js), sent through the upload queue
-    // (soloTripQueue.js: upsert with ignoreDuplicates, then complete_journey)
+    // (soloTripQueue.js: record_journey_stop_times, then complete_journey)
     // so a failed send is kept and retried instead of only logged. Includes
     // any stops recorded before a power cut (the recorder's saved rows).
     queue.enqueueTrip({ journeyId, stopRows: recorder.finalRows(latestStopStates), completeJourney: true });
