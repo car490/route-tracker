@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.4.2] - 2026-09-30
+
+**No kiosk settings copy left on the tablets; no kiosk PIN in the repo**
+
+- security: both kiosk setup scripts now delete the settings copy they push to the tablet's
+  Downloads folder, once the person at the tablet confirms it is showing the right page. On the
+  Announce Solo tablet that copy held the device's install link and token, readable by any app
+  with storage access. Answering anything else keeps it for a manual import and says how to
+  delete it. Tablets set up before this: `adb shell rm -f //sdcard/Download/fully-auto-settings.json`.
+- security: the Driver cab phone's settings template no longer carries the kiosk PIN (it was the
+  same one the published Solo file carried). Set it on each device, and change it on any device
+  set up with the old template.
+- fix: the Driver setup checklist names the real production address, not the old GitHub Pages one.
+
 ## [2.4.1] - 2026-09-30
 
 **The Announce Solo sign switches its own screen from the timetable; kiosk settings no longer published**

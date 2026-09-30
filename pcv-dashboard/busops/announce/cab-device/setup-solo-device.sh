@@ -214,16 +214,43 @@ sleep 1
 "$ADB" shell am start -n "$PKG/de.ozerov.fully.MainActivity"
 sleep 3
 
+# The pushed copy in Downloads holds this device's install link, and so its
+# long-lived device token, where any app with storage access (or anyone with
+# a USB cable while debugging is on) can read it. Fully keeps its own private
+# copy once it has imported the settings, so it is deleted -- but only once
+# the person at the tablet confirms the import worked, so a failed one can
+# still be done by hand from that file (owner, 2026-09-30).
+SETTINGS_ON_DEVICE=//sdcard/Download/fully-auto-settings.json
+STATUS=0
+echo ""
+echo "==> Check the tablet: is it showing the Announce idle screen (operator"
+echo "    name/logo, or a 'Next departure HH:MM' caption) -- not a blank page"
+echo "    or Fully's own welcome screen?"
+ANSWER=""
+read -r -p "    Type y once it is, anything else to keep the settings copy for a manual import: " ANSWER || true
+if [ "$ANSWER" = "y" ] || [ "$ANSWER" = "Y" ]; then
+  "$ADB" shell rm -f "$SETTINGS_ON_DEVICE"
+  if "$ADB" shell ls "$SETTINGS_ON_DEVICE" >/dev/null 2>&1; then
+    echo "   The settings copy is still on the tablet -- delete it by hand:" >&2
+    echo "     adb shell rm -f $SETTINGS_ON_DEVICE" >&2
+    STATUS=1
+  else
+    echo "   Settings copy deleted from the tablet's Downloads (Fully keeps its own)."
+  fi
+else
+  echo "   Settings copy KEPT in Downloads. Import it by hand: Fully's menu (swipe" >&2
+  echo "   from left edge or long-press) -> Settings -> Other Settings -> Import" >&2
+  echo "   Settings -> fully-auto-settings.json. Then delete it -- it holds this" >&2
+  echo "   device's token:" >&2
+  echo "     adb shell rm -f $SETTINGS_ON_DEVICE" >&2
+  STATUS=1
+fi
+
 echo ""
 echo "=================================================================="
 echo " Automated steps done. Now check the device screen and confirm:"
 echo ""
-echo " 1. It loaded the Announce idle screen (operator name/logo, or a"
-echo "    'Next departure HH:MM' caption for Solo) -- not a blank page or"
-echo "    Fully's own welcome screen. If it didn't auto-import, open"
-echo "    Fully's menu (swipe from left edge or long-press) -> Settings ->"
-echo "    Other Settings -> Import Settings -> pick fully-auto-settings.json"
-echo "    from Downloads."
+echo " 1. It loaded the Announce idle screen (see the question above)."
 echo " 2. No 'location permission' prompt is stuck on screen -- Solo can't"
 echo "    poll GPS without it. If one appears, grant it once (should not"
 echo "    recur after the OS-level grants above take effect on next launch)."
@@ -249,3 +276,4 @@ echo "   - Check the day's screen times the sign worked out: DevTools console"
 echo "     (see measure:announce-solo for attaching) shows a line like"
 echo "     '[screen] 2026-10-05 screen on 06:57-08:55, 14:53-18:00'."
 echo "=================================================================="
+exit "$STATUS"

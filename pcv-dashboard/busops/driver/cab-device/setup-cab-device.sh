@@ -30,7 +30,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PKG="de.ozerov.fully"
 APK="$DIR/Fully-Kiosk-Browser-v1.61.2.apk"
 SETTINGS_JSON="$DIR/fully-auto-settings.json"
-PROD_URL="https://car490.github.io/route-tracker/index.html"
+PROD_URL="https://driver.pcvtechnologies.co.uk/driver/" # the settings file's startURL
 
 echo "==> Waiting for an authorized device..."
 "$ADB" wait-for-device
@@ -126,14 +126,40 @@ sleep 1
 "$ADB" shell am start -n "$PKG/de.ozerov.fully.MainActivity"
 sleep 3
 
+# The pushed copy in Downloads describes the kiosk lockdown and used to carry
+# the kiosk PIN; any app with storage access can read it. Fully keeps its own
+# private copy once it has imported the settings, so it is deleted -- but only
+# once the person at the tablet confirms the import worked, so a failed one
+# can still be done by hand from that file (owner, 2026-09-30).
+SETTINGS_ON_DEVICE=//sdcard/Download/fully-auto-settings.json
+STATUS=0
+echo ""
+echo "==> Check the phone: is it showing the driver screen ($PROD_URL) --"
+echo "    not a blank page or Fully's own welcome screen?"
+ANSWER=""
+read -r -p "    Type y once it is, anything else to keep the settings copy for a manual import: " ANSWER || true
+if [ "$ANSWER" = "y" ] || [ "$ANSWER" = "Y" ]; then
+  "$ADB" shell rm -f "$SETTINGS_ON_DEVICE"
+  if "$ADB" shell ls "$SETTINGS_ON_DEVICE" >/dev/null 2>&1; then
+    echo "   The settings copy is still on the tablet -- delete it by hand:" >&2
+    echo "     adb shell rm -f $SETTINGS_ON_DEVICE" >&2
+    STATUS=1
+  else
+    echo "   Settings copy deleted from the phone's Downloads (Fully keeps its own)."
+  fi
+else
+  echo "   Settings copy KEPT in Downloads. Import it by hand: Fully's menu (swipe" >&2
+  echo "   from left edge or long-press) -> Settings -> Other Settings -> Import" >&2
+  echo "   Settings -> fully-auto-settings.json. Then delete it:" >&2
+  echo "     adb shell rm -f $SETTINGS_ON_DEVICE" >&2
+  STATUS=1
+fi
+
 echo ""
 echo "=================================================================="
 echo " Automated steps done. Now check the device screen and confirm:"
 echo ""
-echo " 1. It loaded $PROD_URL (not a blank page or Fully's own welcome"
-echo "    screen). If it didn't auto-import, open Fully's menu (swipe from"
-echo "    left edge or long-press) -> Settings -> Other Settings ->"
-echo "    Import Settings -> pick fully-auto-settings.json from Downloads."
+echo " 1. It loaded $PROD_URL (see the question above)."
 echo " 2. It shows the vehicle-commissioning prompt ('WHICH VEHICLE IS"
 echo "    THIS?') — pick the correct vehicle for this physical unit."
 echo ""
@@ -142,8 +168,13 @@ echo " stay manual):"
 echo "   - Remove the device's screen lock (Settings -> Security -> Screen"
 echo "     lock -> None) so a reboot doesn't sit at a PIN prompt forever."
 echo "     Non-interactively: adb shell locksettings clear --old <PIN>"
+echo "   - Set the KIOSK EXIT PIN on the phone: Fully menu -> Settings ->"
+echo "     Kiosk Mode -> Kiosk PIN. It is never kept in this repo (the"
+echo "     settings file has no PIN), so a phone set up without this step"
+echo "     has no PIN. Keep it out of chat, email and git."
 echo "   - Mount it on ignition-switched USB power in the vehicle."
 echo "   - Reboot once and confirm it boots straight to the driver screen"
 echo "     with no taps needed (one swipe past Android's normal"
 echo "     first-unlock-after-reboot screen is expected and fine)."
 echo "=================================================================="
+exit "$STATUS"

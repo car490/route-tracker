@@ -94,6 +94,12 @@ device, so they apply here unchanged and aren't repeated in full below.
   Settings → Kiosk Mode → Kiosk PIN. Until 2026-09-30 the settings file (with the old encrypted
   PIN) was published on the Driver website because `.assetsignore` missed
   `announce/cab-device/`; treat that PIN as seen and use a new one.
+- **No settings copy left in Downloads** (owner, 2026-09-30). The pushed copy holds this
+  device's install link and token, readable by any app with storage access. `setup-solo-device.sh`
+  deletes it once you confirm the tablet shows the idle screen (answer anything else and it keeps
+  the copy for a manual import, prints the delete command and exits non-zero). A tablet set up
+  before this: `adb shell rm -f //sdcard/Download/fully-auto-settings.json` once. See
+  `CAB-DEVICE-SETUP.md` "No settings copy left on the device".
 - **Keep the departures tidy in the Dashboard.** The screen times come from the departures
   assigned to the device: tick school term time on school runs, and don't leave test
   departures assigned to a live sign (each keeps it awake).
