@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.4.0] - 2026-09-30
+
+**Dev and production databases now match; the NaPTAN stop import works again, with no paid geocoder**
+
+- fix: dev and production databases had drifted apart, hiding two production-only bugs. Deleting
+  an employee on production was silently skipped every time, and adding a service county was
+  rejected. Both are fixed, and dev no longer lets the public app key write to tables that
+  production refuses. `supabase/migration_dev_prod_parity.sql`, applied to dev and production
+  before this release; dev and production now match on every table, function, policy and grant.
+- feat: `scripts/db-drift/check.mjs`, a read-only dev/production parity check, is now a release
+  step (CLAUDE.md "Supabase: dev and production must match").
+- fix: the weekly NaPTAN stop refresh and new-county imports had been refused (401) on every run,
+  so production's stops were last updated on 2026-06-09. They run again.
+- feat: the NaPTAN import now picks stops by each county's NaPTAN area code (Lincolnshire = 270)
+  instead of an OpenCage bounding box. There is no paid geocoding service or key, it downloads
+  just that county, and it no longer pulls in neighbouring counties' stops by accident (add a
+  county to the company's service counties if a route crosses into it). Production's 7,366
+  Lincolnshire stops were refreshed on 2026-09-30. The `OPENCAGE_API_KEY` secret can be removed.
+- security: dependency updates for published advisories: react-router 7.18.4 (open redirect
+  via `<Link>`/`useNavigate`), Vitest 4.1.11, and patched undici and brace-expansion in the
+  Driver/Announce tooling. `npm audit` is clean in both the dashboard and the Driver/Announce
+  package.
+
 ## [2.3.4] - 2026-09-29
 
 **A refused stop-time upload now tells the driver and the office**
