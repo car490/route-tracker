@@ -5,6 +5,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.4.1] - 2026-09-30
+
+**The Announce Solo sign switches its own screen from the timetable; kiosk settings no longer published**
+
+- feat: the Announce Solo tablet goes on a permanent fused supply (a flat tablet stops at its
+  charging screen until someone presses the power button), so the sign now switches its own
+  screen through Fully Kiosk (PLUS): on from 30 minutes before each running journey's first stop
+  to 15 minutes after its last, off otherwise, and always on during a trip. School runs follow
+  the Dashboard's term dates; a removed date keeps the sign dark. Departures are re-read hourly.
+  Fully's JavaScript interface is on only with the kiosk restricted to our own sites. Not yet
+  tried on the real tablet (`docs/TESTING.md` §19 A2). `docs/DECISIONS.md` "Solo screen power".
+- fix: three Announce modules were never cached for offline use, so a Solo restarting after a
+  power cut with no signal could fail to load. The offline cache now covers the sign's whole
+  import list, and a test checks it.
+- security: the Solo tablet's Fully Kiosk settings (lockdown settings, encrypted kiosk PIN), its
+  setup script and every test file were published on the Driver website. They no longer are,
+  and a test fails if anything but the app would be published. The kiosk PIN is no longer kept
+  in the repo; set a new one on the tablet.
+
 ## [2.4.0] - 2026-09-30
 
 **Dev and production databases now match; the NaPTAN stop import works again, with no paid geocoder**
