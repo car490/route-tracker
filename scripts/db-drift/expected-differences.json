@@ -1,0 +1,20 @@
+{
+  "_comment": "Differences between dev and production that are accepted, each with its reason. Keep this list short: anything here is a difference a release will not be warned about. check.mjs reports entries that no longer match anything so they can be removed.",
+  "differences": [
+    {
+      "kind": "default_acl",
+      "name": "supabase_admin:public:*",
+      "reason": "Dev has Supabase-platform default privileges for the supabase_admin role in public; production has none. They only affect objects Supabase itself creates as supabase_admin (our migrations run as postgres), and the postgres role cannot change another role's defaults."
+    },
+    {
+      "kind": "extension",
+      "name": "hypopg",
+      "reason": "Installed on production by the Supabase dashboard's index advisor (with index_advisor). Diagnostic tooling only; no application object depends on it."
+    },
+    {
+      "kind": "extension",
+      "name": "index_advisor",
+      "reason": "Installed on production by the Supabase dashboard's index advisor (with hypopg). Diagnostic tooling only; no application object depends on it."
+    }
+  ]
+}
