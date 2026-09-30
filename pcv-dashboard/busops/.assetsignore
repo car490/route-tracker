@@ -1,13 +1,20 @@
 # busops/ is the wrangler.jsonc assets directory, but only driver/ (minus
-# driver/cab-device/), announce/ (minus announce/mele-server/), shared/, and
-# service-worker.js are the actual deployed app. Everything below is
+# driver/cab-device/), announce/ (minus announce/mele-server/ and
+# announce/cab-device/), shared/, and service-worker.js are the actual
+# deployed app — and never their *.test.js. Everything below is
 # dev/tooling/other-hardware content that must not be served publicly on
 # driver.pcvtechnologies.co.uk. wrangler deploy reads from local disk (not git), so
 # gitignored dirs like node_modules/ need to be listed here too or they'd
-# still get swept into the deploy.
+# still get swept into the deploy. tests/assetsIgnore.test.js walks the
+# folder and fails if anything other than the app would be published.
 announce/mele-server/
+# Kiosk tablet provisioning (Fully Kiosk settings, setup scripts): pushed to
+# the tablet over USB, never fetched from the web. announce/cab-device/ was
+# missing until 2026-09-30, so the Solo kiosk settings were public.
+announce/cab-device/
 driver/cab-device/
 tests/
+*.test.js
 node_modules/
 .wrangler/
 package.json
@@ -17,5 +24,8 @@ jest.config.cjs
 vitest.config.js
 server.js
 wrangler.jsonc
+_demo-real-controller.mjs
+.nvmrc
+.assetsignore
 .env
 .env.*

@@ -10,7 +10,7 @@
 // registration failure today.
 import { SUPABASE_URL, SUPABASE_KEY } from './driver/src/config.js';
 
-const CACHE_NAME = 'busops-driver-v2.4.0';
+const CACHE_NAME = 'busops-driver-v2.4.1';
 
 const STATIC_ASSETS = [
   './',
@@ -36,6 +36,12 @@ const STATIC_ASSETS = [
   './announce/src/soloResumeStop.js',
   './announce/src/soloTripQueue.js',
   './announce/src/soloOfflineCache.js',
+  // The rest of the import closure of onboard.js (tests/serviceWorkerPrecache.test.js).
+  './announce/src/announceSpeech.js',
+  './announce/src/announceLiteMode.js',
+  './announce/src/screenPower/screenSchedule.js',
+  './announce/src/screenPower/screenPower.js',
+  './shared/deviceStateSync.js',
   './shared/scheduleAutopilot.js',
   './driver/src/announcements.js',
   './driver/src/directions.js',

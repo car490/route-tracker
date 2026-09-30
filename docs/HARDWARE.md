@@ -267,18 +267,30 @@ the last one is software:
    - **Android tablets (Driver, Announce):** many consumer tablets with a
      completely flat battery show a "charging" screen when power arrives
      instead of starting Android, and only start when someone holds the
-     power button. **Not yet tested on any of our tablets.** This is the
-     biggest open risk here, because nothing below matters until it's
-     solved (bench test: `docs/TESTING.md` §19, part A). If a tablet fails
-     it, the options are, safest first:
-     1. keep the tablets on a small permanent fused supply so the battery
-        never goes flat (sized against the vehicle battery's standing
-        drain);
-     2. use the vehicle-telematics tablet class already reopened in §14
-        (genuine ignition sense, starts with the ignition);
-     3. change the bootloader so it starts on charge. **Not recommended:**
-        it needs an unlocked bootloader, which weakens the device's
-        security.
+     power button. **The Announce tablet (PIXGOOD M328) does exactly
+     this — tested by the owner 2026-09-30**, after a flat battery and
+     after a switch-off alike. The Driver tablet is not yet tested (bench
+     test: `docs/TESTING.md` §19, part A). The options:
+     1. **Chosen for the Announce tablet, 2026-09-30:** keep it on a
+        permanent fused supply so the battery never goes flat. Fit it
+        through a **low-voltage cut-off** (the kind sold for dashcam
+        parking mode, set for the vehicle's 24 V/12 V system) so a parked
+        bus can't be flattened by it. "Powered" is then always true, so the
+        sign switches its own screen off between journeys through Fully
+        Kiosk (`docs/DECISIONS.md` "Solo screen power"). Still needs the
+        button after a deliberate switch-off, or if the bus stands long
+        enough for the cut-off to trip.
+     2. use a device that starts by itself. The Announce display must be
+        14" (regulations), which rules out the 8–11" ignition-sense
+        telematics class in §14 and the Samsung Tab Active range. Left open
+        for later: a 14.6" Samsung Galaxy Tab S-Ultra with Samsung Knox's
+        free "power on when connected" setting (needs an MDM; AMOLED
+        burn-in risk from a static sign), or a battery-less bus-grade
+        15.6" Android display from a UK supplier, vetted first (Android
+        version, security patches, no root, no unknown apps).
+     3. ~~change the bootloader so it starts on charge~~ **Ruled out
+        (owner, 2026-09-30):** it needs an unlocked bootloader, which
+        switches off the tablet's own tamper checks.
    - **Bus Controller (MeLE):** only starts by itself if the BIOS is set
      to power on when AC returns. Not yet in `mele-server/DEPLOY.md`;
      check it's available and set it (bench test §19 part A).

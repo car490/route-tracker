@@ -731,3 +731,144 @@ describe('startSoloAutopilot — slow network', () => {
     expect(onSchedule.mock.calls[0][0].stops.map((s) => s.name)).toEqual(['Depot', 'Market Place', 'College']);
   });
 });
+
+// ── Screen power (owner, 2026-09-30; screenPower/) ──────────────────────────
+// The tablet is on a permanent supply, so the sign switches its own screen
+// through Fully Kiosk: on from 30 min before each running journey's first
+// stop to 15 min after its last, and during any trip; off otherwise. dep-1
+// runs Mon-Fri 08:00 -> 08:30, so its screen window is 07:30 -> 08:45.
+
+describe('startSoloAutopilot — screen power', () => {
+  let screen;
+  let log;
+  beforeEach(() => {
+    vi.useFakeTimers();
+    screen = { available: () => true, turnOn: vi.fn(() => true), turnOff: vi.fn(() => true) };
+    log = vi.fn();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    startAnnounceGpsTracking.mockReset();
+  });
+
+  const callbacks = () => ({ onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture: vi.fn(), onJourneyEnd: vi.fn(), onSleep: vi.fn() });
+
+  it('keeps the screen on while the departures cannot be loaded', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 12, 0, 0)); // outside the window, if it were known
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: vi.fn() } });
+    const failing = flakyChainable(SCHEDULE_ROWS, 1000);
+    const client = {
+      from: vi.fn((table) => (table === 'schedule_view' ? failing : chainable([]))),
+      rpc: vi.fn(() => thenableOnly({ data: null, error: null })),
+    };
+    startSoloAutopilot(client, BASE_DEVICE_ROW, callbacks(), { screen, log });
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(screen.turnOn).toHaveBeenCalled();
+    expect(screen.turnOff).not.toHaveBeenCalled();
+  });
+
+  it('switches the screen off outside the journey windows once the departures are loaded', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 12, 0, 0)); // Monday noon
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: vi.fn() } });
+    startSoloAutopilot(makeClient(), BASE_DEVICE_ROW, callbacks(), { screen, log });
+    await flush();
+
+    expect(screen.turnOff).toHaveBeenCalledTimes(1);
+    expect(screen.turnOn).not.toHaveBeenCalled();
+  });
+
+  it('logs the day\'s on times, using the journey\'s last stop', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 12, 0, 0));
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: vi.fn() } });
+    startSoloAutopilot(makeClient(), BASE_DEVICE_ROW, callbacks(), { screen, log });
+    await flush();
+
+    expect(log).toHaveBeenCalledWith('2026-08-24 screen on 07:30–08:45');
+  });
+
+  it('switches the screen on 30 minutes before the first stop, with no restart', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 7, 29, 57));
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: vi.fn() } });
+    startSoloAutopilot(makeClient(), BASE_DEVICE_ROW, callbacks(), { screen, log });
+    await flush();
+    expect(screen.turnOff).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(5000); // crosses 07:30
+
+    expect(screen.turnOn).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the screen on through a trip running late past its window, then the terminus hold, then off', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0));
+    const getCurrentPosition = vi.fn((ok) => ok({ coords: { latitude: DEPOT.lat, longitude: DEPOT.lon } }));
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } });
+    vi.stubGlobal('crypto', { randomUUID: () => 'client-generated-id' });
+    let onUpdate;
+    startAnnounceGpsTracking.mockImplementation((opts) => {
+      onUpdate = opts.onUpdate;
+      return { stop: vi.fn(), jumpToStop: vi.fn() };
+    });
+
+    startSoloAutopilot(makeClient(), BASE_DEVICE_ROW, callbacks(), { screen, log });
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000); // matches, trip starts
+    getCurrentPosition.mockImplementation((ok) => ok({ coords: { latitude: 0, longitude: 0 } }));
+
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000); // 09:00 — window ended 08:45, trip still running
+    expect(screen.turnOff).not.toHaveBeenCalled();
+
+    onUpdate({ atStop: { stopIndex: 1 }, approaching: null, stopStates: [] }); // reaches the last stop
+    await vi.advanceTimersByTimeAsync(9 * 60 * 1000); // inside the 10-minute terminus hold
+    expect(screen.turnOff).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(2 * 60 * 1000);
+    expect(screen.turnOff).toHaveBeenCalledTimes(1);
+  });
+
+  it('switches the screen back on when the Solo loop stops (e.g. the device is paired and becomes a Lite sign)', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 12, 0, 0));
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: vi.fn() } });
+    const handle = startSoloAutopilot(makeClient(), BASE_DEVICE_ROW, callbacks(), { screen, log });
+    await flush();
+    expect(screen.turnOff).toHaveBeenCalledTimes(1);
+
+    handle.stop();
+
+    expect(screen.turnOn).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-reads its departures every hour, so Dashboard changes (term time, removed dates) reach it without a restart', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 12, 0, 0));
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: vi.fn() } });
+    const client = makeClient();
+    startSoloAutopilot(client, BASE_DEVICE_ROW, callbacks(), { screen, log });
+    await flush();
+    const reads = () => client.from.mock.calls.filter(([t]) => t === 'term_dates').length;
+    expect(reads()).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+
+    expect(reads()).toBe(2);
+  });
+
+  it('keeps one retry going, not one per hourly re-read, while there is no signal', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 12, 0, 0));
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: vi.fn() } });
+    const client = makeClient();
+    startSoloAutopilot(client, BASE_DEVICE_ROW, callbacks(), { screen, log });
+    await flush();
+    // Signal lost from here on.
+    const failing = flakyChainable(SCHEDULE_ROWS, 1e9);
+    client.from.mockImplementation((table) => (table === 'schedule_view' ? failing : chainable([])));
+    const reads = () => client.from.mock.calls.filter(([t]) => t === 'schedule_view').length;
+
+    await vi.advanceTimersByTimeAsync(3 * 60 * 60 * 1000); // three hourly re-reads, each failing
+    const afterThreeHours = reads();
+    await vi.advanceTimersByTimeAsync(60 * 1000); // one more minute: one retry, not three
+
+    expect(reads() - afterThreeHours).toBe(1);
+  });
+});

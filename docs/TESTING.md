@@ -631,7 +631,42 @@ For **each** device: the Driver tablet, the Announce tablet, and the Bus Control
       fails, stops for a disk check, or comes up without the hotspot or `coachmate-onboard`.
 6. If a tablet shows a "charging" screen or stays off, **stop and report it**. The fix is a
    hardware choice (`docs/HARDWARE.md` lists the options), not something the app can solve.
-   Don't unlock the bootloader to work around it.
+   Don't unlock the bootloader to work around it (ruled out by the owner, 2026-09-30).
+
+**Result so far:** Announce tablet (PIXGOOD M328), 2026-09-30 — **fails**: shows its charging
+screen and needs the power button, after a flat battery and after a switch-off. It now goes on
+a permanent supply instead (A2). Driver tablet and Controller: not yet tested.
+
+### A2. Announce Solo on a permanent supply: does it switch its own screen?
+
+The tablet never goes flat on a permanent supply, so the sign switches its screen through
+Fully Kiosk (`docs/DECISIONS.md` "Solo screen power"). Use a dev install link and a device with
+at least one departure today; re-run `setup-solo-device.sh` first so the new settings are on it.
+
+1. Fit it as in the vehicle: permanent fused supply through a low-voltage cut-off.
+2. Fully's menu → About: **PLUS is still licensed** after the settings were re-pushed.
+3. Attach DevTools (as `npm run measure:announce-solo` does, `webviewDebugging` on by hand) and
+   find the `[screen] YYYY-MM-DD screen on HH:MM–HH:MM, …` line. Check it against the
+   timetable: 30 min before each journey's first stop to 15 min after its last, nothing on a
+   weekend or outside term for a term-time-only run.
+4. Outside those times the screen goes **off** within a minute of the page loading, and comes
+   back **on** at the next window by itself. (Move a test departure to a few minutes from now in
+   the Dashboard to see both without waiting; the tablet re-reads its departures hourly or at a
+   restart.)
+5. Press the power button while it's meant to be off: it lights, and goes off again within
+   10 minutes.
+6. Long-press the power button: **no power menu** appears. (A 10-second hard press still
+   restarts it; it must come back to the idle page by itself.)
+   After that restart, try to exit the kiosk: it must **ask for the kiosk PIN** you set in
+   Fully's menu. The settings file carries no PIN, so this proves the re-import at start-up
+   leaves the tablet's own PIN alone. If it lets you out without one, stop and report it.
+   On a phone, `https://driver.pcvtechnologies.co.uk/announce/cab-device/fully-auto-settings.json`
+   must say not found (it was public until 2026-09-30).
+7. Start a trip near the end of a window and let it run past the window's end: the screen
+   stays on until 10 minutes after the last stop.
+8. If the screen never goes off: check `stay_on_while_plugged_in` isn't overriding Fully
+   (`adb shell settings get global stay_on_while_plugged_in`; try `0`) and that the page is
+   one of the six `urlWhitelist` hosts. Record what fixed it here.
 
 ### B. On the real tablets: does the app pick up where it left off?
 

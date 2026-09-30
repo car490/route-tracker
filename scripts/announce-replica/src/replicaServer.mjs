@@ -36,6 +36,7 @@ const MIME = {
 const BUSOPS_ALLOWLIST = [
   /^announce\/(onboard\.html|onboard\.css|branding-logo\.png)$/,
   /^announce\/src\/[A-Za-z0-9_-]+\.js$/,
+  /^announce\/src\/screenPower\/[A-Za-z0-9_-]+\.js$/, // the sign's screen-power slice (2026-09-30)
   /^announce\/lib\/supabase\.min\.js$/,
   /^shared\/[A-Za-z0-9_-]+\.(js|css)$/,
   /^shared\/icons\/[A-Za-z0-9_.-]+\.(png|svg|ico)$/,

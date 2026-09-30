@@ -159,6 +159,11 @@ subpaths (e.g. `/route-tracker/`) — this matters because the PWA moved from a 
 subpath to owning its own origin (`driver.pcvtechnologies.co.uk`); don't reintroduce an absolute or
 subpath-prefixed registration.
 
+`tests/assetsIgnore.test.js` walks `pcv-dashboard/busops/` and fails if `wrangler deploy` would
+publish anything but the app itself (`.assetsignore` decides; added 2026-09-30 after
+`announce/cab-device/` — kiosk settings — and every `*.test.js` were found published). A new
+non-app file or folder under `busops/` must be added to `.assetsignore`.
+
 Dashboard tests (Vitest, co-located `pcv-dashboard/src/**/*.test.js`):
 ```sh
 cd pcv-dashboard && npm test
