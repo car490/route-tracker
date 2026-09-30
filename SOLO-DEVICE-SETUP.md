@@ -70,6 +70,34 @@ device, so they apply here unchanged and aren't repeated in full below.
   once Kiosk Lock is active. Android then auto-reconnects to it on every
   future boot with zero taps, same as any other previously-saved network.
 
+## Power and screen (2026-09-30)
+
+- **Permanent fused supply, not ignition-switched.** This tablet stops at its charging
+  screen after a flat battery or a switch-off and needs the power button pressed (owner's
+  test, 2026-09-30). On a permanent supply it never goes flat. Fit it through a low-voltage
+  cut-off so it can't flatten the bus battery (`docs/HARDWARE.md` "Power loss and first
+  boot"). Never unlock the bootloader to make it start on charge (owner, 2026-09-30).
+- **The sign switches its own screen.** On from 30 minutes before each running journey's first
+  stop to 15 minutes after its last, off otherwise, and always on during a trip or while its
+  departures aren't loaded yet (`announce/src/screenPower/`, `docs/DECISIONS.md` "Solo screen
+  power"). School runs follow the Dashboard's term dates; a bank holiday needs a removed date
+  on each run in the Dashboard. The tablet logs the day's times as
+  `[screen] 2026-10-05 screen on 06:57–08:55, 14:53–18:00`.
+- **Fully Kiosk PLUS is required** (both our tablets have it): the screen switching uses Fully's
+  JavaScript interface (`websiteIntegration`). Because that interface can do far more than
+  switch the screen, the kiosk is restricted to our own hosts (`urlWhitelist`) —
+  `tests/soloKioskSettings.test.js` fails if one is on without the other. The power menu is
+  hidden (`disableSystemDialogs`).
+- **Kiosk exit PIN: set on the tablet, never in the repo** (owner, 2026-09-30). The settings
+  file has no PIN key at all (not even blank — the tablet re-imports the file when Fully starts,
+  and a blank value would clear its PIN each time). Set it after setup in Fully's menu →
+  Settings → Kiosk Mode → Kiosk PIN. Until 2026-09-30 the settings file (with the old encrypted
+  PIN) was published on the Driver website because `.assetsignore` missed
+  `announce/cab-device/`; treat that PIN as seen and use a new one.
+- **Keep the departures tidy in the Dashboard.** The screen times come from the departures
+  assigned to the device: tick school term time on school runs, and don't leave test
+  departures assigned to a live sign (each keeps it awake).
+
 ## The kiosk URL
 
 ```

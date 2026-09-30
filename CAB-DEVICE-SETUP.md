@@ -74,7 +74,9 @@ Android's built-in **Screen Pinning** (Settings → Security → Screen Pinning)
 was the first thing tried, but it doesn't survive an ignition-cycled reboot
 without someone re-pinning by hand — a dealbreaker for a device that
 power-cycles every time the vehicle starts. **Fully Kiosk Browser** is what's
-actually deployed instead — free, auto-starts on boot, and survives crashes.
+actually deployed instead — auto-starts on boot and survives crashes. Both our tablets
+(this one and the Announce Solo tablet) run **Fully Kiosk PLUS** (licensed per device); the
+Solo's screen switching needs it (`SOLO-DEVICE-SETUP.md` "Power and screen").
 
 **Get the right app.** Fully Kiosk Browser is a specific app from
 `fully-kiosk.com` — don't confuse it with **"Fully Single App Kiosk"**, a

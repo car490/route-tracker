@@ -73,6 +73,15 @@ describe('classifyRequest — pure routing and rejection rules', () => {
     assert.equal(classifyRequest('GET', '/announce/onboard.html?panel-profile=lite').relPath, 'announce/onboard.html');
   });
 
+  test('the sign\'s screenPower/ slice is served, its tests and other subfolders are not', () => {
+    for (const url of ['/announce/src/screenPower/screenPower.js', '/announce/src/screenPower/screenSchedule.js']) {
+      assert.equal(classifyRequest('GET', url).kind, 'file', `${url} should be served`);
+    }
+    for (const url of ['/announce/src/screenPower/screenPower.test.js', '/announce/src/other/x.js', '/announce/src/screenPower/x/y.js']) {
+      assert.equal(classifyRequest('GET', url).kind, 'reject', `${url} should be refused`);
+    }
+  });
+
   test('HEAD is allowed like GET', () => {
     assert.equal(classifyRequest('HEAD', '/announce/onboard.css').kind, 'file');
   });

@@ -116,7 +116,7 @@ echo "==> Granting OS-level permissions non-interactively..."
 "$ADB" shell pm grant "$PKG" android.permission.ACCESS_FINE_LOCATION || true
 "$ADB" shell pm grant "$PKG" android.permission.ACCESS_COARSE_LOCATION || true
 
-echo "==> Screen follows the power: on while powered, off a while after power goes..."
+echo "==> Screen: on while powered (the sign switches it off between journeys), off 10 min into battery..."
 # Owner decision 2026-09-29, after the first live run (docs/DECISIONS.md
 # "Solo screen power"). The earlier design (2026-09-04) let the screen go
 # dark between departures, with a 60s timeout, and relied on the page's
@@ -136,6 +136,17 @@ echo "==> Screen follows the power: on while powered, off a while after power go
 # line), not a blank page (announceSoloAutopilot.js's showIdleForWakeState).
 # Also right for a Lite (paired) device on this same script: it never
 # released the wake lock anyway.
+#
+# Owner decision 2026-09-30: this tablet stops at its charging screen after a
+# flat battery or a switch-off and needs the power button pressed, so it now
+# goes on a PERMANENT fused supply (through a low-voltage cut-off, so it
+# can't flatten the bus battery) and never goes flat. "Powered" is then
+# always true, so the sign switches its own screen instead: on from 30 min
+# before each running journey's first stop to 15 min after its last, off
+# otherwise, through Fully's JavaScript interface (PLUS; websiteIntegration
+# and the urlWhitelist restricting it to our own hosts are in
+# fully-auto-settings.json, guarded by tests/soloKioskSettings.test.js). See
+# announce/src/screenPower/ and docs/DECISIONS.md "Solo screen power".
 "$ADB" shell settings put global stay_on_while_plugged_in 7
 "$ADB" shell settings put system screen_off_timeout 600000
 
@@ -222,8 +233,19 @@ echo " for why these stay manual on this whole device class):"
 echo "   - Remove the device's screen lock (Settings -> Security -> Screen"
 echo "     lock -> None) so a reboot doesn't sit at a PIN prompt forever."
 echo "     Non-interactively: adb shell locksettings clear --old <PIN>"
-echo "   - Mount it and connect it to permanent/ignition-switched power."
+echo "   - Set the KIOSK EXIT PIN on the tablet: Fully menu -> Settings ->"
+echo "     Kiosk Mode -> Kiosk PIN. It is never kept in this repo (the"
+echo "     settings file has no PIN), so a tablet set up without this step"
+echo "     has no PIN. Keep it out of chat, email and git."
+echo "   - Mount it and connect it to a PERMANENT fused supply through a"
+echo "     low-voltage cut-off (not ignition-switched: a flat tablet stops"
+echo "     at its charging screen until someone presses the power button)."
+echo "   - Confirm Fully PLUS is still licensed (Fully menu -> About) -- the"
+echo "     screen switching needs it."
 echo "   - Reboot once and confirm it boots straight to the Announce idle"
 echo "     screen with no taps needed (one swipe past Android's normal"
 echo "     first-unlock-after-reboot screen is expected and fine)."
+echo "   - Check the day's screen times the sign worked out: DevTools console"
+echo "     (see measure:announce-solo for attaching) shows a line like"
+echo "     '[screen] 2026-10-05 screen on 06:57-08:55, 14:53-18:00'."
 echo "=================================================================="
