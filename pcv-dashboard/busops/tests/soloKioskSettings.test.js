@@ -100,6 +100,14 @@ describe('Solo kiosk settings: locked down', () => {
     expect(settings[key]).toBe(expected);
   });
 
+  // Owner, 2026-09-30: the kiosk exit PIN is set on each tablet in Fully's
+  // menu and never kept in the repo. The key is left out, not blanked: the
+  // tablet re-imports this file when Fully starts, and an empty value there
+  // would clear the tablet's own PIN on every restart.
+  test('no kiosk PIN is committed, not even blank', () => {
+    expect(Object.keys(settings).filter((k) => /pin/i.test(k) && /kiosk/i.test(k) && !/wifi/i.test(k))).toEqual([]);
+  });
+
   test('no device token is committed: the start URL is filled in by setup-solo-device.sh', () => {
     expect(settings.startURL).toBe('__START_URL__');
   });

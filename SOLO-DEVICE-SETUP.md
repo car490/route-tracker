@@ -88,6 +88,12 @@ device, so they apply here unchanged and aren't repeated in full below.
   switch the screen, the kiosk is restricted to our own hosts (`urlWhitelist`) —
   `tests/soloKioskSettings.test.js` fails if one is on without the other. The power menu is
   hidden (`disableSystemDialogs`).
+- **Kiosk exit PIN: set on the tablet, never in the repo** (owner, 2026-09-30). The settings
+  file has no PIN key at all (not even blank — the tablet re-imports the file when Fully starts,
+  and a blank value would clear its PIN each time). Set it after setup in Fully's menu →
+  Settings → Kiosk Mode → Kiosk PIN. Until 2026-09-30 the settings file (with the old encrypted
+  PIN) was published on the Driver website because `.assetsignore` missed
+  `announce/cab-device/`; treat that PIN as seen and use a new one.
 - **Keep the departures tidy in the Dashboard.** The screen times come from the departures
   assigned to the device: tick school term time on school runs, and don't leave test
   departures assigned to a live sign (each keeps it awake).

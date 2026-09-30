@@ -657,6 +657,11 @@ at least one departure today; re-run `setup-solo-device.sh` first so the new set
    10 minutes.
 6. Long-press the power button: **no power menu** appears. (A 10-second hard press still
    restarts it; it must come back to the idle page by itself.)
+   After that restart, try to exit the kiosk: it must **ask for the kiosk PIN** you set in
+   Fully's menu. The settings file carries no PIN, so this proves the re-import at start-up
+   leaves the tablet's own PIN alone. If it lets you out without one, stop and report it.
+   On a phone, `https://driver.pcvtechnologies.co.uk/announce/cab-device/fully-auto-settings.json`
+   must say not found (it was public until 2026-09-30).
 7. Start a trip near the end of a window and let it run past the window's end: the screen
    stays on until 10 minutes after the last stop.
 8. If the screen never goes off: check `stay_on_while_plugged_in` isn't overriding Fully
