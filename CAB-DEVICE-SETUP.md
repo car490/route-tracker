@@ -230,8 +230,30 @@ apply:
 adb push cab-device/fully-auto-settings.json //sdcard/Download/fully-auto-settings.json
 adb shell am force-stop de.ozerov.fully
 adb shell am start -n de.ozerov.fully/de.ozerov.fully.MainActivity
+# once the phone shows the driver screen again:
+adb shell rm -f //sdcard/Download/fully-auto-settings.json
 ```
 (`//sdcard/...`, not `/sdcard/...` — see the Git Bash quirk below if running this on Windows.)
+Or simply re-run `setup-cab-device.sh`, which does the same and asks before deleting.
+
+### No settings copy left on the device; no kiosk PIN in the repo (2026-09-30)
+
+Both setup scripts (this one and the Solo's) now **delete the pushed settings copy from
+Downloads** once you confirm the device shows the right page. Fully keeps its own private copy
+after importing, and the Downloads copy is readable by any app with storage access; on the Solo
+it holds the device token. Answer anything but `y` and the copy is kept so you can import it by
+hand; the script then prints the delete command and exits non-zero so it isn't forgotten.
+`tests/cabDeviceSetupScripts.test.js` runs both scripts against a stand-in `adb` to prove it.
+
+**The kiosk exit PIN is set on each device** (Fully menu → Settings → Kiosk Mode → Kiosk PIN)
+and is no longer in either settings template. It's left out rather than blanked: the device
+re-imports the file when Fully starts, and a blank value would clear its PIN. Both templates
+carried the **same** encrypted PIN until 2026-09-30, and the Solo's copy was published on the
+Driver website, so change the PIN on every device set up with it.
+
+Devices set up before this: delete the leftover copy once over USB
+(`adb shell rm -f //sdcard/Download/fully-auto-settings.json`), restart, and check the device
+still boots to its page and still asks for the PIN.
 
 ### Known quirk: a failed/never-cached first load needs a manual reload to recover
 

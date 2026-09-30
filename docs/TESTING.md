@@ -662,6 +662,11 @@ at least one departure today; re-run `setup-solo-device.sh` first so the new set
    leaves the tablet's own PIN alone. If it lets you out without one, stop and report it.
    On a phone, `https://driver.pcvtechnologies.co.uk/announce/cab-device/fully-auto-settings.json`
    must say not found (it was public until 2026-09-30).
+   **Settings copy gone:** `adb shell ls //sdcard/Download/fully-auto-settings.json` must say
+   no such file (the setup script deletes it once you answer `y`). With it gone, the restart
+   above must still land on the idle page and still ask for the PIN — proof Fully kept its own
+   copy. If a restart without the file loses the start URL or the PIN, stop and report it.
+   Do the same on the Driver cab phone after re-running `setup-cab-device.sh`.
 7. Start a trip near the end of a window and let it run past the window's end: the screen
    stays on until 10 minutes after the last stop.
 8. If the screen never goes off: check `stay_on_while_plugged_in` isn't overriding Fully
