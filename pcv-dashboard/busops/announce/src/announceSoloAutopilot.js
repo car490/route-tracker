@@ -48,6 +48,13 @@
 //     made on the tablet, like the Driver PWA's offline manual start
 //   - the departure list and each departure's stops are kept as an offline
 //     copy (soloOfflineCache.js) so matching works with no signal
+//
+// Screen power (owner, 2026-09-30, screenPower/): the tablet is on a
+// permanent supply so it never goes flat, and switches its own screen through
+// Fully Kiosk — on from 30 min before each running journey's first stop to
+// 15 min after its last, and whenever a trip is under way; off otherwise. The
+// departures are re-read every hour so a Dashboard change (term time, a
+// removed date) reaches the tablet without a restart.
 
 import { startAnnounceGpsTracking } from './announceGps.js';
 import {
@@ -63,6 +70,8 @@ import { readCheckpoint, clearCheckpoint, createCheckpointRecorder } from '../..
 import { pickResumeStop } from './soloResumeStop.js';
 import { createSoloTripQueue } from './soloTripQueue.js';
 import { saveCandidates, loadCandidates, saveDepartureDetails, loadDepartureDetails } from './soloOfflineCache.js';
+import { isScreenScheduledOn, describeScreenDay } from './screenPower/screenSchedule.js';
+import { createFullyScreen, createScreenPower } from './screenPower/screenPower.js';
 
 // Solo's own saved-trip key — see shared/journeyCheckpoint.js.
 export const SOLO_CHECKPOINT_KEY = 'busops.announce.solo.journeyCheckpoint';
@@ -77,6 +86,10 @@ const IDLE_POLL_MS = 5000; // own-GPS check interval while no journey is active
 // permanently empty for the rest of the day, with the device silently stuck
 // on idle — first-beta-test feedback 2026-09-03.
 const BOOT_FETCH_RETRY_MS = 3000;
+// Re-reads the departures (and their term-time flags, added/removed dates,
+// term dates) this often. Before, only a restart or a change to this
+// device's own departure list re-read them.
+const CANDIDATE_REFRESH_MS = 60 * 60 * 1000;
 const COMPLETION_TIMEOUT_MIN = 120; // safety net — no driver to notice a stuck journey
 // How long the sign keeps showing the terminus state, and the screen itself
 // stays awake (see onboard.js's wake lock), after the last stop is reached
@@ -148,9 +161,13 @@ function buildCandidates(departureIds, scheduleResult, exceptionsResult, termDat
     (row.exception_type === 'removed' ? bucket.removedDates : bucket.addedDates).push(row.exception_date);
   }
 
+  // Rows arrive ordered by sequence: the first per departure is its first
+  // stop, the last its last stop (screenPower/screenSchedule.js's window end).
   const firstByDeparture = new Map();
+  const lastTimeByDeparture = new Map();
   for (const row of scheduleResult.data) {
     if (!firstByDeparture.has(row.departure_id)) firstByDeparture.set(row.departure_id, row);
+    lastTimeByDeparture.set(row.departure_id, row.scheduled_time.substring(0, 5));
   }
   const candidates = departureIds
     .map((id) => firstByDeparture.get(id))
@@ -163,6 +180,7 @@ function buildCandidates(departureIds, scheduleResult, exceptionsResult, termDat
         firstStopLat: row.lat,
         firstStopLon: row.lon,
         departureTime: row.scheduled_time.substring(0, 5),
+        lastStopTime: lastTimeByDeparture.get(row.departure_id),
         daysOfWeek: row.days_of_week,
         schoolTermTime: row.school_term_time,
         removedDates,
@@ -211,7 +229,11 @@ function msUntilNextOccurrence(departureTime, now) {
   return diff;
 }
 
-export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onState, onIdleNextDeparture, onJourneyEnd, onSleep, onGpsSourceChanged }, { storage = globalThis.localStorage } = {}) {
+const logScreen = (msg) => console.info(`[screen] ${msg}`);
+
+export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onState, onIdleNextDeparture, onJourneyEnd, onSleep, onGpsSourceChanged }, {
+  storage = globalThis.localStorage, screen = createFullyScreen(), log = logScreen,
+} = {}) {
   // Live reference, not a frozen snapshot — applyConfigUpdate() below
   // replaces it in place, and tryMatch()/reportNextDeparture() always read
   // whatever it currently points to, so a dashboard edit (testing_mode,
@@ -235,6 +257,12 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
   // silently never call onSleep at boot. null guarantees the first real
   // determination, whichever way it goes, always fires its callback once.
   let isAwake = null;
+  // Screen power: false until departures (live or the offline copy) are in
+  // hand — until then the screen stays on. holdUntil covers the terminus
+  // hold after a trip (POST_JOURNEY_HOLD_MS).
+  let candidatesLoaded = false;
+  let holdUntil = 0;
+  const screenPower = createScreenPower({ screen, log });
 
   const queue = createSoloTripQueue({ client, storage });
   const flushQueue = () => { queue.flush().catch(() => {}); };
@@ -323,11 +351,35 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     else onIdleNextDeparture?.(null);
   }
 
+  // Everything that must keep the screen on whatever the timetable says:
+  // a trip under way (or being set up, or waiting to carry on after a power
+  // cut), the terminus hold, a departure's wake window.
+  function updateScreen() {
+    const now = new Date();
+    screenPower.update({
+      now,
+      dataReady: candidatesLoaded,
+      scheduledOn: isScreenScheduledOn(now, candidates, termDateRanges),
+      keepOn: !!activeJourney || !!pendingResume || matching || now.getTime() < holdUntil || isAwake === true,
+    });
+  }
+
   function useCandidates(result) {
     candidates = result.candidates;
     termDateRanges = result.termDateRanges;
+    candidatesLoaded = true;
     applyWakeState(); // first real determination of awake/asleep, now that candidates are actually loaded
     if (isAwake) reportNextDeparture();
+    log(describeScreenDay(new Date(), candidates, termDateRanges));
+    updateScreen();
+  }
+
+  // One pending retry at most — the hourly re-read must not stack a new
+  // retry chain on top of one already waiting for the signal to come back.
+  let retryTimer = null;
+  function retryRefresh(ms) {
+    clearTimeout(retryTimer);
+    retryTimer = setTimeout(refreshCandidates, ms);
   }
 
   // Live first. With no signal, the offline copy (if this device has one for
@@ -338,9 +390,10 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     if (result === null) {
       const copy = candidates.length ? null : loadCandidates(ids, { storage });
       if (copy) useCandidates(copy);
-      setTimeout(refreshCandidates, candidates.length ? QUEUE_RETRY_MS : BOOT_FETCH_RETRY_MS);
+      retryRefresh(candidates.length ? QUEUE_RETRY_MS : BOOT_FETCH_RETRY_MS);
       return;
     }
+    clearTimeout(retryTimer);
     saveCandidates(ids, result, { storage });
     useCandidates(result);
     warmDepartureCopies(result.candidates);
@@ -419,6 +472,7 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     recorder.clear();
     flushQueue();
     activeJourney = null;
+    holdUntil = Date.now() + POST_JOURNEY_HOLD_MS;
     // Hides the now-stale #onboard-sign and clears its reveal timers — same
     // onJourneyEnd() the base/Lite tiers already call on their own
     // journey-end signals (onboard.js). Previously missing here entirely,
@@ -713,6 +767,7 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
   }
 
   refreshCandidates();
+  const refreshTimer = setInterval(refreshCandidates, CANDIDATE_REFRESH_MS);
   flushQueue();
   const queueTimer = setInterval(() => { if (queue.pending()) flushQueue(); }, QUEUE_RETRY_MS);
   const onOnline = () => flushQueue();
@@ -720,6 +775,7 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
 
   const idleTimer = setInterval(() => {
     applyWakeState(); // catches a wake window opening/closing since the last tick — see its own comment
+    updateScreen();
     if (activeJourney || !navigator.geolocation) return;
     // A saved trip waiting to be carried on is checked every tick, whatever
     // the wake window says — the trip is already under way.
@@ -748,8 +804,13 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     stop: () => {
       clearInterval(idleTimer);
       clearInterval(queueTimer);
+      clearInterval(refreshTimer);
+      clearTimeout(retryTimer);
       globalThis.removeEventListener?.('online', onOnline);
       activeJourney?.tracker?.stop();
+      // Whatever runs next (a Lite sign after pairing, a restarted Solo)
+      // must not inherit a screen this loop switched off.
+      if (screen.available()) screen.turnOn();
     },
     refreshCandidates,
     applyConfigUpdate,

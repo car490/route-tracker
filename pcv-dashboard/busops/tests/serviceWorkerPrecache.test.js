@@ -55,3 +55,13 @@ test('precaches every local module in main.js\'s import closure', () => {
   expect(closure.length).toBeGreaterThan(20); // the walk really followed imports
   expect(closure.filter((mod) => !assets.includes(mod))).toEqual([]);
 });
+
+// Same for the Announce sign: a Solo tablet restarting after a power cut
+// with no signal must still load every module (screenPower/ added
+// 2026-09-30 — the sign switches its own screen, so a module missing offline
+// could leave it unable to).
+test('precaches every local module in onboard.js\'s import closure', () => {
+  const closure = importClosure('announce/src/onboard.js');
+  expect(closure).toContain('./announce/src/screenPower/screenPower.js'); // the walk really followed imports
+  expect(closure.filter((mod) => !assets.includes(mod))).toEqual([]);
+});
