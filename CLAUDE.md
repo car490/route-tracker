@@ -216,7 +216,8 @@ is not offered but still uploads. Not part of CI either.
 npm run verify:solo-power-cut      # the same for the Announce Solo sign (~1 min)
 ```
 Real `onboard.html` with Realtime refused: a trip carried on after a power cut with no signal ("The next
-stop is …"), a departure started with no signal from the offline copy, and a revoked device going dark.
+stop is …"), a departure started with no signal from the offline copy, a revoked device going dark, and
+signal returning mid-trip without the idle screen covering the sign (then the terminus message held).
 `ONLY=<scenario>` runs one, `DEBUG_PAGES=1` prints the tablet's console.
 
 ### Measure the real sign on the real tablet (read-only)

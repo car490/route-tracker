@@ -29,6 +29,7 @@ const STATIC_ASSETS = [
   './announce/src/onboard.js',
   './announce/src/panelSizing.js',
   './announce/src/headlineLines.js',
+  './announce/src/idleScreen.js',
   './announce/src/announceDeviceFeed.js',
   './announce/src/announceDeviceSetup.js',
   './announce/src/announceGps.js',
