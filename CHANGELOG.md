@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.4.3] - 2026-10-01
+
+**Announce Solo: the idle screen no longer covers the sign; terminus message held 90 s**
+
+- fix: on a Solo sign the idle screen could appear over the sign mid-trip ("This stop is …"
+  covered — the hourly departures re-read, a Dashboard edit, or the company branding loading when
+  signal returns) and seconds after the last stop (the departure's wake window had closed). The
+  idle screen now never shows while the sign is showing (`announce/src/idleScreen.js`).
+- change: "This service terminates here …" stays on screen for 90 seconds and is said every 20
+  seconds (0/20/40/60/80 s); the screen now switches off 90 s after the last stop (was 10 minutes).
+  Solo only — the Driver PWA is unchanged. See `docs/DECISIONS.md` "Solo terminus message".
+- No database changes. Dev and production schema fingerprints matched before release.
+
 ## [2.4.2] - 2026-09-30
 
 **No kiosk settings copy left on the tablets; no kiosk PIN in the repo**
