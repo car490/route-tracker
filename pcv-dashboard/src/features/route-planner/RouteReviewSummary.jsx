@@ -1,5 +1,6 @@
 import { Fragment } from 'react'
 import { S } from './constants'
+import { TimeInput } from '../../shared/components/TimeInput'
 import { fmtDist, fmtDur, stopColor, buildSegAfterMap, timeToMinutes, minutesToTime, getScheduledMin, totalScheduledDuration } from './utils'
 
 // Stop list (with editable timing-point times) + distance/duration/warnings summary.
@@ -51,10 +52,10 @@ export default function RouteReviewSummary({ stops, setStops, routeResult, warni
                     </div>
                     {s.stop_type === 'timing_point' ? (
                       <div>
-                        <input type="time" className="form-input"
+                        <TimeInput aria-label={`Time at ${s.name}`}
                           style={{ fontSize: 11, height: 24, padding: '1px 3px', width: '100%' }}
                           value={s.time_std}
-                          onChange={e => updateStopTime(i, e.target.value)}
+                          onChange={v => updateStopTime(i, v)}
                         />
                       </div>
                     ) : (

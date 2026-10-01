@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../shared/supabase'
 import { getCompanyLocation } from '../../shared/company'
 import { useJourneyTypes } from '../../shared/hooks/useJourneyTypes'
+import { TimeInput } from '../../shared/components/TimeInput'
 import { TYPE_DEFAULTS, SCHOOL_TYPE_RE, S } from './constants'
 import { fmtDist, fmtDur, stopColor, getScheduledMin, timeToMinutes, minutesToTime } from './utils'
 import { useStopsBuilder } from './useStopsBuilder'
@@ -515,9 +516,9 @@ export default function RoutePlannerPage() {
                       </select>
                       {s.stop_type === 'timing_point' && (
                         <div>
-                          <input type="time" className="form-input"
+                          <TimeInput aria-label={`Time at ${s.name}`}
                             style={{ fontSize: 11, height: 24, padding: '1px 3px', width: '100%' }}
-                            value={s.time_std} onChange={e => updateStop(i, 'time_std', e.target.value)} />
+                            value={s.time_std} onChange={v => updateStop(i, 'time_std', v)} />
                         </div>
                       )}
                     </div>

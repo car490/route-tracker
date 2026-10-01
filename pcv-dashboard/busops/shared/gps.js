@@ -2,6 +2,7 @@ import { haversine } from './geo.js';
 import { computeTiming } from './engine.js';
 import { findForwardMatch, isApproaching, GEOFENCE_RADIUS_M } from './geofence.js';
 import { log } from './logger.js';
+import { formatTime } from './timeFormat.js';
 
 // Default position source: the browser's own GPS via the Geolocation API.
 // A caller can pass a different `positionSource` (same (onFix, onError) =>
@@ -153,7 +154,7 @@ export function startGpsTracking({ schedule, lateAllowanceMin = 2, initialStopIn
         scheduledDepart.setHours(h, m, 0, 0);
         if (arrivalTime < scheduledDepart) {
           const minEarly = Math.round((scheduledDepart - arrivalTime) / 60000);
-          log('info', `Running ${minEarly} min early — wait until ${scheduledDepart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+          log('info', `Running ${minEarly} min early — wait until ${formatTime(scheduledDepart)}`);
         }
       } else if (hasReachedStart) {
         // Off-route: normal next-stop geofence missed — search forward for a later

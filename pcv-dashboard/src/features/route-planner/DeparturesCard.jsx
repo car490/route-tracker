@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../shared/supabase'
+import { TimeInput } from '../../shared/components/TimeInput'
 import { S, DAYS, DEP_EMPTY } from './constants'
 
 export default function DeparturesCard({ timetableId, timetables, departures, setDepartures, isSchoolRoute }) {
@@ -145,8 +146,8 @@ export default function DeparturesCard({ timetableId, timetables, departures, se
           <form onSubmit={saveDeparture}>
             <div style={{ marginBottom: 6 }}>
               <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Departure Time</div>
-              <input type="time" className="form-input" value={depForm.departure_time}
-                onChange={e => setDepForm(f => ({ ...f, departure_time: e.target.value }))} required />
+              <TimeInput aria-label="Departure time" value={depForm.departure_time}
+                onChange={v => setDepForm(f => ({ ...f, departure_time: v }))} required />
             </div>
             <div style={{ marginBottom: 6 }}>
               <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Days</div>

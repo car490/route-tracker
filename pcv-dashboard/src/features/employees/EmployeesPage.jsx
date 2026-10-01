@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../shared/supabase'
 import { getCompanyId } from '../../shared/company'
 import Modal from '../../shared/components/Modal'
+import { TimeInput } from '../../shared/components/TimeInput'
 import { useJourneyTypes } from '../../shared/hooks/useJourneyTypes'
 
 const ACCESS_LEVELS = ['driver', 'ops_manager', 'super_user']
@@ -510,19 +511,17 @@ export default function EmployeesPage() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       {active ? windows.map((w, wi) => (
                         <div key={wi} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <input
-                            type="time"
+                          <TimeInput
+                            aria-label={`${day} start time`}
                             value={w.start}
-                            onChange={e => updateWindow(i, wi, 'start', e.target.value)}
-                            className="form-input"
+                            onChange={v => updateWindow(i, wi, 'start', v)}
                             style={{ width: 100, padding: '4px 8px' }}
                           />
                           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>to</span>
-                          <input
-                            type="time"
+                          <TimeInput
+                            aria-label={`${day} end time`}
                             value={w.end}
-                            onChange={e => updateWindow(i, wi, 'end', e.target.value)}
-                            className="form-input"
+                            onChange={v => updateWindow(i, wi, 'end', v)}
                             style={{ width: 100, padding: '4px 8px' }}
                           />
                           {wi === 0 && isSplit && windows.length === 1 && (

@@ -36,6 +36,7 @@
 import { connectAnnounceDeviceFeed } from './announceDeviceFeed.js';
 import { captureAnnounceDeviceSetup, getAnnounceDeviceToken } from './announceDeviceSetup.js';
 import { ANNOUNCE_STATES, resolveAnnouncementText } from '../../shared/announceStates.js';
+import { formatTime } from '../../shared/timeFormat.js';
 import { PANEL_PROFILES, resolveMinTextVh } from './panelSizing.js';
 import { headlineLines, signStateAttribute } from './headlineLines.js';
 import { showIdleUnlessSignShowing } from './idleScreen.js';
@@ -388,8 +389,7 @@ function showHeadline(stateKey, vars) {
 }
 
 function fmtEarlyWaitTime(earlyWait) {
-  return new Date(earlyWait.scheduledTime)
-    .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  return formatTime(earlyWait.scheduledTime);
 }
 
 // Renders the "wait here, running early" indicator as an amber box — same

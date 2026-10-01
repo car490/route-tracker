@@ -3,13 +3,14 @@
 // users only; the database functions enforce that, this page just explains it.
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../shared/supabase'
+import { formatDateTime } from '../../shared/time/timeFormat.js'
 import { buildReviewView, clipAudioUrl, voiceLabel, ATTENTION_LABEL } from './clipReview'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const ATTENTION_BADGE = { stale: 'badge-red', failed: 'badge-red', capped: 'badge-amber', retrying: 'badge-gray' }
 
 function when(ts) {
-  return ts ? new Date(ts).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) : '—'
+  return formatDateTime(ts, { short: true })
 }
 
 function ClipRow({ clip, onApprove, approving }) {
