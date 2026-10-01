@@ -1,4 +1,5 @@
 import { escapeHtml } from '../../shared/escapeHtml.js'
+import { formatTime, formatDateTime } from '../../shared/time/timeFormat.js'
 
 // Pure HTML-string-building half of JourneysPage.jsx's printReport(j, stops,
 // incidents) — extracted so it's testable with plain string assertions (no
@@ -6,8 +7,8 @@ import { escapeHtml } from '../../shared/escapeHtml.js'
 // calling depLabel(j) directly, since depLabel stays defined inside
 // JourneysPage for its other (React/JSX, already-safe) call sites.
 export function buildJourneyReportHtml(j, stops, incidents, depLabelText) {
-  const fmt = ts => ts ? new Date(ts).toLocaleString('en-GB') : '—'
-  const fmtTime = ts => ts ? new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—'
+  const fmt = formatDateTime
+  const fmtTime = formatTime
   const fmtVariance = s => {
     if (s == null) return '—'
     const abs  = Math.abs(s)

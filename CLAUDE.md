@@ -499,6 +499,12 @@ the same path as the manual Start button. Never set up with a duty card (`?dutie
 today) is not started by itself; offline starts still queue. `tests/driverAutoStart.test.js` guards
 the `main.js` wiring.
 
+**Times are 24-hour `HH:MM`, never AM/PM** (`docs/DECISIONS.md` "Time format"): show one with
+`shared/timeFormat.js`'s `formatTime()` here, or `src/shared/time/timeFormat.js` in the dashboard
+(always UK time); take one in the dashboard with `<TimeInput>`, never `<input type="time">`.
+`tests/twentyFourHourClock.test.js` (and the dashboard's twin) fail on `toLocaleTimeString`,
+`hour12`, a device-chosen locale or a browser time box anywhere else.
+
 **OSRM/directions must always use scheduled stop coordinates, never the live GPS position** —
 this keeps route drawing and turn-by-turn stable regardless of GPS drift.
 

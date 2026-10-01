@@ -253,6 +253,11 @@ the 4.5:1 bar) and the driver PWA's `#app-brand` attribution mark (§3.3).
 - Write instructions as direct actions ("Tap to select your service") not passive description.
 - Keep sentences short — a driver reading mid-task, or a passenger under time pressure at a
   stop, should get the full meaning from the first clause.
+- Times are always the 24-hour clock, `HH:MM` (`07:45`, `17:30`, `00:05`) — never AM/PM,
+  and never left to the device's language setting. Show times with the shared helper
+  (`busops/shared/timeFormat.js`, `pcv-dashboard/src/shared/time/timeFormat.js`) and take
+  them with `<TimeInput>`, not the browser's own time box. Timetables are written this way,
+  so a driver or ops manager never has to convert. See `docs/DECISIONS.md` "Time format".
 
 ---
 
@@ -269,6 +274,8 @@ feature finished:
 - [ ] Any new animation respects the 3-flashes-per-second limit and, where decorative,
       `prefers-reduced-motion`.
 - [ ] Icon-only controls have an accessible name.
+- [ ] Any time shown or typed is 24-hour `HH:MM`, through the shared helper / `<TimeInput>`
+      (§9; the `twentyFourHourClock` tests fail otherwise).
 - [ ] If the change touches operator-configurable branding (`BrandingPage.jsx` or similar),
       the configurable colour still has to clear the same bars — flag it if the UI doesn't yet
       enforce that (see §3.4).

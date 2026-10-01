@@ -534,6 +534,18 @@ tr:hover td { background: #F5F7FA; }
   box-shadow: 0 0 0 3px rgba(0, 180, 216, 0.12);
 }
 
+/* <TimeInput> (shared/components/TimeInput.jsx). --danger-dark, not --danger:
+   12px text needs 4.5:1 on white (4.83:1 vs 3.76:1). The message carries
+   the meaning; the border colour only backs it up. */
+.form-input[aria-invalid="true"] { border-color: var(--danger-dark); }
+.time-input-error {
+  display: block;
+  margin-top: 3px;
+  color: var(--danger-dark);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
 /* ── Modal ─────────────────────────────────────────────────── */
 .modal-overlay {
   position: fixed;
