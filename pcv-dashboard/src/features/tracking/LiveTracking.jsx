@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../shared/supabase'
+import { formatTime } from '../../shared/time/timeFormat.js'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -167,9 +168,7 @@ export default function LiveTracking() {
                     <td>{j.driver?.name ?? '—'}</td>
                     <td style={{ fontFamily: 'monospace' }}>{j.vehicle?.registration ?? '—'}</td>
                     <td style={{ color: 'var(--text-muted)' }}>
-                      {j.started_at
-                        ? new Date(j.started_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-                        : '—'}
+                      {formatTime(j.started_at)}
                     </td>
                   </tr>
                 ))}

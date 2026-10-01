@@ -71,6 +71,7 @@ const STATIC_ASSETS = [
   './shared/uploadRefusal.js',
   './shared/journeyCheckpoint.js',
   './shared/scheduleTimeShift.js',
+  './shared/timeFormat.js',
   './shared/announceStates.js',
   './shared/announcementAudio.js',
   './shared/announcementCoverage.js',

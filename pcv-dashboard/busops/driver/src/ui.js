@@ -1,11 +1,9 @@
 import { escapeHtml } from '../../shared/escapeHtml.js';
+import { formatTime } from '../../shared/timeFormat.js';
 
 const el = (id) => document.getElementById(id);
 
-const fmtTime = (d) =>
-  d instanceof Date && isFinite(d)
-    ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    : '--:--';
+const fmtTime = (d) => (d instanceof Date ? formatTime(d) : '--:--');
 
 const fmtDelta = (m) => {
   if (m === null || m === undefined) return '—';

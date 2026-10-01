@@ -3,6 +3,7 @@ import { supabase, PWA_BASE } from '../../shared/supabase'
 import { getCompanyId } from '../../shared/company'
 import Modal from '../../shared/components/Modal'
 import { buildJourneyReportHtml } from './journeyReportHtml.js'
+import { formatTime, formatDateTime } from '../../shared/time/timeFormat.js'
 import {
   todayStr, depLabel, routeOptionsFor, timetableOptionsFor, friendlySaveError, resetJourney as resetJourneyRpc,
   UPLOAD_PROBLEMS_EMBED, openUploadProblem, uploadProblemText,
@@ -145,8 +146,8 @@ export default function JourneysPage() {
   }
 
   function downloadCsv(j, stops, incidents) {
-    const fmt = ts => ts ? new Date(ts).toLocaleString('en-GB') : '—'
-    const fmtTime = ts => ts ? new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—'
+    const fmt = formatDateTime
+    const fmtTime = ts => formatTime(ts, { seconds: true })
     const fmtVariance = s => {
       if (s == null) return '—'
       const abs = Math.abs(s)
@@ -462,8 +463,8 @@ export default function JourneysPage() {
                 <div><span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Driver</span><strong>{reportJourney.driver?.name ?? 'Unassigned'}</strong></div>
                 <div><span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Vehicle</span><strong style={{ fontFamily: 'monospace' }}>{reportJourney.vehicle?.registration ?? 'Unassigned'}</strong></div>
                 <div><span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Date</span><strong>{new Date(reportJourney.journey_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</strong></div>
-                {reportJourney.started_at   && <div><span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Started</span><strong>{new Date(reportJourney.started_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</strong></div>}
-                {reportJourney.completed_at && <div><span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Completed</span><strong>{new Date(reportJourney.completed_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</strong></div>}
+                {reportJourney.started_at   && <div><span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Started</span><strong>{formatTime(reportJourney.started_at)}</strong></div>}
+                {reportJourney.completed_at && <div><span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Completed</span><strong>{formatTime(reportJourney.completed_at)}</strong></div>}
               </div>
 
               <div style={{ marginBottom: 4, fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
@@ -493,7 +494,7 @@ export default function JourneysPage() {
                           <td style={{ padding: '5px 6px' }}>{s.timetable_stop?.stop?.name ?? '—'}</td>
                           <td style={{ padding: '5px 6px', textAlign: 'right', fontFamily: 'monospace', color: '#a0aec0' }}>{s.timetable_stop?.scheduled_time ?? '—'}</td>
                           <td style={{ padding: '5px 6px', textAlign: 'right', fontFamily: 'monospace' }}>
-                            {s.arrived_at ? new Date(s.arrived_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                            {formatTime(s.arrived_at)}
                           </td>
                           <td style={{ padding: '5px 6px', textAlign: 'right', fontWeight: 600, color: varColour }}>{varStr}</td>
                         </tr>
@@ -520,7 +521,7 @@ export default function JourneysPage() {
                     {reportIncidents.map((inc, i) => (
                       <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                         <td style={{ padding: '5px 6px', fontFamily: 'monospace', color: '#a0aec0' }}>
-                          {new Date(inc.occurred_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                          {formatTime(inc.occurred_at)}
                         </td>
                         <td style={{ padding: '5px 6px' }}><span className="badge badge-amber">{inc.metadata?.category ?? '—'}</span></td>
                         <td style={{ padding: '5px 6px', color: 'var(--text-muted)' }}>{inc.metadata?.description || '—'}</td>

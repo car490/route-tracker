@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from 'react'
 import { supabase } from '../../shared/supabase'
 import { getCompanyId, getCompanyLocation } from '../../shared/company'
 import { useJourneyTypes } from '../../shared/hooks/useJourneyTypes'
+import { TimeInput } from '../../shared/components/TimeInput'
 import { DIRECTIONS, SINGLE_JOURNEY_DIRECTIONS, SCHOOL_TYPE_RE, S } from './constants'
 import { fmtDist, fmtDur, stopColor, getScheduledMin } from './utils'
 import { useStopsBuilder } from './useStopsBuilder'
@@ -237,9 +238,9 @@ export default function RouteWizard({ existingRoute, onFinish, onCancel }) {
                           <option value="routing_point">Routing point</option>
                         </select>
                         {s.stop_type === 'timing_point' && (
-                          <input type="time" className="form-input"
+                          <TimeInput aria-label={`Time at ${s.name}`}
                             style={{ fontSize: 11, height: 24, padding: '1px 3px', width: '100%' }}
-                            value={s.time_std} onChange={e => updateStop(i, 'time_std', e.target.value)} />
+                            value={s.time_std} onChange={v => updateStop(i, 'time_std', v)} />
                         )}
                       </div>
                     </div>
@@ -448,8 +449,8 @@ export default function RouteWizard({ existingRoute, onFinish, onCancel }) {
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ ...S.sectionLabel, marginBottom: 3 }}>Departure Time</div>
-              <input type="time" className="form-input" value={oneOff.departure_time}
-                onChange={e => setOneOff(f => ({ ...f, departure_time: e.target.value }))} required />
+              <TimeInput aria-label="Departure time" value={oneOff.departure_time}
+                onChange={v => setOneOff(f => ({ ...f, departure_time: v }))} required />
             </div>
           </div>
           <div style={{ marginBottom: 8 }}>
