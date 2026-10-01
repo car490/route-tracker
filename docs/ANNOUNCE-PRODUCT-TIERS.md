@@ -669,7 +669,8 @@ schedule/window concepts the fixes were about to add a fifth and sixth to.
 - **New: Solo screen-power design.** The tablet now stays dark (idle
   content hidden, Screen Wake Lock released) outside the wake window around
   its own candidate departures, and awake continuously through an active
-  journey plus 10 minutes after the last stop is reached — see
+  journey plus 10 minutes after the last stop is reached (90 seconds since
+  2026-10-01, see `docs/DECISIONS.md` "Solo terminus message") — see
   `onboard.js`'s `releaseWakeLock`/`acquireWakeLock`, wired off the same
   `isAwake` signal that already gated GPS polling. Requires the kiosk
   profile to cooperate: `announce/cab-device/fully-auto-settings.json`'s

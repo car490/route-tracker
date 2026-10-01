@@ -95,14 +95,23 @@ const COMPLETION_TIMEOUT_MIN = 120; // safety net — no driver to notice a stuc
 // stays awake (see onboard.js's wake lock), after the last stop is reached
 // before reverting to idle/asleep — one number governing both the content
 // hold and the power-state hold, per the user's own spec ("Screen Always on
-// ... up until 10 minutes after the last stop has been reached"). Replaces
+// ... up until 10 minutes after the last stop has been reached" — now 90 s,
+// below). Replaces
 // the old 5-minute TERMINUS_HOLD_MS (which only ever governed the content
 // hold, matching driver/src/main.js's TERMINUS_DISPLAY_MS) — deliberately
 // not kept as a second, separate timer alongside a new power-hold timer;
 // see docs/ANNOUNCE-PRODUCT-TIERS.md's simplification writeup, 2026-09-04.
 // complete_journey (below) still fires immediately regardless of this hold
 // — that's a backend/reporting concern, not a passenger-facing one.
-const POST_JOURNEY_HOLD_MS = 10 * 60 * 1000;
+// 90 seconds since 2026-10-01 (owner, after a live run where the message was
+// said once and covered by the idle screen within seconds): long enough for
+// passengers to read it and hear it several times, short enough that the
+// sign is ready for the next trip. Was 10 minutes.
+const POST_JOURNEY_HOLD_MS = 90 * 1000;
+// "This service terminates here …" is said again this often during the hold,
+// start to start (0, 20, 40, 60 and 80 s) — the text stays on screen
+// throughout, so the sound never stands alone (PSV(AI)R).
+const TERMINUS_REPEAT_MS = 20 * 1000;
 
 // Also inserts a space after a bare comma — every stops.announcement_name
 // override is stored "Locality,Description" with no space (fine for
@@ -262,6 +271,8 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
   // hold after a trip (POST_JOURNEY_HOLD_MS).
   let candidatesLoaded = false;
   let holdUntil = 0;
+  let holdTimer = null; // ends the terminus hold (completeActiveJourney)
+  let terminusRepeatTimer = null; // says the terminus message again during the hold
   const screenPower = createScreenPower({ screen, log });
 
   const queue = createSoloTripQueue({ client, storage });
@@ -326,10 +337,8 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
   // ending mid-route must not blank the sign out from under real
   // passengers; only ever affects the idle state either side of one.
   function applyWakeState() {
-    // A saved trip waiting to be carried on is a trip in progress: leave the
-    // screen alone until it resumes (onSchedule switches the sign on) or is
-    // given up.
-    if (activeJourney || pendingResume) return;
+    // The sign is in use — leave the screen alone (signInUse below).
+    if (signInUse()) return;
     const awake = isWithinDepartureWakeWindow(
       new Date(), candidates, deviceRow.match_window_before_min, deviceRow.match_window_after_min, termDateRanges
     );
@@ -351,6 +360,23 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     else onIdleNextDeparture?.(null);
   }
 
+  // True while the sign, not the idle screen, must be showing: a trip under
+  // way, a saved trip waiting to be carried on after a power cut, or the
+  // terminus hold. Nothing may ask for the idle screen then — it is drawn on
+  // top of the sign (onboard.html), so asking covered "This stop is …"
+  // mid-trip and the terminus message seconds after the last stop (live
+  // Solo test, 2026-10-01). The idle screen catches up when the hold ends.
+  function signInUse() {
+    return !!activeJourney || !!pendingResume || Date.now() < holdUntil;
+  }
+
+  function stopTerminusHold() {
+    clearTimeout(holdTimer);
+    clearInterval(terminusRepeatTimer);
+    holdTimer = null;
+    terminusRepeatTimer = null;
+  }
+
   // Everything that must keep the screen on whatever the timetable says:
   // a trip under way (or being set up, or waiting to carry on after a power
   // cut), the terminus hold, a departure's wake window.
@@ -369,7 +395,7 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     termDateRanges = result.termDateRanges;
     candidatesLoaded = true;
     applyWakeState(); // first real determination of awake/asleep, now that candidates are actually loaded
-    if (isAwake) reportNextDeparture();
+    if (isAwake && !signInUse()) reportNextDeparture(); // refreshes the next-departure line; never over the sign
     log(describeScreenDay(new Date(), candidates, termDateRanges));
     updateScreen();
   }
@@ -461,7 +487,7 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
 
   function completeActiveJourney() {
     if (!activeJourney) return;
-    const { journeyId, tracker, recorder } = activeJourney;
+    const { journeyId, tracker, recorder, terminus } = activeJourney;
     tracker.stop();
     // Same table/shape/idempotency the Driver PWA's completeTrip() already
     // uses (see shared/journeyStopTimes.js), sent through the upload queue
@@ -473,6 +499,15 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     flushQueue();
     activeJourney = null;
     holdUntil = Date.now() + POST_JOURNEY_HOLD_MS;
+    stopTerminusHold();
+    // Said again every TERMINUS_REPEAT_MS while the hold lasts — only if the
+    // last stop was actually reached (a trip ended by the 2-hour safety net
+    // has no terminus message to repeat).
+    if (terminus) {
+      terminusRepeatTimer = setInterval(() => {
+        speakState(terminus.stateKey, terminus.vars, terminus.ids);
+      }, TERMINUS_REPEAT_MS);
+    }
     // Hides the now-stale #onboard-sign and clears its reveal timers — same
     // onJourneyEnd() the base/Lite tiers already call on their own
     // journey-end signals (onboard.js). Previously missing here entirely,
@@ -490,13 +525,13 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
     // the sign out from under that new journey (same race this device's
     // idle loop could otherwise hit that main.js's own activeTrackerId
     // guard protects against).
-    setTimeout(() => {
+    holdTimer = setTimeout(() => {
+      stopTerminusHold();
       if (activeJourney) return;
       onJourneyEnd?.();
-      // Recompute fresh rather than trusting isAwake — POST_JOURNEY_HOLD_MS
-      // is 10 minutes, easily enough for the device to have drifted outside
-      // every candidate's own wake window while this journey's terminus
-      // message was still showing.
+      // Recompute fresh rather than trusting isAwake — the device can have
+      // left every candidate's wake window during the trip or the hold (a
+      // trip longer than the window's 30 minutes after departure always has).
       isAwake = isWithinDepartureWakeWindow(
         new Date(), candidates, deviceRow.match_window_before_min, deviceRow.match_window_after_min, termDateRanges
       );
@@ -595,6 +630,11 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
   // on "The next stop is X" (shown and said once) instead of Start of Route.
   function beginTracking({ journeyId: resolvedId, departureId, serviceCode, allStops, startedAt, initialStopIndex, resumed }) {
     const details = { serviceCode, allStops };
+    // A new trip during the previous one's terminus hold takes the sign over:
+    // no more of the old terminus message, and the old hold can't end this
+    // trip's sign.
+    stopTerminusHold();
+    holdUntil = 0;
 
     // Forwarded to speakState's ids everywhere below, purely so a coverage-
     // gap alert (Phase 3, "never synthesize" -- shared/announcementCoverage.js)
@@ -716,7 +756,10 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
 
             if (isFinal) {
               lastState = resolveApproachOrArrivalState({ approaching: null, atStop: state.atStop, allStops: details.allStops });
-              speakState(lastState.stateKey, lastState.vars, { stopId: details.allStops[state.atStop.stopIndex].stop_id, ...announceContext });
+              const ids = { stopId: details.allStops[state.atStop.stopIndex].stop_id, ...announceContext };
+              speakState(lastState.stateKey, lastState.vars, ids);
+              // Repeated during the terminus hold (completeActiveJourney).
+              if (activeJourney) activeJourney.terminus = { stateKey: lastState.stateKey, vars: lastState.vars, ids };
             } else {
               const departureVars = {
                 serviceCode: details.serviceCode,
@@ -806,8 +849,14 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
       clearInterval(queueTimer);
       clearInterval(refreshTimer);
       clearTimeout(retryTimer);
+      // This loop's sign (a trip, or its terminus hold) is ended here: the
+      // idle screen no longer covers it (idleScreen.js), so whatever runs
+      // next (a Lite sign after pairing) would otherwise start under it.
+      const showingSign = !!activeJourney || holdTimer !== null;
+      stopTerminusHold(); // whatever runs next must not be talked over, or have its sign ended, by this loop's hold
       globalThis.removeEventListener?.('online', onOnline);
       activeJourney?.tracker?.stop();
+      if (showingSign) onJourneyEnd?.();
       // Whatever runs next (a Lite sign after pairing, a restarted Solo)
       // must not inherit a screen this loop switched off.
       if (screen.available()) screen.turnOn();

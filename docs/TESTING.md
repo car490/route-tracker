@@ -668,7 +668,8 @@ at least one departure today; re-run `setup-solo-device.sh` first so the new set
    copy. If a restart without the file loses the start URL or the PIN, stop and report it.
    Do the same on the Driver cab phone after re-running `setup-cab-device.sh`.
 7. Start a trip near the end of a window and let it run past the window's end: the screen
-   stays on until 10 minutes after the last stop.
+   stays on until 90 seconds after the last stop, showing "This service terminates here …"
+   and saying it every 20 seconds (5 times); the idle screen must not cover it before then.
 8. If the screen never goes off: check `stay_on_while_plugged_in` isn't overriding Fully
    (`adb shell settings get global stay_on_while_plugged_in`; try `0`) and that the page is
    one of the six `urlWhitelist` hosts. Record what fixed it here.
