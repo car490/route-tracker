@@ -38,6 +38,7 @@ import { captureAnnounceDeviceSetup, getAnnounceDeviceToken } from './announceDe
 import { ANNOUNCE_STATES, resolveAnnouncementText } from '../../shared/announceStates.js';
 import { PANEL_PROFILES, resolveMinTextVh } from './panelSizing.js';
 import { headlineLines, signStateAttribute } from './headlineLines.js';
+import { showIdleUnlessSignShowing } from './idleScreen.js';
 
 // Named display profiles (PANEL_PROFILES, panelSizing.js) — commissioned via
 // ?panel-profile=<key>, the same URL-param pattern as ?panel-diagonal= below.
@@ -595,14 +596,21 @@ export function applyIdleBranding({ name, logoUrl, accentColor }) {
     logo.src = logoUrl;
   }
 
-  el('onboard-idle').hidden = false;
-  el('onboard-brand').hidden = false; // undo showSleepScreen()'s hide, if it ran before this branding fetch resolved
+  // Not over the sign: on a Solo started with no signal, this fetch can
+  // resolve mid-trip once the signal returns (see idleScreen.js).
+  showIdleScreen();
   positionBrand();
 }
 
+// The idle screen never covers the sign — see idleScreen.js.
+function showIdleScreen() {
+  showIdleUnlessSignShowing({ idle: el('onboard-idle'), sign: el('onboard-sign'), brand: el('onboard-brand') });
+}
+
 // Solo (driverless) schedule-autopilot only (see
-// announceSoloAutopilot.js) — always unhides the idle screen, even
-// without ?operator-name= and even with no candidate yet (a device freshly
+// announceSoloAutopilot.js) — unhides the idle screen (unless the sign is
+// showing, see idleScreen.js), even without ?operator-name= and even with no
+// candidate yet (a device freshly
 // registered with no candidate_departure_ids configured), so the kiosk
 // visibly confirms it booted into Solo mode rather than looking
 // identical to a broken/not-yet-connected device. Only the next-departure
@@ -625,8 +633,9 @@ export function showNextDeparture(nextDepartures) {
       box.appendChild(line);
     }
   }
-  el('onboard-idle').hidden = false;
-  el('onboard-brand').hidden = false; // undo showSleepScreen()'s hide, if it ran
+  // Updates the line behind the sign if a trip is showing (idleScreen.js);
+  // it shows when the trip ends.
+  showIdleScreen();
   // Solo's wake-window transition into "awake" reaches here (see
   // announceSoloAutopilot.js's reportNextDeparture) — the screen must
   // actually be on for any of this to be visible. Idempotent to call

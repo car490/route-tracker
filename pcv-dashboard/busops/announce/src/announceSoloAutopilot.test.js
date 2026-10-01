@@ -184,8 +184,8 @@ describe('startSoloAutopilot', () => {
     // activeJourney guard) — just not the scenario this test means to cover.
     getCurrentPosition.mockImplementation((success) => success({ coords: { latitude: 0, longitude: 0 } }));
 
-    // onJourneyEnd is deliberately delayed (POST_JOURNEY_HOLD_MS, 10
-    // minutes) — see completeActiveJourney's own comment — so the terminus
+    // onJourneyEnd is deliberately delayed (POST_JOURNEY_HOLD_MS, 90
+    // seconds) — see completeActiveJourney's own comment — so the terminus
     // message stays on screen, and the physical screen stays awake, long
     // enough for passengers to actually read/hear it, rather than the sign
     // flipping back to idle right behind it.
@@ -821,10 +821,10 @@ describe('startSoloAutopilot — screen power', () => {
     expect(screen.turnOff).not.toHaveBeenCalled();
 
     onUpdate({ atStop: { stopIndex: 1 }, approaching: null, stopStates: [] }); // reaches the last stop
-    await vi.advanceTimersByTimeAsync(9 * 60 * 1000); // inside the 10-minute terminus hold
+    await vi.advanceTimersByTimeAsync(85 * 1000); // inside the 90-second terminus hold
     expect(screen.turnOff).not.toHaveBeenCalled();
 
-    await vi.advanceTimersByTimeAsync(2 * 60 * 1000);
+    await vi.advanceTimersByTimeAsync(10 * 1000);
     expect(screen.turnOff).toHaveBeenCalledTimes(1);
   });
 
@@ -870,5 +870,153 @@ describe('startSoloAutopilot — screen power', () => {
     await vi.advanceTimersByTimeAsync(60 * 1000); // one more minute: one retry, not three
 
     expect(reads() - afterThreeHours).toBe(1);
+  });
+});
+
+// Live Solo test, 2026-10-01: half-way through a run the idle screen came up
+// over "This stop is …", and at the last stop "This service terminates here"
+// was said once and replaced almost at once. Both were the idle screen being
+// asked for while the sign was still in use: by the hourly departures re-read
+// (or a Dashboard edit) during a trip, and by the 5 s wake-window check the
+// moment a trip ended after its departure's window had closed. The terminus
+// message now stays up for 90 s and is said again every 20 s (owner,
+// 2026-10-01). Written before the fix (TDD).
+describe('startSoloAutopilot — the sign is never covered while in use', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    speakState.mockClear();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    startAnnounceGpsTracking.mockReset();
+  });
+
+  // Starts dep-1 at 08:00 Monday, then moves the vehicle off the depot so
+  // the idle loop doesn't match it again.
+  async function startTrip() {
+    vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0));
+    const getCurrentPosition = vi.fn((ok) => ok({ coords: { latitude: DEPOT.lat, longitude: DEPOT.lon } }));
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } });
+    vi.stubGlobal('crypto', { randomUUID: () => 'client-generated-id' });
+    const trip = {};
+    startAnnounceGpsTracking.mockImplementation((opts) => {
+      trip.onUpdate = opts.onUpdate;
+      return { stop: vi.fn(), jumpToStop: vi.fn() };
+    });
+    const cb = { onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture: vi.fn(), onJourneyEnd: vi.fn(), onSleep: vi.fn() };
+    const handle = startSoloAutopilot(makeClient(), BASE_DEVICE_ROW, cb, { storage: memoryStorage() });
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000);
+    await flush();
+    expect(cb.onSchedule).toHaveBeenCalledTimes(1);
+    getCurrentPosition.mockImplementation((ok) => ok({ coords: { latitude: 0, longitude: 0 } }));
+    cb.onIdleNextDeparture.mockClear();
+    return { cb, handle, trip, getCurrentPosition };
+  }
+
+  const terminusPlays = () => speakState.mock.calls.filter(([, vars]) => vars?.isFinal === true).length;
+
+  it('does not ask for the idle screen when the hourly departures re-read lands mid-trip', async () => {
+    const { cb } = await startTrip();
+
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000); // the hourly re-read runs while the trip is still going
+    await flush();
+
+    expect(cb.onIdleNextDeparture).not.toHaveBeenCalled();
+  });
+
+  it('does not ask for the idle screen when the departures are edited on the Dashboard mid-trip', async () => {
+    const { cb, handle } = await startTrip();
+
+    handle.applyConfigUpdate({ ...BASE_DEVICE_ROW, candidate_departure_ids: ['dep-1', 'dep-2'] });
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(cb.onIdleNextDeparture).not.toHaveBeenCalled();
+  });
+
+  it('keeps the terminus message up for 90 s when the trip ends after its departure window has closed, then shows idle', async () => {
+    const { cb, trip } = await startTrip();
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000); // 09:00 — dep-1's window closed at 08:30
+    cb.onIdleNextDeparture.mockClear();
+
+    trip.onUpdate({ atStop: { stopIndex: 1 }, approaching: null, stopStates: [] }); // last stop
+    await vi.advanceTimersByTimeAsync(85 * 1000);
+
+    expect(cb.onIdleNextDeparture).not.toHaveBeenCalled();
+    expect(cb.onJourneyEnd).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(5 * 1000); // 90 s
+    expect(cb.onJourneyEnd).toHaveBeenCalledTimes(1);
+    expect(cb.onIdleNextDeparture).toHaveBeenCalled();
+  });
+
+  it('says the terminus message at 0, 20, 40, 60 and 80 s, then stops', async () => {
+    const { trip } = await startTrip();
+
+    trip.onUpdate({ atStop: { stopIndex: 1 }, approaching: null, stopStates: [] });
+    expect(terminusPlays()).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(19 * 1000);
+    expect(terminusPlays()).toBe(1);
+    await vi.advanceTimersByTimeAsync(1 * 1000); // 20 s
+    expect(terminusPlays()).toBe(2);
+    await vi.advanceTimersByTimeAsync(60 * 1000); // 80 s
+    expect(terminusPlays()).toBe(5);
+    await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
+    expect(terminusPlays()).toBe(5);
+    const plays = speakState.mock.calls.filter(([, vars]) => vars?.isFinal === true);
+    expect(new Set(plays.map(([stateKey]) => stateKey)).size).toBe(1); // the same announcement each time
+    expect(plays.every(([, vars]) => vars.stopName === 'College')).toBe(true);
+  });
+
+  it('stops repeating the terminus message when a new trip starts during the 90 s', async () => {
+    const { cb, trip, getCurrentPosition } = await startTrip();
+
+    trip.onUpdate({ atStop: { stopIndex: 1 }, approaching: null, stopStates: [] });
+    await vi.advanceTimersByTimeAsync(25 * 1000); // said at 0 and 20 s
+    expect(terminusPlays()).toBe(2);
+
+    getCurrentPosition.mockImplementation((ok) => ok({ coords: { latitude: DEPOT.lat, longitude: DEPOT.lon } }));
+    await vi.advanceTimersByTimeAsync(5000); // the next trip matches
+    await flush();
+    expect(cb.onSchedule).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(90 * 1000);
+    expect(terminusPlays()).toBe(2);
+    expect(cb.onJourneyEnd).not.toHaveBeenCalled();
+  });
+
+  it('ends its own sign when the Solo loop is stopped mid-trip (e.g. paired as a Lite sign), since the idle screen no longer covers it', async () => {
+    const { cb, handle } = await startTrip();
+
+    handle.stop();
+
+    expect(cb.onJourneyEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not end a sign it is not showing when the Solo loop is stopped between trips', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 12, 0, 0));
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: vi.fn() } });
+    const onJourneyEnd = vi.fn();
+    const handle = startSoloAutopilot(makeClient(), BASE_DEVICE_ROW, {
+      onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture: vi.fn(), onJourneyEnd,
+    }, { storage: memoryStorage() });
+    await flush();
+
+    handle.stop();
+
+    expect(onJourneyEnd).not.toHaveBeenCalled();
+  });
+
+  it('stops repeating the terminus message when the Solo loop is stopped', async () => {
+    const { trip, handle } = await startTrip();
+
+    trip.onUpdate({ atStop: { stopIndex: 1 }, approaching: null, stopStates: [] });
+    handle.stop();
+    await vi.advanceTimersByTimeAsync(90 * 1000);
+
+    expect(terminusPlays()).toBe(1);
   });
 });

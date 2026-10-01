@@ -21,6 +21,10 @@
 //              and started on the server under the same id
 //   revoked    running from the offline copy, signal returns and the server
 //              refuses the device: the sign goes dark and the copy is deleted
+//   signal-back  a trip started with no signal, signal returns mid-trip (the
+//              company branding loads): the idle screen must not cover the
+//              sign; at the last stop the terminus message stays up (live
+//              Solo test, 2026-10-01)
 //
 // Usage (from pcv-dashboard/busops/):  npm run verify:solo-power-cut
 // Exit 0 all passed, 1 a check failed. ONLY=<scenario> runs one scenario;
@@ -86,7 +90,7 @@ async function openContext(browser, base) {
   });
   if (process.env.DEBUG_PAGES) context.on('console', (m) => console.log('  [page]', m.type(), m.text().slice(0, 200)));
   const net = { down: false, revoked: false, journeyId: 'jrn-1' };
-  const seen = { rpcs: [], stopTimes: [] };
+  const seen = { rpcs: [], stopTimes: [], brandingReads: 0 };
   await context.routeWebSocket(() => true, (ws) => ws.close()); // no Realtime: nothing leaves the machine
   await context.route((url) => !url.href.startsWith(base), async (route) => {
     if (net.down) return route.abort('internetdisconnected');
@@ -106,6 +110,7 @@ async function openContext(browser, base) {
       return json(DEVICE_ROW);
     }
     if (url.includes('/rest/v1/schedule_view')) return json(ROWS);
+    if (url.includes('/rest/v1/companies')) seen.brandingReads += 1;
     if (url.includes('/rest/v1/companies')) return json({ name: 'Test Coaches', logo_path: null, accent_color: null });
     if (url.includes('/rest/v1/')) return json(req.method() === 'GET' ? [] : {});
     return route.fulfill({ status: 404, body: '' }); // audio clips etc.: never leaves the machine
@@ -119,6 +124,8 @@ const hidden = (page, selector, ms) => page.waitForSelector(`${selector}[hidden]
 const headlineSays = (page, text, ms = 15000) => page
   .waitForFunction((t) => document.getElementById('sign-headline')?.textContent.includes(t), text, { timeout: ms })
   .then(() => true, () => false);
+const idleCoversSign = (page) => page.evaluate(() => !document.getElementById('onboard-idle').hidden
+  && !document.getElementById('onboard-sign').hidden);
 const storageItem = (page, key) => page.evaluate((k) => JSON.parse(localStorage.getItem(k)), key);
 const until = (fn, ms = 15000) => new Promise((resolve) => {
   const t0 = Date.now();
@@ -238,6 +245,41 @@ const SCENARIOS = {
     await context.close();
     return checks;
   },
+
+  async 'signal-back'(browser, base) {
+    const { context, net, seen } = await openContext(browser, base);
+    let page = await context.newPage();
+    // First boot online, away from the route, so the offline copy is kept.
+    await context.setGeolocation({ latitude: 53.5, longitude: -1.5, accuracy: 10 });
+    await page.goto(startUrl(base));
+    await shown(page, '#onboard-idle', 20000);
+    await page.waitForTimeout(2000); // let the departure copies be written
+    await page.close();
+
+    net.down = true;
+    await context.setGeolocation({ latitude: STOPS[0].lat, longitude: STOPS[0].lon, accuracy: 10 });
+    page = await context.newPage();
+    await page.goto(startUrl(base));
+    const checks = { 'trip starts with no signal': await shown(page, '#onboard-sign', 12000) };
+    await driveTo(context, page, null, STOPS[0]);
+    await driveTo(context, page, STOPS[0], STOPS[1]);
+
+    const readsBefore = seen.brandingReads;
+    net.down = false;
+    await page.evaluate(() => window.dispatchEvent(new Event('online')));
+    checks['signal returns mid-trip and the company branding loads'] = await until(() => seen.brandingReads > readsBefore);
+    await page.waitForTimeout(3000); // the branding is applied
+    checks['the idle screen does not cover the sign mid-trip'] = !(await idleCoversSign(page));
+
+    await driveTo(context, page, STOPS[1], STOPS[2]);
+    await driveTo(context, page, STOPS[2], STOPS[3]);
+    checks['the sign says the service terminates here'] = await headlineSays(page, 'terminates here');
+    await page.waitForTimeout(25000); // past the first repeat, well inside the 90 s hold
+    checks['25 s later the terminus message is still showing'] = await headlineSays(page, 'terminates here', 1000)
+      && !(await idleCoversSign(page));
+    await context.close();
+    return checks;
+  },
 };
 
 const server = await startServer();
@@ -251,7 +293,7 @@ try {
     const checks = await scenario(browser, base);
     for (const [label, ok] of Object.entries(checks)) {
       if (!ok) failed += 1;
-      console.log(`${ok ? 'PASS' : 'FAIL'}  ${name.padEnd(8)}  ${label}`);
+      console.log(`${ok ? 'PASS' : 'FAIL'}  ${name.padEnd(11)}  ${label}`);
     }
   }
 } finally {
