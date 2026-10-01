@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.5.0] - 2026-10-01
+
+**24-hour clock everywhere, never AM/PM**
+
+- fix: times followed the device's language — the Driver's stop list showed "03:15 PM" on a
+  phone set to US English, and every dashboard time box did the same on a US-English PC. Every
+  time shown is now 24-hour `HH:MM` through one helper per app (`busops/shared/timeFormat.js`;
+  `pcv-dashboard/src/shared/time/timeFormat.js`, always UK time). Midnight shows as 00:05,
+  never 24:05 (the Announce "wait here" time could).
+- change: the dashboard's seven time boxes (route planner, route wizard, departures, review
+  summary, employee availability) are now `<TimeInput>`: type `1730`, `17:30`, `815`, `8:15` or
+  `8`; AM/PM and anything past 23:59 are refused with a written error and block saving. Each box
+  now has an accessible name. Pages declare `lang="en-GB"`.
+- Guard tests fail on any other time formatting or a browser time box. See `docs/DECISIONS.md`
+  "Time format".
+- No database changes. Dev and production schema fingerprints matched before release.
+
 ## [2.4.3] - 2026-10-01
 
 **Announce Solo: the idle screen no longer covers the sign; terminus message held 90 s**
