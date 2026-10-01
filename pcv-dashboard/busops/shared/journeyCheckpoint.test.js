@@ -64,9 +64,22 @@ describe('createCheckpointRecorder', () => {
     rec.record({ stopStates: [departed('2026-09-28T07:01:00Z'), arrived('2026-09-28T07:11:00Z'), upcoming(), upcoming()], nextStopIndex: 1 });
     const { checkpoint } = readCheckpoint({ storage, now: T0 });
     expect(checkpoint.stopRows).toEqual([
-      { journey_id: 'j1', timetable_stop_id: 'ts-a', arrived_at: '2026-09-28T07:01:00.000Z', visit_status: 'visited' },
-      { journey_id: 'j1', timetable_stop_id: 'ts-b', arrived_at: '2026-09-28T07:11:00.000Z', visit_status: 'visited' },
+      { journey_id: 'j1', timetable_stop_id: 'ts-a', arrived_at: '2026-09-28T07:01:00.000Z', departed_at: '2026-09-28T07:01:00.000Z', visit_status: 'visited' },
+      { journey_id: 'j1', timetable_stop_id: 'ts-b', arrived_at: '2026-09-28T07:11:00.000Z', departed_at: null, visit_status: 'visited' },
     ]);
+  });
+
+  it('keeps the departure from a stop the power cut interrupted, once the resumed trip leaves it', () => {
+    // Power lost while waiting at B: saved with an arrival but no departure.
+    recorder().record({ stopStates: [departed('2026-09-28T07:01:00Z'), arrived('2026-09-28T07:11:00Z'), upcoming(), upcoming()], nextStopIndex: 1 });
+
+    // Resumed at B: the tracker reaches B again, then leaves it.
+    const resumed = recorder({ now: () => minutesAfter(T0, 20) });
+    const states = [{ status: 'not_tracked' }, { status: 'departed', arrivedAt: new Date('2026-09-28T07:19:00Z'), departedAt: new Date('2026-09-28T07:20:00Z') }, upcoming(), upcoming()];
+
+    const b = resumed.finalRows(states).find(r => r.timetable_stop_id === 'ts-b');
+    expect(b.arrived_at).toBe('2026-09-28T07:11:00.000Z'); // the first, real arrival
+    expect(b.departed_at).toBe('2026-09-28T07:20:00.000Z');
   });
 
   it('only writes to storage when something changed (not on every GPS fix)', () => {
@@ -194,6 +207,14 @@ describe('mergeStopRows', () => {
   it('keeps the first-recorded time for a stop recorded twice', () => {
     expect(mergeStopRows([row('ts-a', 'first')], [row('ts-a', 'second'), row('ts-b', 'x')]))
       .toEqual([row('ts-a', 'first'), row('ts-b', 'x')]);
+  });
+
+  it('fills a missing departure from a later copy, never replacing one already set', () => {
+    const withDep = (id, at, dep) => ({ ...row(id, at), departed_at: dep });
+    expect(mergeStopRows([withDep('ts-a', 'first', null)], [withDep('ts-a', 'second', 'left')]))
+      .toEqual([withDep('ts-a', 'first', 'left')]);
+    expect(mergeStopRows([withDep('ts-a', 'first', 'left1')], [withDep('ts-a', 'second', 'left2')]))
+      .toEqual([withDep('ts-a', 'first', 'left1')]);
   });
 
   it('handles missing lists', () => {

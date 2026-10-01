@@ -10,15 +10,35 @@ const STOPS = [
 describe('buildStopTimeRows', () => {
   it('builds a visited row with arrived_at for an arrived/departed stop', () => {
     const arrivedAt = new Date('2026-09-17T08:00:00Z');
+    const departedAt = new Date('2026-09-17T08:01:30Z');
     const rows = buildStopTimeRows('jrn-1', [
-      { status: 'arrived', arrivedAt },
-      { status: 'departed', arrivedAt },
+      { status: 'arrived', arrivedAt, departedAt: null },
+      { status: 'departed', arrivedAt, departedAt },
     ], STOPS.slice(0, 2));
 
     expect(rows).toEqual([
-      { journey_id: 'jrn-1', timetable_stop_id: 'ts-1', arrived_at: arrivedAt.toISOString(), visit_status: 'visited' },
-      { journey_id: 'jrn-1', timetable_stop_id: 'ts-2', arrived_at: arrivedAt.toISOString(), visit_status: 'visited' },
+      { journey_id: 'jrn-1', timetable_stop_id: 'ts-1', arrived_at: arrivedAt.toISOString(), departed_at: null, visit_status: 'visited' },
+      { journey_id: 'jrn-1', timetable_stop_id: 'ts-2', arrived_at: arrivedAt.toISOString(), departed_at: departedAt.toISOString(), visit_status: 'visited' },
     ]);
+  });
+
+  // Every stop the bus leaves carries its departure time (owner, 2026-10-01),
+  // not only stops where it waited: "left early" at a timing point needs it.
+  it('records departed_at for every departed stop, including a pass-through with no wait', () => {
+    const at = new Date('2026-09-17T08:00:00Z');
+    const rows = buildStopTimeRows('jrn-1', [
+      { status: 'departed', arrivedAt: at, departedAt: at },
+    ], STOPS.slice(0, 1));
+
+    expect(rows[0].departed_at).toBe(at.toISOString());
+  });
+
+  it('sends no departed_at for a stop not yet left (the last stop, or still dwelling)', () => {
+    const rows = buildStopTimeRows('jrn-1', [
+      { status: 'arrived', arrivedAt: new Date('2026-09-17T08:00:00Z') },
+    ], STOPS.slice(0, 1));
+
+    expect(rows[0].departed_at).toBeNull();
   });
 
   it('records a skipped stop with visit_status set and no arrived_at', () => {
@@ -28,8 +48,8 @@ describe('buildStopTimeRows', () => {
     ], STOPS.slice(0, 2));
 
     expect(rows).toEqual([
-      { journey_id: 'jrn-1', timetable_stop_id: 'ts-1', arrived_at: null, visit_status: 'skipped_signal' },
-      { journey_id: 'jrn-1', timetable_stop_id: 'ts-2', arrived_at: null, visit_status: 'skipped_detour' },
+      { journey_id: 'jrn-1', timetable_stop_id: 'ts-1', arrived_at: null, departed_at: null, visit_status: 'skipped_signal' },
+      { journey_id: 'jrn-1', timetable_stop_id: 'ts-2', arrived_at: null, departed_at: null, visit_status: 'skipped_detour' },
     ]);
   });
 
