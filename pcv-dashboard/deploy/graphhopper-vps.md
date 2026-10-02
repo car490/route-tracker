@@ -1,8 +1,13 @@
 # GraphHopper VPS — deployed (2026-06-28)
 
-Live at `https://routing.coachmate.uk`, wired into Vercel's `GRAPHHOPPER_URL`
-for the **Preview environment on the `develop` branch only**. Production is
-not wired up yet — `/api/directions` still 503s there.
+Live at `https://routing.pcvtechnologies.co.uk`, wired into Vercel's
+`GRAPHHOPPER_URL` for both Production and the `develop` Preview.
+
+Moved from `routing.coachmate.uk` on 2026-10-02. When `coachmate.uk`'s nameservers
+moved from 123-reg to Cloudflare, the `routing` record wasn't recreated, so production
+failed with `getaddrinfo ENOTFOUND routing.coachmate.uk`. Caddy then couldn't renew its
+certificate either: it expired 2026-09-26. The server itself was healthy throughout.
+Caddy still answers to the old name too, but nothing should point at it.
 
 ## Server
 - Hetzner Cloud `cpx22` (2 vCPU / 4GB RAM / 80GB disk), Falkenstein (`fsn1`) — €23.39/mo
@@ -41,12 +46,16 @@ input file (not just the bbox) — OOMs on a 4GB box without the swapfile.
 - Bound to `127.0.0.1:8989` only — never exposed directly
 
 ## TLS
-Caddy reverse-proxies `routing.coachmate.uk` → `127.0.0.1:8989`, auto-HTTPS
-via Let's Encrypt. DNS is an A record at 123-reg (`routing` → `91.99.145.14`).
+Caddy (`/etc/caddy/Caddyfile`) reverse-proxies `routing.pcvtechnologies.co.uk`
+(and the old `routing.coachmate.uk`) → `127.0.0.1:8989`, auto-HTTPS via Let's Encrypt.
+DNS is an A record in Cloudflare's `pcvtechnologies.co.uk` zone (`routing` →
+`91.99.145.14`), **DNS only (grey cloud)**. Proxying it through Cloudflare would get in
+the way of Caddy getting its own certificate. If the name stops resolving, the
+certificate silently stops renewing too. Check both with `curl https://routing.pcvtechnologies.co.uk/health`.
 
 ## Vercel
 ```bash
-vercel env add GRAPHHOPPER_URL preview develop --value "https://routing.coachmate.uk" --yes
+vercel env add GRAPHHOPPER_URL preview develop --value "https://routing.pcvtechnologies.co.uk" --yes
 vercel env add GRAPHHOPPER_PROFILE preview develop --value "pcv" --yes
 ```
 `vercel env add KEY preview` alone prompts for a branch in a way `--yes`
@@ -54,5 +63,5 @@ doesn't resolve — pass the branch explicitly. Env var changes don't apply to
 already-built deployments; redeploy with `vercel redeploy <url>` to pick them up.
 
 ## Open decision
-Whether/when to enable `GRAPHHOPPER_URL` on Production, and whether the
-extract bbox needs widening if routes expand beyond Lincolnshire/Peterborough.
+Whether the extract bbox needs widening if routes expand beyond
+Lincolnshire/Peterborough.
