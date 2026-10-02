@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.6.1] - 2026-10-02
+
+**The bus is recorded on a journey Solo starts first**
+
+- fix: on 1 Oct Announce Solo started the 07:27 S125S before the Driver and sent no bus, so the
+  journey was stored with none and the Driver's SN06JVZ was ignored. Solo now sends its own bus
+  (`announce_devices.vehicle_id`), online or from its offline start queue, and a journey with no
+  bus takes the next caller's bus (never replaces one; only while scheduled or running; only for
+  a caller entitled to that journey).
+- docs: the production dashboard is `dashboard.pcvtechnologies.co.uk` (DNS and Supabase sign-in
+  links set up 2026-10-02); `route-tracker-iota.vercel.app` still works.
+- Database: `supabase/migration_journey_vehicle_fill_in.sql`, applied to dev and production
+  before release; schema fingerprints matched (drift check exit 0). See `docs/DECISIONS.md`
+  "The bus on a journey started by Solo".
+
 ## [2.6.0] - 2026-10-02
 
 **Departure times at every stop; no false alarm when the Driver and Solo share a trip**

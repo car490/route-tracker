@@ -8,7 +8,7 @@
 // One ordered list of operations, sent oldest first, stopping at the first
 // failure so a trip is never completed before its start has reached the
 // server:
-//   { type: 'start', journeyId, departureId }
+//   { type: 'start', journeyId, departureId, vehicleId? }
 //       a journey started with no signal, on a journey id made on the
 //       tablet — the same thing the Driver PWA's manual start does offline
 //       (manualSelection.js + localStore.js's pending-start queue)
@@ -75,6 +75,7 @@ async function sendOp(client, op) {
     const created = await send(client.rpc('get_or_create_manual_journey', {
       p_timetable_departure_id: op.departureId,
       p_journey_id: op.journeyId,
+      ...(op.vehicleId ? { p_vehicle_id: op.vehicleId } : {}),
     }));
     const resolvedId = created?.[0]?.journey_id ?? op.journeyId;
     await send(client.rpc('start_journey', { p_journey_id: resolvedId }));
@@ -156,7 +157,9 @@ export function createSoloTripQueue({ client, storage = globalThis.localStorage,
   }
 
   return {
-    enqueueStart: ({ journeyId, departureId }) => enqueue({ type: 'start', journeyId, departureId }),
+    enqueueStart: ({ journeyId, departureId, vehicleId }) => enqueue({
+      type: 'start', journeyId, departureId, ...(vehicleId ? { vehicleId } : {}),
+    }),
     enqueueTrip: ({ journeyId, stopRows, completeJourney }) =>
       enqueue({ type: 'trip', journeyId, stopRows: stopRows ?? [], completeJourney: !!completeJourney }),
     pending: () => store.read().length,
