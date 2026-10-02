@@ -401,7 +401,7 @@ proved nothing about production. Fixed on both by `supabase/migration_dev_prod_p
 ### Environments
 | Layer | Develop | Production |
 |---|---|---|
-| **Dashboard** | Vercel preview URL (auto on every push to `develop`) | `route-tracker-iota.vercel.app` (auto on merge to `master`) |
+| **Dashboard** | `dashboard-dev.pcvtechnologies.co.uk` (Vercel preview, auto on every push to `develop`; behind Vercel login) | `dashboard.pcvtechnologies.co.uk` (auto on merge to `master`; set up 2026-10-02: Cloudflare CNAME to `cname.vercel-dns.com`, DNS only, and listed in production Supabase Auth redirect URLs). `route-tracker-iota.vercel.app` still serves the same build |
 | **PWA** | Local server (`pcv-dashboard/busops/server.js`) — hits dev Supabase automatically | Cloudflare Workers `driver.pcvtechnologies.co.uk` (CI deploy from `master`); dev deploys to `driver-dev.pcvtechnologies.co.uk` from `develop`. Not GitHub Pages, see Project overview |
 | **Supabase** | `cgcbfgceputvdvhzrgio` (`route-tracker-dev`) | `nwhayupsvcelyiwltdqo` (production) |
 

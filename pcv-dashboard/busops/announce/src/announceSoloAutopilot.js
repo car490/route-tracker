@@ -452,21 +452,26 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
 
   // Tries to register a new journey with the server; with no signal the
   // start is queued and the journey runs on the tablet-made id meanwhile.
+  // Sends the tablet's own bus (announce_devices.vehicle_id, also kept in the
+  // offline copy): if Solo starts the journey before the Driver, the journey
+  // would otherwise be stored with no bus (found 2026-10-02, 1 Oct 07:27 S125S).
   async function startJourneyOnServer(departureId, journeyId) {
+    const vehicleId = deviceRow.vehicle_id ?? null;
     try {
       const { data: created, error } = await client.rpc('get_or_create_manual_journey', {
         p_timetable_departure_id: departureId,
         p_journey_id: journeyId,
+        ...(vehicleId ? { p_vehicle_id: vehicleId } : {}),
       });
       if (!error) {
         const resolvedId = created?.[0]?.journey_id ?? journeyId;
         const { error: startError } = await client.rpc('start_journey', { p_journey_id: resolvedId });
         if (!startError) return resolvedId;
-        queue.enqueueStart({ journeyId: resolvedId, departureId });
+        queue.enqueueStart({ journeyId: resolvedId, departureId, vehicleId });
         return resolvedId;
       }
     } catch (_) {}
-    queue.enqueueStart({ journeyId, departureId });
+    queue.enqueueStart({ journeyId, departureId, vehicleId });
     return journeyId;
   }
 
@@ -638,10 +643,10 @@ export function startSoloAutopilot(client, initialDeviceRow, { onSchedule, onSta
 
     // Forwarded to speakState's ids everywhere below, purely so a coverage-
     // gap alert (Phase 3, "never synthesize" -- shared/announcementCoverage.js)
-    // stays attributable. vehicleId is normally null here -- a Solo autopilot
-    // device (deviceRow.gps_source = 'internal') isn't linked to a vehicle at
-    // all, that's what makes it Solo rather than Lite -- deviceId is the one
-    // that's always populated for this tier.
+    // stays attributable. vehicleId is the tablet's bus when one is set on
+    // its announce_devices row (the production Solo tablet is on SN06JVZ);
+    // what makes it Solo rather than Lite is having no Driver linked, not
+    // having no bus. deviceId is always populated for this tier.
     const announceContext = { journeyId: resolvedId, vehicleId: deviceRow.vehicle_id, deviceId: deviceRow.id };
 
     const lastStop = details.allStops[details.allStops.length - 1];

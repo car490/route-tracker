@@ -1016,6 +1016,8 @@ grant  execute on function public.reset_journey(uuid) to authenticated;
 -- p_vehicle_id (optional) is the device's once-commissioned vehicle (see
 -- src/vehicleSetup.js) — validated against the departure's own company
 -- below so anon can't attach an arbitrary vehicle UUID from another company.
+-- If the journey already exists with no bus, p_vehicle_id fills it in (never
+-- replaces one) — see migration_journey_vehicle_fill_in.sql (2026-10-02).
 -- p_journey_id (optional) lets the client supply the id up front, so a
 -- manual-selection start made while offline can use the same journey_id
 -- locally as the one that eventually lands here once queued/retried — see
@@ -1102,6 +1104,23 @@ begin
       and journey_date = p_journey_date
       and status != 'cancelled'
     limit 1;
+
+    -- The journey already existed (the other device on the bus started it).
+    -- If it has no bus yet, take this caller's: Announce Solo used to start
+    -- journeys without one, so a Solo-first start left the Driver's bus
+    -- ignored (found 2026-10-02, 1 Oct 07:27 S125S). Never replaces a bus,
+    -- only while the journey is scheduled or running, and only for a caller
+    -- entitled to that journey (CLAUDE.md: is_jwt_journey_allowed for an
+    -- anon RPC that changes a row). p_vehicle_id was checked against the
+    -- departure's company above.
+    if p_vehicle_id is not null and v_journey_id is not null
+       and public.is_jwt_journey_allowed(v_journey_id) then
+      update journeys
+         set vehicle_id = p_vehicle_id
+       where id = v_journey_id
+         and vehicle_id is null
+         and status in ('scheduled', 'in_progress');
+    end if;
   end if;
 
   return query select v_journey_id;
