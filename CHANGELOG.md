@@ -5,6 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). One ver
 number covers the whole solution — PWA and dashboard release together on the
 `develop` → `master` merge.
 
+## [2.6.0] - 2026-10-02
+
+**Departure times at every stop; no false alarm when the Driver and Solo share a trip**
+
+- fix: the time the bus left each stop was worked out on the device but never sent or stored,
+  so departure lateness and "left early" were empty on every journey ever recorded. The Driver
+  and Solo now send it for every stop the bus leaves (`shared/journeyStopTimes.js`), a trip
+  saved through a power cut keeps it (`shared/journeyCheckpoint.js`), and
+  `record_journey_stop_times()` stores it, filling a missing one in later but never replacing
+  one. Trips before this release have no departures (not rebuilt).
+- fix: with the Driver and Solo on one bus, whichever finished second was refused ("not in
+  progress") and raised a false refused-upload alert on the Journeys page. A journey completed
+  earlier the same UK day now accepts the stops and departures it is missing; earlier days,
+  cancelled and never-started journeys are still refused.
+- change: the dashboard Journeys report (screen, print, CSV) shows Departed and "Left early",
+  in words.
+- Database: `supabase/migration_record_journey_departures.sql`, applied to dev and production
+  before release; schema fingerprints matched (drift check exit 0). See `docs/DECISIONS.md`
+  "Departure times, and a trip shared by the Driver and Solo".
+
 ## [2.5.0] - 2026-10-01
 
 **24-hour clock everywhere, never AM/PM**
