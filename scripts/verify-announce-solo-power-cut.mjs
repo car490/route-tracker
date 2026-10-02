@@ -64,7 +64,7 @@ const ROWS = STOPS.map((s) => ({
   days_of_week: [isoDow], school_term_time: false,
 }));
 const DEVICE_ROW = {
-  id: 'device-1', company_id: 'co-1', vehicle_id: null, label: 'Solo test', link_state: 'unlinked',
+  id: 'device-1', company_id: 'co-1', vehicle_id: 'veh-1', label: 'Solo test', link_state: 'unlinked',
   gps_source: 'internal', latest_schedule: null, latest_state: null, state_updated_at: null,
   candidate_departure_ids: ['dep-1'], match_window_before_min: 15, match_window_after_min: 30,
   terminus_radius_m: 150, testing_mode: false, config_version: 1, pairing_secret: 'not-for-the-tablet',
@@ -218,6 +218,10 @@ const SCENARIOS = {
     net.down = false;
     await page.evaluate(() => window.dispatchEvent(new Event('online')));
     checks['on reconnect the journey is created under that id'] = await until(() => seen.rpcs.some((r) => r.fn === 'get_or_create_manual_journey' && r.body.p_journey_id === tabletId));
+    // The tablet's own bus goes with it (found 2026-10-02: a Solo-first start
+    // stored the journey with no bus).
+    checks['the started journey carries the bus set on the tablet'] = seen.rpcs.some((r) => r.fn === 'get_or_create_manual_journey'
+      && r.body.p_journey_id === tabletId && r.body.p_vehicle_id === 'veh-1');
     checks['and started'] = await until(() => seen.rpcs.some((r) => r.fn === 'start_journey' && r.body.p_journey_id === tabletId));
     await context.close();
     return checks;

@@ -635,6 +635,65 @@ describe('startSoloAutopilot — power cut and no signal', () => {
     expect(queued).toEqual([{ type: 'start', journeyId: 'client-generated-id', departureId: 'dep-1' }]);
   });
 
+  // Found 2026-10-02: on 1 October Solo started the 07:27 S125S before the
+  // Driver did, sent no bus, and the journey was stored with none -- the
+  // Driver's SN06JVZ was then ignored because the journey already existed.
+  // Solo knows its own bus (announce_devices.vehicle_id), so it sends it.
+  it('sends its own bus when it starts a journey', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0));
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: vi.fn((ok) => ok(at(DEPOT.lat, DEPOT.lon))) } });
+    vi.stubGlobal('crypto', { randomUUID: () => 'client-generated-id' });
+    startAnnounceGpsTracking.mockImplementation(() => ({ stop: vi.fn(), jumpToStop: vi.fn() }));
+
+    const client = makeClient();
+    startSoloAutopilot(client, { ...BASE_DEVICE_ROW, vehicle_id: 'veh-sn06jvz' }, { onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture: vi.fn(), onJourneyEnd: vi.fn() });
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000);
+    await flush();
+
+    expect(client.rpc).toHaveBeenCalledWith('get_or_create_manual_journey', {
+      p_timetable_departure_id: 'dep-1', p_journey_id: 'client-generated-id', p_vehicle_id: 'veh-sn06jvz',
+    });
+  });
+
+  it('sends no bus when the tablet has none set', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0));
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: vi.fn((ok) => ok(at(DEPOT.lat, DEPOT.lon))) } });
+    vi.stubGlobal('crypto', { randomUUID: () => 'client-generated-id' });
+    startAnnounceGpsTracking.mockImplementation(() => ({ stop: vi.fn(), jumpToStop: vi.fn() }));
+
+    const client = makeClient();
+    startSoloAutopilot(client, BASE_DEVICE_ROW, { onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture: vi.fn(), onJourneyEnd: vi.fn() });
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000);
+    await flush();
+
+    expect(client.rpc).toHaveBeenCalledWith('get_or_create_manual_journey', {
+      p_timetable_departure_id: 'dep-1', p_journey_id: 'client-generated-id',
+    });
+  });
+
+  it('with no signal, the queued start keeps its bus', async () => {
+    vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0));
+    const candidateRows = { candidates: [{
+      departureId: 'dep-1', serviceCode: 'S125S', firstStopLat: DEPOT.lat, firstStopLon: DEPOT.lon, departureTime: '08:00',
+      daysOfWeek: [1, 2, 3, 4, 5], schoolTermTime: false, removedDates: [], addedDates: [],
+    }], termDateRanges: [] };
+    saveCandidates(['dep-1'], candidateRows, { storage, now: new Date() });
+    saveDepartureDetails('dep-1', { serviceCode: 'S125S', allStops: ROUTE }, { storage, now: new Date() });
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: vi.fn((ok) => ok(at(DEPOT.lat, DEPOT.lon))) } });
+    vi.stubGlobal('crypto', { randomUUID: () => 'client-generated-id' });
+    startAnnounceGpsTracking.mockImplementation(() => ({ stop: vi.fn(), jumpToStop: vi.fn() }));
+
+    startSoloAutopilot(offlineClient(), { ...BASE_DEVICE_ROW, vehicle_id: 'veh-sn06jvz' }, { onSchedule: vi.fn(), onState: vi.fn(), onIdleNextDeparture: vi.fn(), onJourneyEnd: vi.fn(), onSleep: vi.fn() }, { storage });
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000);
+    await flush();
+
+    const queued = JSON.parse(storage.getItem(QUEUE_KEY));
+    expect(queued).toEqual([{ type: 'start', journeyId: 'client-generated-id', departureId: 'dep-1', vehicleId: 'veh-sn06jvz' }]);
+  });
+
   it('a failed trip-end upload is kept and sent on the next retry', async () => {
     vi.setSystemTime(new Date(2026, 7, 24, 8, 0, 0));
     vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: vi.fn((ok) => ok(at(DEPOT.lat, DEPOT.lon))) } });

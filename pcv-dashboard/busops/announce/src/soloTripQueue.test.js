@@ -46,6 +46,21 @@ let storage;
 beforeEach(() => { storage = memoryStorage(); });
 
 describe('createSoloTripQueue', () => {
+  it('sends the bus with a queued start, and none when the start had none (older queued starts too)', async () => {
+    const { client, calls } = makeClient();
+    const queue = createSoloTripQueue({ client, storage });
+    queue.enqueueStart({ journeyId: 'local-1', departureId: 'dep-1', vehicleId: 'veh-1' });
+    queue.enqueueStart({ journeyId: 'local-2', departureId: 'dep-2' });
+
+    await queue.flush();
+
+    const starts = calls.filter((c) => c.name === 'get_or_create_manual_journey').map((c) => c.args);
+    expect(starts).toEqual([
+      { p_timetable_departure_id: 'dep-1', p_journey_id: 'local-1', p_vehicle_id: 'veh-1' },
+      { p_timetable_departure_id: 'dep-2', p_journey_id: 'local-2' },
+    ]);
+  });
+
   it('sends a queued start, then the trip\'s stop times and completion, in that order', async () => {
     const { client, calls } = makeClient();
     const queue = createSoloTripQueue({ client, storage });
