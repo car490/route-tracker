@@ -173,6 +173,14 @@ const SCENARIOS = {
       .every((id) => seen.stopTimes.some((r) => r.timetable_stop_id === id)));
     const stop2Rows = seen.stopTimes.filter((r) => r.timetable_stop_id === 'ts-2');
     checks['stop 2 keeps its real (pre-cut) arrival time'] = stop2Rows.length === 1 && stop2Rows[0].arrived_at === stop2Time;
+    // Departures (recorded at every stop the bus leaves, 2026-10-01): stop 1
+    // was left before the cut; stop 2 was left after it, so its departure
+    // comes from the resumed trip; the last stop is never left.
+    const rowFor = (id) => seen.stopTimes.find((r) => r.timetable_stop_id === id);
+    checks['stop 1 uploads its departure time'] = Boolean(rowFor('ts-1')?.departed_at);
+    checks['stop 2 gets its departure from after the cut'] = Boolean(stop2Rows[0]?.departed_at)
+      && stop2Rows[0].departed_at > stop2Time;
+    checks['the last stop has no departure'] = rowFor('ts-3')?.departed_at === null;
     checks['journey completed on the server'] = seen.rpcs.some((r) => r.fn === 'complete_journey' && r.body.p_journey_id === 'jrn-1');
 
     await page.click('#trip-complete-ok-btn').catch(() => {});

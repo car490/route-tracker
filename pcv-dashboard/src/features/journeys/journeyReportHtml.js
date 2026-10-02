@@ -1,5 +1,6 @@
 import { escapeHtml } from '../../shared/escapeHtml.js'
 import { formatTime, formatDateTime } from '../../shared/time/timeFormat.js'
+import { describeDeparture } from './stopDeparture.js'
 
 // Pure HTML-string-building half of JourneysPage.jsx's printReport(j, stops,
 // incidents) — extracted so it's testable with plain string assertions (no
@@ -17,7 +18,7 @@ export function buildJourneyReportHtml(j, stops, incidents, depLabelText) {
   }
   const varColour = s => s == null ? '' : s < 0 ? 'color:#F59E0B' : s > 30 ? 'color:#EF4444' : 'color:#10B981'
   const route = j.departure?.timetable?.route?.service_code ?? 'Journey'
-  const stopRows = stops.map(s => `
+  const stopRows = stops.map(s => { const dep = describeDeparture(s); return `
     <tr>
       <td>${s.timetable_stop?.sequence ?? ''}</td>
       <td>${escapeHtml(s.timetable_stop?.stop?.name ?? '—')}</td>
@@ -25,7 +26,9 @@ export function buildJourneyReportHtml(j, stops, incidents, depLabelText) {
       <td>${s.timetable_stop?.scheduled_time ?? '—'}</td>
       <td>${fmtTime(s.arrived_at)}</td>
       <td style="${varColour(s.variance_seconds)}">${fmtVariance(s.variance_seconds)}</td>
-    </tr>`).join('')
+      <td>${dep.time}</td>
+      <td>${dep.leftEarly}</td>
+    </tr>` }).join('')
   const incidentRows = incidents.map(i => `
     <tr>
       <td>${fmtTime(i.occurred_at)}</td>
@@ -58,8 +61,8 @@ export function buildJourneyReportHtml(j, stops, incidents, depLabelText) {
       <div><span>Completed</span><strong>${fmt(j.completed_at)}</strong></div>
     </div>
     <h2>Stop Times</h2>
-    <table><thead><tr><th>#</th><th>Stop</th><th>Type</th><th>Scheduled</th><th>Actual</th><th>Variance</th></tr></thead>
-      <tbody>${stopRows || '<tr><td colspan="6">No stop times recorded</td></tr>'}</tbody>
+    <table><thead><tr><th>#</th><th>Stop</th><th>Type</th><th>Scheduled</th><th>Actual</th><th>Variance</th><th>Departed</th><th>Left early</th></tr></thead>
+      <tbody>${stopRows || '<tr><td colspan="8">No stop times recorded</td></tr>'}</tbody>
     </table>
     ${incidents.length > 0 ? `
     <h2>Incidents (${incidents.length})</h2>

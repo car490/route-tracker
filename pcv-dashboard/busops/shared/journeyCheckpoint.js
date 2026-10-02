@@ -21,7 +21,7 @@
 // still handed back so main.js can queue them for upload rather than drop
 // them.
 //
-// It holds ids, stop names/times/coordinates and arrival times: no token or
+// It holds ids, stop names/times/coordinates and arrival and departure times: no token or
 // other credential. Pure, injectable storage/clock, never throws — same
 // conventions as localStore.js.
 
@@ -73,11 +73,17 @@ export function clearCheckpoint({ storage = globalThis.localStorage, key = CHECK
 
 // Stops recorded before the power cut come first and win: a stop recorded
 // twice keeps its first (real) arrival time, the same row the server's
-// record_journey_stop_times() would have kept.
+// record_journey_stop_times() would have kept. A departure the first copy
+// lacks (power lost while waiting at the stop) is taken from a later copy,
+// the same fill-in the server does; one already set is never replaced.
 export function mergeStopRows(savedRows, newRows) {
   const byStop = new Map();
   for (const row of [...(savedRows ?? []), ...(newRows ?? [])]) {
-    if (!byStop.has(row.timetable_stop_id)) byStop.set(row.timetable_stop_id, row);
+    const kept = byStop.get(row.timetable_stop_id);
+    if (!kept) byStop.set(row.timetable_stop_id, row);
+    else if (!kept.departed_at && row.departed_at) {
+      byStop.set(row.timetable_stop_id, { ...kept, departed_at: row.departed_at });
+    }
   }
   return [...byStop.values()];
 }
