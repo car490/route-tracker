@@ -3,6 +3,7 @@ import { supabase, PWA_BASE } from '../../shared/supabase'
 import { getCompanyId } from '../../shared/company'
 import Modal from '../../shared/components/Modal'
 import { buildJourneyReportHtml } from './journeyReportHtml.js'
+import { describeDeparture, mapReportStop } from './stopDeparture.js'
 import { formatTime, formatDateTime } from '../../shared/time/timeFormat.js'
 import {
   todayStr, depLabel, routeOptionsFor, timetableOptionsFor, friendlySaveError, resetJourney as resetJourneyRpc,
@@ -107,7 +108,7 @@ export default function JourneysPage() {
     const [stopRes, incidentRes, schedRes] = await Promise.all([
       supabase
         .from('journey_stop_times')
-        .select('timetable_stop_id, arrived_at, departed_at, arrival_variance_seconds, is_early_arrival')
+        .select('timetable_stop_id, arrived_at, departed_at, arrival_variance_seconds, is_early_arrival, departure_variance_seconds, is_early_departure')
         .eq('journey_id', j.id),
       supabase
         .from('journey_events')
@@ -126,20 +127,7 @@ export default function JourneysPage() {
     for (const row of schedRes.data ?? []) {
       schedMap[row.timetable_stop_id] = row
     }
-    const stops = (stopRes.data ?? []).map(st => {
-      const sched = schedMap[st.timetable_stop_id] ?? {}
-      return {
-        arrived_at:       st.arrived_at,
-        variance_seconds: st.arrival_variance_seconds,
-        is_early_arrival: st.is_early_arrival,
-        timetable_stop: {
-          sequence:       sched.sequence,
-          stop_type:      sched.stop_type,
-          scheduled_time: sched.scheduled_time,
-          stop:           { name: sched.name },
-        },
-      }
-    }).sort((a, b) => (a.timetable_stop?.sequence ?? 0) - (b.timetable_stop?.sequence ?? 0))
+    const stops = (stopRes.data ?? []).map(st => mapReportStop(st, schedMap)).sort((a, b) => (a.timetable_stop?.sequence ?? 0) - (b.timetable_stop?.sequence ?? 0))
     setReportStops(stops)
     setReportIncidents(incidentRes.data ?? [])
     setReportLoading(false)
@@ -167,7 +155,7 @@ export default function JourneysPage() {
       `Completed,${fmt(j.completed_at)}`,
       '',
       'Stop Times',
-      '#,Stop,Type,Scheduled,Actual Arrival,Variance,Early?',
+      '#,Stop,Type,Scheduled,Actual Arrival,Variance,Early?,Departed,Left Early?',
       ...stops.map(s => [
         s.timetable_stop?.sequence ?? '',
         `"${s.timetable_stop?.stop?.name ?? '—'}"`,
@@ -176,6 +164,8 @@ export default function JourneysPage() {
         fmtTime(s.arrived_at),
         fmtVariance(s.variance_seconds),
         s.is_early_arrival ? 'Yes' : 'No',
+        describeDeparture(s).time,
+        describeDeparture(s).leftEarly,
       ].join(',')),
     ]
     if (incidents.length > 0) {
@@ -481,6 +471,8 @@ export default function JourneysPage() {
                       <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--text-muted)', fontWeight: 500, width: 60 }}>Sched</th>
                       <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--text-muted)', fontWeight: 500, width: 60 }}>Actual</th>
                       <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--text-muted)', fontWeight: 500, width: 72 }}>Variance</th>
+                      <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--text-muted)', fontWeight: 500, width: 72 }}>Departed</th>
+                      <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--text-muted)', fontWeight: 500, width: 110 }}>Left early</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -488,6 +480,7 @@ export default function JourneysPage() {
                       const v      = s.variance_seconds
                       const varStr = v == null ? '—' : v === 0 ? 'On time' : `${v < 0 ? '-' : '+'}${Math.floor(Math.abs(v) / 60)}m ${Math.abs(v) % 60}s`
                       const varColour = v == null ? 'var(--text-muted)' : v < 0 ? '#F59E0B' : v > 30 ? '#EF4444' : '#10B981'
+                      const dep = describeDeparture(s)
                       return (
                         <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                           <td style={{ padding: '5px 6px', color: 'var(--text-muted)', fontSize: 11 }}>{s.timetable_stop?.sequence ?? ''}</td>
@@ -497,6 +490,8 @@ export default function JourneysPage() {
                             {formatTime(s.arrived_at)}
                           </td>
                           <td style={{ padding: '5px 6px', textAlign: 'right', fontWeight: 600, color: varColour }}>{varStr}</td>
+                          <td style={{ padding: '5px 6px', textAlign: 'right', fontFamily: 'monospace' }}>{dep.time}</td>
+                          <td style={{ padding: '5px 6px', textAlign: 'right', fontWeight: s.is_early_departure ? 600 : 400 }}>{dep.leftEarly}</td>
                         </tr>
                       )
                     })}

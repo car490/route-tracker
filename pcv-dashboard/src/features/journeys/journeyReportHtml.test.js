@@ -63,4 +63,22 @@ describe('buildJourneyReportHtml', () => {
     expect(html).toContain('S1 Outbound @ 08:00');
     expect(html).toContain('No stop times recorded');
   });
+
+  it('shows each stop departure and says in words when the bus left early', () => {
+    const j = {
+      journey_date: '2026-10-01', status: 'completed', started_at: null, completed_at: null,
+      driver: null, vehicle: null, departure: { timetable: { route: { service_code: 'S125S' } } },
+    };
+    const stops = [{
+      timetable_stop: { sequence: 15, stop: { name: 'Holbeach, adj Rowan Close' }, stop_type: 'timing_point', scheduled_time: '07:50' },
+      arrived_at: '2026-10-01T06:47:14Z', variance_seconds: -165,
+      departed_at: '2026-10-01T06:48:00Z', departure_variance_seconds: -120, is_early_departure: true,
+    }];
+    const html = buildJourneyReportHtml(j, stops, [], 'S125S');
+
+    expect(html).toContain('<th>Departed</th>');
+    expect(html).toContain('<th>Left early</th>');
+    expect(html).toContain('07:48:00');
+    expect(html).toContain('Yes, 2m 0s early');
+  });
 });

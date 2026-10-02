@@ -592,7 +592,10 @@ create table journey_events (
 --                 (visit_status = 'skipped_signal'/'skipped_detour') — the driver
 --                 app never got a real geofence entry for it, only inferred it was
 --                 bypassed when a later stop's geofence matched instead.
--- departed_at   : set only when the vehicle waited at a stop before leaving.
+-- departed_at   : when the vehicle left the stop (75 m clear of it), recorded at
+--                 every stop it leaves, not only where it waited (owner,
+--                 2026-10-01). Null for the last stop and skipped stops. Was
+--                 never sent before 2026-10-01, so older rows have none.
 -- visit_status  : 'visited' (normal geofence entry), 'skipped_signal' (1 or fewer
 --                 timing points bypassed — likely a brief GPS gap), 'skipped_detour'
 --                 (2+ timing points bypassed — likely a genuine route detour),
@@ -740,8 +743,10 @@ begin
 end;
 $$;
 
+-- Also on a filled-in departure (record_journey_stop_times), so its lateness
+-- is worked out then too (migration_record_journey_departures.sql).
 create trigger trg_compute_stop_time_variance
-  before insert on journey_stop_times
+  before insert or update of departed_at on journey_stop_times
   for each row execute function compute_stop_time_variance();
 
 
@@ -903,8 +908,12 @@ grant execute on function complete_journey(uuid) to anon;
 -- and the unique index below is partial, so neither app's old direct write
 -- ever worked. Makes the same checks as the anon_insert policy, first; rows
 -- are always stored under p_journey_id; a stop already stored is skipped, so
--- a retried upload is safe. Returns how many rows were newly stored. See
--- migration_record_journey_stop_times.sql (2026-09-29).
+-- a retried upload is safe, except that a missing departed_at is filled in
+-- (never replaced). Accepts a journey in progress, or one completed earlier
+-- the same UK day (the Driver and Solo share one journey; whichever finishes
+-- second must not be refused). Returns how many rows were stored or filled in.
+-- See migration_record_journey_stop_times.sql (2026-09-29) and
+-- migration_record_journey_departures.sql (2026-10-01).
 create or replace function public.record_journey_stop_times(p_journey_id uuid, p_rows jsonb)
 returns integer
 language plpgsql
@@ -917,7 +926,13 @@ begin
   if not public.is_jwt_journey_allowed(p_journey_id) then
     raise exception 'This duty token does not cover journey %', p_journey_id using errcode = 'insufficient_privilege';
   end if;
-  if not public.is_journey_in_progress(p_journey_id) then
+  if not exists (
+    select 1 from public.journeys j
+     where j.id = p_journey_id
+       and (j.status = 'in_progress'
+            or (j.status = 'completed'
+                and (j.completed_at at time zone 'Europe/London')::date = (now() at time zone 'Europe/London')::date))
+  ) then
     raise exception 'Journey % is not in progress', p_journey_id using errcode = 'insufficient_privilege';
   end if;
   if p_rows is null or jsonb_typeof(p_rows) <> 'array' then
@@ -927,14 +942,22 @@ begin
     raise exception 'Too many stop times in one call (% > 500)', jsonb_array_length(p_rows) using errcode = 'invalid_parameter_value';
   end if;
 
-  insert into public.journey_stop_times (journey_id, timetable_stop_id, arrived_at, visit_status)
-  select p_journey_id,
+  -- One row per stop, the first copy in the upload: ON CONFLICT DO UPDATE
+  -- refuses to touch a row twice in one statement (DO NOTHING didn't care).
+  insert into public.journey_stop_times (journey_id, timetable_stop_id, arrived_at, departed_at, visit_status)
+  select distinct on ((r->>'timetable_stop_id')::uuid)
+         p_journey_id,
          (r->>'timetable_stop_id')::uuid,
          (r->>'arrived_at')::timestamptz,
+         (r->>'departed_at')::timestamptz,
          coalesce(r->>'visit_status', 'visited')
-    from jsonb_array_elements(p_rows) as r
+    from jsonb_array_elements(p_rows) with ordinality as e(r, n)
    where nullif(r->>'timetable_stop_id', '') is not null
-  on conflict (journey_id, timetable_stop_id) where timetable_stop_id is not null do nothing;
+   order by (r->>'timetable_stop_id')::uuid, n
+  on conflict (journey_id, timetable_stop_id) where timetable_stop_id is not null
+  do update set departed_at = excluded.departed_at
+   where journey_stop_times.departed_at is null
+     and excluded.departed_at is not null;
 
   get diagnostics v_count = row_count;
 
@@ -2321,7 +2344,7 @@ returns void
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 begin
   if not public.is_jwt_journey_allowed(p_journey_id) then
     raise exception 'This duty token does not cover journey %', p_journey_id using errcode = 'insufficient_privilege';
@@ -2341,7 +2364,7 @@ begin
          row_count   = excluded.row_count,
          reported_at = now();
 end;
-$;
+$$;
 
 revoke execute on function public.report_stop_time_upload_problem(uuid, text, integer, text, integer) from public, authenticated;
 grant execute on function public.report_stop_time_upload_problem(uuid, text, integer, text, integer) to anon;

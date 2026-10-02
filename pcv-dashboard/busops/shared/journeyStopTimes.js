@@ -22,6 +22,11 @@ export function buildStopTimeRows(journeyId, stopStates, stops) {
       journey_id: journeyId,
       timetable_stop_id: stop.timetable_stop_id,
       arrived_at: s.arrivedAt ? s.arrivedAt.toISOString() : null,
+      // When gps.js saw the vehicle leave (75 m clear of the stop) -- every
+      // stop it left, not only where it waited, so "left early" can be
+      // worked out at each timing point. Null until it leaves; the last stop
+      // never has one.
+      departed_at: s.departedAt ? s.departedAt.toISOString() : null,
       visit_status: s.status === 'skipped_signal' || s.status === 'skipped_detour' ? s.status : 'visited',
     });
   }

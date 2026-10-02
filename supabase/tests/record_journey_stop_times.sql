@@ -135,38 +135,173 @@ exception
     if sqlerrm = 'rollback' then raise notice 'Rolled back test changes cleanly'; else raise exception '%', sqlerrm; end if;
 end $$;
 
--- 4. A journey that is not in progress (completed, or never started) is refused.
+-- 4. Which journeys accept stop times (supabase/migration_record_journey_departures.sql):
+--    in progress, or completed earlier the same UK day (the Driver and Solo
+--    share one journey on a bus; whichever finishes second was refused with
+--    "not in progress" and raised a false alarm, found 2026-10-01). Completed
+--    on an earlier day, cancelled, or never started: still refused.
 do $$
 declare
-  v_journey uuid;
-  v_stop    uuid;
-  v_refused boolean := false;
+  v_journey  uuid;
+  v_stop     uuid;
+  v_stop2    uuid;
+  v_status   text;
+  v_refused  boolean;
+  v_added    int;
+  v_arrived  timestamptz;
 begin
-  select j.id, ts.id into v_journey, v_stop
+  select j.id into v_journey
     from journeys j
-    join timetable_departures td on td.id = j.timetable_departure_id
-    join timetable_stops ts on ts.timetable_id = td.timetable_id
+   where j.timetable_departure_id is not null
+     and (select count(*) from timetable_stops ts join timetable_departures td on td.timetable_id = ts.timetable_id
+           where td.id = j.timetable_departure_id) >= 2
    limit 1;
-  if v_journey is null then raise notice 'SKIP: no journey with timetable stops'; return; end if;
-  update journeys set status = 'completed' where id = v_journey;
+  if v_journey is null then raise notice 'SKIP: no journey with a timetable departure of 2+ stops'; return; end if;
+  select ts.id into v_stop from timetable_stops ts join timetable_departures td on td.timetable_id = ts.timetable_id
+    join journeys j on j.timetable_departure_id = td.id where j.id = v_journey order by ts.sequence limit 1;
+  select ts.id into v_stop2 from timetable_stops ts join timetable_departures td on td.timetable_id = ts.timetable_id
+    join journeys j on j.timetable_departure_id = td.id where j.id = v_journey order by ts.sequence offset 1 limit 1;
+  delete from journey_stop_times where journey_id = v_journey;
 
+  -- The first device finished the trip a minute ago, having stored stop 1.
+  update journeys set status = 'in_progress', started_at = now() - interval '1 hour', completed_at = null where id = v_journey;
+  insert into journey_stop_times (journey_id, timetable_stop_id, arrived_at, visit_status)
+       values (v_journey, v_stop, now() - interval '50 minutes', 'visited');
+  update journeys set status = 'completed', completed_at = now() - interval '1 minute' where id = v_journey;
+  select arrived_at into v_arrived from journey_stop_times where journey_id = v_journey and timetable_stop_id = v_stop;
+
+  -- The second device uploads both stops, with a different time for stop 1.
   set local role anon;
   perform set_config('request.jwt.claims', json_build_object('role', 'anon')::text, true);
-  begin
-    perform record_journey_stop_times(v_journey, jsonb_build_array(jsonb_build_object(
-      'timetable_stop_id', v_stop, 'arrived_at', now(), 'visit_status', 'visited')));
-  exception when insufficient_privilege then v_refused := true;
-  end;
-  if not v_refused then raise exception 'FAIL: stop times were recorded on a completed journey'; end if;
+  select record_journey_stop_times(v_journey, jsonb_build_array(
+    jsonb_build_object('timetable_stop_id', v_stop,  'arrived_at', now() - interval '49 minutes', 'visit_status', 'visited'),
+    jsonb_build_object('timetable_stop_id', v_stop2, 'arrived_at', now() - interval '30 minutes', 'visit_status', 'visited')))
+    into v_added;
+  reset role;
+  if v_added <> 1 then raise exception 'FAIL: completed today: % rows stored (expected 1, the missing stop)', v_added; end if;
+  if (select arrived_at from journey_stop_times where journey_id = v_journey and timetable_stop_id = v_stop) <> v_arrived then
+    raise exception 'FAIL: the second device changed a stored arrival time';
+  end if;
+  raise notice 'PASS: a journey completed earlier today accepts only the stops it is missing';
 
-  raise notice 'PASS: a journey not in progress is refused';
+  -- Completed on an earlier UK day, cancelled, never started: refused.
+  foreach v_status in array array['completed_yesterday', 'cancelled', 'scheduled'] loop
+    if v_status = 'completed_yesterday' then
+      update journeys set status = 'completed', started_at = now() - interval '25 hours', completed_at = now() - interval '24 hours' where id = v_journey;
+    elsif v_status = 'cancelled' then
+      update journeys set status = 'cancelled', completed_at = null where id = v_journey;
+    else
+      update journeys set status = 'scheduled', completed_at = null where id = v_journey;
+    end if;
+    v_refused := false;
+    set local role anon;
+    perform set_config('request.jwt.claims', json_build_object('role', 'anon')::text, true);
+    begin
+      perform record_journey_stop_times(v_journey, jsonb_build_array(jsonb_build_object(
+        'timetable_stop_id', v_stop, 'arrived_at', now(), 'visit_status', 'visited')));
+    exception when insufficient_privilege then v_refused := true;
+    end;
+    reset role;
+    if not v_refused then raise exception 'FAIL: stop times accepted on a % journey', v_status; end if;
+  end loop;
+
+  raise notice 'PASS: completed on an earlier day, cancelled and never-started journeys are refused';
   raise exception 'rollback';
 exception
   when others then
     if sqlerrm = 'rollback' then raise notice 'Rolled back test changes cleanly'; else raise exception '%', sqlerrm; end if;
 end $$;
 
--- 5. Grants: anon may call it; dashboard users (authenticated) and PUBLIC may
+-- 5. Departure times (owner, 2026-10-01: recorded at every stop the bus leaves).
+--    Stored with their lateness; a departure missing from a stored row is
+--    filled in by a later upload (power cut, or the other device on the bus),
+--    with "left early" worked out; one already stored is never replaced.
+do $$
+declare
+  v_journey   uuid;
+  v_stop      uuid;
+  v_arrived   timestamptz := date_trunc('second', now()) - interval '10 minutes';
+  v_sched     timestamptz;
+  v_row       journey_stop_times%rowtype;
+begin
+  select j.id, ts.id into v_journey, v_stop
+    from journeys j
+    join timetable_departures td on td.id = j.timetable_departure_id
+    join timetable_stops ts on ts.timetable_id = td.timetable_id
+   where ts.stop_type = 'timing_point'
+   limit 1;
+  if v_journey is null then raise notice 'SKIP: no journey with a timing point'; return; end if;
+  update journeys set status = 'in_progress', completed_at = null where id = v_journey;
+  delete from journey_stop_times where journey_id = v_journey;
+
+  set local role anon;
+  perform set_config('request.jwt.claims', json_build_object('role', 'anon')::text, true);
+
+  -- Arrival only (saved while still at the stop, then power lost).
+  perform record_journey_stop_times(v_journey, jsonb_build_array(jsonb_build_object(
+    'timetable_stop_id', v_stop, 'arrived_at', v_arrived, 'departed_at', null, 'visit_status', 'visited')));
+  reset role;
+  select * into v_row from journey_stop_times where journey_id = v_journey and timetable_stop_id = v_stop;
+  if v_row.departed_at is not null then raise exception 'FAIL: a departure appeared from nowhere'; end if;
+  v_sched := v_arrived - make_interval(secs => v_row.arrival_variance_seconds);
+
+  -- A later upload carries the departure: 2 minutes before the timetable.
+  set local role anon;
+  perform set_config('request.jwt.claims', json_build_object('role', 'anon')::text, true);
+  perform record_journey_stop_times(v_journey, jsonb_build_array(jsonb_build_object(
+    'timetable_stop_id', v_stop, 'arrived_at', v_arrived + interval '1 minute',
+    'departed_at', v_sched - interval '2 minutes', 'visit_status', 'visited')));
+  reset role;
+  select * into v_row from journey_stop_times where journey_id = v_journey and timetable_stop_id = v_stop;
+  if v_row.departed_at is distinct from v_sched - interval '2 minutes' then
+    raise exception 'FAIL: departure not filled in (got %)', v_row.departed_at;
+  end if;
+  if v_row.arrived_at <> v_arrived then raise exception 'FAIL: filling the departure changed the arrival'; end if;
+  if v_row.departure_variance_seconds is distinct from -120 or v_row.is_early_departure is distinct from true then
+    raise exception 'FAIL: departure lateness % / left early % (expected -120 / true)', v_row.departure_variance_seconds, v_row.is_early_departure;
+  end if;
+
+  -- A third upload with a different departure changes nothing.
+  set local role anon;
+  perform set_config('request.jwt.claims', json_build_object('role', 'anon')::text, true);
+  perform record_journey_stop_times(v_journey, jsonb_build_array(jsonb_build_object(
+    'timetable_stop_id', v_stop, 'arrived_at', v_arrived, 'departed_at', v_sched + interval '5 minutes', 'visit_status', 'visited')));
+  reset role;
+  select * into v_row from journey_stop_times where journey_id = v_journey and timetable_stop_id = v_stop;
+  if v_row.departed_at <> v_sched - interval '2 minutes' then raise exception 'FAIL: a stored departure was replaced'; end if;
+
+  -- A departure sent with the first upload is stored with its lateness.
+  delete from journey_stop_times where journey_id = v_journey;
+  set local role anon;
+  perform set_config('request.jwt.claims', json_build_object('role', 'anon')::text, true);
+  perform record_journey_stop_times(v_journey, jsonb_build_array(jsonb_build_object(
+    'timetable_stop_id', v_stop, 'arrived_at', v_arrived, 'departed_at', v_sched + interval '30 seconds', 'visit_status', 'visited')));
+  reset role;
+  select * into v_row from journey_stop_times where journey_id = v_journey and timetable_stop_id = v_stop;
+  if v_row.departure_variance_seconds is distinct from 30 or v_row.is_early_departure is distinct from false then
+    raise exception 'FAIL: departure on first upload: lateness % / left early %', v_row.departure_variance_seconds, v_row.is_early_departure;
+  end if;
+
+  -- One upload naming the same stop twice: the first copy wins, no error
+  -- (ON CONFLICT DO UPDATE refuses to touch a row twice in one statement).
+  delete from journey_stop_times where journey_id = v_journey;
+  set local role anon;
+  perform set_config('request.jwt.claims', json_build_object('role', 'anon')::text, true);
+  perform record_journey_stop_times(v_journey, jsonb_build_array(
+    jsonb_build_object('timetable_stop_id', v_stop, 'arrived_at', v_arrived, 'departed_at', null, 'visit_status', 'visited'),
+    jsonb_build_object('timetable_stop_id', v_stop, 'arrived_at', v_arrived + interval '1 minute', 'departed_at', v_sched, 'visit_status', 'visited')));
+  reset role;
+  select * into v_row from journey_stop_times where journey_id = v_journey and timetable_stop_id = v_stop;
+  if v_row.arrived_at <> v_arrived then raise exception 'FAIL: duplicate stop in one upload: first arrival not kept'; end if;
+
+  raise notice 'PASS: departures stored, filled in once, never replaced, lateness worked out';
+  raise exception 'rollback';
+exception
+  when others then
+    if sqlerrm = 'rollback' then raise notice 'Rolled back test changes cleanly'; else raise exception '%', sqlerrm; end if;
+end $$;
+
+-- 6. Grants: anon may call it; dashboard users (authenticated) and PUBLIC may
 --    not; and anon still cannot read journey_stop_times (the fix adds no read
 --    access).
 do $$

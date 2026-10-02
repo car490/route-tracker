@@ -226,7 +226,7 @@ describe('startSoloAutopilot', () => {
       atStop: { stopIndex: 1 },
       approaching: null,
       stopStates: [
-        { status: 'departed', arrivedAt: new Date(2026, 7, 24, 8, 0, 30) },
+        { status: 'departed', arrivedAt: new Date(2026, 7, 24, 8, 0, 30), departedAt: new Date(2026, 7, 24, 8, 1, 0) },
         { status: 'arrived', arrivedAt },
       ],
     });
@@ -235,8 +235,8 @@ describe('startSoloAutopilot', () => {
     expect(client.recordStopTimes).toHaveBeenCalledTimes(1);
     const [rows, journeyId] = client.recordStopTimes.mock.calls[0];
     expect(rows).toEqual([
-      { journey_id: 'jrn-1', timetable_stop_id: 'ts-1', arrived_at: new Date(2026, 7, 24, 8, 0, 30).toISOString(), visit_status: 'visited' },
-      { journey_id: 'jrn-1', timetable_stop_id: 'ts-2', arrived_at: arrivedAt.toISOString(), visit_status: 'visited' },
+      { journey_id: 'jrn-1', timetable_stop_id: 'ts-1', arrived_at: new Date(2026, 7, 24, 8, 0, 30).toISOString(), departed_at: new Date(2026, 7, 24, 8, 1, 0).toISOString(), visit_status: 'visited' },
+      { journey_id: 'jrn-1', timetable_stop_id: 'ts-2', arrived_at: arrivedAt.toISOString(), departed_at: null, visit_status: 'visited' },
     ]);
     expect(journeyId).toBe('jrn-1');
   });
