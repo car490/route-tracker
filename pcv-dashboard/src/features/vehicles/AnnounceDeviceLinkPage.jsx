@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { supabase, PWA_BASE } from '../../shared/supabase'
 import { getCompanyId, getCompanyName } from '../../shared/company'
 import Modal from '../../shared/components/Modal'
+import SoloSetupModal from './SoloSetupModal'
+import { describeDeviceStatus } from './soloSetup'
 
 const EMPTY = { vehicle_id: '', label: '' }
 
@@ -19,6 +21,7 @@ export default function AnnounceDeviceLinkPage() {
   const [linkLoading, setLinkLoading] = useState(false)
   const [linkError, setLinkError] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [soloDevice, setSoloDevice] = useState(null) // device row open in the Solo set-up
 
   async function load() {
     setLoading(true)
@@ -54,6 +57,23 @@ export default function AnnounceDeviceLinkPage() {
   async function handleDelete(id) {
     if (!confirm('Remove this Announce device? Its install link will stop working.')) return
     await supabase.from('announce_devices').delete().eq('id', id)
+    load()
+  }
+
+  // Retires a device whose token may be out of the company's hands (lost,
+  // stolen, or the tablet is being reused). The token itself cannot be
+  // withdrawn (100-year expiry), so revoked_at is what stops it: checked by
+  // is_jwt_device_allowed() and the device_self policy, the sign goes dark at
+  // its next read. Kept one-way here on purpose: a revoked token is treated as
+  // seen, so a returning tablet gets a new device row and a new link.
+  async function handleRevoke(device) {
+    if (!confirm('Revoke this Announce device? The sign goes dark and its install link stops working for good. To use the tablet again, add it as a new device.')) return
+    const { error: err } = await supabase
+      .from('announce_devices')
+      .update({ revoked_at: new Date().toISOString() })
+      .eq('id', device.id)
+      .is('revoked_at', null)
+    if (err) alert(`Not revoked: ${err.message}`)
     load()
   }
 
@@ -160,10 +180,10 @@ export default function AnnounceDeviceLinkPage() {
                     <td>{d.label || '—'}</td>
                     <td style={{ fontFamily: 'monospace' }}>{d.vehicles?.registration ?? '—'}</td>
                     <td style={{ color: 'var(--text-muted)' }}>
-                      {d.link_state === 'linked' ? 'Linked to driver device (Lite)' : 'Solo'}
+                      {describeDeviceStatus(d)}
                     </td>
                     <td>
-                      {d.link_state !== 'linked' && (
+                      {d.link_state !== 'linked' && !d.revoked_at && (
                         <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
                           <input type="checkbox" checked={!!d.testing_mode} onChange={() => toggleTestingMode(d)} />
                           Testing mode
@@ -172,7 +192,15 @@ export default function AnnounceDeviceLinkPage() {
                     </td>
                     <td>
                       <div className="td-actions">
-                        <button className="btn btn-ghost btn-sm" onClick={() => generateLink(d)}>Get Install Link</button>
+                        {!d.revoked_at && d.link_state !== 'linked' && (
+                          <button className="btn btn-ghost btn-sm" onClick={() => setSoloDevice(d)}>Solo set-up</button>
+                        )}
+                        {!d.revoked_at && (
+                          <button className="btn btn-ghost btn-sm" onClick={() => generateLink(d)}>Get Install Link</button>
+                        )}
+                        {!d.revoked_at && (
+                          <button className="btn btn-danger btn-sm" onClick={() => handleRevoke(d)}>Revoke</button>
+                        )}
                         <button className="btn btn-danger btn-sm" onClick={() => handleDelete(d.id)}>Delete</button>
                       </div>
                     </td>
@@ -226,6 +254,14 @@ export default function AnnounceDeviceLinkPage() {
             </div>
           </form>
         </Modal>
+      )}
+
+      {soloDevice && (
+        <SoloSetupModal
+          device={soloDevice}
+          onClose={() => setSoloDevice(null)}
+          onSaved={() => { setSoloDevice(null); load() }}
+        />
       )}
 
       {linkDevice && (

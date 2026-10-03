@@ -1954,7 +1954,10 @@ create table if not exists public.announce_devices (
   state_updated_at  timestamptz,
 
   -- Solo-mode ("schedule-autopilot") commissioning — null/empty for
-  -- Lite/paired-mode devices, populated for Solo ones.
+  -- Lite/paired-mode devices, populated for Solo ones. Set from the
+  -- Dashboard's Solo set-up (SoloSetupModal.jsx, since 2026-10-03).
+  -- candidate_departure_ids may only hold this company's departures
+  -- (check_announce_device_candidates() trigger below).
   candidate_departure_ids  uuid[] not null default '{}',
   match_window_before_min  int not null default 15,
   match_window_after_min   int not null default 30,
@@ -1980,8 +1983,8 @@ create table if not exists public.announce_devices (
   -- rotating the shared JWT secret for the whole fleet -- see
   -- docs/SECURITY_FIXES_2026-09-17.md Item 4(b) and
   -- migration_announce_device_revocation.sql. Null (the default) means
-  -- "not revoked"; set directly via SQL, no admin UI yet (same precedent as
-  -- stops.announcement_name). Checked by is_jwt_device_allowed() and the
+  -- "not revoked"; set by the Dashboard's Revoke button on the Announce
+  -- Devices page (since 2026-10-03; was SQL only). Checked by is_jwt_device_allowed() and the
   -- device_self policy below.
   revoked_at timestamptz
 );
@@ -2013,6 +2016,44 @@ $$;
 create trigger announce_devices_bump_config_version
   before update on public.announce_devices
   for each row execute function public.bump_announce_device_config_version();
+
+-- A device may only carry its own company's departures (candidate_departure_ids
+-- has no foreign key, and every company's departures are anon-readable). See
+-- migration_announce_device_candidate_company_check.sql.
+create or replace function public.check_announce_device_candidates()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_bad uuid;
+begin
+  select c into v_bad
+  from unnest(new.candidate_departure_ids) as c
+  where not exists (
+    select 1
+    from public.timetable_departures td
+    join public.timetables t on t.id = td.timetable_id
+    join public.routes r     on r.id = t.route_id
+    where td.id = c and r.company_id = new.company_id
+  )
+  limit 1;
+
+  if v_bad is not null then
+    raise exception 'departure % is not one of this company''s departures', v_bad
+      using errcode = 'check_violation';
+  end if;
+  return new;
+end;
+$$;
+
+revoke execute on function public.check_announce_device_candidates() from public;
+
+drop trigger if exists announce_devices_check_candidates on public.announce_devices;
+create trigger announce_devices_check_candidates
+  before insert or update of candidate_departure_ids, company_id on public.announce_devices
+  for each row execute function public.check_announce_device_candidates();
 
 grant select on public.announce_devices to anon;
 grant all    on public.announce_devices to authenticated;

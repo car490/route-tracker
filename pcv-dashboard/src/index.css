@@ -668,6 +668,17 @@ tr:hover td { background: #F5F7FA; }
   margin-bottom: 16px;
 }
 
+/* A warning to read before going on (Announce Solo set-up). Words carry it
+   too ("Check before saving"), never the colour alone. */
+.warning-msg {
+  background: #FEF3E6;
+  color: #A05A10;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
 /* ── Duty Matrix ───────────────────────────────────────────── */
 .duty-matrix-wrap { overflow-x: auto; margin-bottom: 20px; }
 
