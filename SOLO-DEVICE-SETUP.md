@@ -28,6 +28,10 @@
 > hotspot) for any reboot-survival check**, so the device has something to
 > actually load when it comes back up regardless of USB/adb state.
 
+> **Commissioning a Solo sign end to end** (office, bench, vehicle, first
+> trip, handover, retiring) is `docs/SOLO-COMMISSIONING.md`. This file is the
+> tablet-level reference it points to.
+
 Fixed, always-on **BusOps Announce** installs for the Controller-less tiers
 (Lite: paired to a Driver device; Solo: driverless schedule-autopilot — see
 `docs/ANNOUNCE-PRODUCT-TIERS.md`). This is a different device class from
@@ -173,9 +177,10 @@ get the device onto real WiFi (even a phone hotspot) or a SIM instead —
 real, network-independent dev-Supabase target once the device has its own
 connectivity, with no tether/tunnel fragility at all.
 
-## The LEVIRTU 14" tablet (beta unit)
+## The LEVIRTU 14" tablet
 
-The physical unit sourced for the Solo beta: **LEVIRTU 14" Android tablet**
+The tablet in use for Solo (first sourced for the beta, 2026-09-01; the
+findings below are from that first set-up session): **LEVIRTU 14" Android tablet**
 — actual OEM/model identifies itself as **PIXGOOD M328-EEA**, Android 16
 (SDK 36), 1200×1920 native panel resolution, no SIM inserted as shipped
 (confirmed via `adb shell getprop`; this is a common rebadging pattern for
@@ -242,7 +247,7 @@ a local dev server). Real findings from that session, not guesses:
 
 ## Retiring this
 
-Same as `CAB-DEVICE-SETUP.md` — no server-side registration to clean up on
-the device side (deleting the `announce_devices` row itself, from the
-dashboard, is the actual retirement step; the physical device just gets
-wiped/repurposed).
+**Revoke** it on the Dashboard's Announce Devices page (sets `revoked_at`;
+the install link stops working for good), restart the tablet so the sign
+goes dark, then factory-reset it before reuse. Full steps:
+`docs/SOLO-COMMISSIONING.md` "Retiring a sign".

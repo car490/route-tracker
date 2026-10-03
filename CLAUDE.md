@@ -328,8 +328,9 @@ assuming it's dead code. Follow this same pattern (an `is_jwt_*_allowed()` check
 body's first statement) for any new anon-callable RPC that mutates a row by id. Also added
 `announce_devices.revoked_at`, checked by the same helper and the `device_self` RLS policy, so
 a single leaked/compromised device token can be revoked without rotating the shared JWT secret
-for the whole fleet — set directly via SQL, no admin UI (same precedent as
-`stops.announcement_name`).
+for the whole fleet — set by the Dashboard's **Revoke** button on Announce Devices (since
+2026-10-03; was SQL only). A Solo sign's departures are set there too (**Solo set-up**); the full
+procedure for putting a Solo sign into service is `docs/SOLO-COMMISSIONING.md`.
 
 ---
 

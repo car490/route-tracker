@@ -463,13 +463,15 @@ Only safe for routes whose start/end stops don't overlap with any other
 service (see the doc's "hard precondition") — the seeded S125S route is a
 reasonable stand-in for testing.
 
-1. In Supabase SQL Editor, configure the device's candidates directly (no
-   dashboard UI for this yet either):
-   ```sql
-   update announce_devices
-   set candidate_departure_ids = array['<timetable_departures.id>']
-   where id = '<announce_devices.id>';
-   ```
+1. Dashboard → Announce Devices → **Solo set-up** on the device's row: tick
+   the departure, keep the defaults, save (since 2026-10-03; the SQL
+   equivalent still works on dev:
+   `update announce_devices set candidate_departure_ids = array['<timetable_departures.id>'] where id = '<announce_devices.id>';`).
+   Check the warnings: tick two departures from the same first stop within
+   45 minutes of each other on a shared day and it must warn; another of
+   your services starting at that stop must warn too. Try to save a
+   departure id from another company by SQL (as `authenticated`): it must be
+   refused (`supabase/tests/announce_device_candidate_company.sql`).
 2. No separate active-window table to configure any more (dropped
    2026-09-04 — see `docs/ANNOUNCE-PRODUCT-TIERS.md`'s simplification
    writeup): the device wakes to poll its own GPS only within

@@ -62,12 +62,14 @@ export default function AnnounceDeviceLinkPage() {
 
   // Retires a device whose token may be out of the company's hands (lost,
   // stolen, or the tablet is being reused). The token itself cannot be
-  // withdrawn (100-year expiry), so revoked_at is what stops it: checked by
-  // is_jwt_device_allowed() and the device_self policy, the sign goes dark at
-  // its next read. Kept one-way here on purpose: a revoked token is treated as
-  // seen, so a returning tablet gets a new device row and a new link.
+  // withdrawn (100-year expiry), so revoked_at is what stops it: refused at
+  // once by is_jwt_device_allowed() and the device_self policy. A sign already
+  // running keeps its screen until it next starts up, then sleeps
+  // (announceDeviceFeed.js); docs/SOLO-COMMISSIONING.md says to restart it.
+  // Kept one-way here on purpose: a revoked token is treated as seen, so a
+  // returning tablet gets a new device row and a new link.
   async function handleRevoke(device) {
-    if (!confirm('Revoke this Announce device? The sign goes dark and its install link stops working for good. To use the tablet again, add it as a new device.')) return
+    if (!confirm('Revoke this Announce device? Its install link stops working for good, and the sign goes dark the next time it starts up (restart it to make that happen now). To use the tablet again, add it as a new device.')) return
     const { error: err } = await supabase
       .from('announce_devices')
       .update({ revoked_at: new Date().toISOString() })

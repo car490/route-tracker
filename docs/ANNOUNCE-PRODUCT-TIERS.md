@@ -538,13 +538,15 @@ earlier draft.**
   actually trigger a link yet; linking today is a manual
   `select link_announce_device(...)` SQL call (`docs/TESTING.md` §17).
   This is the one piece of the Lite (paired) scenario still missing a UI.
-- **Dashboard UI for Solo commissioning** — `AnnounceDeviceLinkPage.jsx`
-  covers device registration, install-link generation, and a testing-mode
-  toggle, but there's no UI yet for setting a Solo device's
-  `candidate_departure_ids`/`match_window_before_min`/
-  `match_window_after_min`/`terminus_radius_m` — SQL only for now
-  (`docs/TESTING.md` §17). Deliberately deferred past the beta per an
-  explicit user decision 2026-09-01. (No longer also blocked on a UI for
+- ~~**Dashboard UI for Solo commissioning**~~ — **built 2026-10-03**:
+  Announce Devices → **Solo set-up** (`SoloSetupModal.jsx`, logic and
+  warnings in `soloSetup.js`) sets `candidate_departure_ids`/
+  `match_window_before_min`/`match_window_after_min`/`terminus_radius_m`,
+  warns about shared start/end stops and departures it can't tell apart,
+  and **Revoke** sets `revoked_at`. A trigger refuses another company's
+  departure ids (`migration_announce_device_candidate_company_check.sql`).
+  Full procedure: `docs/SOLO-COMMISSIONING.md`. (Was deferred past the beta,
+  user decision 2026-09-01.) (No longer also blocked on a UI for
   `announce_device_active_windows` — that table was dropped 2026-09-04, see
   below.)
 - The general Solo case (routes that *do* share stops with
